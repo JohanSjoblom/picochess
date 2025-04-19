@@ -1044,6 +1044,8 @@ async def main() -> None:
                 msg = Message.ENGINE_NAME(engine_name=self.state.engine_text)
                 await DisplayMsg.show(msg)
 
+            self.background_analyse_timer.start()  # always run in background
+
         async def think(
             self,
             msg: Message,
@@ -2816,10 +2818,6 @@ async def main() -> None:
                 # optimisation, dont ask for ponder unless needed
                 ponder_mode = True if self.state.interaction_mode == Mode.BRAIN else False
                 self.engine.set_mode(ponder=ponder_mode)
-                if self.state.interaction_mode in (Mode.BRAIN, Mode.TRAINING):
-                    self.background_analyse_timer.start()
-                else:
-                    self.background_analyse_timer.stop()  # Normal mode no analysis
                 # mode might have changed back to playing, activate tutor
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -2831,7 +2829,6 @@ async def main() -> None:
                     await self.state.picotutor.set_mode(not self.is_engine_playing_moves())  # always False here
             elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.OBSERVE, Mode.PONDER):
                 self.engine.set_mode()
-                self.background_analyse_timer.start()  # permanent brain in analysis mode
                 # Pico v4 allow picotutor to run also when watching
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),

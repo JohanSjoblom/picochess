@@ -1283,10 +1283,10 @@ async def main() -> None:
         def picotutor_mode(self):
             enabled = False
 
+            # issue #61 - pgn_mode shall not prevent picotutor
             if (
                 self.state.flag_picotutor
                 and not self.online_mode()
-                and not self.pgn_mode()
                 and (
                     self.state.dgtmenu.get_picowatcher()
                     or (self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
@@ -1425,6 +1425,14 @@ async def main() -> None:
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
 
+            # issue #61 - in issue #23 - PR #35 these 3 lines were wrongly removed
+            # without these lines there is no automatic replay with pgn engine
+            # switching sides makes pgn engine make the next move
+            # This might confuse the picotutor - Need to debug tutor push move
+            self.state.play_mode = (
+                PlayMode.USER_WHITE if self.state.play_mode == PlayMode.USER_BLACK else PlayMode.USER_BLACK
+            )
+            await asyncio.sleep(0.1)  # dont auto-play pgn engine moves too fast
             msg = Message.SET_PLAYMODE(play_mode=self.state.play_mode)
             await DisplayMsg.show(msg)
             msg = Message.COMPUTER_MOVE_DONE()

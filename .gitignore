@@ -100,5 +100,7 @@ etc/dgtpicom.so
 talker/voices/voices.ini
 
 # ignore engines - let user manage them
+engines/lc0_weights
+engines/maia_weights
 engines/aarch64
 engines/x86_64

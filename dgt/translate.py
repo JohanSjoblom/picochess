@@ -7706,7 +7706,7 @@ class DgtTranslate(object):
                 web_text="Restart and update Picochess",  # 30
                 large_text="Update Pico",  # 11
                 medium_text="Upd Pico",  # 8
-                small_text="UpdPc",  # 5
+                small_text="Update",  # 6
             )
             ittxt = Dgt.DISPLAY_TEXT(
                 web_text="Riavvia e aggiorna Picochess",  # 31

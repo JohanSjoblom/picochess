@@ -3396,6 +3396,12 @@ async def main() -> None:
                         pgn_white,
                         pgn_black,
                     ) = read_pgn_info()
+                    self.shared["headers"] = {
+                        "Event": pgn_game_name,
+                        "Result": pgn_result,
+                        "White": pgn_white,
+                        "Black": pgn_black,
+                    }
                     if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                         await self.set_fen_from_pgn(pgn_fen)
                         self.state.play_mode = (

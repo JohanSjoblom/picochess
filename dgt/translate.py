@@ -7703,28 +7703,28 @@ class DgtTranslate(object):
             )
         if text_id == "updt_picochess":
             entxt = Dgt.DISPLAY_TEXT(
-                web_text="Restart and update Picochess",
-                large_text="Restart and update Picochess",
-                medium_text="Rstrt/Update",
-                small_text="Rst/Upd",
+                web_text="Restart and update Picochess",  # 30
+                large_text="Update Pico",  # 11
+                medium_text="Upd Pico",  # 8
+                small_text="UpdPc",  # 5
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Riavvia e aggiorna Picochess",
-                large_text="Riavvia e aggiorna Picochess",
-                medium_text="Aggiornare",
-                small_text="Aggiorn",
+                web_text="Riavvia e aggiorna Picochess",  # 31
+                large_text="Aggiorna",  # 8
+                medium_text="Aggiorna",  # 8
+                small_text="Agg",  # 3
             )
             detxt = Dgt.DISPLAY_TEXT(
-                web_text="Neu starten und Aktualisieren Pico",
-                large_text="Neu starten und Aktualisieren Pico",
-                medium_text="start und update",
-                small_text="restrt/upd",
+                web_text="Neu starten und aktualisieren Pico",  # 33
+                large_text="Aktualis",  # 9
+                medium_text="Update",  # 6
+                small_text="Upd",  # 3
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Opnieuw opstarten en bijwerken",
-                large_text="Opnieuw opstarten en bijwerken",
-                medium_text="Opstart/bijwerken",
-                small_text="Update",
+                web_text="Opnieuw opstarten en bijwerken",  # 32
+                large_text="Bijwerken",  # 9
+                medium_text="Update",  # 6
+                small_text="Upd",  # 3
             )
             frtxt = entxt
             estxt = entxt

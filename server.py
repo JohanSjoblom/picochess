@@ -590,26 +590,25 @@ class WebDisplay(DisplayMsg):
         if isinstance(message, Message.START_NEW_GAME):
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
-            pgn_str = _transfer(message.game)
-            fen = message.game.fen()
-            result = {
-                "pgn": pgn_str,
-                "fen": fen,
-                "event": "Game",
-                "move": "0000",
-                "play": "newgame",
-            }
-            self.shared["last_dgt_move_msg"] = result
-            EventHandler.write_to_clients(result)
-            _build_headers()
-            _send_headers()
-            _send_title()
+            # issue 55 - dont reset headers if its not a real new game
+            if message.newgame:
+                pgn_str = _transfer(message.game)
+                fen = message.game.fen()
+                result = {
+                    "pgn": pgn_str,
+                    "fen": fen,
+                    "event": "Game",
+                    "move": "0000",
+                    "play": "newgame",
+                }
+                self.shared["last_dgt_move_msg"] = result
+                EventHandler.write_to_clients(result)
+                _build_headers()
+                _send_headers()
+                _send_title()
 
         elif isinstance(message, Message.IP_INFO):
             self.shared["ip_info"] = message.info
-            _build_headers()
-            _send_headers()
-            _send_title()
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
@@ -621,8 +620,6 @@ class WebDisplay(DisplayMsg):
                 self.shared["system_info"]["rspeed_orig"] = self.shared["system_info"]["rspeed"]
             if "user_name" in self.shared["system_info"]:
                 self.shared["system_info"]["user_name_orig"] = self.shared["system_info"]["user_name"]
-            _build_headers()
-            _send_headers()
 
         elif isinstance(message, Message.ENGINE_STARTUP):
             for index in range(0, len(message.installed_engines)):
@@ -719,8 +716,6 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
-            _build_headers()
-            _send_headers()
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             # result = {'event': 'Status', 'msg': 'Error clock'}

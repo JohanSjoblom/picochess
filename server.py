@@ -461,7 +461,8 @@ class WebDisplay(DisplayMsg):
         if "headers" not in self.shared:
             self.shared["headers"] = OrderedDict()
 
-    def _build_game_header(self, pgn_game: chess.pgn.Game):
+    def _build_game_header(self, pgn_game: chess.pgn.Game, keep_these_headers: dict = None):
+        """Build the game headers for the current game"""
         if WebDisplay.result_sav:
             pgn_game.headers["Result"] = WebDisplay.result_sav
         pgn_game.headers["Event"] = "PicoChess game"
@@ -543,6 +544,9 @@ class WebDisplay(DisplayMsg):
                 pgn_game.headers["Site"] = self.shared["ip_info"]["location"]
 
         pgn_game.headers["Time"] = self.starttime
+        # issue 55 - keep headers if existing valid header is given
+        if keep_these_headers is not None:
+            pgn_game.headers.update(keep_these_headers)
 
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""
@@ -572,11 +576,8 @@ class WebDisplay(DisplayMsg):
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
             pgn_game = pgn.Game().from_board(game)
-            # if keep_these_headers is None:
-            self._build_game_header(pgn_game)
+            self._build_game_header(pgn_game, keep_these_headers)
             self.shared["headers"] = pgn_game.headers
-            # else:
-            # self.shared["headers"].update(keep_these_headers)  # overwrite with the ones to keep
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
 
         def peek_uci(game: chess.Board):
@@ -701,7 +702,8 @@ class WebDisplay(DisplayMsg):
             _send_headers()
 
         elif isinstance(message, Message.PLAY_MODE):
-            if "PGN Replay" not in WebDisplay.engine_name:
+            # issue 55 - dont reset headers when switching sides in PGN engine replay
+            if "PGN" != WebDisplay.engine_name:
                 self._create_game_info()
                 self.shared["game_info"]["play_mode"] = message.play_mode
                 _build_headers()

@@ -1434,7 +1434,6 @@ async def main() -> None:
             self.state.play_mode = (
                 PlayMode.USER_WHITE if self.state.play_mode == PlayMode.USER_BLACK else PlayMode.USER_BLACK
             )
-            await asyncio.sleep(2.0)  # allow time for picotutor to analyse moves
             msg = Message.SET_PLAYMODE(play_mode=self.state.play_mode)
             await DisplayMsg.show(msg)
             msg = Message.COMPUTER_MOVE_DONE()

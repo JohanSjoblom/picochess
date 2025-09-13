@@ -399,9 +399,6 @@ def newgame():
 
     game_started = True
 
-    if p_audio_comment:
-        play_audio()
-
     if log_p:
 
         if l_continue:
@@ -688,10 +685,12 @@ while True:
                     log.write("game_counter %s\n" % str(game_counter))
                     log.flush()
 
-            ##start engine
-            if p_engine_path != "" and p_think_time > 0:
-
+            if p_think_time > 0:
                 think_time = p_think_time * 1000
+
+            # start audio already here at isready instead of newgame
+            if p_audio_comment:
+                play_audio()
 
             if is_uci:
                 print2("id name %s" % engine_name)
@@ -701,6 +700,8 @@ while True:
             pass
 
         elif line[:2] == "go":
+            if think_time:
+                time.sleep(think_time / 1000)
             pub_move()
 
         elif line == "force":

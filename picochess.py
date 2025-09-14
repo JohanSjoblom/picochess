@@ -1435,8 +1435,6 @@ async def main() -> None:
                 PlayMode.USER_WHITE if self.state.play_mode == PlayMode.USER_BLACK else PlayMode.USER_BLACK
             )
             msg = Message.SET_PLAYMODE(play_mode=self.state.play_mode)
-            await DisplayMsg.show(msg)
-            msg = Message.COMPUTER_MOVE_DONE()
 
             if self.state.time_control.mode == TimeMode.FIXED:
                 self.state.time_control.reset()

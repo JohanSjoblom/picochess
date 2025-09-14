@@ -90,7 +90,7 @@ from eboard.ichessone.board import IChessOneBoard
 from eboard.certabo.board import CertaboBoard
 from picotutor import PicoTutor
 
-FLOAT_MIN_BACKGROUND_TIME = 1.5  # dont update analysis more often than this
+FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
 FLOAT_MAX_ANALYSIS_DEPTH = 28  # the famous limit of deep blue?

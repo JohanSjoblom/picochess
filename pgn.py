@@ -582,6 +582,9 @@ class PgnDisplay(DisplayMsg):
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
+        # preserve headers
+        pgn_game.headers.update(self.shared["headers"])
+
         # Save to last game file
         with open(self.last_file_name, "w") as last_file:
             last_exporter = chess.pgn.FileExporter(last_file)
@@ -601,6 +604,9 @@ class PgnDisplay(DisplayMsg):
 
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
+
+        # preserve headers
+        pgn_game.headers.update(self.shared["headers"])
 
         with open(l_file_name, "w") as file:
             exporter = chess.pgn.FileExporter(file)

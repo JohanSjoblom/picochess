@@ -1108,9 +1108,12 @@ async def main() -> None:
                             logger.debug("ignored engine move - takeback or state change forced move")
                         else:
                             move = engine_res.move if engine_res.move != chess.Move.null() else None
+                            if self.pgn_mode() and move:
+                                # issue 61 - pgn_engine uses tutor analysis info and ponder move
+                                engine_res = await self.state.picotutor.get_analysis_result(move)
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=engine_res.ponder, inbook=False))
                             if engine_res.info:
-                                # send pv, score, not pv as its old pv[1] and sent by BEST_MOVE
+                                # send pv, score, not pv as it's sent by BEST_MOVE above
                                 await self.send_analyse(engine_res.info, False)
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
@@ -2378,12 +2381,11 @@ async def main() -> None:
             info_list: list[InfoDict] = None
             # @todo remove intermediate/temporary solution which is the 2nd part after "or" below:
             # engine_playing_moves and not user_turn and can_use_coach_analyser() and user allowed it
-            # issue 61 - PGN Replay engine needs to be analysed by tutor
             if (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser()) or (
                 self.eng_plays()
                 and not self.state.is_user_turn()
                 and self.state.picotutor.can_use_coach_analyser()
-                and (self.always_run_tutor or "PGN Replay" in self.engine.get_long_name())
+                and self.always_run_tutor
             ):
                 result = await self.state.picotutor.get_analysis()  # use tutor
                 info_list: list[InfoDict] = result.get("info")

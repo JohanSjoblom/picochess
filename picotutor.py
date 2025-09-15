@@ -26,7 +26,7 @@ from typing import Tuple
 import platform
 import asyncio
 import chess  # type: ignore
-from chess.engine import InfoDict, Limit
+from chess.engine import InfoDict, Limit, PlayResult
 import chess.engine
 import chess.pgn
 from uci.engine import UciShell, UciEngine
@@ -771,6 +771,33 @@ class PicoTutor:
     def sort_score(self, tupel):
         """define score:int as sort key"""
         return tupel[2]
+
+    def _find_user_move_index(self, info_list: list[InfoDict], user_move: chess.Move) -> int | None:
+        """find the index of user_move in the list of InfoDict
+        return None if not found"""
+        index = 0  # look for the list item where pv[0] == user_move
+        for info in info_list:
+            if "pv" in info:
+                if info["pv"]:
+                    if info["pv"][0] == user_move:
+                        return index
+            index = index + 1
+        return None
+
+    async def get_analysis_result(self, move: chess.Move) -> PlayResult:
+        """returns ponder and Info that matches the input move
+        The returned PlayResult.move is always the input move"""
+        result = PlayResult(move=move, ponder=None, info=None)
+        if move and self.can_use_coach_analyser():
+            analysis_result = await self.get_analysis()
+            info_list: list[InfoDict] = analysis_result.get("info")
+            if info_list:
+                user_move_index = self._find_user_move_index(info_list, move)
+                if user_move_index is not None:
+                    result.info = info_list[user_move_index]  # pv line matching user move
+                    if "pv" in result.info and len(result.info["pv"]) > 1:
+                        result.ponder = result.info["pv"][1]  # 0 is user move, 1 is ponder
+        return result
 
     @staticmethod
     def get_score(info: InfoDict, turn: chess.Color = chess.WHITE) -> tuple:

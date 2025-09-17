@@ -1108,13 +1108,17 @@ async def main() -> None:
                             logger.debug("ignored engine move - takeback or state change forced move")
                         else:
                             move = engine_res.move if engine_res.move != chess.Move.null() else None
+                            ponder_move = engine_res.ponder
+                            info: InfoDict | None = engine_res.info
                             if self.pgn_mode() and move:
-                                # issue 61 - pgn_engine uses tutor analysis info and ponder move
-                                engine_res = await self.state.picotutor.get_analysis_result(move)
-                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=engine_res.ponder, inbook=False))
-                            if engine_res.info:
+                                # issue 61 - pgn_engine uses tutor to override the ponder and info
+                                tutor_res = await self.state.picotutor.get_analysis_ponder_for_move(move)
+                                ponder_move = tutor_res.ponder
+                                info = tutor_res.info
+                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
+                            if info:
                                 # send pv, score, not pv as it's sent by BEST_MOVE above
-                                await self.send_analyse(engine_res.info, False)
+                                await self.send_analyse(info, False)
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await Observable.fire(Event.BEST_MOVE(move=None, ponder=None, inbook=False))

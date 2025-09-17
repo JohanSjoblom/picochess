@@ -784,7 +784,7 @@ class PicoTutor:
             index = index + 1
         return None
 
-    async def get_analysis_result(self, move: chess.Move) -> PlayResult:
+    async def get_analysis_ponder_for_move(self, move: chess.Move) -> PlayResult:
         """returns ponder and Info that matches the input move
         The returned PlayResult.move is always the input move"""
         result = PlayResult(move=move, ponder=None, info=None)
@@ -797,6 +797,20 @@ class PicoTutor:
                     result.info = info_list[user_move_index]  # pv line matching user move
                     if "pv" in result.info and len(result.info["pv"]) > 1:
                         result.ponder = result.info["pv"][1]  # 0 is user move, 1 is ponder
+        return result
+
+    async def get_analysis_best_move(self) -> PlayResult:
+        """returns best move, Info, and ponder move"""
+        result = PlayResult(move=None, ponder=None, info=None)
+        if self.can_use_coach_analyser():
+            analysis_result = await self.get_analysis()
+            info_list: list[InfoDict] = analysis_result.get("info")
+            if info_list:
+                result.info = info_list[0]  # best line
+                if "pv" in result.info and len(result.info["pv"]) > 0:
+                    result.move = result.info["pv"][0]  # best move
+                    if len(result.info["pv"]) > 1:
+                        result.ponder = result.info["pv"][1]  # 1 is ponder
         return result
 
     @staticmethod

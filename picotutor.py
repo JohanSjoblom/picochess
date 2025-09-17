@@ -784,8 +784,8 @@ class PicoTutor:
             index = index + 1
         return None
 
-    async def get_analysis_ponder_for_move(self, move: chess.Move) -> PlayResult:
-        """returns ponder and Info that matches the input move
+    async def get_analysis_chosen_move(self, move: chess.Move) -> PlayResult:
+        """returns ponder and Info that matches the chosen input move
         The returned PlayResult.move is always the input move"""
         result = PlayResult(move=move, ponder=None, info=None)
         if move and self.can_use_coach_analyser():

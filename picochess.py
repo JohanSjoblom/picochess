@@ -1112,7 +1112,7 @@ async def main() -> None:
                             info: InfoDict | None = engine_res.info
                             if self.pgn_mode() and move:
                                 # issue 61 - pgn_engine uses tutor to override the ponder and info
-                                tutor_res = await self.state.picotutor.get_analysis_ponder_for_move(move)
+                                tutor_res = await self.state.picotutor.get_analysis_chosen_move(move)
                                 ponder_move = tutor_res.ponder
                                 info = tutor_res.info
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))

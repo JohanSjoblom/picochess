@@ -454,7 +454,6 @@ class UciEngine(object):
         self.transport = None  # find out correct type
         self.engine: UciProtocol | None = None
         self.engine_name = "NN"
-        self.eng_long_name = "NN"
         self.options: dict = {}
         self.res: PlayResult = None
         self.level_support = False
@@ -478,10 +477,7 @@ class UciEngine(object):
             )
             if self.engine:
                 if "name" in self.engine.id:
-                    self.engine_name = self.eng_long_name = self.engine.id["name"]
-                    i = self.engine_name.find(" ")
-                    if i != -1:
-                        self.engine_name = self.engine_name[:i]
+                    self.engine_name = self.engine.id["name"]
             else:
                 logger.error("engine executable %s not found", self.file)
         except OSError:
@@ -496,12 +492,8 @@ class UciEngine(object):
         return self.engine is not None
 
     def get_name(self) -> str:
-        """Get engine display name. Shorter version"""
+        """Get engine name that was reported by engine"""
         return self.engine_name
-
-    def get_long_name(self) -> str:
-        """Get full engine name - usually contains version info"""
-        return self.eng_long_name
 
     def get_options(self):
         """Get engine options."""

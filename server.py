@@ -461,7 +461,8 @@ class WebDisplay(DisplayMsg):
         if "headers" not in self.shared:
             self.shared["headers"] = OrderedDict()
 
-    def _build_game_header(self, pgn_game: chess.pgn.Game):
+    def _build_game_header(self, pgn_game: chess.pgn.Game, keep_these_headers: dict = None):
+        """Build the game headers for the current game"""
         if WebDisplay.result_sav:
             pgn_game.headers["Result"] = WebDisplay.result_sav
         pgn_game.headers["Event"] = "PicoChess game"
@@ -543,6 +544,9 @@ class WebDisplay(DisplayMsg):
                 pgn_game.headers["Site"] = self.shared["ip_info"]["location"]
 
         pgn_game.headers["Time"] = self.starttime
+        # issue 55 - keep headers if existing valid header is given
+        if keep_these_headers is not None:
+            pgn_game.headers.update(keep_these_headers)
 
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""
@@ -572,11 +576,8 @@ class WebDisplay(DisplayMsg):
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
             pgn_game = pgn.Game().from_board(game)
-            # if keep_these_headers is None:
-            self._build_game_header(pgn_game)
+            self._build_game_header(pgn_game, keep_these_headers)
             self.shared["headers"] = pgn_game.headers
-            # else:
-            # self.shared["headers"].update(keep_these_headers)  # overwrite with the ones to keep
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
 
         def peek_uci(game: chess.Board):
@@ -590,26 +591,25 @@ class WebDisplay(DisplayMsg):
         if isinstance(message, Message.START_NEW_GAME):
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
-            pgn_str = _transfer(message.game)
-            fen = message.game.fen()
-            result = {
-                "pgn": pgn_str,
-                "fen": fen,
-                "event": "Game",
-                "move": "0000",
-                "play": "newgame",
-            }
-            self.shared["last_dgt_move_msg"] = result
-            EventHandler.write_to_clients(result)
-            _build_headers()
-            _send_headers()
-            _send_title()
+            # issue 55 - dont reset headers if its not a real new game
+            if message.newgame:
+                pgn_str = _transfer(message.game)
+                fen = message.game.fen()
+                result = {
+                    "pgn": pgn_str,
+                    "fen": fen,
+                    "event": "Game",
+                    "move": "0000",
+                    "play": "newgame",
+                }
+                self.shared["last_dgt_move_msg"] = result
+                EventHandler.write_to_clients(result)
+                _build_headers()
+                _send_headers()
+                _send_title()
 
         elif isinstance(message, Message.IP_INFO):
             self.shared["ip_info"] = message.info
-            _build_headers()
-            _send_headers()
-            _send_title()
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
@@ -621,8 +621,6 @@ class WebDisplay(DisplayMsg):
                 self.shared["system_info"]["rspeed_orig"] = self.shared["system_info"]["rspeed"]
             if "user_name" in self.shared["system_info"]:
                 self.shared["system_info"]["user_name_orig"] = self.shared["system_info"]["user_name"]
-            _build_headers()
-            _send_headers()
 
         elif isinstance(message, Message.ENGINE_STARTUP):
             for index in range(0, len(message.installed_engines)):
@@ -704,6 +702,7 @@ class WebDisplay(DisplayMsg):
             _send_headers()
 
         elif isinstance(message, Message.PLAY_MODE):
+            # issue 55 - dont reset headers when switching sides in PGN engine replay
             if "PGN Replay" not in WebDisplay.engine_name:
                 self._create_game_info()
                 self.shared["game_info"]["play_mode"] = message.play_mode
@@ -719,8 +718,6 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
-            _build_headers()
-            _send_headers()
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             # result = {'event': 'Status', 'msg': 'Error clock'}

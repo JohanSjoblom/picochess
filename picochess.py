@@ -2330,7 +2330,7 @@ async def main() -> None:
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
-            result = not self.eng_plays() and self.engine.get_long_name() == self.state.picotutor.get_eng_long_name()
+            result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
             return result
 
         def need_engine_analyser(self) -> bool:
@@ -2348,7 +2348,7 @@ async def main() -> None:
             # issue 61 - PGN engine moves need to be analysed by tutor - added consider_pgn param
             return bool(
                 self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
-                and (consider_pgn or "PGN Replay" not in self.engine.get_long_name())
+                and (consider_pgn or "PGN Replay" not in self.engine.get_name())
             )
 
         async def get_rid_of_engine_move(self):
@@ -3420,12 +3420,6 @@ async def main() -> None:
                         pgn_white,
                         pgn_black,
                     ) = read_pgn_info()
-                    self.shared["headers"] = {
-                        "Event": pgn_game_name,
-                        "Result": pgn_result,
-                        "White": pgn_white,
-                        "Black": pgn_black,
-                    }
                     if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                         await self.set_fen_from_pgn(pgn_fen)
                         self.state.play_mode = (

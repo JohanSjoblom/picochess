@@ -786,7 +786,7 @@ class UciEngine(object):
                 # but: issue #72 at least mame engines need ucinewgame to be sent
                 # we force it here and to avoid breaking read_pgn_file I added a default parameter
                 # due to errors with readyok response crash issue #78 restrict to mame
-                if self.is_mame and send_ucinewgame:
+                if (self.is_mame or "PGN Replay" in self.engine_name) and send_ucinewgame:
                     # most calls except read_pgn_file newgame, and load new engine
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine

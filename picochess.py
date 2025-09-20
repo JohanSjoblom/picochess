@@ -3294,8 +3294,9 @@ async def main() -> None:
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
                     self.state.play_mode = PlayMode.USER_WHITE
-                    # issue #72 - avoid problems by not sending newgame to new engine
-                    await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
+                    # issue #61 - pgn_engine needs newgame at this point for pgn_game_info file
+                    await self.engine.newgame(self.state.game.copy())
+                    await asyncio.sleep(0.5)  # give pgn_engine time to write the pgn_game_info file
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()

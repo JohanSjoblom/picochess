@@ -703,7 +703,7 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.PLAY_MODE):
             # issue 55 - dont reset headers when switching sides in PGN engine replay
-            if "PGN" != WebDisplay.engine_name:
+            if "PGN Replay" not in WebDisplay.engine_name:
                 self._create_game_info()
                 self.shared["game_info"]["play_mode"] = message.play_mode
                 _build_headers()

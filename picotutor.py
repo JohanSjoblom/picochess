@@ -180,9 +180,9 @@ class PicoTutor:
             engine = None
         return engine
 
-    def get_eng_long_name(self):
+    def get_engine_name(self):
         """return the full engine name as used by picotutor"""
-        return self.best_engine.get_long_name() if self.best_engine else "no engine"
+        return self.best_engine.get_name() if self.best_engine else "no engine"
 
     async def set_mode(self, analyse_both_sides: bool, deep_limit_depth: int = None):
         """normally analyse_both_sides is False but if True both sides will be analysed

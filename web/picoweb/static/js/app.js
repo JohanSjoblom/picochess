@@ -1323,10 +1323,78 @@ function formatEngineOutput(line) {
         output += '</div></div>';
 
         analysis_game = null;
+        
+        // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
+        if (multipv === 1) {
+            updateEvaluationBar(score);
+        }
+        
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
         return line;
+    }
+}
+
+// Función para actualizar la barra de evaluación horizontal
+function updateEvaluationBar(score) {
+    if (!score || score === '?') return;
+    
+    var numericScore = 0;
+    var isMate = false;
+    
+    if (String(score).includes('#')) {
+        isMate = true;
+        var mateIn = parseInt(score.replace('#', ''));
+        numericScore = mateIn > 0 ? 50 : -50; // Valor completo para mate
+    } else {
+        numericScore = parseFloat(score);
+    }
+    
+    var fillElement = $('#evaluationFill');
+    var valueElement = $('#evaluationValue');
+    
+    if (isMate) {
+        // Para mate, llenar completamente la barra
+        if (numericScore > 0) {
+            fillElement.removeClass('negative');
+            fillElement.css({
+                'left': '50%',
+                'width': '50%'
+            });
+        } else {
+            fillElement.addClass('negative');
+            fillElement.css({
+                'left': '0%',
+                'width': '50%'
+            });
+        }
+    } else {
+        numericScore = Math.max(-8, Math.min(8, numericScore));
+        
+        if (numericScore >= 0) {
+            // Ventaja blancas - llenar hacia la derecha desde el centro
+            fillElement.removeClass('negative');
+            fillElement.css({
+                'left': '50%',
+                'width': ((numericScore / 8) * 50) + '%'
+            });
+        } else {
+            // Ventaja negras - llenar hacia la izquierda desde el centro
+            fillElement.addClass('negative');
+            fillElement.css({
+                'left': (50 + (numericScore / 8) * 50) + '%',
+                'width': ((-numericScore / 8) * 50) + '%'
+            });
+        }
+    }
+    
+    // Mostrar el valor original del motor, no el limitado
+    var originalScore = parseFloat(score);
+    if (isMate) {
+        valueElement.text(score);
+    } else {
+        valueElement.text(originalScore.toFixed(1));
     }
 }
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -1402,6 +1470,11 @@ function importPv(multipv) {
 }
 
 function analyzePressed() {
+    if ($('#AnalyzeText').text() === 'Analyze') {
+        $('#evaluationBar').show();
+    } else {
+        $('#evaluationBar').hide();
+    }
     analyze(false);
 }
 
@@ -1445,6 +1518,10 @@ function stopAnalysis() {
             console.warn(err);
         }
     }
+    // Ocultar la barra de evaluación cuando se detiene el análisis
+    if (!window.analysis) {
+        $('#evaluationBar').hide();
+    }
 }
 
 function getCountPrevMoves(node) {
@@ -1486,6 +1563,7 @@ function analyze(position_update) {
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
+            $('#evaluationBar').hide();
             return;
         }
     }

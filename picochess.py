@@ -2451,10 +2451,8 @@ async def main() -> None:
                     l_pgn_file_name = "last_game.pgn"
                     await self.read_pgn_file(l_pgn_file_name)
 
-                # elif False:
-                # issue #78 - this causes crash if user analyses on DGT eboard
-                #             and picochess misses one fen message (one fen skipped)
-                #             Temporary solution - avoid this elif and analyse this code
+                # issue #78 - fast moving ponder mode - commit c253f2c 15.6.2025 fixed below elif
+                # see also issue #82 - allow switching sides in all analysis modes
                 elif self.state.interaction_mode == Mode.PONDER and self.state.flag_flexible_ponder:
                     if (not self.state.newgame_happened) or self.state.flag_startup:
                         # molli: no error in analysis(ponder) mode => start new game with current fen
@@ -2473,7 +2471,6 @@ async def main() -> None:
                         bit_board.set_fen(bit_board.fen())
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
-                            # await self.stop_search_and_clock()
                             await self.engine.newgame(self.state.game.copy(), False)
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -2486,8 +2483,6 @@ async def main() -> None:
                             await asyncio.sleep(0.5)
                             msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                             await DisplayMsg.show(msg)
-                            # await self.stop_search_and_clock()
-                            # await self.analyse()
                         else:
                             # ask python-chess to correct the castling string
                             bit_board = chess.Board(fen2)
@@ -2507,8 +2502,6 @@ async def main() -> None:
                                 await asyncio.sleep(0.5)
                                 msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                                 await DisplayMsg.show(msg)
-                                # await self.stop_search_and_clock()
-                                # await self.analyse()
                             else:
                                 logger.info("wrong fen %s for 4 secs", self.state.error_fen)
                                 await DisplayMsg.show(Message.WRONG_FEN())
@@ -3923,7 +3916,8 @@ async def main() -> None:
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                         self.state.legal_fens_after_cmove = []
                         self.state.last_legal_fens = []
-                        await self.analyse()
+                        await self.analyse()  # tested in #82, and it should be before side swich
+                        # switching sides in PONDER, the only analysis mode with side switch
                         self.state.play_mode = (
                             PlayMode.USER_WHITE if self.state.game.turn == chess.WHITE else PlayMode.USER_BLACK
                         )
@@ -3952,7 +3946,7 @@ async def main() -> None:
                         self.state.done_move = self.state.pb_move = chess.Move.null()
                     else:
                         move = chess.Move.null()  # not really needed
-
+                    # switching sides in engine plays modes
                     self.state.play_mode = (
                         PlayMode.USER_WHITE if self.state.play_mode == PlayMode.USER_BLACK else PlayMode.USER_BLACK
                     )
@@ -3993,9 +3987,9 @@ async def main() -> None:
                     cond2 = self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_WHITE
                     if cond1 or cond2:
                         self.state.time_control.reset_start_time()
-                        await self.think(msg)
+                        await self.think(msg)  # PLAY_MODE
                     else:
-                        await DisplayMsg.show(msg)
+                        await DisplayMsg.show(msg)  # PLAY_MODE
                         await self.state.start_clock()
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy())
 

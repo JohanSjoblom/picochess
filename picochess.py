@@ -2375,14 +2375,12 @@ async def main() -> None:
                 and self.state.picotutor.can_use_coach_analyser()
                 and self.always_run_tutor
             ):
-                logger.debug("analysis using tutor")
                 result = await self.state.picotutor.get_analysis()  # use tutor
                 info_list: list[InfoDict] = result.get("info")
                 if info_list and self.engine:
                     self.engine.stop_analysis()  # tutor works - stop engine analysis
             elif not self.eng_plays():
                 # we need to analyse both sides without tutor - use engine analyser
-                logger.debug("analysis using engine")
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
                 # @todo - the following line here should not be needed
@@ -2469,7 +2467,7 @@ async def main() -> None:
                             self.state.last_legal_fens = []
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                             await asyncio.sleep(0.5)
-                            msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
+                            msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
                             await DisplayMsg.show(msg)
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
                         else:

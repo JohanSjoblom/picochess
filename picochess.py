@@ -1278,14 +1278,20 @@ async def main() -> None:
                 self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                 self.state.legal_fens_after_cmove = []
                 self.state.last_legal_fens = []
-                if self.picotutor_mode():
-                    await self.state.picotutor.set_position(self.state.game, new_game=True)
-                    if self.state.play_mode == PlayMode.USER_BLACK:
-                        await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
-                    else:
-                        await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
+                await self.set_picotutor_position(new_game=True)
             else:
                 logger.debug("molli PGN fen is invalid!")
+
+        async def set_picotutor_position(self, new_game=False):
+            """tutor is either off sync or we are starting from a new position
+            set tutor back to same position as main board game"""
+            if self.picotutor_mode():
+                # we dont really need to copy the self.state.game but just to be sure...
+                await self.state.picotutor.set_position(self.state.game.copy(), new_game=new_game)
+                if self.state.play_mode == PlayMode.USER_BLACK:
+                    await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
+                else:
+                    await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
 
         def picotutor_mode(self):
             enabled = False
@@ -1626,15 +1632,7 @@ async def main() -> None:
                         await self.state.picotutor.pop_last_move(self.state.game)
                         # just to be sure set fen pos.
                         # @todo - check valid here - dont reset position if valid
-                        await self.state.picotutor.set_position(self.state.game)
-                        if self.state.play_mode == PlayMode.USER_BLACK:
-                            await self.state.picotutor.set_user_color(
-                                chess.BLACK, not self.eng_plays(consider_pgn=False)
-                            )
-                        else:
-                            await self.state.picotutor.set_user_color(
-                                chess.WHITE, not self.eng_plays(consider_pgn=False)
-                            )
+                        await self.set_picotutor_position()
                     logger.info("wrong color move -> sliding, reverting to: %s", self.state.game.fen())
                 legal_moves = list(self.state.game.legal_moves)
                 move = legal_moves[state.last_legal_fens.index(fen)]
@@ -1735,15 +1733,7 @@ async def main() -> None:
                     if valid and self.always_run_tutor:
                         self.state.picotutor.get_user_move_eval()  # eval engine forced move
                     if not valid:
-                        await self.state.picotutor.set_position(self.state.game)
-                        if self.state.play_mode == PlayMode.USER_BLACK:
-                            await self.state.picotutor.set_user_color(
-                                chess.BLACK, not self.eng_plays(consider_pgn=False)
-                            )
-                        else:
-                            await self.state.picotutor.set_user_color(
-                                chess.WHITE, not self.eng_plays(consider_pgn=False)
-                            )
+                        await self.set_picotutor_position()
                 self.state.done_computer_fen = None
                 self.state.done_move = chess.Move.null()
                 game_end = self.state.check_game_state()
@@ -2087,16 +2077,8 @@ async def main() -> None:
                         else:
                             # invalid move from tutor side!? Something went wrong
                             eval_str = "ER"
-                            await self.state.picotutor.set_position(self.state.game)
-                            if self.state.play_mode == PlayMode.USER_BLACK:
-                                await self.state.picotutor.set_user_color(
-                                    chess.BLACK, not self.eng_plays(consider_pgn=False)
-                                )
-                            else:
-                                await self.state.picotutor.set_user_color(
-                                    chess.WHITE, not self.eng_plays(consider_pgn=False)
-                                )
-                                l_mate = ""
+                            await self.set_picotutor_position()
+                            l_mate = ""
                             eval_str = ""  # no error message
                         if eval_str != "" and self.state.last_move != move:  # molli takeback_mame
                             msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
@@ -2331,6 +2313,8 @@ async def main() -> None:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
             result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
+            # issue #78 - make sure tutor has same board othewise analysis is worthless
+            result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
             return result
 
         def need_engine_analyser(self) -> bool:
@@ -2391,10 +2375,14 @@ async def main() -> None:
                 and self.state.picotutor.can_use_coach_analyser()
                 and self.always_run_tutor
             ):
+                logger.debug("analysis using tutor")
                 result = await self.state.picotutor.get_analysis()  # use tutor
                 info_list: list[InfoDict] = result.get("info")
+                if info_list and self.engine:
+                    self.engine.stop_analysis()  # tutor works - stop engine analysis
             elif not self.eng_plays():
                 # we need to analyse both sides without tutor - use engine analyser
+                logger.debug("analysis using engine")
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
                 # @todo - the following line here should not be needed
@@ -2483,6 +2471,7 @@ async def main() -> None:
                             await asyncio.sleep(0.5)
                             msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                             await DisplayMsg.show(msg)
+                            await self.set_picotutor_position(new_game=True)  # issue #78 new code
                         else:
                             # ask python-chess to correct the castling string
                             bit_board = chess.Board(fen2)
@@ -2502,6 +2491,7 @@ async def main() -> None:
                                 await asyncio.sleep(0.5)
                                 msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                                 await DisplayMsg.show(msg)
+                                await self.set_picotutor_position(new_game=True)  # issue #78 new code
                             else:
                                 logger.info("wrong fen %s for 4 secs", self.state.error_fen)
                                 await DisplayMsg.show(Message.WRONG_FEN())
@@ -2744,12 +2734,7 @@ async def main() -> None:
             self.state.play_mode = PlayMode.USER_WHITE if turn == chess.WHITE else PlayMode.USER_BLACK
 
             # game state should be done now, start picotutor
-            if self.picotutor_mode():
-                await self.state.picotutor.set_position(self.state.game, new_game=True)
-                if self.state.play_mode == PlayMode.USER_BLACK:
-                    await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
-                else:
-                    await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
+            await self.set_picotutor_position(new_game=True)
 
             self.state.tc_init_last = self.state.time_control.get_parameters()
             self.state.time_control.reset()  # fallback is same as ini setting
@@ -3488,12 +3473,7 @@ async def main() -> None:
                 self.state.searchmoves.reset()
                 self.state.game_declared = False
 
-                if self.picotutor_mode():
-                    await self.state.picotutor.set_position(self.state.game, new_game=True)
-                    if self.state.play_mode == PlayMode.USER_BLACK:
-                        await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
-                    else:
-                        await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
+                await self.set_picotutor_position(new_game=True)
                 await self.set_wait_state(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True))
                 if self.emulation_mode():
                     if self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
@@ -3916,7 +3896,6 @@ async def main() -> None:
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                         self.state.legal_fens_after_cmove = []
                         self.state.last_legal_fens = []
-                        await self.analyse()  # tested in #82, and it should be before side swich
                         # switching sides in PONDER, the only analysis mode with side switch
                         self.state.play_mode = (
                             PlayMode.USER_WHITE if self.state.game.turn == chess.WHITE else PlayMode.USER_BLACK
@@ -3926,6 +3905,8 @@ async def main() -> None:
                             play_mode_text=self.state.dgttranslate.text(self.state.play_mode.value),
                         )
                         await DisplayMsg.show(msg)
+                        await self.set_picotutor_position(new_game=True)  # issue #78 inform tutor
+                        await self.analyse()  # #78 this should be last when all is done
                     else:
                         logger.debug("illegal fen %s", fen)
                         await DisplayMsg.show(Message.WRONG_FEN())
@@ -4366,16 +4347,7 @@ async def main() -> None:
                                 if valid and self.always_run_tutor:
                                     self.state.picotutor.get_user_move_eval()  # eval engine move
                                 if not valid:
-                                    await self.state.picotutor.set_position(game_copy)
-                                    if self.state.play_mode == PlayMode.USER_BLACK:
-                                        await self.state.picotutor.set_user_color(
-                                            chess.BLACK, not self.eng_plays(consider_pgn=False)
-                                        )
-                                    else:
-                                        await self.state.picotutor.set_user_color(
-                                            chess.WHITE, not self.eng_plays(consider_pgn=False)
-                                        )
-
+                                    await self.set_picotutor_position()
                             self.state.done_computer_fen = game_copy.board_fen()
                             self.state.done_move = event.move
 
@@ -4625,11 +4597,7 @@ async def main() -> None:
                 if event.picowatcher:
                     self.state.flag_picotutor = True
                     # @ todo - why do we need to re-set position in tutor?
-                    await self.state.picotutor.set_position(self.state.game)
-                    if self.state.play_mode == PlayMode.USER_BLACK:
-                        await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
-                    else:
-                        await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
+                    await self.set_picotutor_position()
                 elif self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF:
                     self.state.flag_picotutor = True
                 elif self.state.dgtmenu.get_picoexplorer():
@@ -4652,11 +4620,7 @@ async def main() -> None:
                 if event.picocoach != PicoCoach.COACH_OFF:
                     self.state.flag_picotutor = True
                     # @ todo - why do we need to set tutor pos here?
-                    await self.state.picotutor.set_position(self.state.game)
-                    if self.state.play_mode == PlayMode.USER_BLACK:
-                        await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays(consider_pgn=False))
-                    else:
-                        await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays(consider_pgn=False))
+                    await self.set_picotutor_position()
                 elif self.state.dgtmenu.get_picowatcher():
                     self.state.flag_picotutor = True
                 elif self.state.dgtmenu.get_picoexplorer():

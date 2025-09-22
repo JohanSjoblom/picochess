@@ -184,6 +184,10 @@ class PicoTutor:
         """return the full engine name as used by picotutor"""
         return self.best_engine.get_name() if self.best_engine else "no engine"
 
+    def get_board(self):
+        """return the internal chess.Board of picotutor"""
+        return self.board
+
     async def set_mode(self, analyse_both_sides: bool, deep_limit_depth: int = None):
         """normally analyse_both_sides is False but if True both sides will be analysed
         deep_limit_depth defaults to DEEP_DEPTH 17 if not set"""

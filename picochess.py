@@ -2377,8 +2377,6 @@ async def main() -> None:
             ):
                 result = await self.state.picotutor.get_analysis()  # use tutor
                 info_list: list[InfoDict] = result.get("info")
-                if info_list and self.engine:
-                    self.engine.stop_analysis()  # tutor works - stop engine analysis
             elif not self.eng_plays():
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)

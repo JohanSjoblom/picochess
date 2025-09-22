@@ -2437,8 +2437,8 @@ async def main() -> None:
                     l_pgn_file_name = "last_game.pgn"
                     await self.read_pgn_file(l_pgn_file_name)
 
-                # issue #78 - fast moving ponder mode - commit c253f2c 15.6.2025 fixed below elif
-                # see also issue #82 - allow switching sides in all analysis modes
+                # issue #78 - fast moving ponder mode - commit c253f2c 15.6.2025 was first
+                # see also issue #82 - allow switching sides in PONDER mode
                 elif self.state.interaction_mode == Mode.PONDER and self.state.flag_flexible_ponder:
                     if (not self.state.newgame_happened) or self.state.flag_startup:
                         # molli: no error in analysis(ponder) mode => start new game with current fen
@@ -2457,6 +2457,7 @@ async def main() -> None:
                         bit_board.set_fen(bit_board.fen())
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
+                            await self.stop_search_and_clock()
                             await self.engine.newgame(self.state.game.copy(), False)
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -2466,9 +2467,10 @@ async def main() -> None:
                             self.state.legal_fens_after_cmove = []
                             self.state.last_legal_fens = []
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                            await asyncio.sleep(0.5)
-                            msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
-                            await DisplayMsg.show(msg)
+                            await self.set_wait_state(
+                                Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
+                            )
+                            await self.stop_search_and_clock()
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
                         else:
                             # ask python-chess to correct the castling string
@@ -2476,7 +2478,7 @@ async def main() -> None:
                             bit_board.set_fen(bit_board.fen())
                             if bit_board.is_valid():
                                 self.state.game = chess.Board(bit_board.fen())
-                                # await self.stop_search_and_clock()
+                                await self.stop_search_and_clock()
                                 await self.engine.newgame(self.state.game.copy(), False)
                                 self.state.done_computer_fen = None
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -2486,9 +2488,10 @@ async def main() -> None:
                                 self.state.legal_fens_after_cmove = []
                                 self.state.last_legal_fens = []
                                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                                await asyncio.sleep(0.5)
-                                msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
-                                await DisplayMsg.show(msg)
+                                await self.set_wait_state(
+                                    Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
+                                )
+                                await self.stop_search_and_clock()
                                 await self.set_picotutor_position(new_game=True)  # issue #78 new code
                             else:
                                 logger.info("wrong fen %s for 4 secs", self.state.error_fen)

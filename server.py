@@ -546,7 +546,14 @@ class WebDisplay(DisplayMsg):
         pgn_game.headers["Time"] = self.starttime
         # issue 55 - keep headers if existing valid header is given
         if keep_these_headers is not None:
-            pgn_game.headers.update(keep_these_headers)
+            # issue #78 dont keep old FEN in headers to avoid webdisplay freeze
+            cleaned = self.keep_essential_headers(keep_these_headers)
+            pgn_game.headers.update(cleaned)
+
+    def keep_essential_headers(self, headers):
+        """Return a cleaned dict with only the standard seven PGN headers to keep"""
+        allowed_keys = {"Event", "Site", "Date", "Round", "White", "Black", "Result"}
+        return {k: v for k, v in headers.items() if k in allowed_keys}
 
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""
@@ -591,19 +598,24 @@ class WebDisplay(DisplayMsg):
         if isinstance(message, Message.START_NEW_GAME):
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
-            # issue 55 - dont reset headers if its not a real new game
             if message.newgame:
-                pgn_str = _transfer(message.game)
-                fen = message.game.fen()
-                result = {
-                    "pgn": pgn_str,
-                    "fen": fen,
-                    "event": "Game",
-                    "move": "0000",
-                    "play": "newgame",
-                }
-                self.shared["last_dgt_move_msg"] = result
-                EventHandler.write_to_clients(result)
+                keep_these_headers = None
+            else:
+                # #78 and #55 just a new position, keep headers
+                keep_these_headers = self.shared["headers"]
+            pgn_str = _transfer(message.game, keep_these_headers)
+            fen = message.game.fen()
+            result = {
+                "pgn": pgn_str,
+                "fen": fen,
+                "event": "Game",
+                "move": "0000",
+                "play": "newgame",
+            }
+            self.shared["last_dgt_move_msg"] = result
+            EventHandler.write_to_clients(result)
+            if message.newgame:
+                # issue #55 - dont reset headers if its not a real new game
                 _build_headers()
                 _send_headers()
                 _send_title()

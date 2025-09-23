@@ -314,8 +314,6 @@ class ContinuousAnalysis:
             return False
         if game.is_game_over():
             return False
-        if game.fen() == chess.Board.starting_fen:
-            return False  # dont waste CPU on analysing starting position
         return True
 
     def start(self, game: chess.Board, limit: Limit | None = None, multipv: int | None = None):

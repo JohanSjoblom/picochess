@@ -194,7 +194,7 @@ class PicoTutor:
         self.deep_limit_depth = deep_limit_depth  # None also ok = back to default
         if self.analyse_both_sides != analyse_both_sides:
             self.analyse_both_sides = analyse_both_sides
-            await self._start_or_stop_as_needed()
+        await self._start_or_stop_as_needed()
 
     def can_use_coach_analyser(self) -> bool:
         """is the tutor active and analysing, and has user turned on the watcher
@@ -452,7 +452,7 @@ class PicoTutor:
             self.user_color = i_user_color
             self.analyse_both_sides = analyse_both_sides
             # no need to reset_color_coded_vars
-            await self._start_or_stop_as_needed()
+        await self._start_or_stop_as_needed()
 
     def get_user_color(self):
         return self.user_color

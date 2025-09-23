@@ -2455,7 +2455,6 @@ async def main() -> None:
                         bit_board.set_fen(bit_board.fen())
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
-                            await self.stop_search_and_clock()
                             await self.engine.newgame(self.state.game.copy(), False)
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -2465,10 +2464,7 @@ async def main() -> None:
                             self.state.legal_fens_after_cmove = []
                             self.state.last_legal_fens = []
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                            await self.set_wait_state(
-                                Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
-                            )
-                            await self.stop_search_and_clock()
+                            await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
                         else:
                             # ask python-chess to correct the castling string
@@ -2476,7 +2472,6 @@ async def main() -> None:
                             bit_board.set_fen(bit_board.fen())
                             if bit_board.is_valid():
                                 self.state.game = chess.Board(bit_board.fen())
-                                await self.stop_search_and_clock()
                                 await self.engine.newgame(self.state.game.copy(), False)
                                 self.state.done_computer_fen = None
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -2486,10 +2481,9 @@ async def main() -> None:
                                 self.state.legal_fens_after_cmove = []
                                 self.state.last_legal_fens = []
                                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                                await self.set_wait_state(
+                                await DisplayMsg.show(
                                     Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
                                 )
-                                await self.stop_search_and_clock()
                                 await self.set_picotutor_position(new_game=True)  # issue #78 new code
                             else:
                                 logger.info("wrong fen %s for 4 secs", self.state.error_fen)
@@ -3885,7 +3879,7 @@ async def main() -> None:
                     bit_board.set_fen(bit_board.fen())
                     if bit_board.is_valid():
                         self.state.game = chess.Board(bit_board.fen())
-                        await self.stop_search_and_clock()
+                        #  await self.stop_search_and_clock()
                         await self.engine.newgame(self.state.game.copy())
                         self.state.done_computer_fen = None
                         self.state.done_move = self.state.pb_move = chess.Move.null()

@@ -3283,8 +3283,8 @@ async def main() -> None:
                     (
                         self.login,
                         own_color,
-                        self.self.own_user,
-                        self.self.opp_user,
+                        self.own_user,
+                        self.opp_user,
                         self.game_time,
                         self.fischer_inc,
                     ) = read_online_user_info()
@@ -5068,3 +5068,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+

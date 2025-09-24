@@ -1229,14 +1229,22 @@ function formatEngineOutput(line) {
 
         var token = tokens[score_index];
         var score = '?';
+        var rawScore = 0;
         if (token === 'mate') {
-            score = '#' + tokens[score_index + 1];
+            rawScore = parseInt(tokens[score_index + 1]);
+            // Para mate, mantener el signo original del motor
+            if (analysis_game.turn() === 'b') {
+                rawScore *= -1;
+            }
+            score = '#' + rawScore;
         }
         else if (tokens[score_index + 1]) {
-            score = (tokens[score_index + 1] / 100.0).toFixed(2);
+            rawScore = parseInt(tokens[score_index + 1]) / 100.0;
+            // Invertir puntuación solo si le toca a las negras
             if (analysis_game.turn() === 'b') {
-                score *= -1;
+                rawScore *= -1;
             }
+            score = rawScore.toFixed(2);
             if (token === 'lowerbound') {
                 score = '>' + score;
             }
@@ -1296,10 +1304,22 @@ function formatEngineOutput(line) {
 // Primer movimiento destacado
         if (history.length > 0) {
             var firstMoveText = '';
-            if ((start_move_num) % 2 === 1) {
-                firstMoveText += Math.floor((start_move_num + 1) / 2) + '. ';
+            // Crear una copia del juego para obtener el turno actual
+            var tempGame = new Chess();
+            if (currentPosition && currentPosition.fen) {
+                tempGame.load(currentPosition.fen, chessGameType);
+            }
+            var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
+            
+            // Calcular el número de movimiento correctamente
+            var moveNumber = Math.floor((start_move_num + 1) / 2);
+            
+            if (currentTurn === 'w') {
+                // Le toca a las blancas
+                firstMoveText += moveNumber + '. ';
             } else {
-                firstMoveText += Math.floor((start_move_num + 1) / 2) + '... ';
+                // Le toca a las negras
+                firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
@@ -1308,9 +1328,13 @@ function formatEngineOutput(line) {
 // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
+            var currentMoveNum = start_move_num;
+            
             for (i = 1; i < history.length; ++i) {
-                if ((start_move_num + i) % 2 === 1) {
-                    continuationText += Math.floor((start_move_num + i + 1) / 2) + '. ';
+                currentMoveNum++;
+                // Si es turno de las blancas (número impar), mostrar número de movimiento
+                if (currentMoveNum % 2 === 1) {
+                    continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
                 }
                 continuationText += figurinizeMove(history[i]) + ' ';
             }

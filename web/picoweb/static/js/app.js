@@ -1498,6 +1498,12 @@ function analyzePressed() {
         $('#evaluationBar').show();
     } else {
         $('#evaluationBar').hide();
+        // Limpiar contenedor de análisis al detener
+        $('#pv_output').empty();
+        // Recrear los contenedores según el multipv actual
+        for (var i = 1; i <= window.multipv; i++) {
+            $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+        }
     }
     analyze(false);
 }
@@ -1542,6 +1548,13 @@ function stopAnalysis() {
             console.warn(err);
         }
     }
+    // Limpiar todas las líneas de análisis
+    $('#pv_output').empty();
+    // Recrear los contenedores según el multipv actual
+    for (var i = 1; i <= window.multipv; i++) {
+        $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+    }
+    
     // Ocultar la barra de evaluación cuando se detiene el análisis
     if (!window.analysis) {
         $('#evaluationBar').hide();

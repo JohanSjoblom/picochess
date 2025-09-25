@@ -1424,52 +1424,48 @@ function updateEvaluationBar(score) {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 function multiPvIncrease() {
-    if (window.stockfish) {
-        window.multipv += 1;
-
-        if (window.stockfish) {
-            window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            if (window.analysis) {
-                window.stockfish.postMessage('stop');
-                window.stockfish.postMessage('go infinite');
-            }
-            else {
-                $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-            }
-        }
-
-        var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
-        $("#pv_output").append(new_div_str);
-
+    window.multipv += 1;
+    
+    // Agregar nuevo contenedor
+    var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
+    $("#pv_output").append(new_div_str);
+    
+    // Solo actualizar el motor si el análisis está activo
+    if (window.analysis && window.stockfish) {
+        window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
+        window.stockfish.postMessage('stop');
+        window.stockfish.postMessage('go infinite');
+        
         if (!window.StockfishModule) {
-            // Need to restart web worker as its not Chrome
             stopAnalysis();
             analyze(true);
         }
     }
+    
+    // Actualizar el estado visual
+    $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
 }
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
+        // Remover el contenedor
         $('#pv_' + window.multipv).remove();
-
         window.multipv -= 1;
-        if (window.stockfish) {
+        
+        // Solo actualizar el motor si el análisis está activo
+        if (window.analysis && window.stockfish) {
             window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            if (window.analysis) {
-                window.stockfish.postMessage('stop');
-                window.stockfish.postMessage('go infinite');
-            }
-            else {
-                $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+            window.stockfish.postMessage('stop');
+            window.stockfish.postMessage('go infinite');
+            
+            if (!window.StockfishModule) {
+                stopAnalysis();
+                analyze(true);
             }
         }
-
-        if (!window.StockfishModule) {
-            // Need to restart web worker as its not Chrome
-            stopAnalysis();
-            analyze(true);
-        }
+        
+        // Actualizar el estado visual
+        $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
     }
 }
 

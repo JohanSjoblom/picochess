@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 FLAG="/home/pi/run_picochess_update.flag"
 SCRIPT="/opt/picochess/install-picochess.sh"
@@ -19,23 +19,29 @@ if [ -f "$FLAG" ]; then
     # 10 min = 600 seconds
     if [ "$DIFF" -ge 600 ]; then
         echo "$(date): Running PicoChess update..." | tee -a "$LOGFILE"
-        
+
         # Clear the flag first to avoid loops
-        rm "$FLAG"
+        rm -f "$FLAG"
 
         # Update timestamp
         echo "$NOW" > "$TIMESTAMP_FILE"
 
-        # Run the update script
+        # Run the update script and capture its exit code
         # system upgrade takes a long time to do
         # use pico param to skip system upgrade (pico update only)
-        bash "$SCRIPT" "pico" >> "$LOGFILE" 2>&1
+        sh "$SCRIPT" pico >>"$LOGFILE" 2>&1
+        STATUS=$?
 
-        # Optionally reboot
-        # reboot
+        if [ $STATUS -ne 0 ]; then
+            echo "$(date): ERROR: PicoChess update failed (exit code $STATUS)" | tee -a "$LOGFILE"
+            exit $STATUS    # <-- forward the same exit code to systemd
+        fi
 
+        echo "$(date): PicoChess update completed successfully." | tee -a "$LOGFILE"
     else
-        echo "$(date): Skipped update (last run was less than 10 minutes ago)" >> "$LOGFILE"
-        rm "$FLAG"  # Optionally remove flag to prevent retry
+        echo "$(date): Skipped update (last run was less than 10 minutes ago)" >>"$LOGFILE"
+        rm -f "$FLAG"  # Optionally remove flag to prevent retry
     fi
 fi
+
+exit 0

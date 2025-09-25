@@ -1,5 +1,5 @@
 [Unit]
-Description=Run PicoChess update script if flagged
+Description=PicoChess updater (runs if flagged at boot)
 After=network.target
 
 [Service]

@@ -135,7 +135,7 @@ if [ -d "/opt/picochess/.git" ]; then
     echo "WARNING: You are on branch '$CURRENT_BRANCH', not '$BRANCH'."
     echo "Skipping update to avoid interfering with work on another branch."
     echo "Backup completed at: $BACKUP_DIR"
-    exit 0
+    exit 2
     fi
 
     # === Fetch and reset to latest remote state ===
@@ -271,3 +271,5 @@ echo " ------- "
 echo "In case of problems have a look in the log /opt/picochess/logs/picochess.log"
 echo "You can rerun this installation whenever you want to update your system"
 echo "Use the parameter pico if you want to skip system update"
+
+exit 0

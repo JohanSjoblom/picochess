@@ -855,6 +855,7 @@ async def main() -> None:
             )
             self.shared = shared
             self.non_main_tasks = non_main_tasks
+            self.update_status = None
             ###########################################
 
             # try the given engine first and if that fails the first from "engines.ini" then exit
@@ -888,6 +889,15 @@ async def main() -> None:
 
         async def initialise(self, time_text):
             """Due to use of async some initialisation is moved here"""
+
+            self.update_status = self.get_last_update_status()  # issue #88
+            logger.info("Update status: %s", self.update_status)
+            # This is shown for a very short time - you can also see it in the menu
+            if self.update_status:
+                self.state.dgttranslate.set_last_updated_info(self.update_status)
+                msg = Message.SHOW_TEXT(text_string=self.update_status)
+                await DisplayMsg.show(msg)
+
             engine_file_to_load = self.state.engine_file  # assume not mame
             if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rdisplay():
                 engine_file_art = self.state.engine_file + "_art"
@@ -1063,6 +1073,31 @@ async def main() -> None:
 
             await self._start_or_stop_analysis_as_needed()  # start analysis if needed
             self.background_analyse_timer.start()  # always run background analyser
+
+        def get_last_update_status(self) -> str | None:
+            """
+            Runs the check-update-status.sh script and returns its output as a string.
+            Returns None if there was an error running the script.
+            """
+            script_path = "/opt/picochess/check-update-status.sh"
+
+            try:
+                result = subprocess.run(
+                    [script_path],
+                    cwd="/opt/picochess",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,  # capture as string
+                    check=False,  # don't raise exception on non-zero exit
+                )
+
+                # Return stripped output
+                return result.stdout.strip()
+
+            except Exception as e:
+                # Optionally log or print error
+                logger.info("Error running update status script")
+                return None
 
         async def think(
             self,

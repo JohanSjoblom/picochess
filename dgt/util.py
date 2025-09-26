@@ -600,12 +600,13 @@ class Info(MyEnum):
     """Info Class."""
 
     VERSION = "B00_info_version_menu"
+    UPDATED = "B00_info_updated_menu"
     IPADR = "B00_info_ipadr_menu"
     BATTERY = "B00_info_battery_menu"
 
     @classmethod
     def items(cls):
-        return [Info.VERSION, Info.IPADR, Info.BATTERY]
+        return [Info.VERSION, Info.UPDATED, Info.IPADR, Info.BATTERY]
 
 
 class InfoLoop(object):

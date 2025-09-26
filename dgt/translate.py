@@ -48,6 +48,12 @@ class DgtTranslate(object):
         self.version_large = self.version_large.replace(".", "")
         self.capital = False  # Set from dgt.menu lateron
         self.notation = False  # Set from dgt.menu lateron
+        self.update_status = "upd unknown"
+
+    def set_last_updated_info(self, update_status: str):
+        """Set last update status info string."""
+        if update_status:
+            self.update_status = update_status
 
     def beep_to_config(self, beep: Beep):
         """Transfer beep to dict."""
@@ -1749,6 +1755,15 @@ class DgtTranslate(object):
             frtxt = entxt
             estxt = entxt
             ittxt = entxt
+        if text_id == "pico_updated_status":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text=f"{self.update_status}",
+                large_text=f"{self.update_status}",
+                medium_text=f"{self.update_status}",
+                small_text=f"{self.update_status}",
+            )
+            detxt = nltxt = frtxt = estxt = ittxt = entxt
         if text_id == "nofunction":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
@@ -5071,6 +5086,14 @@ class DgtTranslate(object):
                 medium_text="Versione",
                 small_text="versio",
             )
+        if text_id == "info_updated_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Update info",
+                large_text="Update info",
+                medium_text="Upd info",
+                small_text="Upd",
+            )
+            detxt = nltxt = frtxt = estxt = ittxt = entxt
         if text_id == "info_ipadr_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
@@ -7714,12 +7737,7 @@ class DgtTranslate(object):
                 medium_text="Aggiorna",  # 8
                 small_text="Agg",  # 3
             )
-            detxt = Dgt.DISPLAY_TEXT(
-                web_text="Neu starten und aktualisieren Pico",  # 33
-                large_text="Aktualis",  # 9
-                medium_text="Update",  # 6
-                small_text="Upd",  # 3
-            )
+            detxt = entxt
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="Opnieuw opstarten en bijwerken",  # 32
                 large_text="Bijwerken",  # 9

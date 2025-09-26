@@ -48,12 +48,18 @@ class DgtTranslate(object):
         self.version_large = self.version_large.replace(".", "")
         self.capital = False  # Set from dgt.menu lateron
         self.notation = False  # Set from dgt.menu lateron
-        self.update_status = "upd unknown"
+        self.update_status = "no info"
+        self.git_status = "no info"
 
     def set_last_updated_info(self, update_status: str):
         """Set last update status info string."""
         if update_status:
             self.update_status = update_status
+
+    def set_git_info(self, git_status: str):
+        """Set last update status info string."""
+        if git_status:
+            self.git_status = git_status
 
     def beep_to_config(self, beep: Beep):
         """Transfer beep to dict."""

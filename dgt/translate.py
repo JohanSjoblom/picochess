@@ -1770,6 +1770,15 @@ class DgtTranslate(object):
                 small_text=f"{self.update_status}",
             )
             detxt = nltxt = frtxt = estxt = ittxt = entxt
+        if text_id == "pico_git_status":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text=f"{self.git_status}",
+                large_text=f"{self.git_status}",
+                medium_text=f"{self.git_status}",
+                small_text=f"{self.git_status}",
+            )
+            detxt = nltxt = frtxt = estxt = ittxt = entxt
         if text_id == "nofunction":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
@@ -5098,6 +5107,14 @@ class DgtTranslate(object):
                 large_text="Update info",
                 medium_text="Upd info",
                 small_text="Upd",
+            )
+            detxt = nltxt = frtxt = estxt = ittxt = entxt
+        if text_id == "info_git_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="git info",
+                large_text="git info",
+                medium_text="git info",
+                small_text="git",
             )
             detxt = nltxt = frtxt = estxt = ittxt = entxt
         if text_id == "info_ipadr_menu":

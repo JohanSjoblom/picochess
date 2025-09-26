@@ -148,8 +148,9 @@ class MenuState(object):
     SYS_INFO = 710000
     SYS_INFO_VERS = 710100
     SYS_INFO_UPDATED = 710200
-    SYS_INFO_IP = 710300
-    SYS_INFO_BATTERY = 710400
+    SYS_INFO_GIT = 710300
+    SYS_INFO_IP = 710400
+    SYS_INFO_BATTERY = 710500
     SYS_SOUND = 720000
     SYS_SOUND_BEEP = 721000  # never, always, some
     SYS_LANG = 730000
@@ -1548,6 +1549,12 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_system_info.value)
         return text
 
+    def enter_sys_info_git_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_INFO_GIT
+        text = self.dgttranslate.text(self.menu_system_info.value)
+        return text
+
     def enter_sys_info_ip_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_INFO_IP
@@ -1991,6 +1998,9 @@ class DgtMenu(object):
             text = self.enter_sys_info_menu()
 
         elif self.state == MenuState.SYS_INFO_UPDATED:
+            text = self.enter_sys_info_menu()
+
+        elif self.state == MenuState.SYS_INFO_GIT:
             text = self.enter_sys_info_menu()
 
         elif self.state == MenuState.SYS_INFO_IP:
@@ -2843,6 +2853,8 @@ class DgtMenu(object):
                 text = self.enter_sys_info_vers_menu()
             if self.menu_system_info == Info.UPDATED:
                 text = self.enter_sys_info_updated_menu()
+            if self.menu_system_info == Info.GIT:
+                text = self.enter_sys_info_git_menu()
             if self.menu_system_info == Info.IPADR:
                 text = self.enter_sys_info_ip_menu()
             if self.menu_system_info == Info.BATTERY:
@@ -2856,6 +2868,12 @@ class DgtMenu(object):
 
         elif self.state == MenuState.SYS_INFO_UPDATED:
             text = self.dgttranslate.text("B10_pico_updated_status")
+            text.rd = ClockIcons.DOT
+            text.wait = False
+            text = await self._fire_dispatchdgt(text)
+
+        elif self.state == MenuState.SYS_INFO_GIT:
+            text = self.dgttranslate.text("B10_pico_git_status")
             text.rd = ClockIcons.DOT
             text.wait = False
             text = await self._fire_dispatchdgt(text)
@@ -3568,8 +3586,13 @@ class DgtMenu(object):
             self.menu_system_info = InfoLoop.prev(self.menu_system_info)
             text = self.dgttranslate.text(self.menu_system_info.value)
 
-        elif self.state == MenuState.SYS_INFO_IP:
+        elif self.state == MenuState.SYS_INFO_GIT:
             self.state = MenuState.SYS_INFO_UPDATED
+            self.menu_system_info = InfoLoop.prev(self.menu_system_info)
+            text = self.dgttranslate.text(self.menu_system_info.value)
+
+        elif self.state == MenuState.SYS_INFO_IP:
+            self.state = MenuState.SYS_INFO_GIT
             self.menu_system_info = InfoLoop.prev(self.menu_system_info)
             text = self.dgttranslate.text(self.menu_system_info.value)
 
@@ -4189,6 +4212,11 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system_info.value)
 
         elif self.state == MenuState.SYS_INFO_UPDATED:
+            self.state = MenuState.SYS_INFO_GIT
+            self.menu_system_info = InfoLoop.next(self.menu_system_info)
+            text = self.dgttranslate.text(self.menu_system_info.value)
+
+        elif self.state == MenuState.SYS_INFO_GIT:
             self.state = MenuState.SYS_INFO_IP
             self.menu_system_info = InfoLoop.next(self.menu_system_info)
             text = self.dgttranslate.text(self.menu_system_info.value)

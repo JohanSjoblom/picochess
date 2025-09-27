@@ -1,28 +1,38 @@
 #!/bin/sh
-# Compact git status for /opt/picochess (max 11 chars)
+cd /opt/picochess || { echo "git:none"; exit 1; }
 
-REPO_DIR="/opt/picochess"
+git fetch --quiet origin
 
-if [ ! -d "$REPO_DIR/.git" ]; then
-    echo "git:none"
-    exit 0
-fi
-
-cd "$REPO_DIR" || exit 1
-
-# Tag?
-TAG=$(git describe --tags --exact-match 2>/dev/null)
-if [ -n "$TAG" ]; then
+# Case 1: exact tag
+if git describe --tags --exact-match >/dev/null 2>&1; then
+    TAG=$(git describe --tags --exact-match)
     echo "git:$TAG" | cut -c1-11
     exit 0
 fi
 
-# Branch or commit
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+# Current branch or HEAD
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "none")
+
 if [ "$BRANCH" = "HEAD" ]; then
-    COMMIT=$(git rev-parse --short HEAD 2>/dev/null)
+    # Detached commit
+    COMMIT=$(git rev-parse --short=7 HEAD)
     echo "git:$COMMIT" | cut -c1-11
-else
-    echo "git:$BRANCH" | cut -c1-11
+    exit 0
 fi
+
+if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+    BEHIND=$(git rev-list --count "$BRANCH"..origin/"$BRANCH" 2>/dev/null)
+
+    if [ "$BEHIND" -gt 0 ]; then
+        echo "git:$BEHIND new" | cut -c1-11
+        exit 0
+    else
+        echo "git:no new" | cut -c1-11
+        exit 0
+    fi
+fi
+
+# Any other branch: truncate to max 11 chars
+echo "git:$BRANCH" | cut -c1-11
+
 exit 0

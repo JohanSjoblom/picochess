@@ -7,7 +7,6 @@ TIMESTAMP_FILE="/var/log/picochess-last-update"
 
 # Create log file if it doesn't exist
 touch "$LOGFILE"
-touch "$TIMESTAMP_FILE"
 
 # Check if the flag file exists
 if [ -f "$FLAG" ]; then
@@ -16,15 +15,12 @@ if [ -f "$FLAG" ]; then
     LAST_RUN=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo 0)
     DIFF=$((NOW - LAST_RUN))
 
-    # 10 min = 600 seconds
-    if [ "$DIFF" -ge 600 ]; then
+    # 10 min = 600 seconds, or if never run before (LAST_RUN=0)
+    if [ "$DIFF" -ge 600 ] || [ "$LAST_RUN" -eq 0 ]; then
         echo "$(date): Running PicoChess update..." | tee -a "$LOGFILE"
 
         # Clear the flag first to avoid loops
         rm -f "$FLAG"
-
-        # Update timestamp
-        echo "$NOW" > "$TIMESTAMP_FILE"
 
         # Run the update script and capture its exit code
         # system upgrade takes a long time to do
@@ -37,6 +33,8 @@ if [ -f "$FLAG" ]; then
             exit $STATUS    # <-- forward the same exit code to systemd
         fi
 
+        # Update timestamp only on success
+        echo "$NOW" > "$TIMESTAMP_FILE"
         echo "$(date): PicoChess update completed successfully." | tee -a "$LOGFILE"
     else
         echo "$(date): Skipped update (last run was less than 10 minutes ago)" >>"$LOGFILE"

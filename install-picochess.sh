@@ -127,6 +127,12 @@ echo " ------- "
 if [ -d "/opt/picochess/.git" ]; then
     echo "picochess git repo already exists, updating code..."
     cd /opt/picochess
+    # === Protect all files under engines/ from being touched by update git reset ===
+    # engine files will be moved to engine-examples and only copied for new clones
+    if [ -d engines ]; then
+        echo "Marking engines/ files as skip-worktree to protect local engines..."
+        find engines -type f -print0 | xargs -0 sudo -u pi git update-index --skip-worktree
+    fi
     # new forced backup starts
     # === Check current Git branch ===
     CURRENT_BRANCH=$(sudo -u pi git rev-parse --abbrev-ref HEAD)
@@ -244,6 +250,8 @@ cp etc/gamesdb.service /etc/systemd/system/
 cp etc/picochess-update.service /etc/systemd/system/
 cp etc/run-picochess-if-flagged.sh /usr/local/bin/
 chmod +x /usr/local/bin/run-picochess-if-flagged.sh
+chmod +x /opt/picochess/check-update-status.sh
+chmod +x /opt/picochess/check-git-status.sh
 touch /var/log/picochess-update.log /var/log/picochess-last-update
 chown root:root /var/log/picochess-*
 systemctl daemon-reload

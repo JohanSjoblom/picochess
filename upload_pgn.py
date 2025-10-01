@@ -9,10 +9,8 @@ from utilities import Observable
 from dgt.api import Event
 
 
-UPLOAD_DIR = "/opt/picochess/games"
-FIXED_FILENAME = "picochess_game_1.pgn"
-FIXED_PATH = os.path.join(UPLOAD_DIR, FIXED_FILENAME)
-
+UPLOAD_DIR = "/opt/picochess/games/uploads"
+UPLOAD_REL_PATH = "uploads/"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -59,14 +57,17 @@ class UploadHandler(tornado.web.RequestHandler):
             self.finish("Only .pgn files are allowed.")
             return
 
+        upload_file = os.path.join(UPLOAD_DIR, original_name)
+        file_rel_path = os.path.join(UPLOAD_REL_PATH, original_name)
+
         try:
-            with open(FIXED_PATH, "wb") as f:
+            with open(upload_file, "wb") as f:
                 f.write(fileinfo["body"])
-                event = Event.READ_GAME(pgn_filename="picochess_game_1.pgn")
+                event = Event.READ_GAME(pgn_filename=file_rel_path)
                 await Observable.fire(event)
         except Exception as e:
             self.set_status(500)
             self.finish(f"Failed to save file: {str(e)}")
             return
 
-        self.write(f"User '{self.current_user}' uploaded '{original_name}' and it was saved as Game 1.")
+        self.write(f"User '{self.current_user}' uploaded '{original_name}' to games/uploads/")

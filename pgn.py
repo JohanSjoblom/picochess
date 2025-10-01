@@ -346,6 +346,7 @@ class PgnDisplay(DisplayMsg):
         self.old_level_name = ""
         self.old_level_text = None
         self.old_engine_elo = "-"
+        self.old_user_elo = "-"
         self.user_elo = "-"
         self.engine_elo = "-"
         self.mode = ""
@@ -636,6 +637,7 @@ class PgnDisplay(DisplayMsg):
                     self.old_level_name = self.level_name
                     self.old_level_text = self.level_text
                     self.old_engine_elo = self.engine_elo
+                    self.old_user_elo = self.user_elo
             if "user_name" in message.info:
                 self.user_name = message.info["user_name"]
                 self.user_name_orig = message.info["user_name"]
@@ -655,8 +657,11 @@ class PgnDisplay(DisplayMsg):
             self.old_level_name = self.level_name
             self.old_level_text = self.level_text
             self.old_engine_elo = self.engine_elo
+            self.old_user_elo = self.user_elo
             if "engine_elo" in message.info:
                 self.engine_elo = message.info["engine_elo"]
+            if "user_elo" in message.info:
+                self.user_elo = message.info["user_elo"]
 
         elif isinstance(message, Message.LEVEL):
             self.level_text = message.level_text
@@ -664,6 +669,7 @@ class PgnDisplay(DisplayMsg):
             self.old_level_name = self.level_name
             self.old_level_text = self.level_text
             self.old_engine_elo = self.engine_elo
+            self.old_user_elo = self.user_elo
 
         elif isinstance(message, Message.INTERACTION_MODE):
             self.mode = message.mode
@@ -683,6 +689,7 @@ class PgnDisplay(DisplayMsg):
                 self.level_name = self.old_level_name
                 self.level_text = self.old_level_text
                 self.engine_elo = self.old_engine_elo
+                self.user_elo = self.old_user_elo
                 self.user_name = self.user_name_orig
 
         elif isinstance(message, Message.ENGINE_STARTUP):
@@ -714,6 +721,7 @@ class PgnDisplay(DisplayMsg):
             self.old_level_name = self.level_name
             self.old_level_text = self.level_text
             self.old_engine_elo = self.engine_elo
+            self.old_user_elo = self.user_elo
 
         elif isinstance(message, Message.GAME_ENDS):
             if message.game.move_stack and not ModeInfo.get_pgn_mode() and self.mode != Mode.PONDER:

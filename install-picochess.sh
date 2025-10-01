@@ -163,6 +163,14 @@ else
 fi
 echo " ------- "
 
+if [ -d "/opt/picochess/games/uploads" ]; then
+    echo "upload dir already exists - making sure pi is owner"
+    chown -R pi:pi /opt/picochess/games/uploads
+else
+    echo "creating uploads dir for pi user"
+    sudo -u pi mkdir /opt/picochess/games/uploads
+fi
+
 if [ -d "/opt/picochess/logs" ]; then
     echo "logs dir already exists - making sure pi is owner"
     chown -R pi:pi /opt/picochess/logs

@@ -9,9 +9,8 @@ from utilities import Observable
 from dgt.api import Event
 
 
-UPLOAD_DIR = "/opt/picochess/games/uploads"
-UPLOAD_REL_PATH = "uploads/"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_BASE_DIR = "/opt/picochess/games"
+UPLOAD_DIR = "uploads"
 
 
 class UploadHandler(tornado.web.RequestHandler):
@@ -57,8 +56,8 @@ class UploadHandler(tornado.web.RequestHandler):
             self.finish("Only .pgn files are allowed.")
             return
 
-        upload_file = os.path.join(UPLOAD_DIR, original_name)
-        file_rel_path = os.path.join(UPLOAD_REL_PATH, original_name)
+        upload_file = os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR, original_name)
+        file_rel_path = os.path.join(UPLOAD_DIR, original_name)
 
         try:
             with open(upload_file, "wb") as f:

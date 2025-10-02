@@ -2328,20 +2328,22 @@ async def main() -> None:
                 )
 
         async def update_elo_display(self):
-            await DisplayMsg.show(Message.SYSTEM_INFO(info={"rspeed": self.state.dgtmenu.get_engine_rspeed()}))
-            if self.engine.is_adaptive:
-                await DisplayMsg.show(
-                    Message.SYSTEM_INFO(
-                        info={"user_elo": int(self.state.rating.rating), "engine_elo": self.engine.engine_rating}
+            if self.emulation_mode():
+                await DisplayMsg.show(Message.SYSTEM_INFO(info={"rspeed": self.state.dgtmenu.get_engine_rspeed()}))
+            if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+                if self.engine.is_adaptive:
+                    await DisplayMsg.show(
+                        Message.SYSTEM_INFO(
+                            info={"user_elo": int(self.state.rating.rating), "engine_elo": self.engine.engine_rating}
+                        )
                     )
-                )
-            elif self.engine.engine_rating > 0:
-                user_elo = self.args.pgn_elo
-                if self.state.rating is not None:
-                    user_elo = str(int(self.state.rating.rating))
-                await DisplayMsg.show(
-                    Message.SYSTEM_INFO(info={"user_elo": user_elo, "engine_elo": self.engine.engine_rating})
-                )
+                elif self.engine.engine_rating > 0:
+                    user_elo = self.args.pgn_elo
+                    if self.state.rating is not None:
+                        user_elo = str(int(self.state.rating.rating))
+                    await DisplayMsg.show(
+                        Message.SYSTEM_INFO(info={"user_elo": user_elo, "engine_elo": self.engine.engine_rating})
+                    )
 
         def start_fen_timer(self):
             """Start the fen timer in case an unhandled fen string been received from board."""

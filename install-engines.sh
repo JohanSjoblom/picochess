@@ -20,6 +20,7 @@ if [ "$ARCH" = "aarch64" ]; then
         mkdir -p engines || exit 1
         cd engines || exit 1
         mkdir -p aarch64 || exit 1
+        cd aarch64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
         TMPFILE="/tmp/engines-aarch64-small.tar.gz"
@@ -53,6 +54,7 @@ if [ "$ARCH" = "x86_64" ]; then
         mkdir -p engines || exit 1
         cd engines || exit 1
         mkdir -p x86_64 || exit 1
+        cd x86_64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
         TMPFILE="/tmp/engines-x86_64-small.tar.gz"

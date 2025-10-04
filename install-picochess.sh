@@ -158,11 +158,20 @@ else
     chown pi:pi /opt/picochess
     cd /opt
     sudo -u pi git clone https://github.com/JohanSjoblom/picochess
+    cd picochess || exit 3
     chown -R pi:pi /opt/picochess
-    cd picochess
 fi
 echo " ------- "
 
+# install engines as user pi if there is no engines architectre folder
+if [ -f install-engines.sh ]; then
+    chmod +x install-engines.sh 2>/dev/null
+    sudo -u pi ./install-engines.sh
+else
+    echo "install-engines.sh missing — cannot install engines."
+fi
+
+echo " ------- "
 if [ -d "/opt/picochess/logs" ]; then
     echo "logs dir already exists - making sure pi is owner"
     chown -R pi:pi /opt/picochess/logs
@@ -189,39 +198,7 @@ else
     chown pi picochess.ini
 fi
 
-# in case we dont have any engines.ini or favorites.ini
-# copy in the default files - ini files should not be in repository
-if [ -f "/opt/picochess/engines/aarch64/engines.ini" ]; then
-    echo "aarch64 engines.ini already existed - no changes done"
-else
-    cd /opt/picochess
-    cp engines-example-aarch64.ini /opt/picochess/engines/aarch64/engines.ini
-    chown pi /opt/picochess/engines/aarch64/engines.ini
-fi
-
-if [ -f "/opt/picochess/engines/x86_64/engines.ini" ]; then
-    echo "x86_64 engines.ini already existed - no changes done"
-else
-    cd /opt/picochess
-    cp engines-example-x86_64.ini /opt/picochess/engines/x86_64/engines.ini
-    chown pi /opt/picochess/engines/x86_64/engines.ini
-fi
-
-if [ -f "/opt/picochess/engines/aarch64/favorites.ini" ]; then
-    echo "aarch64 favorites.ini already existed - no changes done"
-else
-    cd /opt/picochess
-    cp favorites-example-aarch64.ini /opt/picochess/engines/aarch64/favorites.ini
-    chown pi /opt/picochess/engines/aarch64/favorites.ini
-fi
-
-if [ -f "/opt/picochess/engines/x86_64/favorites.ini" ]; then
-    echo "x86_64 favorites.ini already existed - no changes done"
-else
-    cd /opt/picochess
-    cp favorites-example-x86_64.ini /opt/picochess/engines/x86_64/favorites.ini
-    chown pi /opt/picochess/engines/x86_64/favorites.ini
-fi
+# no copying of example engines.ini - they are in resource files
 
 # initialize other ini files like voices.ini... etc
 # copy in the default files - ini files should not be in repository

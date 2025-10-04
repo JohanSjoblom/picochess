@@ -27,7 +27,7 @@ apt -y install avahi-daemon avahi-discover libnss-mdns
 apt -y install vorbis-tools
 apt -y install python3 python3-pip
 apt -y install python3-dev
-apt -y install portaudio19-dev
+apt -y install python3-pyaudio portaudio19-dev
 apt -y install python3-venv
 apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6

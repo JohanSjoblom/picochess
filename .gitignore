@@ -23,16 +23,22 @@ var/
 include/
 engines/aarch64/old/
 engines/x86_64/old/
-engines/mame_emulation
+engines/mame_emulation/
+engines/mame/
 # pgn engine audio files are large
 engines/pgn_engine/pgn_audio/
 # ignore files that pgn_engine writes
+engines/aarch64/extra/pgn_game_info.txt
+engines/aarch64/extra/pgn_engine-log.txt
 engines/x86_64/extra/pgn_game_info.txt
 engines/x86_64/extra/pgn_engine-log.txt
 # Script engines are not yet in repo
 engines/script_engines/
-engines/aarch64/script/
-engines/x86_64/script/
+# ignore engine folders - let user manage them
+#engines/aarch64/
+#engines/x86_64/
+engines/lc0-weights
+engines/mame_emulation/
 
 # Installer logs
 pip-log.txt
@@ -99,8 +105,7 @@ etc/dgtpicom.so
 # ignore the talker voices.ini
 talker/voices/voices.ini
 
-# ignore engines - let user manage them
-engines/lc0_weights
-engines/maia_weights
-engines/aarch64
-engines/x86_64
+# ignore resource files
+engines-aarch64-small.tar.gz
+engines-x86_64-small.tar.gz
+lc0-weights-small.tar.gz

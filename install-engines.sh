@@ -5,6 +5,12 @@
 echo "Checking architecture..."
 ARCH=$(uname -m)
 
+# --- Unsupported -------------------------------------------------------------
+if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "x86_64" ]; then
+    echo "Unsupported architecture: $ARCH"
+    exit 2
+fi
+
 # --- aarch64 -----------------------------------------------------------------
 if [ "$ARCH" = "aarch64" ]; then
     echo "Detected architecture: aarch64"
@@ -68,9 +74,8 @@ if [ "$ARCH" = "x86_64" ]; then
 fi
 
 # --- Common LC0 weights ------------------------------------------------------
-if [ ! -d "engines/lc0" ]; then
+if [ ! -d "engines/lc0_weights" ]; then
     echo "Installing LC0 weights..."
-    mkdir -p engines || exit 1
 
     WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
     TMPFILE="/tmp/lc0-weights-small.tar.gz"
@@ -92,12 +97,6 @@ if [ ! -d "engines/lc0" ]; then
     echo "LC0 weights installed successfully."
 else
     echo "LC0 weights already present."
-fi
-
-# --- Unsupported -------------------------------------------------------------
-if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "x86_64" ]; then
-    echo "Unsupported architecture: $ARCH"
-    exit 1
 fi
 
 exit 0

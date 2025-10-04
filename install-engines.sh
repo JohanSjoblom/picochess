@@ -18,6 +18,8 @@ if [ "$ARCH" = "aarch64" ]; then
     if [ ! -d "engines/aarch64" ]; then
         echo "No engines found for aarch64. Installing small package..."
         mkdir -p engines || exit 1
+        cd engines || exit 1
+        mkdir -p aarch64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
         TMPFILE="/tmp/engines-aarch64-small.tar.gz"
@@ -49,6 +51,8 @@ if [ "$ARCH" = "x86_64" ]; then
     if [ ! -d "engines/x86_64" ]; then
         echo "No engines found for x86_64. Installing small package..."
         mkdir -p engines || exit 1
+        cd engines || exit 1
+        mkdir -p x86_64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
         TMPFILE="/tmp/engines-x86_64-small.tar.gz"
@@ -76,6 +80,9 @@ fi
 # --- Common LC0 weights ------------------------------------------------------
 if [ ! -d "engines/lc0_weights" ]; then
     echo "Installing LC0 weights..."
+    cd /opt/picochess/engines || exit 1
+    mkdir -p lc0_weights || exit 1
+    cd lc0_weights || exit 1
 
     WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
     TMPFILE="/tmp/lc0-weights-small.tar.gz"

@@ -16,6 +16,7 @@ pydub==0.25.1
 pygame==2.6.1
 pam==0.2.0
 six==1.16.0
+PyAudio==0.2.13
 # potentially needed
 #lczero_bindings==0.1.0
 #bcrypt==4.2.0

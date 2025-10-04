@@ -26,7 +26,7 @@ Quick Installation
 ------------------
 Get the installations script, give it execution rights, and run it as sudo. It will clone the repository to /opt/picochess and install the needed services.
 - wget -L https://raw.github.com/JohanSjoblom/Picochess/master/install-picochess.sh
-- chmod a+x install-picochess.sh
+- chmod +x install-picochess.sh
 - sudo ./install-picochess.sh
 - reboot and if everything went well Picochess should start as a service
 The script installs the following services in /etc/systemd/system/
@@ -34,6 +34,7 @@ The script installs the following services in /etc/systemd/system/
 - picochess-update, the service to stay updated
 - obooksrv, opening books window on web page
 - gamesdb, games window on web page
+The first time the script runs it will download 
 
 How to stay updated
 -------------------
@@ -59,13 +60,12 @@ Additional scripts you might find useful:
 
 How to add more engines?
 ------------------------
-In the repo there are only Stockfish and LC0 examples. To add an engine you need:
+There are no engines in the git repo. But there are resource files. The picochess installer will run the install-engines.sh script that fetches resource file(s) with engines. The small version should include at least Stockfish 17.1 and LC0 0.32.
+To add an engine you need:
 - locate the /opt/picochess/engines folder - Pi uses aarch64 and Debian laptops x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with settings
 - add an [engineX] section in engines.ini file
-To get a lot of Pi engines copy the entire /opt/picoshess/engines/ folder from an image found in the picochess google group.
-
-If you have a Pi4 image from the picochess group you can copy the entire /opt/picoshess/engines/aarch64 folder from the image to your Pi4.
+To get a lot of Pi engines copy the entire /opt/picoshess/engines/aarch64 folder from an image found in the picochess google group. At some point we can perhaps make every image release available as a resource file.
 
 Installation with more detailed info
 ------------------------------------

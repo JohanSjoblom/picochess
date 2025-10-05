@@ -77,30 +77,34 @@ if [ "$ARCH" = "x86_64" ]; then
 fi
 
 # --- Common LC0 weights ------------------------------------------------------
-if [ ! -d "engines/lc0_weights" ]; then
-    echo "Installing LC0 weights..."
-    mkdir -p engines/lc0_weights || exit 1
+if [ ! -d "engines/$ARCH/lc0_weights" ]; then
+    if [ ! -d "engines/lc0_weights" ]; then
+        echo "Installing LC0 weights..."
+        mkdir -p engines/lc0_weights || exit 1
 
-    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
-    TMPFILE="/tmp/lc0-weights-small.tar.gz"
+        WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
+        TMPFILE="/tmp/lc0-weights-small.tar.gz"
 
-    echo "Downloading LC0 weights..."
-    if command -v curl >/dev/null 2>&1; then
-        curl -L -o "$TMPFILE" "$WEIGHTS_URL" || exit 1
-    elif command -v wget >/dev/null 2>&1; then
-        wget -O "$TMPFILE" "$WEIGHTS_URL" || exit 1
+        echo "Downloading LC0 weights..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -L -o "$TMPFILE" "$WEIGHTS_URL" || exit 1
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$TMPFILE" "$WEIGHTS_URL" || exit 1
+        else
+            echo "Error: need curl or wget to download" 1>&2
+            exit 1
+        fi
+
+        echo "Extracting LC0 weights..."
+        tar -xzf "$TMPFILE" -C engines/lc0_weights || exit 1
+        rm -f "$TMPFILE"
+
+        echo "LC0 weights installed successfully."
     else
-        echo "Error: need curl or wget to download" 1>&2
-        exit 1
+        echo "LC0 weights already present in engines folder."
     fi
-
-    echo "Extracting LC0 weights..."
-    tar -xzf "$TMPFILE" -C engines/lc0_weights || exit 1
-    rm -f "$TMPFILE"
-
-    echo "LC0 weights installed successfully."
 else
-    echo "LC0 weights already present."
+    echo "LC0 weights already present in engines/$ARCH."
 fi
 
 exit 0

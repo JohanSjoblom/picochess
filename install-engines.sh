@@ -107,4 +107,32 @@ else
     echo "LC0 weights already present in engines/$ARCH."
 fi
 
+# --- pgn_audio files ---------------------------------------------------
+if [ ! -d "engines/pgn_engine/pgn_audio" ]; then
+    echo "Installing pgn_audio files..."
+    mkdir -p engines/pgn_engine/pgn_audio || exit 1
+
+    AUDIO_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/pgn_audio.tar.gz"
+    TMPFILE="/tmp/pgn_audio.tar.gz"
+
+    echo "Downloading pgn_audio files..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -o "$TMPFILE" "$AUDIO_URL" || exit 1
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$TMPFILE" "$AUDIO_URL" || exit 1
+    else
+        echo "Error: need curl or wget to download" 1>&2
+        exit 1
+    fi
+
+    echo "Extracting pgn_audio files..."
+    tar -xzf "$TMPFILE" -C engines/pgn_engine/pgn_audio || exit 1
+    rm -f "$TMPFILE"
+
+    echo "pgn_audio files installed successfully."
+else
+    echo "pgn_audio files already present in engines folder."
+fi
+
+
 exit 0

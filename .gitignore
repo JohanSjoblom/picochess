@@ -39,6 +39,7 @@ engines/aarch64/
 engines/x86_64/
 engines/lc0_weights/
 engines/mame_emulation/
+engines/descriptions.txt
 
 # Installer logs
 pip-log.txt

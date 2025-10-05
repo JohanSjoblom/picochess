@@ -18,17 +18,66 @@ else
 fi
 
 #
-# INSTALLING NEEDED SYSTEM LIBRARIES BEFORE BACKUP SECTION
+# INSTALLING PYTHON LIBRARIES BEFORE CHECKING PYTHON VERSION
+#
+echo " ------------------------- "
+apt -y install python3 python3-pip
+apt -y install python3-dev
+apt -y install python3-pyaudio portaudio19-dev
+apt -y install python3-venv
+echo " ------------------------- "
+
+# --- PYTHON VERSION CHECK --------------------------------------------------
+# Check the system's default Python version and ensure Python 3.12 is available.
+# Raspberry Pi OS Trixie may include Python 3.13, which can break pydub/pyaudio.
+# This ensures a Python 3.12 interpreter is installed and used for PicoChess.
+
+echo "Checking system Python version..."
+SYS_PYTHON=$(python3 -V 2>&1 | awk '{print $2}')
+SYS_MAJOR=$(echo "$SYS_PYTHON" | cut -d. -f1)
+SYS_MINOR=$(echo "$SYS_PYTHON" | cut -d. -f2)
+TARGET_PY_VER=3.12
+TARGET_PY_CMD=python3.12
+
+NEED_PY312=0
+if [ "$SYS_MAJOR" -gt 3 ]; then
+    NEED_PY312=1
+else
+    if [ "$SYS_MAJOR" -eq 3 ] && [ "$SYS_MINOR" -gt 12 ]; then
+        NEED_PY312=1
+    fi
+fi
+
+if [ "$NEED_PY312" -eq 1 ]; then
+    echo "Detected Python $SYS_PYTHON (newer than $TARGET_PY_VER) – installing Python $TARGET_PY_VER for compatibility..."
+    sudo apt install -y "$TARGET_PY_CMD" "$TARGET_PY_CMD-venv" "$TARGET_PY_CMD-dev"
+else
+    echo "System Python $SYS_PYTHON is compatible (<= $TARGET_PY_VER)."
+fi
+
+# Choose which Python binary to use for venv creation
+if command -v "$TARGET_PY_CMD" >/dev/null 2>&1; then
+    PYTHON_BIN=$TARGET_PY_CMD
+else
+    PYTHON_BIN=$(command -v python3)
+fi
+
+# Fallback to system python3 ensures venv creation never fails
+if [ -z "$PYTHON_BIN" ] || ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    echo "Warning: Could not find $TARGET_PY_CMD, falling back to python3"
+    PYTHON_BIN=python3
+fi
+
+echo "Using Python interpreter: $PYTHON_BIN"
+
+#
+# INSTALLING OTHER NEEDED SYSTEM LIBRARIES BEFORE BACKUP SECTION
 #
 echo " ------------------------- "
 echo "installing needed libraries"
 apt -y install git sox unzip wget libtcl8.6 telnet libglib2.0-dev
 apt -y install avahi-daemon avahi-discover libnss-mdns
 apt -y install vorbis-tools
-apt -y install python3 python3-pip
-apt -y install python3-dev
-apt -y install python3-pyaudio portaudio19-dev
-apt -y install python3-venv
 apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # following lines are for (building) and running leela-chess-zero
@@ -188,7 +237,9 @@ if [ -d "/opt/picochess/venv" ]; then
     chgrp -R pi /opt/picochess/venv
 else
     echo "creating virtual Python env named venv"
-    sudo -u pi python3 -m venv /opt/picochess/venv
+    echo "... using $PYTHON_BIN ..."
+    sudo -u pi "$PYTHON_BIN" -m venv /opt/picochess/venv
+    # sudo -u pi python3 -m venv /opt/picochess/venv
 fi
 
 if [ -f "/opt/picochess/picochess.ini" ]; then

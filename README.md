@@ -60,7 +60,7 @@ Additional scripts you might find useful:
 
 How to add more engines?
 ------------------------
-There are no engines in the git repo. But there are resource files. The picochess installer will run the install-engines.sh script that fetches resource file(s) with engines. The small version should include at least Stockfish 17.1 and LC0 0.32.
+There are no engines in the git repo, but there are resource files with engines. The picochess installer will run the install-engines.sh after it has cloned the repo. The small version should include at least Stockfish 17.1 and LC0 0.32. You can rerun the install-engines at any time but it will only install engines if there is no engines/arch folder for that architecture. arch can be aarch64 or x86_64.
 To add an engine you need:
 - locate the /opt/picochess/engines folder - Pi uses aarch64 and Debian laptops x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with settings

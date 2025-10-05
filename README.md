@@ -20,7 +20,7 @@ Requirements
 ------------
 
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Debian computer (x86_64)
-- RaspiOS Bookworm (latest) 64bit recommended
+- RaspiOS Bookworm (latest) 64bit or the new Trixie that is currently being tested. The goal is that you can always take the latest stock Pi image that is available. Trixie became available early October 2025. It should work out of the box as long as you remember to switch the audio to PulseAudio.
 
 Quick Installation
 ------------------
@@ -77,11 +77,11 @@ Installation with more detailed info
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.
 8. Boot your PI with the SD card inserted. A standard image will reboot after first start, and the second time it starts you should be able to login as user pi.
-9. Using sudo raspi-config make changes to advanced options: select PulseAudio and X11. PulseAudio might prevents lags in the picochess spoken voice. Note: As of version 4.1.3 the dependency on the audio system might have disappeared as it now uses python pygame instead of sox to talk.
+9. Using sudo raspi-config make changes to advanced options: select PulseAudio and X11. Without PulseAudio there might be lags in the picochess spoken voice. A desktop stock image of Trixie will still have Pipewire as default,... change it to PulseAudio for better performance. X11 seems to be the default but check it anyway.
 10. Get this repo. First cd /opt then do sudo git clone. This should create your /opt/picochess folder. Alternative: Download the install-picochess.sh script and run it using sudo. See quick installation above.
 11. Run the install-picochess.sh script. The script will first do a system update which may run for a while depending on how old your installation is. Then it will do git clone if you dont have the repo, and git pull if you already have the repo in /opt/picochess.
 12. Reboot when install is done. When you login again the voice should say "picochess", "engine startup", "ok".
-13. Open your web browser on localhost or from another computer using the IP address of your PI. You can change the web port in pocochess.ini
+13. Open your web browser on localhost or from another computer using the IP address of your PI. You can change the web port in picochess.ini
 14. Start playing !
 
 Tailoring: edit the picochess.ini file.

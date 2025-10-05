@@ -32,7 +32,7 @@ import subprocess
 with contextlib.redirect_stdout(io.StringIO()):
     import pygame
 
-from pydub import AudioSegment  # type: ignore
+# from pydub import AudioSegment  # type: ignore
 import chess  # type: ignore
 from utilities import DisplayMsg
 from dgt.api import Message
@@ -245,40 +245,40 @@ class PicoTalkerDisplay(DisplayMsg):
             logger.warning("OSError: %s => turn voice OFF", os_exc)
         return result
 
-    async def get_or_load_sound(self, path):
-        """Async function to load or get sound from cache"""
-        key = (path, self.speed_factor)
-        if key not in self.sound_cache:
-            # loading sounds blocks, playing them does not, use thread here
-            sound = await asyncio.to_thread(self.load_and_transform, path)
-            self.sound_cache[key] = sound
-        return self.sound_cache[key]
+    # async def get_or_load_sound(self, path):
+    #     """Async function to load or get sound from cache"""
+    #     key = (path, self.speed_factor)
+    #     if key not in self.sound_cache:
+    #         # loading sounds blocks, playing them does not, use thread here
+    #         sound = await asyncio.to_thread(self.load_and_transform, path)
+    #         self.sound_cache[key] = sound
+    #     return self.sound_cache[key]
 
-    def load_and_transform(self, path: str):
-        """Load a sound file and change its playback speed if necessary."""
-        if self.speed_factor == 1.0:
-            # no speed change needed, load directly, dont use pydub, ffmpeg, io
-            return pygame.mixer.Sound(path)  # only AudioSegment needs BASE_DIR
-        # use pydub and ffmpeg to load the sound file and change playback speed
-        seg = AudioSegment.from_file(BASE_DIR + path)
-        seg = self.change_playback_speed(seg)
-        return self.audiosegment_to_pygame_sound(seg)
+    # def load_and_transform(self, path: str):
+    #     """Load a sound file and change its playback speed if necessary."""
+    #     if self.speed_factor == 1.0:
+    #         # no speed change needed, load directly, dont use pydub, ffmpeg, io
+    #         return pygame.mixer.Sound(path)  # only AudioSegment needs BASE_DIR
+    #     # use pydub and ffmpeg to load the sound file and change playback speed
+    #     seg = AudioSegment.from_file(BASE_DIR + path)
+    #     seg = self.change_playback_speed(seg)
+    #     return self.audiosegment_to_pygame_sound(seg)
 
-    # the following two member functions are used to change the playback speed of a sound
-    # it requires pydub and ffmpeg to be installed - only used if speed_factor != 1.0
-    # they are called from load_and_transform above
-    def change_playback_speed(self, sound: AudioSegment):
-        """use pydub to change the playback speed of a sound"""
-        new_frame_rate = int(sound.frame_rate * self.speed_factor)
-        return sound._spawn(sound.raw_data, overrides={"frame_rate": new_frame_rate}).set_frame_rate(sound.frame_rate)
+    # # the following two member functions are used to change the playback speed of a sound
+    # # it requires pydub and ffmpeg to be installed - only used if speed_factor != 1.0
+    # # they are called from load_and_transform above
+    # def change_playback_speed(self, sound: AudioSegment):
+    #     """use pydub to change the playback speed of a sound"""
+    #     new_frame_rate = int(sound.frame_rate * self.speed_factor)
+    #     return sound._spawn(sound.raw_data, overrides={"frame_rate": new_frame_rate}).set_frame_rate(sound.frame_rate)
 
-    def audiosegment_to_pygame_sound(self, seg: AudioSegment):
-        """Convert an AudioSegment to a pygame Sound object.
-        used to play pydub sounds in pygame, pydub is used to change playback speed."""
-        raw = io.BytesIO()
-        seg.export(raw, format="wav")
-        raw.seek(0)
-        return pygame.mixer.Sound(file=raw)
+    # def audiosegment_to_pygame_sound(self, seg: AudioSegment):
+    #     """Convert an AudioSegment to a pygame Sound object.
+    #     used to play pydub sounds in pygame, pydub is used to change playback speed."""
+    #     raw = io.BytesIO()
+    #     seg.export(raw, format="wav")
+    #     raw.seek(0)
+    #     return pygame.mixer.Sound(file=raw)
 
     def set_comment_factor(self, comment_factor: int):
         self.c_comment_factor = comment_factor

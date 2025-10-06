@@ -12,7 +12,7 @@ cp etc/dgtpi.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable dgtpi.service
 
-echo "no setcap rights used in this script, they are all in install-dgtpi-clock.sh"
+echo "no setcap rights used in this script, they are all in install-picochess.sh"
 echo "setcap not needed as no system update done here"
 
 echo " ------- "

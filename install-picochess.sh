@@ -238,15 +238,34 @@ systemctl enable obooksrv.service
 systemctl enable gamesdb.service
 systemctl enable picochess-update.service
 
-echo " ------- "
+echo " ------- setcap start ------- "
 echo "after each system update we need to rerun the cap_net rights"
 echo "giving bluetooth rights so that communication works to DGT board etc"
-setcap 'cap_net_raw,cap_net_admin+eip' /opt/picochess/venv/lib/python3.11/site-packages/bluepy/bluepy-helper
+# dynamically detect the Python binary in the venv
+VENV_PYTHON=$(readlink -f /opt/picochess/venv/bin/python)
+echo "Debug: Using venv python at $VENV_PYTHON"
+# get python version string like python3.13
+PYVER=$($VENV_PYTHON -c 'import sys; print("python%d.%d" % sys.version_info[:2])')
+echo "Debug: Detected python version: $PYVER"
+# construct the path to bluepy-helper dynamically
+BLUEPY_HELPER="/opt/picochess/venv/lib/$PYVER/site-packages/bluepy/bluepy-helper"
+echo "Debug: Bluepy helper path: $BLUEPY_HELPER"
+# apply capabilities if the helper exists
+if [ -f "$BLUEPY_HELPER" ]; then
+    setcap 'cap_net_raw,cap_net_admin+eip' "$BLUEPY_HELPER" || \
+        echo "Warning: setcap failed for $BLUEPY_HELPER" >&2
+else
+    echo "Warning: $BLUEPY_HELPER not found, skipping setcap" >&2
+fi
+# apply capabilities to venv python, continue even if it fails
+if [ -x "$VENV_PYTHON" ]; then
+    setcap 'cap_sys_boot,cap_net_bind_service,cap_sys_rawio,cap_dac_override+eip' "$VENV_PYTHON" || \
+        echo "Warning: setcap failed for $VENV_PYTHON" >&2
+else
+    echo "Warning: venv python $VENV_PYTHON not found or not executable" >&2
+fi
+echo " ------- setcap end ------- "
 
-echo "giving rights to python to use port 80, reboot/shutdown, and access serial devices"
-setcap 'cap_sys_boot,cap_net_bind_service,cap_sys_rawio,cap_dac_override+eip' $(readlink -f $(which python3))
-
-echo " ------- "
 echo "Picochess installation complete. Please reboot"
 echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"
 echo "After reboot open a browser to localhost"

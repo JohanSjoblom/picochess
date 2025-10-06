@@ -35,12 +35,12 @@
                 -webkit-overflow-scrolling: touch;
             }
         }
-        
+
         /* Barra de evaluación horizontal */
         .evaluation-bar-horizontal {
             margin-bottom: 10px;
         }
-        
+
         .evaluation-container-horizontal {
             position: relative;
             width: 100%;
@@ -49,9 +49,9 @@
             border: 1px solid #dee2e6;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        
+
         .evaluation-fill-horizontal {
             position: absolute;
             top: 0;
@@ -60,11 +60,11 @@
             background-color: rgba(248, 249, 250, 0.9);
             transition: all 0.3s ease;
         }
-        
+
         .evaluation-fill-horizontal.negative {
             background-color: rgba(52, 58, 64, 0.9);
         }
-        
+
         .evaluation-center-line-horizontal {
             position: absolute;
             left: 50%;
@@ -74,7 +74,7 @@
             background-color: #6c757d;
             transform: translateX(-50%);
         }
-        
+
         .evaluation-value-horizontal {
             position: absolute;
             top: 50%;
@@ -411,7 +411,7 @@
                     }
                 });
             });
-            
+
             // Ajustar el ancho de la barra de evaluación al ancho del tablero
             function adjustEvaluationBarWidth() {
                 var boardElement = document.getElementById('board');
@@ -421,12 +421,12 @@
                     evaluationContainer.style.width = boardWidth + 'px';
                 }
             }
-            
+
             setTimeout(adjustEvaluationBarWidth, 500);
             window.addEventListener('resize', adjustEvaluationBarWidth);
-            
+
             // Forzar redibujado del tablero
-            setTimeout(function() {
+            setTimeout(function () {
                 if (window.chessground1) {
                     chessground1.redrawAll();
                 }

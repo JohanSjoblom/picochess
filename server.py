@@ -440,6 +440,7 @@ class WebDisplay(DisplayMsg):
     level_text_sav = ""
     level_name_sav = ""
     engine_elo_sav = ""
+    user_elo_sav = ""
     result_sav = ""
     engine_name = "Picochess"
 
@@ -678,33 +679,44 @@ class WebDisplay(DisplayMsg):
             self.shared["game_info"]["interaction_mode"] = message.mode
             if self.shared["game_info"]["interaction_mode"] == Mode.REMOTE:
                 self.shared["system_info"]["engine_name"] = "Remote Player"
-                if self.shared["system_info"]["engine_elo"] != "":
+                if "engine_elo" in self.shared["system_info"] and self.shared["system_info"]["engine_elo"] != "":
                     WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"]
                 self.shared["system_info"]["engine_elo"] = "?"
-                if self.shared["game_info"]["level_text"] != "":
+                if "level_text" in self.shared["game_info"] and self.shared["game_info"]["level_text"] != "":
                     WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
-                if self.shared["game_info"]["level_name"] != "":
+                if "level_name" in self.shared["game_info"] and self.shared["game_info"]["level_name"] != "":
                     WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
-                del self.shared["game_info"]["level_text"]
-                del self.shared["game_info"]["level_name"]
+                if "level_text" in self.shared["game_info"]:
+                    del self.shared["game_info"]["level_text"]
+                if "level_name" in self.shared["game_info"]:
+                    del self.shared["game_info"]["level_name"]
 
             elif self.shared["game_info"]["interaction_mode"] == Mode.OBSERVE:
                 self.shared["system_info"]["engine_name"] = "Player B"
                 self.shared["system_info"]["user_name"] = "Player A"
-                if self.shared["system_info"]["engine_elo"] != "":
+                if "engine_elo" in self.shared["system_info"] and self.shared["system_info"]["engine_elo"] != "":
                     WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"]
                 self.shared["system_info"]["engine_elo"] = "?"
-                if self.shared["game_info"]["level_text"] != "":
+                if "user_elo" in self.shared["system_info"] and self.shared["system_info"]["user_elo"] != "":
+                    WebDisplay.user_elo_sav = self.shared["system_info"]["user_elo"]
+                self.shared["system_info"]["user_elo"] = "?"
+                if "level_text" in self.shared["game_info"] and self.shared["game_info"]["level_text"] != "":
                     WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
-                if self.shared["game_info"]["level_name"] != "":
+                if "level_name" in self.shared["game_info"] and self.shared["game_info"]["level_name"] != "":
                     WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
-                del self.shared["game_info"]["level_text"]
-                del self.shared["game_info"]["level_name"]
+                if "level_text" in self.shared["game_info"]:
+                    del self.shared["game_info"]["level_text"]
+                if "level_name" in self.shared["game_info"]:
+                    del self.shared["game_info"]["level_name"]
             else:
-                self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]
-                self.shared["system_info"]["user_name"] = self.shared["system_info"]["user_name_orig"]
+                if "old_engine" in self.shared["system_info"]:
+                    self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]
+                if "user_name_orig" in self.shared["system_info"]:
+                    self.shared["system_info"]["user_name"] = self.shared["system_info"]["user_name_orig"]
                 if WebDisplay.engine_elo_sav != "":
                     self.shared["system_info"]["engine_elo"] = WebDisplay.engine_elo_sav
+                if WebDisplay.user_elo_sav != "":
+                    self.shared["system_info"]["user_elo"] = WebDisplay.user_elo_sav
                 if WebDisplay.level_text_sav != "":
                     self.shared["game_info"]["level_text"] = WebDisplay.level_text_sav
                 if WebDisplay.level_name_sav != "":

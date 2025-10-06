@@ -25,6 +25,7 @@ Requirements
 Quick Installation
 ------------------
 Get the installations script, give it execution rights, and run it as sudo. It will clone the repository to /opt/picochess and install the needed services.
+It will also download a basic set of engines like Stockfish 17.1 and LC0 0.32. It will also download a set of LC0 weights files that you could use to setup your own LC0 personalities by editing the LC0 uci file. Note: downloading these resources takes a while, especially the LC0 personalities.
 - wget -L https://raw.github.com/JohanSjoblom/Picochess/master/install-picochess.sh
 - chmod +x install-picochess.sh
 - sudo ./install-picochess.sh

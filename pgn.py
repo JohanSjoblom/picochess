@@ -336,9 +336,9 @@ class PgnDisplay(DisplayMsg):
         self.emailer = emailer
 
         self.engine_name = "?"
-        self.old_engine = "?"
+        self.old_engine = ""
         self.user_name = "?"
-        self.user_name_orig = "?"
+        self.old_user_name = "?"
         self.rspeed = "1.0"
         self.location = "?"
         self.level_text: Optional[Dgt.DISPLAY_TEXT] = None
@@ -623,6 +623,7 @@ class PgnDisplay(DisplayMsg):
         elif isinstance(message, Message.SYSTEM_INFO):
             if "engine_name" in message.info:
                 self.engine_name = message.info["engine_name"]
+
                 ModeInfo.retro_engine_features = " /"
                 if "(pos+info)" in self.engine_name:
                     ModeInfo.retro_engine_features = " pos + info"
@@ -633,14 +634,13 @@ class PgnDisplay(DisplayMsg):
                 if "(info)" in self.engine_name:
                     ModeInfo.retro_engine_features = " information"
                     self.engine_name = self.engine_name.replace("(info)", "")
-                    self.old_engine = self.engine_name
                     self.old_level_name = self.level_name
                     self.old_level_text = self.level_text
                     self.old_engine_elo = self.engine_elo
                     self.old_user_elo = self.user_elo
             if "user_name" in message.info:
                 self.user_name = message.info["user_name"]
-                self.user_name_orig = message.info["user_name"]
+                self.old_user_name = message.info["user_name"]
             if "user_elo" in message.info:
                 self.user_elo = message.info["user_elo"]
             if "engine_elo" in message.info:
@@ -654,14 +654,18 @@ class PgnDisplay(DisplayMsg):
         elif isinstance(message, Message.STARTUP_INFO):
             self.level_text = message.info["level_text"]
             self.level_name = message.info["level_name"]
+            if "engine_name" in message.info:
+                self.engine_name = message.info["engine_name"]
             self.old_level_name = self.level_name
             self.old_level_text = self.level_text
-            self.old_engine_elo = self.engine_elo
-            self.old_user_elo = self.user_elo
+
             if "engine_elo" in message.info:
                 self.engine_elo = message.info["engine_elo"]
+                self.old_engine_elo = self.engine_elo
+
             if "user_elo" in message.info:
                 self.user_elo = message.info["user_elo"]
+                self.old_user_elo = self.user_elo
 
         elif isinstance(message, Message.LEVEL):
             self.level_text = message.level_text
@@ -674,23 +678,33 @@ class PgnDisplay(DisplayMsg):
         elif isinstance(message, Message.INTERACTION_MODE):
             self.mode = message.mode
             if message.mode == Mode.REMOTE:
-                self.old_engine = self.engine_name
+                if self.old_engine == "":
+                    self.old_engine = self.engine_name
                 self.engine_name = "Remote Player"
+                self.user_name = self.old_user_name
                 self.level_text = None
                 self.level_name = ""
             elif message.mode == Mode.OBSERVE:
-                self.old_engine = self.engine_name
+                if self.old_engine == "":
+                    self.old_engine = self.engine_name
                 self.engine_name = "Player B"
+
+                if self.old_user_name == "":
+                    self.old_user_name = self.user_name
                 self.user_name = "Player A"
                 self.level_text = None
                 self.level_name = ""
             else:
-                self.engine_name = self.old_engine
+                if self.old_engine != "":
+                    self.engine_name = self.old_engine
+
+                if self.old_user_name != "":
+                    self.user_name = self.old_user_name
+
                 self.level_name = self.old_level_name
                 self.level_text = self.old_level_text
                 self.engine_elo = self.old_engine_elo
                 self.user_elo = self.old_user_elo
-                self.user_name = self.user_name_orig
 
         elif isinstance(message, Message.ENGINE_STARTUP):
             for index in range(0, len(message.installed_engines)):
@@ -712,7 +726,6 @@ class PgnDisplay(DisplayMsg):
                 ModeInfo.retro_engine_features = " information"
                 self.engine_name = self.engine_name.replace("(info)", "")
 
-            self.old_engine = self.engine_name
             self.engine_elo = message.eng["elo"]
             if not message.has_levels:
                 self.level_text = None

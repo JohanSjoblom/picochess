@@ -35,6 +35,60 @@
                 -webkit-overflow-scrolling: touch;
             }
         }
+
+        /* Barra de evaluación horizontal */
+        .evaluation-bar-horizontal {
+            margin-bottom: 10px;
+        }
+
+        .evaluation-container-horizontal {
+            position: relative;
+            width: 100%;
+            height: 20px;
+            background: linear-gradient(to right, #f8f9fa 0%, #f8f9fa 50%, #343a40 50%, #343a40 100%);
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .evaluation-fill-horizontal {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            height: 100%;
+            background-color: rgba(248, 249, 250, 0.9);
+            transition: all 0.3s ease;
+        }
+
+        .evaluation-fill-horizontal.negative {
+            background-color: rgba(52, 58, 64, 0.9);
+        }
+
+        .evaluation-center-line-horizontal {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background-color: #6c757d;
+            transform: translateX(-50%);
+        }
+
+        .evaluation-value-horizontal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 10px;
+            color: #000;
+            background: transparent;
+            padding: 2px 4px;
+            border-radius: 3px;
+            white-space: nowrap;
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+        }
     </style>
 
 
@@ -62,6 +116,13 @@
                     <div class="card">
                         <div id="board_panel" class="panel panel-primary">
                             <div class="card-body" style="position:relative;">
+                                <div id="evaluationBar" class="evaluation-bar-horizontal" style="display: none;">
+                                    <div class="evaluation-container-horizontal">
+                                        <div class="evaluation-fill-horizontal" id="evaluationFill"></div>
+                                        <div class="evaluation-center-line-horizontal"></div>
+                                        <div class="evaluation-value-horizontal" id="evaluationValue">0.0</div>
+                                    </div>
+                                </div>
                                 <section id="xboardsection" class="natural-wood merida svg-container">
                                     <div class="board-container">
                                         <div id="board" class="svg-content" style="margin-bottom: 10px;"></div>
@@ -109,7 +170,9 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
+
                 <div class="col">
                     <div class="container">
                         <div class="row">
@@ -348,6 +411,26 @@
                     }
                 });
             });
+
+            // Ajustar el ancho de la barra de evaluación al ancho del tablero
+            function adjustEvaluationBarWidth() {
+                var boardElement = document.getElementById('board');
+                var evaluationContainer = document.querySelector('.evaluation-container-horizontal');
+                if (boardElement && evaluationContainer) {
+                    var boardWidth = boardElement.offsetWidth;
+                    evaluationContainer.style.width = boardWidth + 'px';
+                }
+            }
+
+            setTimeout(adjustEvaluationBarWidth, 500);
+            window.addEventListener('resize', adjustEvaluationBarWidth);
+
+            // Forzar redibujado del tablero
+            setTimeout(function () {
+                if (window.chessground1) {
+                    chessground1.redrawAll();
+                }
+            }, 100);
         });
     </script>
 </body>

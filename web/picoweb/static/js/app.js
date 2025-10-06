@@ -1130,6 +1130,37 @@ function toggleLeverButton() {
     if ($('#leverDown').is(':hidden')) {
         button = -0x40;
     }
+    
+    // Si el motor web está analizando, cambiar el turno en el FEN
+    if (window.analysis && window.stockfish) {
+        var tmpGame = createGamePointer();
+        var currentFen = tmpGame.fen();
+        var fenParts = currentFen.split(' ');
+        
+        // Obtener solo la parte del tablero (equivalente a board_fen() en Python)
+        var boardFen = fenParts[0];
+        
+        // Crear el nuevo FEN igual que en picochess.py línea 3869
+        var newFen;
+        if (fenParts[1] === 'w') {
+            newFen = boardFen + " b KQkq - 0 1";
+        } else {
+            newFen = boardFen + " w KQkq - 0 1";
+        }
+        
+        // Actualizar la posición actual
+        currentPosition.fen = newFen;
+        setupBoardFen = newFen;
+        
+        // Actualizar el tablero visual
+        updateChessGround();
+        updateStatus();
+        
+        // Reiniciar el análisis con el nuevo FEN
+        stopAnalysis();
+        analyze(true);
+    }
+    
     $.post('/channel', { action: 'clockbutton', button: button }, function (data) { });
 }
 
@@ -1229,14 +1260,18 @@ function formatEngineOutput(line) {
 
         var token = tokens[score_index];
         var score = '?';
+        var rawScore = 0;
         if (token === 'mate') {
-            score = '#' + tokens[score_index + 1];
+            rawScore = parseInt(tokens[score_index + 1]);
+            // Para mate, mantener el signo original del motor
+            // La puntuación ya viene correcta del motor
+            score = '#' + rawScore;
         }
         else if (tokens[score_index + 1]) {
-            score = (tokens[score_index + 1] / 100.0).toFixed(2);
-            if (analysis_game.turn() === 'b') {
-                score *= -1;
-            }
+            rawScore = parseInt(tokens[score_index + 1]) / 100.0;
+            // No invertir puntuación - mantener desde perspectiva del blanco
+            // La puntuación ya viene correcta del motor
+            score = rawScore.toFixed(2);
             if (token === 'lowerbound') {
                 score = '>' + score;
             }
@@ -1296,10 +1331,22 @@ function formatEngineOutput(line) {
 // Primer movimiento destacado
         if (history.length > 0) {
             var firstMoveText = '';
-            if ((start_move_num) % 2 === 1) {
-                firstMoveText += Math.floor((start_move_num + 1) / 2) + '. ';
+            // Crear una copia del juego para obtener el turno actual
+            var tempGame = new Chess();
+            if (currentPosition && currentPosition.fen) {
+                tempGame.load(currentPosition.fen, chessGameType);
+            }
+            var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
+            
+            // Calcular el número de movimiento correctamente
+            var moveNumber = Math.floor((start_move_num + 1) / 2);
+            
+            if (currentTurn === 'w') {
+                // Le toca a las blancas
+                firstMoveText += moveNumber + '. ';
             } else {
-                firstMoveText += Math.floor((start_move_num + 1) / 2) + '... ';
+                // Le toca a las negras
+                firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
@@ -1308,9 +1355,13 @@ function formatEngineOutput(line) {
 // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
+            var currentMoveNum = start_move_num;
+            
             for (i = 1; i < history.length; ++i) {
-                if ((start_move_num + i) % 2 === 1) {
-                    continuationText += Math.floor((start_move_num + i + 1) / 2) + '. ';
+                currentMoveNum++;
+                // Si es turno de las blancas (número impar), mostrar número de movimiento
+                if (currentMoveNum % 2 === 1) {
+                    continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
                 }
                 continuationText += figurinizeMove(history[i]) + ' ';
             }
@@ -1323,61 +1374,125 @@ function formatEngineOutput(line) {
         output += '</div></div>';
 
         analysis_game = null;
+        
+        // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
+        if (multipv === 1) {
+            updateEvaluationBar(score);
+        }
+        
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
         return line;
     }
 }
+
+// Función para actualizar la barra de evaluación horizontal
+function updateEvaluationBar(score) {
+    if (!score || score === '?') return;
+    
+    var numericScore = 0;
+    var isMate = false;
+    
+    if (String(score).includes('#')) {
+        isMate = true;
+        var mateIn = parseInt(score.replace('#', ''));
+        numericScore = mateIn > 0 ? 50 : -50; // Valor completo para mate
+    } else {
+        numericScore = parseFloat(score);
+    }
+    
+    var fillElement = $('#evaluationFill');
+    var valueElement = $('#evaluationValue');
+    
+    if (isMate) {
+        // Para mate, llenar completamente la barra
+        if (numericScore > 0) {
+            fillElement.removeClass('negative');
+            fillElement.css({
+                'left': '50%',
+                'width': '50%'
+            });
+        } else {
+            fillElement.addClass('negative');
+            fillElement.css({
+                'left': '0%',
+                'width': '50%'
+            });
+        }
+    } else {
+        numericScore = Math.max(-8, Math.min(8, numericScore));
+        
+        if (numericScore >= 0) {
+            // Ventaja blancas - llenar hacia la derecha desde el centro
+            fillElement.removeClass('negative');
+            fillElement.css({
+                'left': '50%',
+                'width': ((numericScore / 8) * 50) + '%'
+            });
+        } else {
+            // Ventaja negras - llenar hacia la izquierda desde el centro
+            fillElement.addClass('negative');
+            fillElement.css({
+                'left': (50 + (numericScore / 8) * 50) + '%',
+                'width': ((-numericScore / 8) * 50) + '%'
+            });
+        }
+    }
+    
+    // Mostrar el valor original del motor, no el limitado
+    var originalScore = parseFloat(score);
+    if (isMate) {
+        valueElement.text(score);
+    } else {
+        valueElement.text(originalScore.toFixed(1));
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////////////
 
 function multiPvIncrease() {
-    if (window.stockfish) {
-        window.multipv += 1;
-
-        if (window.stockfish) {
-            window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            if (window.analysis) {
-                window.stockfish.postMessage('stop');
-                window.stockfish.postMessage('go infinite');
-            }
-            else {
-                $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-            }
-        }
-
-        var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
-        $("#pv_output").append(new_div_str);
-
+    window.multipv += 1;
+    
+    // Agregar nuevo contenedor
+    var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
+    $("#pv_output").append(new_div_str);
+    
+    // Solo actualizar el motor si el análisis está activo
+    if (window.analysis && window.stockfish) {
+        window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
+        window.stockfish.postMessage('stop');
+        window.stockfish.postMessage('go infinite');
+        
         if (!window.StockfishModule) {
-            // Need to restart web worker as its not Chrome
             stopAnalysis();
             analyze(true);
         }
     }
+    
+    // Actualizar el estado visual
+    $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
 }
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
+        // Remover el contenedor
         $('#pv_' + window.multipv).remove();
-
         window.multipv -= 1;
-        if (window.stockfish) {
+        
+        // Solo actualizar el motor si el análisis está activo
+        if (window.analysis && window.stockfish) {
             window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            if (window.analysis) {
-                window.stockfish.postMessage('stop');
-                window.stockfish.postMessage('go infinite');
-            }
-            else {
-                $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+            window.stockfish.postMessage('stop');
+            window.stockfish.postMessage('go infinite');
+            
+            if (!window.StockfishModule) {
+                stopAnalysis();
+                analyze(true);
             }
         }
-
-        if (!window.StockfishModule) {
-            // Need to restart web worker as its not Chrome
-            stopAnalysis();
-            analyze(true);
-        }
+        
+        // Actualizar el estado visual
+        $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
     }
 }
 
@@ -1402,6 +1517,17 @@ function importPv(multipv) {
 }
 
 function analyzePressed() {
+    if ($('#AnalyzeText').text() === 'Analyze') {
+        $('#evaluationBar').show();
+    } else {
+        $('#evaluationBar').hide();
+        // Limpiar contenedor de análisis al detener
+        $('#pv_output').empty();
+        // Recrear los contenedores según el multipv actual
+        for (var i = 1; i <= window.multipv; i++) {
+            $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+        }
+    }
     analyze(false);
 }
 
@@ -1445,6 +1571,17 @@ function stopAnalysis() {
             console.warn(err);
         }
     }
+    // Limpiar todas las líneas de análisis
+    $('#pv_output').empty();
+    // Recrear los contenedores según el multipv actual
+    for (var i = 1; i <= window.multipv; i++) {
+        $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+    }
+    
+    // Ocultar la barra de evaluación cuando se detiene el análisis
+    if (!window.analysis) {
+        $('#evaluationBar').hide();
+    }
 }
 
 function getCountPrevMoves(node) {
@@ -1486,6 +1623,7 @@ function analyze(position_update) {
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
+            $('#evaluationBar').hide();
             return;
         }
     }
@@ -1509,10 +1647,15 @@ function analyze(position_update) {
     }
 
     var startpos = 'startpos';
-    if (setupBoardFen !== START_FEN) {
+    // Usar currentPosition.fen si está disponible para análisis correcto
+    if (currentPosition && currentPosition.fen && currentPosition.fen !== START_FEN) {
+        startpos = 'fen ' + currentPosition.fen.split(' ').slice(0, 4).join(' ') + ' 0 1';
+        moves = ''; // No necesitamos movimientos si usamos el FEN completo
+    } else if (setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
     }
-    window.stockfish.postMessage('position ' + startpos + ' moves ' + moves);
+    
+    window.stockfish.postMessage('position ' + startpos + (moves ? ' moves ' + moves : ''));
     window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
     window.stockfish.postMessage('go infinite');
 }

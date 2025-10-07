@@ -37,7 +37,7 @@ if [ "$ARCH" = "aarch64" ]; then
         fi
 
         echo "Extracting aarch64 engines..."
-        tar -xzf "$TMPFILE" -C engines/aarch64 || exit 1
+        tar -xzf "$TMPFILE" -C engines/aarch64 || { rm -f "$TMPFILE"; exit 1; }
         rm -f "$TMPFILE"
 
         echo "aarch64 engine package installed successfully."
@@ -68,7 +68,7 @@ if [ "$ARCH" = "x86_64" ]; then
         fi
 
         echo "Extracting x86_64 engines..."
-        tar -xzf "$TMPFILE" -C engines/x86_64 || exit 1
+        tar -xzf "$TMPFILE" -C engines/x86_64 || { rm -f "$TMPFILE"; exit 1; }
         rm -f "$TMPFILE"
 
         echo "x86_64 engine package installed successfully."
@@ -97,7 +97,7 @@ if [ ! -d "engines/$ARCH/lc0_weights" ]; then
         fi
 
         echo "Extracting LC0 weights..."
-        tar -xzf "$TMPFILE" -C engines/lc0_weights || exit 1
+        tar -xzf "$TMPFILE" -C engines/lc0_weights || { rm -f "$TMPFILE"; exit 1; }
         rm -f "$TMPFILE"
 
         echo "LC0 weights installed successfully."
@@ -127,7 +127,7 @@ if [ ! -d "engines/pgn_engine/pgn_audio" ]; then
     fi
 
     echo "Extracting pgn_audio files..."
-    tar -xzf "$TMPFILE" -C engines/pgn_engine/pgn_audio || exit 1
+    tar -xzf "$TMPFILE" -C engines/pgn_engine/pgn_audio || { rm -f "$TMPFILE"; exit 1; }
     rm -f "$TMPFILE"
 
     echo "pgn_audio files installed successfully."

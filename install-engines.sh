@@ -13,6 +13,7 @@ fi
 
 # Ensure top-level engines folder exists
 mkdir -p engines || exit 1
+mkdir -p /opt/picochess/tmp || exit 1
 
 # --- aarch64 -----------------------------------------------------------------
 if [ "$ARCH" = "aarch64" ]; then
@@ -23,7 +24,7 @@ if [ "$ARCH" = "aarch64" ]; then
         mkdir -p engines/aarch64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
-        TMPFILE="/tmp/engines-aarch64-small.tar.gz"
+        TMPFILE="/opt/picochess/tmp/engines-aarch64-small.tar.gz"
 
         echo "Downloading aarch64 engines..."
         if command -v curl >/dev/null 2>&1; then
@@ -54,7 +55,7 @@ if [ "$ARCH" = "x86_64" ]; then
         mkdir -p engines/x86_64 || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
-        TMPFILE="/tmp/engines-x86_64-small.tar.gz"
+        TMPFILE="/opt/picochess/tmp/engines-x86_64-small.tar.gz"
 
         echo "Downloading x86_64 engines..."
         if command -v curl >/dev/null 2>&1; then
@@ -83,7 +84,7 @@ if [ ! -d "engines/$ARCH/lc0_weights" ]; then
         mkdir -p engines/lc0_weights || exit 1
 
         WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
-        TMPFILE="/tmp/lc0-weights-small.tar.gz"
+        TMPFILE="/opt/picochess/tmp/lc0-weights-small.tar.gz"
 
         echo "Downloading LC0 weights..."
         if command -v curl >/dev/null 2>&1; then
@@ -113,7 +114,7 @@ if [ ! -d "engines/pgn_engine/pgn_audio" ]; then
     mkdir -p engines/pgn_engine/pgn_audio || exit 1
 
     AUDIO_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/pgn_audio.tar.gz"
-    TMPFILE="/tmp/pgn_audio.tar.gz"
+    TMPFILE="/opt/picochess/tmp/pgn_audio.tar.gz"
 
     echo "Downloading pgn_audio files..."
     if command -v curl >/dev/null 2>&1; then
@@ -133,6 +134,5 @@ if [ ! -d "engines/pgn_engine/pgn_audio" ]; then
 else
     echo "pgn_audio files already present in engines folder."
 fi
-
 
 exit 0

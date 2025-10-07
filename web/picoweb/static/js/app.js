@@ -1130,37 +1130,6 @@ function toggleLeverButton() {
     if ($('#leverDown').is(':hidden')) {
         button = -0x40;
     }
-    
-    // Si el motor web está analizando, cambiar el turno en el FEN
-    if (window.analysis && window.stockfish) {
-        var tmpGame = createGamePointer();
-        var currentFen = tmpGame.fen();
-        var fenParts = currentFen.split(' ');
-        
-        // Obtener solo la parte del tablero (equivalente a board_fen() en Python)
-        var boardFen = fenParts[0];
-        
-        // Crear el nuevo FEN igual que en picochess.py línea 3869
-        var newFen;
-        if (fenParts[1] === 'w') {
-            newFen = boardFen + " b KQkq - 0 1";
-        } else {
-            newFen = boardFen + " w KQkq - 0 1";
-        }
-        
-        // Actualizar la posición actual
-        currentPosition.fen = newFen;
-        setupBoardFen = newFen;
-        
-        // Actualizar el tablero visual
-        updateChessGround();
-        updateStatus();
-        
-        // Reiniciar el análisis con el nuevo FEN
-        stopAnalysis();
-        analyze(true);
-    }
-    
     $.post('/channel', { action: 'clockbutton', button: button }, function (data) { });
 }
 
@@ -1263,14 +1232,20 @@ function formatEngineOutput(line) {
         var rawScore = 0;
         if (token === 'mate') {
             rawScore = parseInt(tokens[score_index + 1]);
+
             // Para mate, mantener el signo original del motor
-            // La puntuación ya viene correcta del motor
+            if (analysis_game.turn() === 'b') {
+                rawScore *= -1;
+            }
             score = '#' + rawScore;
         }
         else if (tokens[score_index + 1]) {
             rawScore = parseInt(tokens[score_index + 1]) / 100.0;
-            // No invertir puntuación - mantener desde perspectiva del blanco
-            // La puntuación ya viene correcta del motor
+
+            // Invertir puntuación solo si le toca a las negras
+            if (analysis_game.turn() === 'b') {
+                rawScore *= -1;
+            }
             score = rawScore.toFixed(2);
             if (token === 'lowerbound') {
                 score = '>' + score;
@@ -1283,7 +1258,7 @@ function formatEngineOutput(line) {
         var pv_index = tokens.indexOf('pv') + 1;
 
         var pv_out = tokens.slice(pv_index);
-////////////////////////////////////////////////////////////////////////////////////////
+
         var MAX_PV_MOVES = 8;                        // *** Limita PV max 8 movimientos.
         pv_out = pv_out.slice(0, MAX_PV_MOVES);
         var first_move = pv_out[0];
@@ -1351,7 +1326,6 @@ function formatEngineOutput(line) {
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
         }
-        
 // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
@@ -1367,7 +1341,6 @@ function formatEngineOutput(line) {
             }
             output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-        
 // Profundidad al final
         output += '<span class="depth-display">d' + depth + '</span>';
         
@@ -1448,7 +1421,6 @@ function updateEvaluationBar(score) {
         valueElement.text(originalScore.toFixed(1));
     }
 }
-////////////////////////////////////////////////////////////////////////////////////////
 
 function multiPvIncrease() {
     window.multipv += 1;
@@ -1468,7 +1440,7 @@ function multiPvIncrease() {
             analyze(true);
         }
     }
-    
+
     // Actualizar el estado visual
     $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
 }
@@ -1571,6 +1543,7 @@ function stopAnalysis() {
             console.warn(err);
         }
     }
+
     // Limpiar todas las líneas de análisis
     $('#pv_output').empty();
     // Recrear los contenedores según el multipv actual
@@ -1647,15 +1620,10 @@ function analyze(position_update) {
     }
 
     var startpos = 'startpos';
-    // Usar currentPosition.fen si está disponible para análisis correcto
-    if (currentPosition && currentPosition.fen && currentPosition.fen !== START_FEN) {
-        startpos = 'fen ' + currentPosition.fen.split(' ').slice(0, 4).join(' ') + ' 0 1';
-        moves = ''; // No necesitamos movimientos si usamos el FEN completo
-    } else if (setupBoardFen !== START_FEN) {
+    if (setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
     }
-    
-    window.stockfish.postMessage('position ' + startpos + (moves ? ' moves ' + moves : ''));
+    window.stockfish.postMessage('position ' + startpos + ' moves ' + moves);
     window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
     window.stockfish.postMessage('go infinite');
 }

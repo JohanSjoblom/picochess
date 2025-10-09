@@ -559,6 +559,34 @@ class WebDisplay(DisplayMsg):
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""
 
+        def _set_normal_pgn():
+            if self.shared["system_info"]["old_engine"] != "":
+                self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]
+                self.shared["system_info"]["old_engine"] = ""
+
+            if self.shared["system_info"]["user_name_orig"] != "":
+                self.shared["system_info"]["user_name"] = self.shared["system_info"]["user_name_orig"]
+                self.shared["system_info"]["user_name_orig"] = ""
+
+            if WebDisplay.engine_elo_sav != "":
+                self.shared["system_info"]["engine_elo"] = WebDisplay.engine_elo_sav
+                WebDisplay.engine_elo_sav = ""
+
+            if WebDisplay.user_elo_sav != "":
+                self.shared["system_info"]["user_elo"] = WebDisplay.user_elo_sav
+                WebDisplay.user_elo_sav = ""
+
+            if WebDisplay.level_text_sav != "":
+                self.shared["game_info"]["level_text"] = WebDisplay.level_text_sav
+                WebDisplay.level_text_sav = ""
+
+            if WebDisplay.level_name_sav != "":
+                self.shared["game_info"]["level_name"] = WebDisplay.level_name_sav
+                WebDisplay.level_name_sav = ""
+
+            _build_headers()
+            _send_headers()
+
         def _oldstyle_fen(game: chess.Board):
             builder = []
             builder.append(game.board_fen())

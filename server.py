@@ -691,12 +691,12 @@ class WebDisplay(DisplayMsg):
             books = message.info["books"]
             book_index = message.info["book_index"]
             self.shared["game_info"]["book_text"] = books[book_index]["text"]
-            del self.shared["game_info"]["book_index"]
+            self.shared["game_info"].pop("book_index", None)  # safer to pop but never used
 
-            if message.info["level_text"] is None:
-                del self.shared["game_info"]["level_text"]
-            if message.info["level_name"] is None:
-                del self.shared["game_info"]["level_name"]
+            if message.info.get("level_text") is None:
+                self.shared["game_info"].pop("level_text", None)
+            if message.info.get("level_name") is None:
+                self.shared["game_info"].pop("level_name", None)
 
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()
@@ -718,13 +718,15 @@ class WebDisplay(DisplayMsg):
                     WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"]
                 self.shared["system_info"]["engine_elo"] = "?"
 
-                if self.shared["game_info"]["level_text"] != "" and WebDisplay.level_text_sav == "":
-                    WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
-                del self.shared["game_info"]["level_text"]
+                if "level_text" in self.shared["game_info"]:
+                    if self.shared["game_info"]["level_text"] != "" and WebDisplay.level_text_sav == "":
+                        WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
+                    del self.shared["game_info"]["level_text"]
 
-                if self.shared["game_info"]["level_name"] != "" and WebDisplay.level_name_sav == "":
-                    WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
-                del self.shared["game_info"]["level_name"]
+                if "level_name" in self.shared["game_info"]:
+                    if self.shared["game_info"]["level_name"] != "" and WebDisplay.level_name_sav == "":
+                        WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
+                    del self.shared["game_info"]["level_name"]
 
             elif self.shared["game_info"]["interaction_mode"] == Mode.OBSERVE:
 
@@ -746,13 +748,15 @@ class WebDisplay(DisplayMsg):
                     WebDisplay.user_elo_sav = self.shared["system_info"]["user_elo"]
                 self.shared["system_info"]["user_elo"] = "?"
 
-                if self.shared["game_info"]["level_text"] != "" and WebDisplay.level_text_sav == "":
-                    WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
-                del self.shared["game_info"]["level_text"]
+                if "level_text" in self.shared["game_info"]:
+                    if self.shared["game_info"]["level_text"] != "" and WebDisplay.level_text_sav == "":
+                        WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
+                    del self.shared["game_info"]["level_text"]
 
-                if self.shared["game_info"]["level_name"] != "" and WebDisplay.level_name_sav == "":
-                    WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
-                del self.shared["game_info"]["level_name"]
+                if "level_name" in self.shared["game_info"]:
+                    if self.shared["game_info"]["level_name"] != "" and WebDisplay.level_name_sav == "":
+                        WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
+                    del self.shared["game_info"]["level_name"]
             else:
                 if self.shared["system_info"]["old_engine"] != "":
                     self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]

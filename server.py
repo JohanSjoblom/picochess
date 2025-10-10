@@ -705,11 +705,9 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.INTERACTION_MODE):
             self._create_game_info()
             self.shared["game_info"]["interaction_mode"] = message.mode
+            _set_normal_pgn()
 
             if self.shared["game_info"]["interaction_mode"] == Mode.REMOTE:
-
-                _set_normal_pgn()
-
                 if self.shared["system_info"]["engine_name"] != "" and self.shared["system_info"]["old_engine"] == "":
                     self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"]
                 self.shared["system_info"]["engine_name"] = "Remote Player"
@@ -729,9 +727,6 @@ class WebDisplay(DisplayMsg):
                     del self.shared["game_info"]["level_name"]
 
             elif self.shared["game_info"]["interaction_mode"] == Mode.OBSERVE:
-
-                _set_normal_pgn()
-
                 if self.shared["system_info"]["engine_name"] != "" and self.shared["system_info"]["old_engine"] == "":
                     self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"]
                 self.shared["system_info"]["engine_name"] = "Player B"
@@ -757,30 +752,6 @@ class WebDisplay(DisplayMsg):
                     if self.shared["game_info"]["level_name"] != "" and WebDisplay.level_name_sav == "":
                         WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
                     del self.shared["game_info"]["level_name"]
-            else:
-                if self.shared["system_info"]["old_engine"] != "":
-                    self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]
-                    self.shared["system_info"]["old_engine"] = ""
-
-                if self.shared["system_info"]["user_name_orig"] != "":
-                    self.shared["system_info"]["user_name"] = self.shared["system_info"]["user_name_orig"]
-                    self.shared["system_info"]["user_name_orig"] = ""
-
-                if WebDisplay.engine_elo_sav != "":
-                    self.shared["system_info"]["engine_elo"] = WebDisplay.engine_elo_sav
-                    WebDisplay.engine_elo_sav = ""
-
-                if WebDisplay.user_elo_sav != "":
-                    self.shared["system_info"]["user_elo"] = WebDisplay.user_elo_sav
-                    WebDisplay.user_elo_sav = ""
-
-                if WebDisplay.level_text_sav != "":
-                    self.shared["game_info"]["level_text"] = WebDisplay.level_text_sav
-                    WebDisplay.level_text_sav = ""
-
-                if WebDisplay.level_name_sav != "":
-                    self.shared["game_info"]["level_name"] = WebDisplay.level_name_sav
-                    WebDisplay.level_name_sav = ""
 
             _build_headers()
             _send_headers()

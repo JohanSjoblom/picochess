@@ -1014,6 +1014,7 @@ async def main() -> None:
                 )
             )
             await DisplayMsg.show(Message.ENGINE_SETUP())
+            # update_elo_display sends "rspeed", "user_elo", "engine_elo" in SYSTEM_INFO
             await self.update_elo_display()
 
             # set timecontrol restore data set for normal engines after leaving emulation mode

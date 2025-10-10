@@ -655,19 +655,26 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
             self.shared["system_info"].update(message.info)
+            # store old/original values of everything from start
             if "engine_name" in self.shared["system_info"]:
                 WebDisplay.engine_name = self.shared["system_info"]["engine_name"]
                 self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"]
+            if "engine_elo" in self.shared["system_info"]:
+                WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"]
             if "rspeed" in self.shared["system_info"]:
                 self.shared["system_info"]["rspeed_orig"] = self.shared["system_info"]["rspeed"]
             if "user_name" in self.shared["system_info"]:
                 self.shared["system_info"]["user_name_orig"] = self.shared["system_info"]["user_name"]
+            if "user_elo" in self.shared["system_info"]:
+                WebDisplay.user_elo_sav = self.shared["system_info"]["user_elo"]
 
         elif isinstance(message, Message.ENGINE_STARTUP):
             for index in range(0, len(message.installed_engines)):
                 eng = message.installed_engines[index]
                 if eng["file"] == message.file:
                     self.shared["system_info"]["engine_elo"] = eng["elo"]
+                    #  @todo check if eng["name"] should be set here also
+                    #  probably  not needed as its set in SYSTEM_INFO on startup
                     break
             _build_headers()
             _send_headers()
@@ -676,7 +683,7 @@ class WebDisplay(DisplayMsg):
             self._create_system_info()
             WebDisplay.engine_name = message.engine_name
             self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"] = message.engine_name
-            self.shared["system_info"]["engine_elo"] = message.eng["elo"]
+            WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"] = message.eng["elo"]
             if not message.has_levels:
                 if "level_text" in self.shared["game_info"]:
                     del self.shared["game_info"]["level_text"]
@@ -691,12 +698,19 @@ class WebDisplay(DisplayMsg):
             books = message.info["books"]
             book_index = message.info["book_index"]
             self.shared["game_info"]["book_text"] = books[book_index]["text"]
-            self.shared["game_info"].pop("book_index", None)  # safer to pop but never used
+            self.shared["game_info"].pop("book_index", None)  # safer to pop not del, but never used
 
-            if message.info.get("level_text") is None:
+            # remove if no level_text or level_name exist, else set old/original value from start
+            if self.shared["game_info"].get("level_text") is None:
                 self.shared["game_info"].pop("level_text", None)
-            if message.info.get("level_name") is None:
+                WebDisplay.level_text_sav = ""
+            else:
+                WebDisplay.level_text_sav = self.shared["game_info"]["level_text"]
+            if self.shared["game_info"].get("level_name") is None:
                 self.shared["game_info"].pop("level_name", None)
+                WebDisplay.level_name_sav = ""
+            else:
+                WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
 
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()

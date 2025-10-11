@@ -4,6 +4,7 @@ import os
 import base64
 import pam
 import tornado.web
+from tornado import escape
 
 from utilities import Observable
 from dgt.api import Event
@@ -69,4 +70,24 @@ class UploadHandler(tornado.web.RequestHandler):
             self.finish(f"Failed to save file: {str(e)}")
             return
 
-        self.write(f"User '{self.current_user}' uploaded '{original_name}' to games/uploads/")
+        user = escape.xhtml_escape(self.current_user)
+        name = escape.xhtml_escape(original_name)
+
+        self.write(
+            f"<div style='font-family:sans-serif; padding:2em; font-size:1.2em;'>"
+            f"<h2>User '{user}' uploaded '{name}' to games/uploads/.</h2>"
+            "<br><br>"
+            "<form action='/' method='get'>"
+            "<button type='submit' style='"
+            "width:100%; padding:1em; margin:1em 0; font-size:1.2em; "
+            "background:#007bff; color:white; border:none; border-radius:0.4em; "
+            "cursor:pointer;'>Go to game</button>"
+            "</form>"
+            "<form action='/upload' method='get'>"
+            "<button type='submit' style='"
+            "width:100%; padding:1em; margin:1em 0; font-size:1.2em; "
+            "background:#007bff; color:white; border:none; border-radius:0.4em; "
+            "cursor:pointer;'>Back to Uploads</button>"
+            "</form>"
+            "</div>"
+        )

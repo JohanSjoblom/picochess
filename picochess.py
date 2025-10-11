@@ -90,6 +90,7 @@ from eboard.chessnut.board import ChessnutBoard
 from eboard.ichessone.board import IChessOneBoard
 from eboard.certabo.board import CertaboBoard
 from picotutor import PicoTutor
+from picotutor_constants import DEEP_DEPTH
 
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
@@ -224,6 +225,7 @@ class PicochessState:
         self.delay_fen_error = 4
         self.main_loop = loop
         self.ignore_next_engine_move = False  # True only after takeback during think
+        self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -2432,7 +2434,8 @@ async def main() -> None:
                 logger.debug("empty InfoDict")
 
         async def analyse(self) -> InfoDict | None:
-            """analyse, observe etc depening on mode - create analysis info"""
+            """analyse, observe etc depening on mode - create analysis info
+            this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
             # @todo remove intermediate/temporary solution which is the 2nd part after "or" below:
@@ -2463,10 +2466,20 @@ async def main() -> None:
 
         async def send_analyse(self, info: InfoDict, send_pv: bool = True):
             """send pv, depth, and score events
-            with send_pv False pv message is not sent - use if its previous move InfoDict"""
-            # send depth before score as score is assembling depth in receiver end
+            with send_pv False pv message is not sent - use if its previous move InfoDict
+            this is executed periodically in the background_analyse_timer task"""
+            can_autoplay = True
             if "depth" in info:
-                await Observable.fire(Event.NEW_DEPTH(depth=info.get("depth")))
+                depth = info.get("depth")
+                # send depth before score as score is assembling depth in receiver end
+                await Observable.fire(Event.NEW_DEPTH(depth=depth))
+                if self.state.picotutor.can_use_coach_analyser():
+                    if depth < DEEP_DEPTH:
+                        can_autoplay = False  # with tutor wait for enough depth
+            if can_autoplay and self.state.autoplay_pgn_file:
+                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+                if next_move:
+                    await self.do_pgn_replay_move(next_move)
             # ask for score from white's perspective
             (move, score, mate) = PicoTutor.get_score(info)
             if send_pv and move != chess.Move.null():
@@ -3079,6 +3092,21 @@ async def main() -> None:
             logger.debug("final exit_or_reboot_cleanups done - stopping main evt_queue")
             await Observable.fire(None)
 
+        async def do_pgn_replay_move(self, next_move: chess.Move):
+            """Used by autoplay to execute the next PGN replay move"""
+            if self.board_type == dgt.util.EBoard.NOEBOARD:
+                await self.user_move(next_move, sliding=False)
+            else:
+                await DisplayMsg.show(
+                    Message.COMPUTER_MOVE(
+                        move=next_move,
+                        ponder=False,
+                        game=self.state.game.copy(),
+                        wait=False,
+                        is_user_move=True,
+                    )
+                )
+
         async def process_main_events(self, event):
             """Consume event from evt_queue"""
             if not isinstance(event, Event.CLOCK_TIME):
@@ -3562,6 +3590,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.NEW_GAME):
                 await self.get_rid_of_engine_move()
+                self.state.autoplay_pgn_file = False  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False
@@ -3887,22 +3916,14 @@ async def main() -> None:
                         next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
                         if next_move:
                             logger.debug("Next PGN move is %s:", next_move.uci())
-                            # @todo ask evaluation to be given after move has been shown
-                            # @todo what to do with DGT board?
-                            if self.board_type == dgt.util.EBoard.NOEBOARD:
-                                await self.user_move(next_move, sliding=False)
+                            if not self.state.autoplay_pgn_file:
+                                self.state.autoplay_pgn_file = True  # start auto replay of pgn
+                                await self.do_pgn_replay_move(next_move)
                             else:
-                                await DisplayMsg.show(
-                                    Message.COMPUTER_MOVE(
-                                        move=next_move,
-                                        ponder=False,
-                                        game=self.state.game.copy(),
-                                        wait=False,
-                                        is_user_move=True,
-                                    )
-                                )
+                                self.state.autoplay_pgn_file = False  # stop auto replay of pgn
                         else:
                             logger.debug("No next PGN move found.")
+                            self.state.autoplay_pgn_file = False  # stop auto replay of pgn
                     elif not self.state.done_computer_fen:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()
@@ -4597,8 +4618,11 @@ async def main() -> None:
 
             elif isinstance(event, Event.SET_INTERACTION_MODE):
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
-                    # force engine move if we go from playing mode to non-playing mode
-                    await self.get_rid_of_engine_move()
+                    # things to do when we change from a playing mode to non-playing
+                    await self.get_rid_of_engine_move()  # force/get-rid of engine move
+                if not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+                    # things to do i we change from a non-playing mode to a playing mode
+                    self.state.autoplay_pgn_file = False  # stop possible auto replay of pgn file
                 if (
                     event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING) and self.state.done_computer_fen
                 ):  # @todo check why still needed

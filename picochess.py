@@ -60,6 +60,7 @@ from utilities import (
     reboot,
     exit_pico,
     checkout_tag,
+    ensure_important_headers,
 )
 from utilities import (
     Observable,
@@ -2716,6 +2717,10 @@ async def main() -> None:
                 result_header = l_game_pgn.headers["Result"]
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(result_header)))
                 await asyncio.sleep(update_speed)
+
+            # make sure we have "?" in important missing headers to
+            # prevent overwrite by existing user or engine names or elos etc
+            ensure_important_headers(l_game_pgn.headers)
 
             await DisplayMsg.show(Message.READ_GAME)
 

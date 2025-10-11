@@ -420,3 +420,19 @@ def get_engine_mame_par(engine_rspeed: float, engine_rsound=False) -> str:
     if not engine_rsound:
         engine_mame_par = engine_mame_par + " -sound none"
     return engine_mame_par
+
+
+# Game pgn header keys we want to keep and ensure
+important_header_keys = {"Event", "Site", "Date", "Round", "White", "Black", "WhiteElo", "BlackElo", "Result"}
+
+
+def keep_essential_headers(headers: dict) -> dict:
+    """Return a cleaned dict with only the standard PGN headers to keep."""
+    return {k: v for k, v in headers.items() if k in important_header_keys}
+
+
+def ensure_important_headers(headers: dict) -> None:
+    """Ensure standard PGN headers exist, filling headers dict with '?' if missing"""
+    for key in important_header_keys:
+        if key not in headers:
+            headers[key] = "?"

@@ -30,7 +30,14 @@ import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
-from utilities import Observable, DisplayMsg, hms_time, AsyncRepeatingTimer
+from utilities import (
+    Observable,
+    DisplayMsg,
+    hms_time,
+    AsyncRepeatingTimer,
+    keep_essential_headers,
+    ensure_important_headers,
+)
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
@@ -548,13 +555,9 @@ class WebDisplay(DisplayMsg):
         # issue 55 - keep headers if existing valid header is given
         if keep_these_headers is not None:
             # issue #78 dont keep old FEN in headers to avoid webdisplay freeze
-            cleaned = self.keep_essential_headers(keep_these_headers)
+            cleaned = keep_essential_headers(keep_these_headers)
+            ensure_important_headers(cleaned)  # #97 ensure "?" in important headers
             pgn_game.headers.update(cleaned)
-
-    def keep_essential_headers(self, headers):
-        """Return a cleaned dict with only the standard seven PGN headers to keep"""
-        allowed_keys = {"Event", "Site", "Date", "Round", "White", "Black", "Result"}
-        return {k: v for k, v in headers.items() if k in allowed_keys}
 
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""

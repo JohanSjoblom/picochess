@@ -12,6 +12,7 @@ from dgt.api import Event
 
 UPLOAD_BASE_DIR = "/opt/picochess/games"
 UPLOAD_DIR = "uploads"
+os.makedirs(os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR), exist_ok=True)
 
 
 class UploadHandler(tornado.web.RequestHandler):

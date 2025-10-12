@@ -2476,7 +2476,7 @@ async def main() -> None:
                 if self.state.picotutor.can_use_coach_analyser():
                     if depth < DEEP_DEPTH:
                         can_autoplay = False  # with tutor wait for enough depth
-            if can_autoplay and self.state.autoplay_pgn_file:
+            if can_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
                 if next_move:
                     await self.do_pgn_replay_move(next_move)
@@ -3092,20 +3092,41 @@ async def main() -> None:
             logger.debug("final exit_or_reboot_cleanups done - stopping main evt_queue")
             await Observable.fire(None)
 
+        def can_do_next_pgn_replay_move(self) -> bool:
+            """check if we can do the next pgn move"""
+            if self.board_type == dgt.util.EBoard.NOEBOARD:
+                # on web display we can always autoplay the next pgn move
+                return True
+            # on a eboard we have to check if its waiting for
+            # the previous move to be done by the user
+            if self.state.done_computer_fen is None:
+                # not waiting for a move, ok to do next move
+                return True
+            # the most tricky part, we are waiting for a move, has it been done?
+            if self.state.game.board_fen() == self.state.done_computer_fen:
+                # yes, the move has been done, we can do the next move
+                return True
+            return False
+
         async def do_pgn_replay_move(self, next_move: chess.Move):
             """Used by autoplay to execute the next PGN replay move"""
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 await self.user_move(next_move, sliding=False)
             else:
+                game_copy = self.state.game.copy()
                 await DisplayMsg.show(
                     Message.COMPUTER_MOVE(
                         move=next_move,
                         ponder=False,
-                        game=self.state.game.copy(),
+                        game=game_copy,
                         wait=False,
                         is_user_move=True,
                     )
                 )
+                # set state variables as waiting for the move to be done on the eboard
+                game_copy.push(next_move)
+                self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
+                self.state.done_move = next_move  # expected move
 
         async def process_main_events(self, event):
             """Consume event from evt_queue"""
@@ -3912,18 +3933,20 @@ async def main() -> None:
                                 searchlist=True,
                             )
                     elif not self.eng_plays():
-                        # ANALYSIS modes - check if we have a loaded PGN move to play
-                        next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
-                        if next_move:
-                            logger.debug("Next PGN move is %s:", next_move.uci())
-                            if not self.state.autoplay_pgn_file:
-                                self.state.autoplay_pgn_file = True  # start auto replay of pgn
-                                await self.do_pgn_replay_move(next_move)
-                            else:
-                                self.state.autoplay_pgn_file = False  # stop auto replay of pgn
-                        else:
-                            logger.debug("No next PGN move found.")
+                        # ANALYSIS modes - toggle built in autoplay
+                        if self.state.autoplay_pgn_file:
                             self.state.autoplay_pgn_file = False  # stop auto replay of pgn
+                        else:
+                            self.state.autoplay_pgn_file = True  # start auto replay of pgn
+                            # if we are not already waiting for an autoplay move make the first move
+                            if self.can_do_next_pgn_replay_move():
+                                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+                                if next_move:
+                                    logger.debug("Next PGN move is %s:", next_move.uci())
+                                    await self.do_pgn_replay_move(next_move)
+                                else:
+                                    logger.debug("No next PGN move found when trying to start autoplay pgn.")
+                                    self.state.autoplay_pgn_file = False  # stop auto replay of pgn
                     elif not self.state.done_computer_fen:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()

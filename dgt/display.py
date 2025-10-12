@@ -343,7 +343,8 @@ class DgtDisplay(DisplayMsg):
                 await Observable.fire(Event.EXIT_MENU())
         else:
             if self.dgtmenu.get_mode() in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER):
-                await DispatchDgt.fire(self.dgttranslate.text("B00_nofunction"))
+                # launch new built in pgn game replay
+                await Observable.fire(Event.PAUSE_RESUME())
             else:
                 if ModeInfo.get_pgn_mode():
                     await Observable.fire(Event.PAUSE_RESUME())

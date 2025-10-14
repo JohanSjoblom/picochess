@@ -1,14 +1,16 @@
 13. Renaming of the play modes! Now we have:
 
-# New mode name                                         Old mode name       Engine plays moves
-# a5 NORMAL (rolling info display off by default)       NORMAL              X
-# b5 PONDER ON (rolling info display on by default)     BRAIN               X
-# c5 MOVE HINT                                          ANALYSIS
-# d5 EVAL.SCORE                                         KIBITZ
-# e5 OBSERVE                                            OBSERVE
-# f5 ANALYSIS (flexible option on by default)           PONDER
-# g5 TRAINING (this is new in 2.00)                     -                   X
-# h5 REMOTE (working again from 1.00 on)                REMOTE
+# New mode name                                 Name in code        Engine plays    Clock runs  Special headers     Special rules
+# a5 NORMAL (rolling info off by default)       NORMAL              X               X
+# b5 PONDER ON (rolling info on by default)     BRAIN               X               X
+# c5 MOVE HINT                                  ANALYSIS
+# d5 EVAL.SCORE                                 KIBITZ
+# e5 OBSERVE                                    OBSERVE                             X           X
+# f5 ANALYSIS (flexible option on by default)   PONDER                                                              Set any pos, Switch sides
+# g5 TRAINING (this is new in 2.00)             TRAINING            X               X                               Force pico move
+# h5 REMOTE (working again from 1.00 on)        REMOTE                              X           X                   Switch sides
+# a4 PGNREPLAY (new in 4.1.x)                   PGNREPLAY                                       X                   Autoplay moves
+
 
 
 Original (these are the old ones, new naming see above) description:

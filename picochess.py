@@ -1222,7 +1222,7 @@ async def main() -> None:
             elif self.state.interaction_mode in (Mode.REMOTE, Mode.OBSERVE):
                 await self.state.stop_clock()
                 await self.stop_search()
-            elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER):
+            elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
                 await self.stop_search()
 
         def get_comment_file(self) -> str:
@@ -1428,6 +1428,7 @@ async def main() -> None:
                     Mode.TRAINING,
                     Mode.OBSERVE,
                     Mode.REMOTE,
+                    Mode.PGNREPLAY,
                 ):
                     await DisplayMsg.show(msg)
                     await self.analyse()
@@ -2276,7 +2277,7 @@ async def main() -> None:
                     else:
                         await DisplayMsg.show(msg)
                         await self.observe()
-                else:  # self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER):
+                else:  # self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
                     msg = Message.REVIEW_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                     )
@@ -2780,10 +2781,9 @@ async def main() -> None:
             # switch temporarly picotutor off
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
-            if self.eng_plays():
-                # if mode is a playing mode - switch to non-playing
-                self.state.interaction_mode = Mode.KIBITZ
-            # else preserve previous analysis non-playing mode
+            self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
+            self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
+            self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
 
             if l_move and l_stop_at_halfmove != 0:
                 # publish current position to webserver
@@ -3018,7 +3018,7 @@ async def main() -> None:
                     self.state.dgtmenu.get_picoexplorer(),
                     self.state.dgtmenu.get_picocomment(),
                 )
-            elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.OBSERVE, Mode.PONDER):
+            elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.OBSERVE, Mode.PONDER, Mode.PGNREPLAY):
                 self.engine.set_mode()
                 # Pico v4 allow picotutor to run also when watching
                 await self.state.picotutor.set_status(
@@ -3094,6 +3094,8 @@ async def main() -> None:
 
         def can_do_next_pgn_replay_move(self) -> bool:
             """check if we can do the next pgn move"""
+            if self.state.interaction_mode != Mode.PGNREPLAY:
+                return False
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 # on web display we can always autoplay the next pgn move
                 return True
@@ -3110,6 +3112,7 @@ async def main() -> None:
 
         async def do_pgn_replay_move(self, next_move: chess.Move):
             """Used by autoplay to execute the next PGN replay move"""
+            assert self.state.interaction_mode == Mode.PGNREPLAY
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 await self.user_move(next_move, sliding=False)
             else:
@@ -3743,6 +3746,10 @@ async def main() -> None:
                         ) = read_pgn_info()
                         if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                             await self.set_fen_from_pgn(pgn_fen)
+                    if self.state.interaction_mode == Mode.PGNREPLAY:
+                        # V4 built-in pgn replay done - no game to replay
+                        self.state.interaction_mode = Mode.NORMAL  # switch to NORMAL plyaing mode
+                        await self.engine_mode()  # see INTERACTION_MODE handling
                     await self.set_wait_state(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame))
                     if "no_player" not in self.opp_user and "no_user" not in self.own_user:
                         await self.switch_online()
@@ -3932,8 +3939,8 @@ async def main() -> None:
                                 Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode),
                                 searchlist=True,
                             )
-                    elif not self.eng_plays():
-                        # ANALYSIS modes - toggle built in autoplay
+                    elif self.state.interaction_mode == Mode.PGNREPLAY:
+                        # Built in PGN Replay mode - toggle autoplay on or off
                         if self.state.autoplay_pgn_file:
                             self.state.autoplay_pgn_file = False  # stop auto replay of pgn
                         else:
@@ -3947,6 +3954,8 @@ async def main() -> None:
                                 else:
                                     logger.debug("No next PGN move found when trying to start autoplay pgn.")
                                     self.state.autoplay_pgn_file = False  # stop auto replay of pgn
+                                    msg = Message.SHOW_TEXT(text_string="no move")
+                                    await DisplayMsg.show(msg)
                     elif not self.state.done_computer_fen:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()
@@ -4005,7 +4014,7 @@ async def main() -> None:
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                         self.state.legal_fens_after_cmove = []
                         self.state.last_legal_fens = []
-                        # switching sides in PONDER, the only analysis mode with side switch
+                        # switching sides in PONDER (ANALYSIS in menu, not a playing mode)
                         self.state.play_mode = (
                             PlayMode.USER_WHITE if self.state.game.turn == chess.WHITE else PlayMode.USER_BLACK
                         )

@@ -4727,6 +4727,14 @@ class DgtTranslate(object):
             )
             frtxt = entxt
             estxt = entxt
+        if text_id == "mode_pgnreplay_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="PGN Replay ",
+                medium_text="PGN Play",
+                small_text="PGN  ",
+            )
+            ittxt = detxt = nltxt = frtxt = estxt = entxt
         if text_id == "mode_analysis_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

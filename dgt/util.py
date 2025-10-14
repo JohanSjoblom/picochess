@@ -332,6 +332,7 @@ class Mode(MyEnum):
     OBSERVE = "B00_mode_observe_menu"
     REMOTE = "B00_mode_remote_menu"
     PONDER = "B00_mode_ponder_menu"
+    PGNREPLAY = "B00_mode_pgnreplay_menu"
 
     @classmethod
     def items(cls):
@@ -345,6 +346,8 @@ class Mode(MyEnum):
             Mode.REMOTE,
             Mode.PONDER,
         ]
+
+    # do not return Mode.PGNREPLAY here above - mode menu crashes
 
 
 class ModeLoop(object):

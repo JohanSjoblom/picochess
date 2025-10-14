@@ -343,7 +343,9 @@ class DgtDisplay(DisplayMsg):
                 await Observable.fire(Event.EXIT_MENU())
         else:
             if self.dgtmenu.get_mode() in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER):
-                # launch new built in pgn game replay
+                await DispatchDgt.fire(self.dgttranslate.text("B00_nofunction"))
+            elif self.dgtmenu.get_mode() == Mode.PGNREPLAY:
+                # launch new built in pgn game replay in autoplay mode
                 await Observable.fire(Event.PAUSE_RESUME())
             else:
                 if ModeInfo.get_pgn_mode():
@@ -895,7 +897,7 @@ class DgtDisplay(DisplayMsg):
         else:
             text = self.dgttranslate.text("N10_mate", str(message.mate))
             self.score = text
-        if message.mode in (Mode.KIBITZ, Mode.TRAINING) and not self._inside_main_menu():
+        if message.mode in (Mode.PGNREPLAY, Mode.KIBITZ, Mode.TRAINING) and not self._inside_main_menu():
             text = self._combine_depth_and_score()
             text.wait = True
             await DispatchDgt.fire(text)

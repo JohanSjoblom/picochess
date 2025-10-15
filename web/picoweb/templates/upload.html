@@ -24,7 +24,10 @@
     <h2>Upload a PGN File</h2>
     <form method="post" action="/upload-pgn" enctype="multipart/form-data">
         <input type="file" name="file" accept=".pgn" required>
-        <input type="submit" value="Upload">
+        <input type="submit" value="OK Upload">
+    </form>
+    <form method='get' action='/'>
+        <button type='submit'>CANCEL - Back to game</button>
     </form>
 </body>
 

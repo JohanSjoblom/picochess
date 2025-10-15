@@ -1848,6 +1848,7 @@ async def main() -> None:
                     Mode.BRAIN,
                     Mode.REMOTE,
                     Mode.TRAINING,
+                    Mode.PGNREPLAY,
                 ), (
                     "wrong mode: %s" % self.state.interaction_mode
                 )

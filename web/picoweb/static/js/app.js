@@ -1284,7 +1284,7 @@ function formatEngineOutput(line) {
             turn_sep = '..';
         }
 
-// Determinar clase de puntuacion
+        // Determinar clase de puntuacion
         var scoreClass = 'score-display';
         var numericScore = parseFloat(score);
         if (String(score).includes('#')) {
@@ -1297,13 +1297,13 @@ function formatEngineOutput(line) {
 
         output = '<div class="list-group-item">';
         output += '<div class="analysis-line-compact">';
-        
-// Puntuacion (siempre en relacion al blanco)
+
+        // Puntuacion (siempre en relacion al blanco)
         if (score !== null) {
             output += '<span class="' + scoreClass + '">' + score + '</span>';
         }
-        
-// Primer movimiento destacado
+
+        // Primer movimiento destacado
         if (history.length > 0) {
             var firstMoveText = '';
             // Crear una copia del juego para obtener el turno actual
@@ -1312,10 +1312,10 @@ function formatEngineOutput(line) {
                 tempGame.load(currentPosition.fen, chessGameType);
             }
             var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
-            
+
             // Calcular el número de movimiento correctamente
             var moveNumber = Math.floor((start_move_num + 1) / 2);
-            
+
             if (currentTurn === 'w') {
                 // Le toca a las blancas
                 firstMoveText += moveNumber + '. ';
@@ -1326,11 +1326,11 @@ function formatEngineOutput(line) {
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
         }
-// Continuacion de la linea (mas discreta)
+        // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
             var currentMoveNum = start_move_num;
-            
+
             for (i = 1; i < history.length; ++i) {
                 currentMoveNum++;
                 // Si es turno de las blancas (número impar), mostrar número de movimiento
@@ -1341,18 +1341,18 @@ function formatEngineOutput(line) {
             }
             output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-// Profundidad al final
+        // Profundidad al final
         output += '<span class="depth-display">d' + depth + '</span>';
-        
+
         output += '</div></div>';
 
         analysis_game = null;
-        
+
         // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
         if (multipv === 1) {
             updateEvaluationBar(score);
         }
-        
+
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
@@ -1363,10 +1363,10 @@ function formatEngineOutput(line) {
 // Función para actualizar la barra de evaluación horizontal
 function updateEvaluationBar(score) {
     if (!score || score === '?') return;
-    
+
     var numericScore = 0;
     var isMate = false;
-    
+
     if (String(score).includes('#')) {
         isMate = true;
         var mateIn = parseInt(score.replace('#', ''));
@@ -1374,10 +1374,10 @@ function updateEvaluationBar(score) {
     } else {
         numericScore = parseFloat(score);
     }
-    
+
     var fillElement = $('#evaluationFill');
     var valueElement = $('#evaluationValue');
-    
+
     if (isMate) {
         // Para mate, llenar completamente la barra
         if (numericScore > 0) {
@@ -1395,7 +1395,7 @@ function updateEvaluationBar(score) {
         }
     } else {
         numericScore = Math.max(-8, Math.min(8, numericScore));
-        
+
         if (numericScore >= 0) {
             // Ventaja blancas - llenar hacia la derecha desde el centro
             fillElement.removeClass('negative');
@@ -1412,7 +1412,7 @@ function updateEvaluationBar(score) {
             });
         }
     }
-    
+
     // Mostrar el valor original del motor, no el limitado
     var originalScore = parseFloat(score);
     if (isMate) {
@@ -1424,17 +1424,17 @@ function updateEvaluationBar(score) {
 
 function multiPvIncrease() {
     window.multipv += 1;
-    
+
     // Agregar nuevo contenedor
     var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
     $("#pv_output").append(new_div_str);
-    
+
     // Solo actualizar el motor si el análisis está activo
     if (window.analysis && window.stockfish) {
         window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
         window.stockfish.postMessage('stop');
         window.stockfish.postMessage('go infinite');
-        
+
         if (!window.StockfishModule) {
             stopAnalysis();
             analyze(true);
@@ -1450,19 +1450,19 @@ function multiPvDecrease() {
         // Remover el contenedor
         $('#pv_' + window.multipv).remove();
         window.multipv -= 1;
-        
+
         // Solo actualizar el motor si el análisis está activo
         if (window.analysis && window.stockfish) {
             window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
             window.stockfish.postMessage('stop');
             window.stockfish.postMessage('go infinite');
-            
+
             if (!window.StockfishModule) {
                 stopAnalysis();
                 analyze(true);
             }
         }
-        
+
         // Actualizar el estado visual
         $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
     }
@@ -1550,7 +1550,7 @@ function stopAnalysis() {
     for (var i = 1; i <= window.multipv; i++) {
         $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
     }
-    
+
     // Ocultar la barra de evaluación cuando se detiene el análisis
     if (!window.analysis) {
         $('#evaluationBar').hide();
@@ -1715,12 +1715,18 @@ $('#fwdBtn').on('click', goForward);
 $('#startBtn').on('click', goToStart);
 $('#endBtn').on('click', goToEnd);
 
-$('#DgtSyncBtn').on('click', goToDGTFen);
-if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-    $('#downloadBtn').hide()
-} else {
-    $('#downloadBtn').on('click', download);
-}
+$(window).on('load', function () {
+    const hostname = location.hostname;
+    if (hostname === '127.0.0.1' || hostname === 'localhost') {
+        $('#downloadBtn').hide();
+        $('#uploadBtn').hide();
+    } else {
+        $('#downloadBtn').on('click', download);
+        $('#uploadBtn').on('click', function () {
+            window.location.href = 'upload';
+        });
+    }
+});
 
 $('#analyzeBtn').on('click', analyzePressed);
 

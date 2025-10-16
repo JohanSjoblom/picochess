@@ -4710,10 +4710,18 @@ async def main() -> None:
                     if event.mode == Mode.PONDER:
                         self.state.newgame_happened = False
                     await self.stop_search_and_clock()
-                    self.state.interaction_mode = event.mode
-                    await self.engine_mode()
-                    msg = Message.INTERACTION_MODE(mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok)
-                    await self.set_wait_state(msg)  # dont clear searchmoves here
+                    if event.mode == Mode.PGNREPLAY:
+                        file_name_only = "last_game.pgn"
+                        # await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
+                        await self.read_pgn_file(file_name_only)
+                        await self._start_or_stop_analysis_as_needed()
+                    else:
+                        self.state.interaction_mode = event.mode
+                        await self.engine_mode()
+                        msg = Message.INTERACTION_MODE(
+                            mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
+                        )
+                        await self.set_wait_state(msg)  # dont clear searchmoves here
 
             elif isinstance(event, Event.SET_OPENING_BOOK):
                 write_picochess_ini("book", event.book["file"])

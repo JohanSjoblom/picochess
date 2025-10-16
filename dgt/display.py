@@ -509,6 +509,7 @@ class DgtDisplay(DisplayMsg):
             "rnbqkbnr/pppppppp/8/5Q2/8/8/PPPPPPPP/RNBQKBNR": Mode.PONDER,
             "rnbqkbnr/pppppppp/8/6Q1/8/8/PPPPPPPP/RNBQKBNR": Mode.TRAINING,
             "rnbqkbnr/pppppppp/8/7Q/8/8/PPPPPPPP/RNBQKBNR": Mode.REMOTE,
+            "rnbqkbnr/pppppppp/8/8/Q7/8/PPPPPPPP/RNBQKBNR": Mode.PGNREPLAY,
         }
 
         drawresign_map = {

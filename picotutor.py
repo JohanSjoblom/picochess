@@ -126,6 +126,10 @@ class PicoTutor:
         """store a loaded PGN game here so that it can be stepped through"""
         self.pgn_game = pgn_game  # read by picochess.py read_pgn_file()
 
+    def get_gpn_game_to_step(self) -> chess.pgn.Game:
+        """get a stored PGN game - example: check if it exists before calling get_next_pgn_move"""
+        return self.pgn_game
+
     def get_next_pgn_move(self, current_board: chess.Board) -> chess.Move:
         """whats the next move to step through in a loaded PGN game
         send current game board to see if a match is found in the loaded PGN game
@@ -151,6 +155,8 @@ class PicoTutor:
                     else:
                         return None  # No move after this
                 node = next_node
+        else:
+            logger.debug("asking for next PGN game without checking first")
         return None  # Reached end of game without matching board
 
     async def open_engine(self):

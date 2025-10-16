@@ -349,7 +349,6 @@ class PgnDisplay(DisplayMsg):
         self.old_user_elo = "-"
         self.user_elo = "-"
         self.engine_elo = "-"
-        self.mode = ""
         self.startime = datetime.datetime.now().strftime("%H:%M:%S")
         self.last_saved_game = None
         self.picotutor: PicoTutor | None = None
@@ -676,7 +675,6 @@ class PgnDisplay(DisplayMsg):
             self.old_user_elo = self.user_elo
 
         elif isinstance(message, Message.INTERACTION_MODE):
-            self.mode = message.mode
             if message.mode == Mode.REMOTE:
                 if self.old_engine == "":
                     self.old_engine = self.engine_name
@@ -737,9 +735,19 @@ class PgnDisplay(DisplayMsg):
             self.old_user_elo = self.user_elo
 
         elif isinstance(message, Message.GAME_ENDS):
-            if message.game.move_stack and not ModeInfo.get_pgn_mode() and self.mode != Mode.PONDER:
+            if (
+                message.game.move_stack
+                and not ModeInfo.get_pgn_mode()
+                and message.mode not in (Mode.PONDER, Mode.PGNREPLAY)
+            ):
+                # note that neither PGNREPLAY nor PONDER (ANALYSIS) modes overwrite last_game.pgn
                 # we do not have pgn_filename in GAME_ENDS as we have in SAVE_GAME message
                 self._save_and_email_pgn(message)
+            elif message.mode == Mode.PGNREPLAY:
+                # if PGNREPLAY ran out of moves before this game end, like surrender,
+                # then save is handled before by picochess by a SAVE_GAME message
+                message.pgn_filename = "last_analysed.pgn"
+                self._save_pgn(message)
 
         elif isinstance(message, Message.START_NEW_GAME):
             if "(pos+info)" in self.engine_name:

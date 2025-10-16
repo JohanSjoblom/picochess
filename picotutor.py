@@ -210,7 +210,7 @@ class PicoTutor:
         # in this case its enough if watcher is on - coach can be off
         if self.best_engine:
             if self.best_engine.loaded_ok() and self.watcher_on:  # coach can be off
-                result = self.best_engine.is_analyser_running()
+                result = True
         return result
 
     def _setup_comments(self, i_lang, i_comment_file):

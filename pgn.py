@@ -39,7 +39,7 @@ import chess.pgn  # type: ignore
 import dgt.util
 
 from timecontrol import TimeControl
-from utilities import DisplayMsg
+from utilities import DisplayMsg, ensure_important_headers
 from dgt.api import Dgt, Message
 from dgt.util import PlayMode, Mode, TimeMode
 from picotutor import PicoTutor
@@ -583,7 +583,9 @@ class PgnDisplay(DisplayMsg):
         self.add_picotutor_evaluation(pgn_game)
 
         # preserve headers
+        # no need to keep_essential_headers - we want all headers from headers
         pgn_game.headers.update(self.shared["headers"])
+        ensure_important_headers(pgn_game.headers)
 
         # Save to last game file
         with open(self.last_file_name, "w") as last_file:
@@ -606,7 +608,9 @@ class PgnDisplay(DisplayMsg):
         self.add_picotutor_evaluation(pgn_game)
 
         # preserve headers
+        # no need to keep_essential_headers - we want all headers from headers
         pgn_game.headers.update(self.shared["headers"])
+        ensure_important_headers(pgn_game.headers)
 
         with open(l_file_name, "w") as file:
             exporter = chess.pgn.FileExporter(file)

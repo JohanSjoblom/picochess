@@ -872,13 +872,19 @@ class WebDisplay(DisplayMsg):
                 WebDisplay.result_sav = "1/2-1/2"
             elif message.result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):
                 WebDisplay.result_sav = "1-0" if message.result == GameResult.WIN_WHITE else "0-1"
-            elif message.result == GameResult.OUT_OF_TIME:
+            elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
+                # last moved won - same as in DgtDisplay
                 if message.game.turn == chess.WHITE:
                     WebDisplay.result_sav = "0-1"
                 else:
                     WebDisplay.result_sav = "1-0"
             else:
                 WebDisplay.result_sav = ""
+            if WebDisplay.result_sav:
+                # in future cleanups everything should be in headers only
+                # and its most logical that WebDisplay updates the shared header
+                # now for issue #111 make sure also header has end game result
+                self.shared["headers"]["Result"] = WebDisplay.result_sav
             # dont rebuild headers here, use existing one
 
     async def message_consumer(self):

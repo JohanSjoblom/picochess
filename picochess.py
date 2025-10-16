@@ -5069,7 +5069,7 @@ async def main() -> None:
                 await self.get_rid_of_engine_move()
                 await self.pre_exit_or_reboot_cleanups()
                 result = GameResult.ABORT
-                self.game_end_event()  # BEST MOVE code above all ends game
+                self.game_end_event()
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
                         tc_init=self.state.time_control.get_parameters(),

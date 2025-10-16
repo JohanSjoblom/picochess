@@ -77,7 +77,7 @@ from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
 
 from dgt.api import Message, Event
-from dgt.util import GameResult, TimeMode, Mode, PlayMode, PicoComment, PicoCoach
+from dgt.util import GameResult, TimeMode, Mode, PlayMode, PicoComment, PicoCoach, game_result_from_header
 from dgt.hw import DgtHw
 from dgt.pi import DgtPi
 from dgt.display import DgtDisplay
@@ -1813,6 +1813,7 @@ async def main() -> None:
                         await self.stop_search_and_clock()
                         self.state.stop_fen_timer()
                     await self.stop_search_and_clock()
+                    self.game_end_event()
                     await DisplayMsg.show(game_end)
                 else:
                     self.state.searchmoves.reset()
@@ -1879,6 +1880,7 @@ async def main() -> None:
                         self.state.stop_fen_timer()
                     await self.stop_search_and_clock()
                     if not self.pgn_mode():
+                        self.game_end_event()
                         await DisplayMsg.show(game_end)
                 else:
                     self.state.searchmoves.reset()
@@ -2228,10 +2230,12 @@ async def main() -> None:
                             logger.info("molli: starting mame_endgame()")
                             self.mame_endgame()
                             await DisplayMsg.show(msg)
+                            self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
                         else:
                             await DisplayMsg.show(msg)
+                            self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
                     else:
@@ -2264,6 +2268,7 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     await DisplayMsg.show(msg)
                     if game_end:
+                        self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await self.observe()
@@ -2274,6 +2279,7 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
+                        self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
@@ -2285,6 +2291,7 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
+                        self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
@@ -2479,9 +2486,7 @@ async def main() -> None:
                     if depth < DEEP_DEPTH:
                         can_autoplay = False  # with tutor wait for enough depth
             if can_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
-                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
-                if next_move:
-                    await self.do_pgn_replay_move(next_move)
+                await self.autoplay_pgnreplay_move()
             # ask for score from white's perspective
             (move, score, mate) = PicoTutor.get_score(info)
             if send_pv and move != chess.Move.null():
@@ -2489,6 +2494,31 @@ async def main() -> None:
                 await Observable.fire(Event.NEW_PV(pv=[move]))
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
+
+        async def autoplay_pgnreplay_move(self, allow_game_ends=True) -> chess.Move:
+            """play the next PGN move if one found - return None if next move was found
+            for future its allowed to return chess.Move.null() if move not found"""
+            next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+            if next_move:
+                await self.do_pgn_replay_move(next_move)
+            elif allow_game_ends:
+                # signal end of pgn replay game - not using PGN_GAME_ENDS ...
+                # lets first see if we can use same GAME_ENDS as for normal endings
+                try:
+                    result = game_result_from_header(self.shared["headers"].get("Result", ""))
+                except ValueError:
+                    result = GameResult.ABORT
+                self.game_end_event()  # sets autoplay to False
+                await DisplayMsg.show(
+                    Message.GAME_ENDS(
+                        tc_init=self.state.time_control.get_parameters(),
+                        result=result,
+                        play_mode=self.state.play_mode,
+                        game=self.state.game.copy(),
+                        mode=self.state.interaction_mode,
+                    )
+                )
+            return next_move
 
         async def expired_fen_timer(self):
             """Handle times up for an unhandled fen string send from board."""
@@ -2783,6 +2813,7 @@ async def main() -> None:
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
             self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
+            self.state.autoplay_pgn_file = False  # if you load a 2nd PGN it will autosave from move 1
             self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
             self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
 
@@ -2886,6 +2917,7 @@ async def main() -> None:
                 self.state.play_mode = PlayMode.USER_WHITE if turn == chess.WHITE else PlayMode.USER_BLACK
                 self.state.legal_fens = []
                 self.state.legal_fens_after_cmove = []
+                self.game_end_event()
                 await DisplayMsg.show(game_end)
             else:
                 self.state.play_mode = PlayMode.USER_WHITE if turn == chess.WHITE else PlayMode.USER_BLACK
@@ -3095,8 +3127,10 @@ async def main() -> None:
 
         def can_do_next_pgn_replay_move(self) -> bool:
             """check if we can do the next pgn move"""
-            if self.state.interaction_mode != Mode.PGNREPLAY:
+            if self.state.interaction_mode != Mode.PGNREPLAY or self.state.game.is_game_over():
                 return False
+            if self.state.picotutor.get_gpn_game_to_step() is None:
+                return False  # No game to try to step through
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 # on web display we can always autoplay the next pgn move
                 return True
@@ -3131,6 +3165,11 @@ async def main() -> None:
                 game_copy.push(next_move)
                 self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
                 self.state.done_move = next_move  # expected move
+
+        def game_end_event(self):
+            #  @todo1 should have an EVENT message for game end, function for now
+            #  @todo2 should be more state variables to reset here?
+            self.state.autoplay_pgn_file = False  # prevent autoplay starting for next pgn read
 
         async def process_main_events(self, event):
             """Consume event from evt_queue"""
@@ -3565,6 +3604,7 @@ async def main() -> None:
                 if self.state.game.move_stack:
                     if not (self.state.game.is_game_over() or self.state.game_declared):
                         result = GameResult.ABORT
+                        self.game_end_event()
                         await DisplayMsg.show(
                             Message.GAME_ENDS(
                                 tc_init=self.state.time_control.get_parameters(),
@@ -3651,6 +3691,7 @@ async def main() -> None:
                                 self.state.legal_fens_after_cmove = []
 
                         result = GameResult.ABORT
+                        self.game_end_event()
                         await DisplayMsg.show(
                             Message.GAME_ENDS(
                                 tc_init=self.state.time_control.get_parameters(),
@@ -3945,18 +3986,17 @@ async def main() -> None:
                         if self.state.autoplay_pgn_file:
                             self.state.autoplay_pgn_file = False  # stop auto replay of pgn
                         else:
-                            self.state.autoplay_pgn_file = True  # start auto replay of pgn
                             # if we are not already waiting for an autoplay move make the first move
                             if self.can_do_next_pgn_replay_move():
-                                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
-                                if next_move:
-                                    logger.debug("Next PGN move is %s:", next_move.uci())
-                                    await self.do_pgn_replay_move(next_move)
-                                else:
-                                    logger.debug("No next PGN move found when trying to start autoplay pgn.")
-                                    self.state.autoplay_pgn_file = False  # stop auto replay of pgn
-                                    msg = Message.SHOW_TEXT(text_string="no move")
-                                    await DisplayMsg.show(msg)
+                                # avoid sending GAME_ENDS when autoplay is started
+                                auto_move = await self.autoplay_pgnreplay_move(allow_game_ends=False)
+                            else:
+                                auto_move = None
+                            if auto_move:
+                                self.state.autoplay_pgn_file = True  # start auto replay of pgn
+                            else:
+                                msg = Message.SHOW_TEXT(text_string="no move")
+                                await DisplayMsg.show(msg)
                     elif not self.state.done_computer_fen:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()
@@ -4148,6 +4188,7 @@ async def main() -> None:
                     elif event.result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):
                         l_result = "1-0" if event.result == GameResult.WIN_WHITE else "0-1"
                     ModeInfo.set_game_ending(result=l_result)
+                    self.game_end_event()
                     await DisplayMsg.show(
                         Message.GAME_ENDS(
                             tc_init=self.state.time_control.get_parameters(),
@@ -4215,7 +4256,7 @@ async def main() -> None:
                             self.state.stop_fen_timer()
                             self.state.legal_fens_after_cmove = []
                             game_msg = self.state.game.copy()
-
+                            self.game_end_event()
                             if self.online_mode():
                                 winner = ""
                                 result_str = ""
@@ -4522,6 +4563,7 @@ async def main() -> None:
                                         self.state.stop_fen_timer()
                                     await self.stop_search_and_clock()
                                     if not self.pgn_mode():
+                                        self.game_end_event()
                                         await DisplayMsg.show(game_end)
                                 else:
                                     self.state.searchmoves.reset()
@@ -4956,6 +4998,7 @@ async def main() -> None:
                 ):  # molli in online mode the server decides
                     await self.state.stop_clock()
                     result = GameResult.OUT_OF_TIME
+                    self.game_end_event()
                     await DisplayMsg.show(
                         Message.GAME_ENDS(
                             tc_init=self.state.time_control.get_parameters(),
@@ -4984,6 +5027,7 @@ async def main() -> None:
                     pass
 
                 result = GameResult.ABORT
+                self.game_end_event()
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
                         tc_init=self.state.time_control.get_parameters(),
@@ -5003,6 +5047,7 @@ async def main() -> None:
                 await self.get_rid_of_engine_move()
                 await self.pre_exit_or_reboot_cleanups()
                 result = GameResult.ABORT
+                self.game_end_event()
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
                         tc_init=self.state.time_control.get_parameters(),
@@ -5024,6 +5069,7 @@ async def main() -> None:
                 await self.get_rid_of_engine_move()
                 await self.pre_exit_or_reboot_cleanups()
                 result = GameResult.ABORT
+                self.game_end_event()  # BEST MOVE code above all ends game
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
                         tc_init=self.state.time_control.get_parameters(),

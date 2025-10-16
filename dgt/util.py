@@ -779,6 +779,27 @@ class GameResult(MyEnum):
     DRAW = "B00_gameresult_draw"
 
 
+def game_result_from_header(result_str: str) -> GameResult:
+    """
+    Convert a PGN 'Result' header string (like '1-0', '0-1', '1/2-1/2', '*', '?')
+    into a corresponding GameResult enum value.
+    """
+    result_str = (result_str or "").strip()
+
+    mapping = {
+        "1-0": GameResult.WIN_WHITE,
+        "0-1": GameResult.WIN_BLACK,
+        "1/2-1/2": GameResult.DRAW,
+        "*": GameResult.ABORT,
+        "?": GameResult.ABORT,  # nonstandard, internal marker for unknown
+    }
+
+    try:
+        return mapping[result_str]
+    except KeyError as e:
+        raise ValueError(f"Unknown PGN result string: {result_str!r}") from e
+
+
 @enum.unique
 class BeepLevel(MyEnum):
     """Define the beep level for each beep event."""

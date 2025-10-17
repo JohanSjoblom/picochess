@@ -1723,11 +1723,10 @@ async def main() -> None:
                         if self.state.interaction_mode == Mode.PGNREPLAY:
                             # its a legal move, so let the user deviate from PGN replay but stop autoplay
                             self.state.autoplay_pgn_file = False
-                        else:  # TRAINING mode
+                        else:  # TRAINING mode as before, user did an alternativ move for Pico engine
                             await DisplayMsg.show(Message.WRONG_FEN())  # display set pieces/pico's move
-                            await asyncio.sleep(
-                                3
-                            )  # display set pieces again and accept new players move as pico's move
+                            await asyncio.sleep(3)
+                            # display set pieces again and accept new players move as pico's move
                             await DisplayMsg.show(
                                 Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode)
                             )

@@ -298,6 +298,15 @@ class ContinuousAnalysis:
             if "depth" in j:
                 logger.debug("%s ContinuousAnalyser deep depth: %d", self.whoami, j.get("depth"))
 
+    async def get_latest_seen_depth(self) -> int:
+        """return the latest depth seen in analysis info"""
+        result = 0
+        async with self.lock:
+            if self._analysis_data:
+                j: InfoDict = self._analysis_data[0]
+                result = j.get("depth", 0)
+        return result
+
     def _update_analysis_data(self, analysis: AnalysisResult) -> bool:
         """internal function for updating while analysing
         returns True if data was updated"""
@@ -731,6 +740,16 @@ class UciEngine(object):
         if self.analyser.is_running():
             return self.analyser.is_limit_reached()
         return False
+
+    async def get_latest_seen_depth(self) -> int:
+        """return the latest depth seen in analysis info"""
+        result = 0
+        if self.analyser.is_running():
+            result = await self.analyser.get_latest_seen_depth()
+        else:
+            # this is the famous - this should not happen log
+            logger.debug("get_latest_seen_depth from engine but analyser not running")
+        return result
 
     # this function was taken out of use after introduction
     # of the new analyser ContinuousAnalysis

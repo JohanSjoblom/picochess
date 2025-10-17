@@ -202,6 +202,14 @@ class PicoTutor:
             self.analyse_both_sides = analyse_both_sides
         await self._start_or_stop_as_needed()
 
+    async def get_latest_seen_depth(self) -> int:
+        """return the latest depth seen in analysis info"""
+        result = 0
+        if self.best_engine:
+            if self.best_engine.loaded_ok():
+                result = await self.best_engine.get_latest_seen_depth()
+        return result
+
     def can_use_coach_analyser(self) -> bool:
         """is the tutor active and analysing, and has user turned on the watcher
         - if yes InfoDicts can be used"""

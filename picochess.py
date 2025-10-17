@@ -2391,7 +2391,13 @@ async def main() -> None:
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
-            result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
+            if self.state.interaction_mode == Mode.PGNREPLAY:
+                result = True  # PGN Replay always uses tutor analysis only
+            else:
+                # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
+                # this is a questionable optimisation, but it does save a lot of CPU on Raspberry Pi
+                # if user wants just plain old analysis tutor can be switched off
+                result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
             # issue #78 - make sure tutor has same board othewise analysis is worthless
             result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
             return result
@@ -2442,7 +2448,7 @@ async def main() -> None:
             else:
                 logger.debug("empty InfoDict")
 
-        async def analyse(self) -> InfoDict | None:
+        async def analyse(self, triggered_by_timer: bool = False) -> InfoDict | None:
             """analyse, observe etc depening on mode - create analysis info
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
@@ -2471,22 +2477,26 @@ async def main() -> None:
                 if info:
                     self.debug_pv_info(info)
                     await self.send_analyse(info)
+            # autoplay is temporarily piggybacking on this once-a-second analyse call
+            # @todo give it a separate timer task when this is stable
+            if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
+                if self.state.picotutor.can_use_coach_analyser():
+                    latest_depth = await self.state.picotutor.get_latest_seen_depth()
+                    if latest_depth >= DEEP_DEPTH:
+                        await self.autoplay_pgnreplay_move()  # tutor ready
+                else:
+                    if triggered_by_timer:
+                        await self.autoplay_pgnreplay_move()  # timer triggered
             return info
 
         async def send_analyse(self, info: InfoDict, send_pv: bool = True):
             """send pv, depth, and score events
             with send_pv False pv message is not sent - use if its previous move InfoDict
             this is executed periodically in the background_analyse_timer task"""
-            can_autoplay = True
             if "depth" in info:
                 depth = info.get("depth")
                 # send depth before score as score is assembling depth in receiver end
                 await Observable.fire(Event.NEW_DEPTH(depth=depth))
-                if self.state.picotutor.can_use_coach_analyser():
-                    if depth < DEEP_DEPTH:
-                        can_autoplay = False  # with tutor wait for enough depth
-            if can_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
-                await self.autoplay_pgnreplay_move()
             # ask for score from white's perspective
             (move, score, mate) = PicoTutor.get_score(info)
             if send_pv and move != chess.Move.null():
@@ -3075,7 +3085,7 @@ async def main() -> None:
             """Analyse PV score depth in the background"""
             if self.state.game:
                 if not self.state.game.is_game_over():
-                    await self.analyse()
+                    await self.analyse(triggered_by_timer=True)
 
         async def event_consumer(self):
             """Event consumer for main"""

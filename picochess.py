@@ -1712,7 +1712,7 @@ async def main() -> None:
                     self.state.legal_fens = compute_legal_fens(self.state.game.copy())
 
             # allow playing/correcting moves for pico's side in TRAINING mode:
-            elif fen in legal_fens_pico and self.state.interaction_mode == Mode.TRAINING:
+            elif fen in legal_fens_pico and self.state.interaction_mode in (Mode.TRAINING, Mode.PGNREPLAY):
                 legal_moves = list(self.state.game.legal_moves)
                 move = legal_moves[legal_fens_pico.index(fen)]
 
@@ -1720,18 +1720,24 @@ async def main() -> None:
                     if fen == self.state.done_computer_fen:
                         pass
                     else:
-                        await DisplayMsg.show(Message.WRONG_FEN())  # display set pieces/pico's move
-                        await asyncio.sleep(3)  # display set pieces again and accept new players move as pico's move
-                        await DisplayMsg.show(
-                            Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode)
-                        )
-                        await asyncio.sleep(2)
-                        await DisplayMsg.show(
-                            Message.COMPUTER_MOVE(
-                                move=move, ponder=False, game=self.state.game.copy(), wait=False, is_user_move=False
+                        if self.state.interaction_mode == Mode.PGNREPLAY:
+                            # its a legal move, so let the user deviate from PGN replay but stop autoplay
+                            self.state.autoplay_pgn_file = False
+                        else:  # TRAINING mode
+                            await DisplayMsg.show(Message.WRONG_FEN())  # display set pieces/pico's move
+                            await asyncio.sleep(
+                                3
+                            )  # display set pieces again and accept new players move as pico's move
+                            await DisplayMsg.show(
+                                Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode)
                             )
-                        )
-                        await asyncio.sleep(2)
+                            await asyncio.sleep(2)
+                            await DisplayMsg.show(
+                                Message.COMPUTER_MOVE(
+                                    move=move, ponder=False, game=self.state.game.copy(), wait=False, is_user_move=False
+                                )
+                            )
+                            await asyncio.sleep(2)
                 logger.debug("user move did a move for pico")
 
                 await self.user_move(move, sliding=False)
@@ -2512,22 +2518,29 @@ async def main() -> None:
             if next_move:
                 await self.do_pgn_replay_move(next_move)
             elif allow_game_ends:
-                # signal end of pgn replay game - not using PGN_GAME_ENDS ...
-                # lets first see if we can use same GAME_ENDS as for normal endings
-                try:
-                    result = game_result_from_header(self.shared["headers"].get("Result", ""))
-                except ValueError:
-                    result = GameResult.ABORT
-                self.game_end_event()  # sets autoplay to False
-                await DisplayMsg.show(
-                    Message.GAME_ENDS(
-                        tc_init=self.state.time_control.get_parameters(),
-                        result=result,
-                        play_mode=self.state.play_mode,
-                        game=self.state.game.copy(),
-                        mode=self.state.interaction_mode,
+                moves_game = len(self.state.game.move_stack)  # half_move dont work in library
+                moves_pgn = self.state.picotutor.get_pgn_halfmove_clock()
+                if moves_game == moves_pgn:
+                    # signal end of pgn replay game - not using PGN_GAME_ENDS ...
+                    # lets first see if we can use same GAME_ENDS as for normal endings
+                    try:
+                        result = game_result_from_header(self.shared["headers"].get("Result", ""))
+                    except ValueError:
+                        result = GameResult.ABORT
+                    # @todo deviated from the original moves with takeback result in ABORT
+                    # because the PGN game header "Result" changed when you deviated
+                    self.game_end_event()  # sets autoplay to False
+                    await DisplayMsg.show(
+                        Message.GAME_ENDS(
+                            tc_init=self.state.time_control.get_parameters(),
+                            result=result,
+                            play_mode=self.state.play_mode,
+                            game=self.state.game.copy(),
+                            mode=self.state.interaction_mode,
+                        )
                     )
-                )
+                # else game deviated from PGN moves
+                self.state.autoplay_pgn_file = False  # always stop autoplay, not only else
             return next_move
 
         async def expired_fen_timer(self):
@@ -4722,7 +4735,7 @@ async def main() -> None:
                     await self.stop_search_and_clock()
                     if event.mode == Mode.PGNREPLAY:
                         file_name_only = "last_game.pgn"
-                        # await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
+                        await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
                         await self.read_pgn_file(file_name_only)
                         await self._start_or_stop_analysis_as_needed()
                     else:

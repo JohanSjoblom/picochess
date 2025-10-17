@@ -126,6 +126,15 @@ class PicoTutor:
         """store a loaded PGN game here so that it can be stepped through"""
         self.pgn_game = pgn_game  # read by picochess.py read_pgn_file()
 
+    def get_pgn_halfmove_clock(self) -> int:
+        """return the number of half-moves in the loaded PGN game"""
+        if self.pgn_game:
+            board = self.pgn_game.board()
+            for move in self.pgn_game.mainline_moves():
+                board.push(move)
+            return len(board.move_stack)  # half-move count dont work in library
+        return 0
+
     def get_gpn_game_to_step(self) -> chess.pgn.Game:
         """get a stored PGN game - example: check if it exists before calling get_next_pgn_move"""
         return self.pgn_game

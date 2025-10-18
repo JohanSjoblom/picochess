@@ -135,7 +135,7 @@ class PicoTutor:
             return len(board.move_stack)  # half-move count dont work in library
         return 0
 
-    def get_gpn_game_to_step(self) -> chess.pgn.Game:
+    def get_pgn_game_to_step(self) -> chess.pgn.Game:
         """get a stored PGN game - example: check if it exists before calling get_next_pgn_move"""
         return self.pgn_game
 

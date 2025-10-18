@@ -95,7 +95,9 @@ from picotutor_constants import DEEP_DEPTH
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
-FLOAT_MAX_ANALYSIS_DEPTH = 28  # the famous limit of deep blue?
+FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 28  # the famous limit of deep blue?
+FLOAT_TUTOR_MAX_ANALYSIS_DEPTH = 22  # higher than DEEP_DEPTH, lower than above
+# since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING
 # Dont make the following large as it will block engine play go
 FLOAT_MAX_ANALYSE_TIME = 0.1  # asking for hint while not pondering
@@ -2391,8 +2393,10 @@ async def main() -> None:
         def tutor_depth(self) -> bool:
             """return depth to override in tutor set_mode if coach-analyser is True else None"""
             # important that we use same bool function as in analyse()
-            # if analyse is going to use tutor, depth should be full FLOAT_MAX_ANALYSIS_DEPTH
-            return FLOAT_MAX_ANALYSIS_DEPTH if self.is_coach_analyser() else None
+            # if analyse is going to use tutor, use more depth
+            if self.state.interaction_mode == Mode.PGNREPLAY:
+                return None  # PGN Replay does not need any deeper than DEEP_DEPTH
+            return FLOAT_TUTOR_MAX_ANALYSIS_DEPTH if self.is_coach_analyser() else None
 
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
@@ -2401,8 +2405,7 @@ async def main() -> None:
                 result = True  # PGN Replay always uses tutor analysis only
             else:
                 # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
-                # this is a questionable optimisation, but it does save a lot of CPU on Raspberry Pi
-                # if user wants just plain old analysis tutor can be switched off
+                # this saves a lot of CPU on Raspberry Pi
                 result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
             # issue #78 - make sure tutor has same board othewise analysis is worthless
             result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
@@ -2438,7 +2441,7 @@ async def main() -> None:
             """start or stop engine analyser as needed (tutor handles this on its own)"""
             if self.engine:
                 if self.need_engine_analyser():
-                    limit = Limit(depth=FLOAT_MAX_ANALYSIS_DEPTH)
+                    limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
                     await self.engine.start_analysis(self.state.game, limit=limit)
                 else:
                     self.engine.stop_analysis()

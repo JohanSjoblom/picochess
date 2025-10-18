@@ -226,6 +226,7 @@ class PicochessState:
         self.main_loop = loop
         self.ignore_next_engine_move = False  # True only after takeback during think
         self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
+        self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -2488,10 +2489,10 @@ async def main() -> None:
                 if self.state.picotutor.can_use_coach_analyser():
                     latest_depth = await self.state.picotutor.get_latest_seen_depth()
                     if latest_depth >= DEEP_DEPTH:
-                        await self.autoplay_pgnreplay_move()  # tutor ready
+                        await self.autoplay_pgnreplay_move(allow_game_ends=True)  # tutor ready
                 else:
                     if triggered_by_timer:
-                        await self.autoplay_pgnreplay_move()  # timer triggered
+                        await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
             return info
 
         async def send_analyse(self, info: InfoDict, send_pv: bool = True):
@@ -2510,15 +2511,17 @@ async def main() -> None:
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 
-        async def autoplay_pgnreplay_move(self, allow_game_ends=True) -> chess.Move:
+        async def autoplay_pgnreplay_move(self, allow_game_ends) -> chess.Move:
             """play the next PGN move if one found - return None if next move was found
             for future its allowed to return chess.Move.null() if move not found"""
             next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+            moves_game = len(self.state.game.move_stack)  # half_move dont work in library
             if next_move:
                 await self.do_pgn_replay_move(next_move)
+                self.state.autoplay_half_moves = moves_game + 1  # remember last seen autoplay move
             elif allow_game_ends:
-                moves_game = len(self.state.game.move_stack)  # half_move dont work in library
-                moves_pgn = self.state.picotutor.get_pgn_halfmove_clock()
+                # preferred elif instead of if here to avoid checking end of game often
+                moves_pgn = self.state.picotutor.get_pgn_halfmove_clock()  # slow call
                 if moves_game == moves_pgn:
                     # signal end of pgn replay game - not using PGN_GAME_ENDS ...
                     # lets first see if we can use same GAME_ENDS as for normal endings
@@ -2538,8 +2541,14 @@ async def main() -> None:
                             mode=self.state.interaction_mode,
                         )
                     )
-                # else game deviated from PGN moves
-                self.state.autoplay_pgn_file = False  # always stop autoplay, not only else
+            if not next_move:
+                self.state.autoplay_pgn_file = False  # always stop autoplay, not only else/elif
+                logger.debug(
+                    "No more PGN replay moves: halfmoves game %d, pgn %d, last seen automove %d",
+                    moves_game,
+                    moves_pgn,
+                    self.state.autoplay_half_moves,
+                )
             return next_move
 
         async def expired_fen_timer(self):
@@ -2958,6 +2967,7 @@ async def main() -> None:
             if pgn_game_to_step:
                 # this PGN game was not loaded to the end (above) - remember it
                 self.state.picotutor.set_pgn_game_to_step(pgn_game_to_step)
+                self.state.autoplay_half_moves = 0  # remember last seen autoplay move
 
         def emulation_mode(self):
             emulation = False
@@ -3151,7 +3161,7 @@ async def main() -> None:
             """check if we can do the next pgn move"""
             if self.state.interaction_mode != Mode.PGNREPLAY or self.state.game.is_game_over():
                 return False
-            if self.state.picotutor.get_gpn_game_to_step() is None:
+            if self.state.picotutor.get_pgn_game_to_step is None:
                 return False  # No game to try to step through
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 # on web display we can always autoplay the next pgn move

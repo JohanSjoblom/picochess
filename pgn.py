@@ -748,9 +748,7 @@ class PgnDisplay(DisplayMsg):
                 # we do not have pgn_filename in GAME_ENDS as we have in SAVE_GAME message
                 self._save_and_email_pgn(message)
             elif message.mode == Mode.PGNREPLAY:
-                # if PGNREPLAY ran out of moves before this game end, like surrender,
-                # then save is handled before by picochess by a SAVE_GAME message
-                message.pgn_filename = "last_analysed.pgn"
+                message.pgn_filename = "last_replay.pgn"
                 self._save_pgn(message)
 
         elif isinstance(message, Message.START_NEW_GAME):

@@ -571,10 +571,10 @@ class UciEngine(object):
         """Quit engine."""
         if self.analyser.is_running():
             self.analyser.cancel()  # quit can force full cancel
-        await self.engine.quit()  # Ask nicely
-        # @todo not sure how to know if we can call terminate and kill?
-        if self.is_mame:
-            os.system("sudo pkill -9 -f mess")
+        if not self.is_mame:
+            await self.engine.quit()  # Ask nicely
+        os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
+        await asyncio.sleep(1)  # give it some time to quit
 
     def stop(self):
         """Stop background ContinuousAnalyser and/or force engine to move"""

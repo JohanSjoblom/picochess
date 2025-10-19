@@ -1,6 +1,7 @@
 #!/bin/sh
 #
 # Installation script for picochess
+# Run this script as root (sudo)
 #
 
 # Check for the "pico" parameter, if present skip system upgrade
@@ -180,6 +181,12 @@ else
     echo "install-engines.sh missing — cannot install engines."
 fi
 
+# Ensure engines folder belongs to pi (in case user ran install-engines with sudo)
+if [ -d "/opt/picochess/engines" ]; then
+    echo "Fixing ownership for engines folder..."
+    chown -R pi:pi /opt/picochess/engines 2>/dev/null || true
+fi
+
 echo " ------- "
 if [ -d "/opt/picochess/logs" ]; then
     echo "logs dir already exists - making sure pi is owner"
@@ -273,6 +280,9 @@ else
     echo "Warning: venv python $VENV_PYTHON not found or not executable" >&2
 fi
 echo " ------- setcap end ------- "
+
+echo "Fixing ownership for backup folders - in case user has run install-engines as sudo"
+chown -R pi:pi /home/pi/pico_backups 2>/dev/null || true
 
 echo "Picochess installation complete. Please reboot"
 echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"

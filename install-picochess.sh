@@ -110,7 +110,7 @@ if [ -d "/opt/picochess" ]; then
     # === Sync working copy excluding .git, engines/, and mame_emulation/ ===
     cd "$REPO_DIR"
     echo "Syncing working directory..."
-    sudo -u pi rsync -a --delete \
+    sudo -u pi rsync -a --delete --info=progress2 \
         --exclude='.git/' \
         --exclude='engines/aarch64/' \
         --exclude='engines/x86_64/' \
@@ -118,8 +118,7 @@ if [ -d "/opt/picochess" ]; then
         --exclude='engines/mame_emulation/' \
         ./ "$WORKING_COPY_DIR/"
 
-    # Ensure ones more that backup directory is writable by pi
-    chown -R pi:pi "$BACKUP_DIR"
+    # save time by not doing chown -R pi:pi "$BACKUP_DIR"
     echo "Backup safely stored at: $BACKUP_DIR"
 fi
 #

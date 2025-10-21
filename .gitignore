@@ -39,6 +39,8 @@ engines/aarch64/
 engines/x86_64/
 engines/lc0_weights/
 engines/mame_emulation/
+engines/rodent3/
+engines/rodent4/
 engines/descriptions.txt
 
 # Installer logs

@@ -89,18 +89,17 @@ if [ -d "/opt/picochess" ]; then
         echo "Saving git diff..."
         sudo -u pi git diff > "$BACKUP_DIR/local_changes.diff"
         # Fix ownership so pi can access/modify untracked files
-        chown -R pi:pi "$BACKUP_DIR/local_changes.diff"
+        chown pi:pi "$BACKUP_DIR/local_changes.diff"
 
-        # === Save untracked files (excluding engines/ and mame/) ===
-        # Copy each untracked file, preserving directory structure, except engines/ and mame/
+        # === Save untracked files (excluding engines/) ===
         echo "Backing up untracked files..."
         rm -rf "$UNTRACKED_DIR"/*
         sudo -u pi git ls-files --others --exclude-standard | while read -r file; do
-        case "$file" in
-            engines/*|mame/*) continue ;;
-        esac
-        mkdir -p "$UNTRACKED_DIR/$(dirname "$file")"
-        cp -p "$file" "$UNTRACKED_DIR/$file"
+            case "$file" in
+                engines/aarch64/*|engines/x86_64/*|engines/lc0_weights/*|engines/mame_emulation/*) continue ;;
+            esac
+            mkdir -p "$UNTRACKED_DIR/$(dirname "$file")"
+            cp -p "$file" "$UNTRACKED_DIR/$file"
         done
         # Fix ownership so pi can access/modify untracked files
         chown -R pi:pi "$UNTRACKED_DIR"
@@ -108,14 +107,16 @@ if [ -d "/opt/picochess" ]; then
         echo "No Git repository found to backup. Doing only rsync of working directory."
     fi
 
-    # === Sync working copy excluding .git, engines/, and mame/ ===
+    # === Sync working copy excluding .git, engines/, and mame_emulation/ ===
     cd "$REPO_DIR"
     echo "Syncing working directory..."
     sudo -u pi rsync -a --delete \
-      --exclude='.git/' \
-      --exclude='./engines/' \
-      --exclude='./mame/' \
-      ./ "$WORKING_COPY_DIR/"
+        --exclude='.git/' \
+        --exclude='engines/aarch64/' \
+        --exclude='engines/x86_64/' \
+        --exclude='engines/lc0_weights/' \
+        --exclude='engines/mame_emulation/' \
+        ./ "$WORKING_COPY_DIR/"
 
     # Ensure ones more that backup directory is writable by pi
     chown -R pi:pi "$BACKUP_DIR"

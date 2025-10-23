@@ -4,6 +4,15 @@
 # Run this script as root (sudo)
 #
 
+# REPO_DIR must be set early and remember that the Python code has hardcoded /opt/picochess paths
+# See install-picochess.md documentation for more info
+REPO_DIR="/opt/picochess"
+BRANCH="master"
+BACKUP_DIR_BASE="/home/pi/pico_backups"
+BACKUP_DIR="$BACKUP_DIR_BASE/current"
+WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
+UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
+
 # Check for the "pico" parameter, if present skip system upgrade
 SKIP_UPDATE=false
 if [ "$1" = "pico" ]; then
@@ -48,27 +57,21 @@ apt -y install ffmpeg
 echo " --------------------------------------------------- "
 echo "System updates done - Starting Picochess installation"
 echo " --------------------------------------------------- "
-if [ -d "/opt/picochess" ]; then
-    chown -R pi:pi /opt/picochess
-    sudo -u pi git config --global --add safe.directory /opt/picochess
+if [ -d "$REPO_DIR" ]; then
+    chown -R pi:pi "$REPO_DIR"
+    sudo -u pi git config --global --add safe.directory "$REPO_DIR"
 fi
 
 # BACKUP section starts
 ###############################################################################
-# Fast Incremental Backup & Git Reset Script for /opt/picochess
+# Fast Incremental Backup & Git Reset Script for $REPO_DIR
 # - Maintains a single backup in /home/pi/pico_backups/current
 # - Uses rsync to copy only changed files
 # - Excludes 'engines/' and 'mame/' from backup
 # - Preserves untracked files outside excluded folders
 ###############################################################################
 
-REPO_DIR="/opt/picochess"
-BRANCH="master"
-BACKUP_DIR="/home/pi/pico_backups/current"
-WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
-UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
-
-# Only attempt backup if /opt/picochess exists
+# Only attempt backup if $REPO_DIR exists
 if [ -d "$REPO_DIR" ]; then
     cd "$REPO_DIR" || exit 1
 
@@ -83,7 +86,7 @@ if [ -d "$REPO_DIR" ]; then
         # Create required directories
         mkdir -p "$WORKING_COPY_DIR" "$UNTRACKED_DIR"
         # Ensure backup directory is writable by pi
-        chown pi:pi /home/pi/pico_backups
+        chown pi:pi "$BACKUP_DIR_BASE"
         chown pi:pi "$BACKUP_DIR"
         echo "Creating backup in: $BACKUP_DIR"
 
@@ -125,7 +128,7 @@ if [ -d "$REPO_DIR" ]; then
         echo "Branch tester detected ('$CURRENT_BRANCH') — skipping backup to speed up update."
     fi
 else
-    echo "No /opt/picochess directory found — skipping backup."
+    echo "No $REPO_DIR directory found — skipping backup."
 fi
 
 # BACKUP section ends
@@ -162,26 +165,25 @@ if [ -d "$REPO_DIR/.git" ]; then
     fi
 
 else
-    echo "No git repo found — fetching picochess..."
-    mkdir -p "$REPO_DIR"
-    chown pi:pi "$REPO_DIR"
-    cd /opt || exit 3
-    sudo -u pi git clone https://github.com/JohanSjoblom/picochess
-    cd picochess || exit 4
-    chown -R pi:pi "$REPO_DIR"
+    echo "No git repo found — fetching picochess... cloning using pi user"
+    mkdir -p "$(dirname "$REPO_DIR")"
+    chown pi:pi "$(dirname "$REPO_DIR")"
+    sudo -u pi git clone https://github.com/JohanSjoblom/picochess "$REPO_DIR"
+    cd "$REPO_DIR" || exit 1
 fi
 echo " ------- "
 # GIT UPDATE section ends
 
-if [ -d "/opt/picochess/games/uploads" ]; then
+# Upload directory
+if [ -d "$REPO_DIR/games/uploads" ]; then
     echo "upload dir already exists - making sure pi is owner"
-    chown -R pi:pi /opt/picochess/games/uploads
+    chown -R pi:pi "$REPO_DIR/games/uploads"
 else
     echo "creating uploads dir for pi user"
-    sudo -u pi mkdir /opt/picochess/games/uploads
+    sudo -u pi mkdir "$REPO_DIR/games/uploads"
 fi
 
-# install engines as user pi if there is no engines architectre folder
+# install engines as user pi if there is no engines architecture folder
 if [ -f install-engines.sh ]; then
     cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
@@ -191,34 +193,34 @@ else
 fi
 
 # Ensure engines folder belongs to pi (in case user ran install-engines with sudo)
-if [ -d "/opt/picochess/engines" ]; then
+if [ -d "$REPO_DIR/engines" ]; then
     echo "Fixing ownership for engines folder..."
-    chown -R pi:pi /opt/picochess/engines 2>/dev/null || true
+    chown -R pi:pi "$REPO_DIR/engines" 2>/dev/null || true
 fi
 
-echo " ------- "
-if [ -d "/opt/picochess/logs" ]; then
+if [ -d "$REPO_DIR/logs" ]; then
     echo "logs dir already exists - making sure pi is owner"
-    chown -R pi:pi /opt/picochess/logs
+    chown -R pi:pi "$REPO_DIR/logs"
 else
     echo "creating logs dir for pi user"
-    sudo -u pi mkdir /opt/picochess/logs
+    sudo -u pi mkdir "$REPO_DIR/logs"
 fi
 
 echo " ------- "
-if [ -d "/opt/picochess/venv" ]; then
+if [ -d "$REPO_DIR/venv" ]; then
     echo "venv already exists - making sure pi is owner and group"
-    chown -R pi /opt/picochess/venv
-    chgrp -R pi /opt/picochess/venv
+    chown -R pi "$REPO_DIR/venv"
+    chgrp -R pi "$REPO_DIR/venv"
 else
     echo "creating virtual Python env named venv"
-    sudo -u pi python3 -m venv /opt/picochess/venv
+    sudo -u pi python3 -m venv "$REPO_DIR/venv"
 fi
 
-if [ -f "/opt/picochess/picochess.ini" ]; then
+# picochess.ini
+if [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "picochess.ini already existed - no changes done"
 else
-    cd /opt/picochess
+    cd "$REPO_DIR"
     cp picochess.ini.example-web-$(uname -m) picochess.ini
     chown pi picochess.ini
 fi
@@ -227,34 +229,34 @@ fi
 
 # initialize other ini files like voices.ini... etc
 # copy in the default files - ini files should not be in repository
-if [ -f "/opt/picochess/talker/voices/voices.ini" ]; then
+if [ -f "$REPO_DIR/talker/voices/voices.ini" ]; then
     echo "voices.ini already existed - no changes done"
 else
-    cd /opt/picochess
-    cp voices-example.ini /opt/picochess/talker/voices/voices.ini
-    chown pi /opt/picochess/talker/voices/voices.ini
+    cd "$REPO_DIR"
+    cp voices-example.ini "$REPO_DIR/talker/voices/voices.ini"
+    chown pi "$REPO_DIR/talker/voices/voices.ini"
 fi
 
-
+# Python module check
 echo " ------- "
 echo "checking required python modules..."
-cd /opt/picochess
-sudo -u pi /opt/picochess/venv/bin/pip3 install --upgrade pip
-sudo -u pi /opt/picochess/venv/bin/pip3 install --upgrade -r requirements.txt
+cd "$REPO_DIR"
+sudo -u pi "$REPO_DIR/venv/bin/pip3" install --upgrade pip
+sudo -u pi "$REPO_DIR/venv/bin/pip3" install --upgrade -r requirements.txt
 
 echo " ------- "
 echo "setting up picochess, obooksrv, gamesdb, and update services"
 cp etc/picochess.service /etc/systemd/system/
-ln -sf /opt/picochess/obooksrv/$(uname -m)/obooksrv /opt/picochess/obooksrv/obooksrv
+ln -sf "$REPO_DIR/obooksrv/$(uname -m)/obooksrv" "$REPO_DIR/obooksrv/obooksrv"
 cp etc/obooksrv.service /etc/systemd/system/
-ln -sf /opt/picochess/gamesdb/$(uname -m)/tcscid /opt/picochess/gamesdb/tcscid
+ln -sf "$REPO_DIR/gamesdb/$(uname -m)/tcscid" "$REPO_DIR/gamesdb/tcscid"
 cp etc/gamesdb.service /etc/systemd/system/
 cp etc/picochess-update.service /etc/systemd/system/
 cp etc/run-picochess-if-flagged.sh /usr/local/bin/
 chmod +x /usr/local/bin/run-picochess-if-flagged.sh
-chmod +x /opt/picochess/check-update-status.sh
-chmod +x /opt/picochess/check-git-status.sh
-chmod +x /opt/picochess/check-git-tags.sh
+chmod +x "$REPO_DIR/check-update-status.sh"
+chmod +x "$REPO_DIR/check-git-status.sh"
+chmod +x "$REPO_DIR/check-git-tags.sh"
 touch /var/log/picochess-update.log /var/log/picochess-last-update
 chown root:root /var/log/picochess-*
 systemctl daemon-reload
@@ -263,17 +265,18 @@ systemctl enable obooksrv.service
 systemctl enable gamesdb.service
 systemctl enable picochess-update.service
 
+# setcap for DGT board, bluetooth etc
 echo " ------- setcap start ------- "
 echo "after each system update we need to rerun the cap_net rights"
 echo "giving bluetooth rights so that communication works to DGT board etc"
 # dynamically detect the Python binary in the venv
-VENV_PYTHON=$(readlink -f /opt/picochess/venv/bin/python)
+VENV_PYTHON=$(readlink -f "$REPO_DIR/venv/bin/python")
 echo "Debug: Using venv python at $VENV_PYTHON"
 # get python version string like python3.13
 PYVER=$($VENV_PYTHON -c 'import sys; print("python%d.%d" % sys.version_info[:2])')
 echo "Debug: Detected python version: $PYVER"
 # construct the path to bluepy-helper dynamically
-BLUEPY_HELPER="/opt/picochess/venv/lib/$PYVER/site-packages/bluepy/bluepy-helper"
+BLUEPY_HELPER="$REPO_DIR/venv/lib/$PYVER/site-packages/bluepy/bluepy-helper"
 echo "Debug: Bluepy helper path: $BLUEPY_HELPER"
 # apply capabilities if the helper exists
 if [ -f "$BLUEPY_HELPER" ]; then
@@ -291,8 +294,9 @@ else
 fi
 echo " ------- setcap end ------- "
 
+# backup folder ownership fix
 echo "Fixing ownership for backup folders - in case user has run install-engines as sudo"
-chown -R pi:pi /home/pi/pico_backups 2>/dev/null || true
+chown -R pi:pi "$BACKUP_DIR_BASE" 2>/dev/null || true
 
 echo "Picochess installation complete. Please reboot"
 echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"
@@ -301,7 +305,7 @@ echo "If you have a DGT board you need to change the board type"
 echo "in the picochess.ini like this: board-type = dgt"
 echo "Other board types are also supported - see the picochess.ini file"
 echo " ------- "
-echo "In case of problems have a look in the log /opt/picochess/logs/picochess.log"
+echo "In case of problems have a look in the log $REPO_DIR/logs/picochess.log"
 echo "You can rerun this installation whenever you want to update your system"
 echo "Use the parameter pico if you want to skip system update"
 

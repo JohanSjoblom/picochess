@@ -245,6 +245,7 @@ cp etc/run-picochess-if-flagged.sh /usr/local/bin/
 chmod +x /usr/local/bin/run-picochess-if-flagged.sh
 chmod +x /opt/picochess/check-update-status.sh
 chmod +x /opt/picochess/check-git-status.sh
+chmod +x /opt/picochess/check-git-tags.sh
 touch /var/log/picochess-update.log /var/log/picochess-last-update
 chown root:root /var/log/picochess-*
 systemctl daemon-reload

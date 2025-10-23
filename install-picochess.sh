@@ -254,9 +254,14 @@ cp etc/gamesdb.service /etc/systemd/system/
 cp etc/picochess-update.service /etc/systemd/system/
 cp etc/run-picochess-if-flagged.sh /usr/local/bin/
 chmod +x /usr/local/bin/run-picochess-if-flagged.sh
+# output of these util scripts are used directly in the update python code
+# but developers can also use them as utilities from command line
 chmod +x "$REPO_DIR/check-update-status.sh"
 chmod +x "$REPO_DIR/check-git-status.sh"
 chmod +x "$REPO_DIR/check-git-tags.sh"
+# script to help check if feature branches have added or reduced pylint errors/warnings
+# see pylint-check.sh for more info
+chmod +x "$REPO_DIR/pylint-check.sh"
 touch /var/log/picochess-update.log /var/log/picochess-last-update
 chown root:root /var/log/picochess-*
 systemctl daemon-reload

@@ -112,3 +112,8 @@ talker/voices/voices.ini
 engines-aarch64-small.tar.gz
 engines-x86_64-small.tar.gz
 lc0-weights-small.tar.gz
+
+# pylint-check.sh output files
+pylint_errors.txt
+pylint_diff.txt
+

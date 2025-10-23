@@ -62,108 +62,116 @@ fi
 # - Preserves untracked files outside excluded folders
 ###############################################################################
 
-if [ -d "/opt/picochess" ]; then
-    echo " ------------------------------------------- "
-    echo "picochess already exists, creating BACKUP ..."
+REPO_DIR="/opt/picochess"
+BRANCH="master"
+BACKUP_DIR="/home/pi/pico_backups/current"
+WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
+UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 
-    # === Configuration ===
-    REPO_DIR="/opt/picochess" # Path to Git repo
-    BRANCH="master"           # Expected working branch
-    REMOTE="origin"           # Remote to pull from     
-    BACKUP_DIR="/home/pi/pico_backups/current"  # backups stored
-    WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
-    UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
-    # Excluded directories like engines/ and mame/
-    # are hard coded below in two places to fix issue #63
-
-    # Create required directories
-    mkdir -p "$WORKING_COPY_DIR" "$UNTRACKED_DIR"
-    # Ensure backup directory is writable by pi
-    chown pi:pi /home/pi/pico_backups
-    chown -R pi:pi "$BACKUP_DIR"
-    echo "Creating backup in: $BACKUP_DIR"
+# Only attempt backup if /opt/picochess exists
+if [ -d "$REPO_DIR" ]; then
     cd "$REPO_DIR" || exit 1
 
-    # === Save Git diff of local changes ===
-    if [ -d "$REPO_DIR/.git" ]; then
-        echo "Saving git diff..."
-        sudo -u pi git diff > "$BACKUP_DIR/local_changes.diff"
-        # Fix ownership so pi can access/modify untracked files
-        chown pi:pi "$BACKUP_DIR/local_changes.diff"
-
-        # === Save untracked files (excluding engines/) ===
-        echo "Backing up untracked files..."
-        rm -rf "$UNTRACKED_DIR"/*
-        sudo -u pi git ls-files --others --exclude-standard | while read -r file; do
-            case "$file" in
-                engines/aarch64/*|engines/x86_64/*|engines/lc0_weights/*|engines/mame_emulation/*) continue ;;
-            esac
-            mkdir -p "$UNTRACKED_DIR/$(dirname "$file")"
-            cp -p "$file" "$UNTRACKED_DIR/$file"
-        done
-        # Fix ownership so pi can access/modify untracked files
-        chown -R pi:pi "$UNTRACKED_DIR"
-    else
-        echo "No Git repository found to backup. Doing only rsync of working directory."
-    fi
-
-    # === Sync working copy excluding .git, engines/, and mame_emulation/ ===
-    cd "$REPO_DIR"
-    echo "Syncing working directory..."
-    sudo -u pi rsync -a --delete --info=progress2 \
-        --exclude='.git/' \
-        --exclude='engines/aarch64/' \
-        --exclude='engines/x86_64/' \
-        --exclude='engines/lc0_weights/' \
-        --exclude='engines/mame_emulation/' \
-        ./ "$WORKING_COPY_DIR/"
-
-    # save time by not doing chown -R pi:pi "$BACKUP_DIR"
-    echo "Backup safely stored at: $BACKUP_DIR"
-fi
-#
-# BACKUP section ends
-#
-
-echo " ------- "
-if [ -d "/opt/picochess/.git" ]; then
-    echo "picochess git repo already exists, updating code..."
-    cd /opt/picochess
-    # === Protect all files under engines/ from being touched by update git reset ===
-    # engine files will be moved to engine-examples and only copied for new clones
-    if [ -d engines ]; then
-        echo "Marking engines/ files as skip-worktree to protect local engines..."
-        find engines -type f -print0 | xargs -0 sudo -u pi git update-index --skip-worktree
-    fi
-    # new forced backup starts
-    # === Check current Git branch ===
+    # Determine Git state
     CURRENT_BRANCH=$(sudo -u pi git rev-parse --abbrev-ref HEAD)
+    DETACHED_TAG=$(sudo -u pi git describe --tags --exact-match 2>/dev/null)
 
-    if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
-    echo "WARNING: You are on branch '$CURRENT_BRANCH', not '$BRANCH'."
-    echo "Skipping update to avoid interfering with work on another branch."
-    echo "Backup completed at: $BACKUP_DIR"
-    exit 2
+    # Only do backup for master branch or detached tag
+    if [ "$CURRENT_BRANCH" = "$BRANCH" ] || [ "$CURRENT_BRANCH" = "HEAD" ]; then
+        echo "Starting backup (runs only for master branch or detached tag)..."
+
+        # Create required directories
+        mkdir -p "$WORKING_COPY_DIR" "$UNTRACKED_DIR"
+        # Ensure backup directory is writable by pi
+        chown pi:pi /home/pi/pico_backups
+        chown pi:pi "$BACKUP_DIR"
+        echo "Creating backup in: $BACKUP_DIR"
+
+        # === Save Git diff of local changes ===
+        if [ -d "$REPO_DIR/.git" ]; then
+            echo "Saving git diff..."
+            sudo -u pi git diff > "$BACKUP_DIR/local_changes.diff"
+            chown pi:pi "$BACKUP_DIR/local_changes.diff"
+
+            # Save untracked files (excluding engines/)
+            echo "Backing up untracked files..."
+            rm -rf "$UNTRACKED_DIR"/*
+            sudo -u pi git ls-files --others --exclude-standard | while read -r file; do
+                case "$file" in
+                    engines/aarch64/*|engines/x86_64/*|engines/lc0_weights/*|engines/mame_emulation/*) continue ;;
+                esac
+                mkdir -p "$UNTRACKED_DIR/$(dirname "$file")"
+                cp -p "$file" "$UNTRACKED_DIR/$file"
+            done
+            chown pi:pi "$UNTRACKED_DIR"
+        else
+            echo "No Git repository found to backup. Doing only rsync of working directory."
+        fi
+
+        # Sync working copy excluding .git, engines/, and mame_emulation/
+        cd "$REPO_DIR" || exit 1
+        echo "Syncing working directory..."
+        sudo -u pi rsync -a --delete --info=progress2 \
+            --exclude='.git/' \
+            --exclude='engines/aarch64/' \
+            --exclude='engines/x86_64/' \
+            --exclude='engines/lc0_weights/' \
+            --exclude='engines/mame_emulation/' \
+            ./ "$WORKING_COPY_DIR/"
+
+        echo "Backup safely stored at: $BACKUP_DIR"
+
+    else
+        echo "Branch tester detected ('$CURRENT_BRANCH') — skipping backup to speed up update."
+    fi
+else
+    echo "No /opt/picochess directory found — skipping backup."
+fi
+
+# BACKUP section ends
+
+# GIT UPDATE section starts
+###############################################################################
+echo " ------- "
+if [ -d "$REPO_DIR/.git" ]; then
+    cd "$REPO_DIR" || exit 1
+    CURRENT_BRANCH=$(sudo -u pi git rev-parse --abbrev-ref HEAD)
+    DETACHED_TAG=$(sudo -u pi git describe --tags --exact-match 2>/dev/null)
+
+    if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+        if [ -n "$DETACHED_TAG" ]; then
+            echo "Detached tag '$DETACHED_TAG' detected — forcing reset..."
+            sudo -u pi git fetch --tags origin
+            sudo -u pi git checkout "$DETACHED_TAG"
+            sudo -u pi git reset --hard "$DETACHED_TAG"
+        else
+            echo "Detached HEAD without tag — no forced update."
+        fi
+
+    elif [ "$CURRENT_BRANCH" = "$BRANCH" ]; then
+        echo "On master branch — forcing update to latest official version..."
+        sudo -u pi git fetch origin
+        sudo -u pi git reset --hard "origin/$BRANCH"
+
+    else
+        echo "On development branch '$CURRENT_BRANCH' — doing a safe pull..."
+        sudo -u pi git fetch origin
+        sudo -u pi git pull --no-rebase origin "$CURRENT_BRANCH" || {
+            echo "WARNING: Git pull failed on branch '$CURRENT_BRANCH'. Check your local changes."
+        }
     fi
 
-    # === Fetch and reset to latest remote state ===
-    echo "Updating repository from $REMOTE/$BRANCH..."
-    sudo -u pi git fetch "$REMOTE"
-    sudo -u pi git reset --hard "$REMOTE/$BRANCH"
-    cd /opt/picochess
-    # new forced backup ends
-    # make sure pi is still owner of all files
-    chown -R pi:pi /opt/picochess
 else
-    echo "no git repo found - fetching picochess..."
-    mkdir -p /opt/picochess
-    chown pi:pi /opt/picochess
-    cd /opt
+    echo "No git repo found — fetching picochess..."
+    mkdir -p "$REPO_DIR"
+    chown pi:pi "$REPO_DIR"
+    cd /opt || exit 3
     sudo -u pi git clone https://github.com/JohanSjoblom/picochess
-    cd picochess || exit 3
-    chown -R pi:pi /opt/picochess
+    cd picochess || exit 4
+    chown -R pi:pi "$REPO_DIR"
 fi
 echo " ------- "
+# GIT UPDATE section ends
 
 if [ -d "/opt/picochess/games/uploads" ]; then
     echo "upload dir already exists - making sure pi is owner"
@@ -175,6 +183,7 @@ fi
 
 # install engines as user pi if there is no engines architectre folder
 if [ -f install-engines.sh ]; then
+    cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
     sudo -u pi ./install-engines.sh
 else

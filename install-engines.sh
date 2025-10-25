@@ -26,8 +26,8 @@ if [ "$ARCH" = "aarch64" ]; then
         echo "No engines found for aarch64. Installing small package..."
         mkdir -p engines/aarch64 || exit 1
 
-        ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
-        TMPFILE="/home/pi/pico_backups/current/tmp/engines-aarch64-small.tar.gz"
+        ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_engines_lite.tar.gz"
+        TMPFILE="/home/pi/pico_backups/current/tmp/aarch64_engines_lite.tar.gz"
 
         echo "Downloading aarch64 engines..."
         if command -v curl >/dev/null 2>&1; then
@@ -86,8 +86,8 @@ if [ ! -d "engines/$ARCH/lc0_weights" ]; then
         echo "Installing LC0 weights..."
         mkdir -p engines/lc0_weights || exit 1
 
-        WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/lc0-weights-small.tar.gz"
-        TMPFILE="/home/pi/pico_backups/current/tmp/lc0-weights-small.tar.gz"
+        WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/lc0_weights.tar.gz"
+        TMPFILE="/home/pi/pico_backups/current/tmp/lc0_weights.tar.gz"
 
         echo "Downloading LC0 weights..."
         if command -v curl >/dev/null 2>&1; then

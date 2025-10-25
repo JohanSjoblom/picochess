@@ -259,6 +259,7 @@ chmod +x /usr/local/bin/run-picochess-if-flagged.sh
 chmod +x "$REPO_DIR/check-update-status.sh"
 chmod +x "$REPO_DIR/check-git-status.sh"
 chmod +x "$REPO_DIR/check-git-tags.sh"
+chmod +x "$REPO_DIR/move-engines-to-backup.sh"
 # script to help check if feature branches have added or reduced pylint errors/warnings
 # see pylint-check.sh for more info
 chmod +x "$REPO_DIR/pylint-check.sh"

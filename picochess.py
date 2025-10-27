@@ -36,7 +36,6 @@ import asyncio
 from pathlib import Path
 import platform
 
-import paramiko
 import chess.pgn
 from chess.pgn import Game
 import chess.polyglot
@@ -437,17 +436,6 @@ class PicochessState:
             timec = TimeControl(TimeMode.BLITZ, blitz=5)
             textc = self.dgttranslate.text("B00_tc_blitz", timec.get_list_text())
         return timec, textc
-
-
-def check_ssh(host, username, password) -> bool:
-    try:
-        s = paramiko.SSHClient()
-        s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        s.connect(host, username=username, password=password, timeout=7)
-        s.close()
-    except Exception:
-        return False
-    return True
 
 
 def log_pgn(state: PicochessState):
@@ -3264,10 +3252,7 @@ async def main() -> None:
                 remote_file = self.engine_remote_home + os.sep + help_str
 
                 flag_eng = False
-                flag_eng = check_ssh(
-                    self.args.engine_remote_server, self.args.engine_remote_user, self.args.engine_remote_pass
-                )
-
+                # V4 removed paramiko check_ssh - it has to be rewritten anyway
                 logger.debug("molli check_ssh:%s", flag_eng)
                 await DisplayMsg.show(Message.ENGINE_SETUP())
 

@@ -7784,6 +7784,7 @@ class DgtTranslate(object):
                 medium_text="Updt Eng",  # 8
                 small_text="UpdEng",  # 6
             )
+            ittxt = detxt = nltxt = frtxt = estxt = entxt
         if text_id == "bat_percent":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

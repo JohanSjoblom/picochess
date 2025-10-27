@@ -7777,6 +7777,13 @@ class DgtTranslate(object):
             )
             frtxt = entxt
             estxt = entxt
+        if text_id == "power_updt_engines":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Replace engines with latest",  # 30
+                large_text="Upd engines",  # 11
+                medium_text="Updt Eng",  # 8
+                small_text="UpdEng",  # 6
+            )
         if text_id == "bat_percent":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

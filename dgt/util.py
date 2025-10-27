@@ -525,10 +525,11 @@ class Power(MyEnum):
     EXIT = "B00_power_exit_menu"
     RESTART = "B00_power_restart_menu"
     UPDATE = "B00_updt_picochess"
+    UPDT_ENGINES = "B00_power_updt_engines"
 
     @classmethod
     def items(cls):
-        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART, Power.UPDATE]
+        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART, Power.UPDATE, Power.UPDT_ENGINES]
 
 
 class PowerLoop(object):

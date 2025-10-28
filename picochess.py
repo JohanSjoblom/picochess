@@ -268,7 +268,9 @@ class PicochessState:
                 await asyncio.sleep(0.7)
                 # @todo give some time to clock to really do it. Check this solution!
         else:
-            logger.warning("wrong function call [stop]! mode: %s", self.interaction_mode)
+            # stop_clock is called once by read_pgn_file when going into PGNREPLAY mode
+            if self.interaction_mode != Mode.PGNREPLAY:
+                logger.warning("wrong function call [stop]! mode: %s", self.interaction_mode)
 
     def stop_fen_timer(self) -> None:
         """Stop the fen timer cause another fen string been send."""

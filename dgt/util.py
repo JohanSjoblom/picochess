@@ -345,9 +345,8 @@ class Mode(MyEnum):
             Mode.OBSERVE,
             Mode.REMOTE,
             Mode.PONDER,
+            Mode.PGNREPLAY,
         ]
-
-    # do not return Mode.PGNREPLAY here above - mode menu crashes
 
 
 class ModeLoop(object):

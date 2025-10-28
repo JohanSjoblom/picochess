@@ -2482,7 +2482,8 @@ async def main() -> None:
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 if self.state.picotutor.can_use_coach_analyser():
                     latest_depth = await self.state.picotutor.get_latest_seen_depth()
-                    if latest_depth >= DEEP_DEPTH:
+                    current_fen = result.get("fen", "")  # depth must be for current_fen
+                    if latest_depth >= DEEP_DEPTH and current_fen == self.state.game.fen():
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # tutor ready
                 else:
                     if triggered_by_timer:

@@ -7693,7 +7693,7 @@ class DgtTranslate(object):
         if text_id == "update":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
-                large_text="updating pc",
+                large_text="updating...",
                 medium_text="updating",
                 small_text="update",
             )

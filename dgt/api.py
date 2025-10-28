@@ -96,6 +96,7 @@ class EventApi:
     # Special events
     EXIT_MENU = "EVT_EXIT_MENU"  # User exists the menu
     UPDATE_PICO = "EVT_UPDATE"  # User wants to upgrade/downgrade picochess
+    UPDATE_ENGINES = "EVT_UPDATE_ENGINES"  # User wants to upgrade engines - No MessageAPI needed
     REMOTE_ROOM = "EVT_REMOTE_ROOM"  # User enters/leaves the remote room
 
 
@@ -374,4 +375,5 @@ class Event:
     # special events
     EXIT_MENU = ClassFactory(EventApi.EXIT_MENU, [])
     UPDATE_PICO = ClassFactory(EventApi.UPDATE_PICO, ["tag"])
+    UPDATE_ENGINES = ClassFactory(EventApi.UPDATE_ENGINES, [])
     REMOTE_ROOM = ClassFactory(EventApi.REMOTE_ROOM, ["inside"])

@@ -54,6 +54,7 @@ from theme import calc_theme
 from utilities import (
     get_location,
     update_pico_v4,
+    update_pico_engines,
     get_opening_books,
     shutdown,
     reboot,
@@ -5152,6 +5153,10 @@ async def main() -> None:
                     # only update code to a specific tag
                     checkout_tag(event.tag)
                 await DisplayMsg.show(Message.EXIT_MENU())
+
+            elif isinstance(event, Event.UPDATE_ENGINES):
+                await DisplayMsg.show(Message.UPDATE_PICO())
+                update_pico_engines()  # in utilities for now
 
             elif isinstance(event, Event.REMOTE_ROOM):
                 await DisplayMsg.show(Message.REMOTE_ROOM(inside=event.inside))

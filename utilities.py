@@ -252,6 +252,22 @@ def checkout_tag(tag):
     do_popen(["pip3", "install", "-r", "requirements.txt"])
 
 
+def update_pico_engines():
+    """Update picochess engines from github resource (asset) files"""
+    script_path = "/opt/picochess/move-engines-to-backup.sh"
+
+    try:
+        result = subprocess.run(["/bin/sh", script_path], check=True, capture_output=True, text=True)
+        logger.debug("Engines successfully moved to backup. Proceeding to update pico")
+        logger.debug("Script output: %s", result.stdout)
+        # the purpose of above is just to empty the engines folder, now get new engines
+        update_pico_v4()  # triggers update which runs install-engines to get new engines
+
+    except subprocess.CalledProcessError as e:
+        logger.debug("Error while running move-engines-to-backup.sh")
+        logger.debug("Return code: %s", e.returncode)
+
+
 def update_pico_v4():
     """use the picochess-update.service and update on next boot"""
     # Path to the update trigger flag

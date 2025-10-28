@@ -2453,6 +2453,7 @@ async def main() -> None:
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
+            analysed_fen = ""  # analysis is only valid for this fen
             # @todo remove intermediate/temporary solution which is the 2nd part after "or" below:
             # engine_playing_moves and not user_turn and can_use_coach_analyser() and user allowed it
             if (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser()) or (
@@ -2463,16 +2464,18 @@ async def main() -> None:
             ):
                 result = await self.state.picotutor.get_analysis()  # use tutor
                 info_list: list[InfoDict] = result.get("info")
+                analysed_fen = result.get("fen", "")
             elif not self.eng_plays():
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
+                analysed_fen = result.get("fen", "")
                 # @todo - the following line here should not be needed
                 # but its safer to always correct engine analyser start/stop state
                 await self._start_or_stop_analysis_as_needed()
             # else let PlayResult from think() do engine send_analyse()
             # @todo when we know how to update while engine thinking #49
-            if info_list:
+            if info_list and analysed_fen == self.state.game.fen():
                 info = info_list[0]  # pv first
                 if info:
                     self.debug_pv_info(info)
@@ -2482,8 +2485,7 @@ async def main() -> None:
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 if self.state.picotutor.can_use_coach_analyser():
                     latest_depth = await self.state.picotutor.get_latest_seen_depth()
-                    current_fen = result.get("fen", "")  # depth must be for current_fen
-                    if latest_depth >= DEEP_DEPTH and current_fen == self.state.game.fen():
+                    if latest_depth >= DEEP_DEPTH and analysed_fen == self.state.game.fen():
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # tutor ready
                 else:
                     if triggered_by_timer:

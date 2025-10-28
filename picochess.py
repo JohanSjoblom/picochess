@@ -5157,6 +5157,7 @@ async def main() -> None:
             elif isinstance(event, Event.UPDATE_ENGINES):
                 await DisplayMsg.show(Message.UPDATE_PICO())
                 update_pico_engines()  # in utilities for now
+                await DisplayMsg.show(Message.EXIT_MENU())
 
             elif isinstance(event, Event.REMOTE_ROOM):
                 await DisplayMsg.show(Message.REMOTE_ROOM(inside=event.inside))

@@ -7693,7 +7693,7 @@ class DgtTranslate(object):
         if text_id == "update":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
-                large_text="updating pc",
+                large_text="updating...",
                 medium_text="updating",
                 small_text="update",
             )
@@ -7777,6 +7777,14 @@ class DgtTranslate(object):
             )
             frtxt = entxt
             estxt = entxt
+        if text_id == "power_updt_engines":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Replace engines with latest",  # 30
+                large_text="Upd engines",  # 11
+                medium_text="Updt Eng",  # 8
+                small_text="UpdEng",  # 6
+            )
+            ittxt = detxt = nltxt = frtxt = estxt = entxt
         if text_id == "bat_percent":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

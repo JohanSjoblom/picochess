@@ -573,7 +573,8 @@ class UciEngine(object):
             self.analyser.cancel()  # quit can force full cancel
         if not self.is_mame:
             await self.engine.quit()  # Ask nicely
-        os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
+        else:
+            os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
         await asyncio.sleep(1)  # give it some time to quit
 
     def stop(self):

@@ -37,7 +37,7 @@ if [ "$ARCH" = "aarch64" ]; then
     echo "Detected architecture: aarch64"
 
     if [ ! -d "$ENGINES_DIR/aarch64" ]; then
-        echo "No engines found for aarch64. Installing small package..."
+        echo "No engines found for aarch64. Installing latest lite/DGT engine package..."
         mkdir -p "$ENGINES_DIR/aarch64" || exit 1
 
         ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_engines_lite.tar.gz"

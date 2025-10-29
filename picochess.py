@@ -3350,35 +3350,6 @@ async def main() -> None:
                         await asyncio.sleep(3)
                         sys.exit(-1)
                 # All done - rock'n'roll
-                # @todo remove check for BRAIN mode and has_ponder
-                if self.state.interaction_mode == Mode.BRAIN and not self.engine.has_ponder():
-                    logger.debug("new engine doesnt support brain mode, reverting to %s", old_file)
-                    engine_fallback = True
-                    await self.engine.quit()
-                    if self.remote_engine_mode() and flag_eng and self.uci_remote_shell:
-                        self.engine = UciEngine(
-                            file=remote_file,
-                            uci_shell=self.uci_remote_shell,
-                            mame_par=self.calc_engine_mame_par(),
-                            loop=self.loop,
-                        )
-                        await self.engine.open_engine()
-                    else:
-                        self.engine = UciEngine(
-                            file=old_file,
-                            uci_shell=self.uci_local_shell,
-                            mame_par=self.calc_engine_mame_par(),
-                            loop=self.loop,
-                        )
-                        await self.engine.open_engine()
-                    await self.engine.startup(old_options, self.state.rating)
-                    # issue #72 - avoid problems by not sending newgame to new engine
-                    await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
-                    if not self.engine.loaded_ok():
-                        logger.error("no engines started")
-                        await DisplayMsg.show(Message.ENGINE_FAIL())
-                        await asyncio.sleep(3)
-                        sys.exit(-1)
 
                 if (
                     self.emulation_mode()

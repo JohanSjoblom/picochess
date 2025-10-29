@@ -29,7 +29,7 @@ if [ -f "$FLAG" ]; then
         rm -f "$FLAG"
 
         # Run the install script
-        sh "$SCRIPT" pico >>"$LOGFILE" 2>&1
+        sh "$SCRIPT" >>"$LOGFILE" 2>&1
         STATUS=$?
 
         if [ "$STATUS" -ne 0 ]; then

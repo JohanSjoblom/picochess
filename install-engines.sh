@@ -7,6 +7,7 @@
 
 echo "Checking architecture..."
 ARCH=$(uname -m)
+RESTORE_SCRIPT="./restore-engines-from-backup.sh"
 
 # --- Unsupported -------------------------------------------------------------
 if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "x86_64" ]; then
@@ -40,7 +41,12 @@ if [ "$ARCH" = "aarch64" ]; then
         fi
 
         echo "Extracting aarch64 engines..."
-        tar -xzf "$TMPFILE" -C engines/aarch64 || { rm -f "$TMPFILE"; exit 1; }
+        tar -xzf "$TMPFILE" -C engines/aarch64 || {
+            echo "Extraction failed for aarch64 engines." 1>&2
+            sh "$RESTORE_SCRIPT" arch "$ARCH"
+            rm -f "$TMPFILE"
+            exit 1
+        }
         rm -f "$TMPFILE"
 
         echo "aarch64 engine package installed successfully."
@@ -71,7 +77,12 @@ if [ "$ARCH" = "x86_64" ]; then
         fi
 
         echo "Extracting x86_64 engines..."
-        tar -xzf "$TMPFILE" -C engines/x86_64 || { rm -f "$TMPFILE"; exit 1; }
+        tar -xzf "$TMPFILE" -C engines/x86_64 || {
+            echo "Extraction failed for x86_64 engines." 1>&2
+            sh "$RESTORE_SCRIPT" arch "$ARCH"
+            rm -f "$TMPFILE"
+            exit 1
+        }
         rm -f "$TMPFILE"
 
         echo "x86_64 engine package installed successfully."
@@ -81,34 +92,35 @@ if [ "$ARCH" = "x86_64" ]; then
 fi
 
 # --- Common LC0 weights ------------------------------------------------------
-if [ ! -d "engines/$ARCH/lc0_weights" ]; then
-    if [ ! -d "engines/lc0_weights" ]; then
-        echo "Installing LC0 weights..."
-        mkdir -p engines/lc0_weights || exit 1
+if [ ! -d "engines/lc0_weights" ]; then
+    echo "Installing LC0 weights..."
+    mkdir -p engines/lc0_weights || exit 1
 
-        WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/lc0_weights.tar.gz"
-        TMPFILE="/home/pi/pico_backups/current/tmp/lc0_weights.tar.gz"
+    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/lc0_weights.tar.gz"
+    TMPFILE="/home/pi/pico_backups/current/tmp/lc0_weights.tar.gz"
 
-        echo "Downloading LC0 weights..."
-        if command -v curl >/dev/null 2>&1; then
-            curl -L -o "$TMPFILE" "$WEIGHTS_URL" || exit 1
-        elif command -v wget >/dev/null 2>&1; then
-            wget -O "$TMPFILE" "$WEIGHTS_URL" || exit 1
-        else
-            echo "Error: need curl or wget to download" 1>&2
-            exit 1
-        fi
-
-        echo "Extracting LC0 weights..."
-        tar -xzf "$TMPFILE" -C engines/lc0_weights || { rm -f "$TMPFILE"; exit 1; }
-        rm -f "$TMPFILE"
-
-        echo "LC0 weights installed successfully."
+    echo "Downloading LC0 weights..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -o "$TMPFILE" "$WEIGHTS_URL" || exit 1
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$TMPFILE" "$WEIGHTS_URL" || exit 1
     else
-        echo "LC0 weights already present in engines folder."
+        echo "Error: need curl or wget to download" 1>&2
+        exit 1
     fi
+
+    echo "Extracting LC0 weights..."
+    tar -xzf "$TMPFILE" -C engines/lc0_weights || {
+        echo "Extraction failed for LC0 weights." 1>&2
+        sh "$RESTORE_SCRIPT" lc0
+        rm -f "$TMPFILE"
+        exit 1
+    }
+    rm -f "$TMPFILE"
+
+    echo "LC0 weights installed successfully."
 else
-    echo "LC0 weights already present in engines/$ARCH."
+    echo "LC0 weights already present in engines folder."
 fi
 
 # --- pgn_audio files ---------------------------------------------------

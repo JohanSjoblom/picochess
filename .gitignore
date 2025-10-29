@@ -113,7 +113,8 @@ engines-aarch64-small.tar.gz
 engines-x86_64-small.tar.gz
 lc0-weights-small.tar.gz
 
-# pylint-check.sh output files
+# pylint-check.sh temporary and comparison files
 pylint_errors.txt
 pylint_diff.txt
+pylint_raw_output.txt
 

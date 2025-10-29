@@ -20,8 +20,13 @@
 
 
 ARCH=$(uname -m)
-REPO_DIR="/opt/picochess"
+REPO_DIR=${REPO_DIR:-/opt/picochess}
 SRC_DIR="$REPO_DIR/engines"
+
+if [ ! -d "$REPO_DIR" ]; then
+    echo "Repository directory $REPO_DIR not found. Aborting." >&2
+    exit 1
+fi
 
 BACKUP_DIR_BASE="/home/pi/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current"

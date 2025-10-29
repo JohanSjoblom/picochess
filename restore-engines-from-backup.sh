@@ -7,7 +7,7 @@
 
 BACKUP_ROOT="/home/pi/pico_backups/current/engines_backup"
 DEFAULT_ARCH=$(uname -m)
-REPO_DIR="/opt/picochess"
+REPO_DIR=${REPO_DIR:-/opt/picochess}
 
 if [ ! -d "$REPO_DIR" ]; then
     echo "Repository directory $REPO_DIR does not exist." 1>&2

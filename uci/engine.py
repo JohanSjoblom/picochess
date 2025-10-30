@@ -471,48 +471,48 @@ class PlayingContinuousAnalysis:
 
         async def _engine_task():
             try:
-                async with self.engine.analysis(
+                analysis = await self.engine.analysis(
                     board=copy.deepcopy(game),
                     limit=limit,
                     game=self.game_id,
                     root_moves=root_moves,
                     info=chess.engine.INFO_ALL,
-                ) as analysis:
+                )
 
-                    # Main info loop — collect while engine thinks
-                    async for info in analysis:
-                        self.latest_info = info
-                        if self._force_event.is_set() or self._cancel_event.is_set():
-                            analysis.stop()
-                            break
-
-                    # Ensure the search is halted even if no info loop iterations ran
-                    try:
+                # Main info loop — collect while engine thinks
+                async for info in analysis:
+                    self.latest_info = info
+                    if self._force_event.is_set() or self._cancel_event.is_set():
                         analysis.stop()
-                    except Exception:
-                        pass
+                        break
 
-                    best_move = None
-                    ponder_move = None
-                    try:
-                        best = await analysis.wait()
-                        if best:
-                            best_move = best.move
-                            ponder_move = best.ponder
-                    except CancelledError:
-                        raise
-                    except Exception:
-                        logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
+                # Ensure the search is halted even if no info loop iterations ran
+                try:
+                    analysis.stop()
+                except Exception:
+                    pass
 
-                    if self._cancel_event.is_set():
-                        await result_queue.put(None)
-                    else:
-                        play_result = PlayResult(
-                            move=best_move,
-                            ponder=ponder_move,
-                            info=copy.deepcopy(analysis.info),
-                        )
-                        await result_queue.put(play_result)
+                best_move = None
+                ponder_move = None
+                try:
+                    best = await analysis.wait()
+                    if best:
+                        best_move = best.move
+                        ponder_move = best.ponder
+                except CancelledError:
+                    raise
+                except Exception:
+                    logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
+
+                if self._cancel_event.is_set():
+                    await result_queue.put(None)
+                else:
+                    play_result = PlayResult(
+                        move=best_move,
+                        ponder=ponder_move,
+                        info=copy.deepcopy(analysis.info),
+                    )
+                    await result_queue.put(play_result)
 
             except CancelledError:
                 await result_queue.put(None)
@@ -520,10 +520,13 @@ class PlayingContinuousAnalysis:
             except (EngineTerminatedError, chess.engine.EngineError):
                 logger.warning("%s engine terminated during play_move", self.whoami)
                 await result_queue.put(None)
+            except Exception as e:
+                logger.exception("%s unexpected error during play_move: %s", self.whoami, e)
+                await result_queue.put(None)
             finally:
                 self._waiting = False
 
-        self._task = asyncio.create_task(_engine_task())
+        self._task = self.loop.create_task(_engine_task())
 
     async def get_analysis(self) -> dict:
         """Return latest info dict (safe to call even if not waiting)."""

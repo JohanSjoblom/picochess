@@ -28,7 +28,7 @@ import spur  # type: ignore
 import paramiko
 
 import chess.engine  # type: ignore
-from chess.engine import InfoDict, Limit, UciProtocol, AnalysisResult, PlayResult
+from chess.engine import InfoDict, Limit, UciProtocol, AnalysisResult, PlayResult, EngineTerminatedError
 from chess import Board  # type: ignore
 from uci.rating import Rating, Result
 from utilities import write_picochess_ini
@@ -426,17 +426,6 @@ class ContinuousAnalysis:
 # The idea is to have a sister class to ContinuousAnalysis
 # ContinuousAnalysis is used for only analysing positions, not playing
 # This UciEngine class can be used for playing and getting info while engine is thinking
-
-
-import asyncio
-import copy
-import logging
-import chess
-from chess.engine import Limit, PlayResult, UciProtocol, EngineTerminatedError
-
-logger = logging.getLogger(__name__)
-
-
 class PlayingContinuousAnalysis:
     """Lightweight async engine handler for timed searches (play-like)."""
 

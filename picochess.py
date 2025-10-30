@@ -2473,8 +2473,11 @@ async def main() -> None:
                 # @todo - the following line here should not be needed
                 # but its safer to always correct engine analyser start/stop state
                 await self._start_or_stop_analysis_as_needed()
-            # else let PlayResult from think() do engine send_analyse()
-            # @todo when we know how to update while engine thinking #49
+            else:
+                # Issue #109 and #49 before that - how to get engine thinking
+                result = await self.engine.get_thinking_analysis(self.state.game)
+                info_list: list[InfoDict] = result.get("info")
+                analysed_fen = result.get("fen", "")
             if info_list and analysed_fen == self.state.game.fen():
                 info = info_list[0]  # pv first
                 if info:

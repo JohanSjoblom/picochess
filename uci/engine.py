@@ -421,6 +421,133 @@ class ContinuousAnalysis:
         return self.current_game.copy() if self.current_game else None
 
 
+# Issue 109 - new class to get engine moves from uci engine
+# by using analysis() instead of play() calls to the engine
+# The idea is to have a sister class to ContinuousAnalysis
+# ContinuousAnalysis is used for only analysing positions, not playing
+# This UciEngine class can be used for playing and getting info while engine is thinking
+
+
+import asyncio
+import copy
+import logging
+import chess
+from chess.engine import Limit, PlayResult, UciProtocol, EngineTerminatedError
+
+logger = logging.getLogger(__name__)
+
+
+class PlayingContinuousAnalysis:
+    """Lightweight async engine handler for timed searches (play-like)."""
+
+    def __init__(self, engine: UciProtocol, loop: asyncio.AbstractEventLoop):
+        self.engine = engine
+        self.loop = loop
+        self.latest_info = {}
+        self._waiting = False
+        self._task: asyncio.Task | None = None
+        self._force_event = asyncio.Event()
+        self._cancel_event = asyncio.Event()
+        self.whoami = "playing engine"
+        self.game_id = 1
+
+    def newgame(self):
+        """Start a new game — increments game_id for the next analysis."""
+        self.game_id += 1
+
+    async def play_move(
+        self,
+        game: chess.Board,
+        limit: Limit,
+        ponder: bool,
+        result_queue: asyncio.Queue,
+        root_moves=None,
+    ):
+        """Start engine move search. Ends automatically on bestmove."""
+        self._waiting = True
+        self.latest_info = {}
+        self._force_event.clear()
+        self._cancel_event.clear()
+
+        async def _engine_task():
+            try:
+                async with self.engine.analysis(
+                    board=copy.deepcopy(game),
+                    limit=limit,
+                    game=self.game_id,
+                    root_moves=root_moves,
+                    info=chess.engine.INFO_ALL,
+                ) as analysis:
+
+                    # Main info loop — collect while engine thinks
+                    async for info in analysis:
+                        self.latest_info = info
+                        if self._force_event.is_set() or self._cancel_event.is_set():
+                            analysis.stop()
+                            break
+
+                    # Ensure the search is halted even if no info loop iterations ran
+                    try:
+                        analysis.stop()
+                    except Exception:
+                        pass
+
+                    best_move = None
+                    ponder_move = None
+                    try:
+                        best = await analysis.wait()
+                        if best:
+                            best_move = best.move
+                            ponder_move = best.ponder
+                    except CancelledError:
+                        raise
+                    except Exception:
+                        logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
+
+                    if self._cancel_event.is_set():
+                        await result_queue.put(None)
+                    else:
+                        play_result = PlayResult(
+                            move=best_move,
+                            ponder=ponder_move,
+                            info=copy.deepcopy(analysis.info),
+                        )
+                        await result_queue.put(play_result)
+
+            except CancelledError:
+                await result_queue.put(None)
+                raise
+            except (EngineTerminatedError, chess.engine.EngineError):
+                logger.warning("%s engine terminated during play_move", self.whoami)
+                await result_queue.put(None)
+            finally:
+                self._waiting = False
+
+        self._task = asyncio.create_task(_engine_task())
+
+    async def get_analysis(self) -> dict:
+        """Return latest info dict (safe to call even if not waiting)."""
+        return self.latest_info if self._waiting else {}
+
+    def force(self):
+        """Ask the engine to stop thinking and return a bestmove as soon as possible."""
+        if self._waiting:
+            self._force_event.set()
+            if hasattr(self.engine, "send_line"):
+                self.engine.send_line("stop")
+
+    def cancel(self):
+        """Cancel any ongoing search (e.g., engine shutdown)."""
+        self._cancel_event.set()
+        self._force_event.set()
+        if hasattr(self.engine, "send_line"):
+            self.engine.send_line("stop")
+
+    def is_waiting_for_move(self) -> bool:
+        """True if engine is currently thinking about a move."""
+        return self._waiting
+
+
 class UciEngine(object):
     """Handle the uci engine communication."""
 
@@ -479,9 +606,11 @@ class UciEngine(object):
             logger.info("mfile %s", mfile)
             logger.info("opening engine")
             self.transport, self.engine = await chess.engine.popen_uci(mfile)
+            # Instantiate the two “sisters”
             self.analyser = ContinuousAnalysis(
                 engine=self.engine, delay=FLOAT_ANALYSIS_WAIT, loop=self.loop, engine_debug_name=self.whoami
             )
+            self.playing = PlayingContinuousAnalysis(engine=self.engine, loop=self.loop)
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]
@@ -571,6 +700,8 @@ class UciEngine(object):
         """Quit engine."""
         if self.analyser.is_running():
             self.analyser.cancel()  # quit can force full cancel
+        if self.playing.is_waiting_for_move():
+            self.playing.cancel()  # quit can force full cancel
         if not self.is_mame:
             await self.engine.quit()  # Ask nicely
         else:
@@ -593,7 +724,9 @@ class UciEngine(object):
         if self.engine:
             logger.debug("forcing engine to make a move")
             # new chess lib does not have a stop call
-            self.engine.send_line("stop")
+            # issue 109 - use PlayingContinuousAnalysis force
+            if self.playing.is_waiting_for_move():
+                self.playing.force()
 
     def pause_pgn_audio(self):
         """Stop engine."""
@@ -683,7 +816,7 @@ class UciEngine(object):
             async with self.engine_lock:
                 limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
                 self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
-                await self.analyser.play_move(
+                await self.playing.play_move(
                     game, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
                 )
         else:
@@ -711,7 +844,11 @@ class UciEngine(object):
         else:
             if self.engine:
                 async with self.engine_lock:
-                    self.analyser.start(game, limit=limit, multipv=multipv)
+                    if not self.playing.is_waiting_for_move():
+                        self.analyser.start(game, limit=limit, multipv=multipv)
+                    else:
+                        # issue 109 - it is not allowed to start the analyser sister if playing is running
+                        logger.debug("%s cannot start analysis - engine is thinking", self.whoami)
             else:
                 logger.warning("start analysis requested but no engine loaded")
         return result
@@ -719,6 +856,17 @@ class UciEngine(object):
     def is_analyser_running(self) -> bool:
         """check if analyser is running"""
         return self.analyser.is_running()
+
+    async def get_thinking_analysis(self, game: chess.Board) -> dict:
+        """get analysis info from playing engine - returns dict with info and fen"""
+        # failed answer is empty lists
+        result = {"info": [], "fen": ""}
+        if self.playing.is_waiting_for_move():
+            result = await self.playing.get_analysis()
+            result = {"info": [result], "fen": game.fen(), "game": None}
+        else:
+            logger.debug("get_thinking_analysis called but engine not thinking")
+        return result
 
     async def get_analysis(self, game: chess.Board) -> dict:
         """get analysis info from engine - returns dict with info and fen
@@ -771,8 +919,8 @@ class UciEngine(object):
 
     def is_thinking(self):
         """Engine thinking."""
-        # @ todo check if self.pondering should be removed
-        return not self.analyser.is_idle()
+        # as of issue 109 we have to check the playing sister
+        return self.playing.is_waiting_for_move()
 
     def is_pondering(self):
         """Engine pondering."""
@@ -783,7 +931,9 @@ class UciEngine(object):
 
     def is_waiting(self):
         """Engine waiting."""
-        return self.analyser.is_idle()
+        # as of issue 109 we have to check the playing sister
+        # @todo - check if all calls from picochess.py is really needed any more
+        return not self.playing.is_waiting_for_move()
 
     def is_ready(self):
         """Engine waiting."""
@@ -796,7 +946,9 @@ class UciEngine(object):
             async with self.engine_lock:
                 # as seen in issue #78 need to prevent simultaneous newgame and start analysis
                 self.analyser.newgame()  # chess lib signals ucinewgame in next call to engine
-                await self.analyser.update_game(game)  # both these lines causes analyser to stop nicely
+                self.playing.newgame()  # chess lib signals ucinewgame in next call to engine
+                await self.analyser.update_game(game)  # analysing sister starts from new game
+                self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop
                 # @todo we could wait for ping() isready here - but it could break pgn_engine logic
                 # do not self.engine.send_line("ucinewgame"), see read_pgn_file in picochess.py

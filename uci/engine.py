@@ -932,23 +932,6 @@ class UciEngine(object):
             logger.debug("get_latest_seen_depth from engine but analyser not running")
         return result
 
-    # this function was taken out of use after introduction
-    # of the new analyser ContinuousAnalysis
-    async def playmode_analyse(
-        self,
-        game: Board,
-        limit: Limit,
-    ) -> InfoDict | None:
-        """Get analysis update from playing engine
-        might block if engine is thinking to protect chess library"""
-        try:
-            async with self.engine_lock:
-                info = await self.engine.analyse(copy.deepcopy(game), limit)
-        except chess.engine.EngineTerminatedError:
-            logger.error("Engine terminated")  # @todo find out, why this can happen!
-            info = None
-        return info
-
     def is_thinking(self):
         """Engine thinking."""
         # as of issue 109 we have to check the playing sister

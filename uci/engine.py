@@ -199,15 +199,15 @@ class ContinuousAnalysis:
         self.multipv = None  # multipv for analysis - set in start
         self.lock = asyncio.Lock()
         self.engine: UciProtocol = engine
-        self.game_id = 1  # signal ucinewgame to engine when this game id changes
-        self.current_game_id = 1  # latest game_id being analysed
+        self.set_game_id(1)  # initial game identifier
         self.engine_lease = engine_lease
         if not self.engine:
             logger.error("%s ContinuousAnalysis initialised without engine", self.whoami)
 
-    def newgame(self):
-        """start a new game - it only updates the game parameter in Play calls"""
-        self.game_id = self.game_id + 1
+    def set_game_id(self, game_id: int):
+        """Set the current game identifier."""
+        self.game_id = game_id
+        self.current_game_id = game_id
 
     def is_limit_reached(self) -> bool:
         """return True if limit was reached for position being analysed"""
@@ -459,12 +459,12 @@ class PlayingContinuousAnalysis:
         self._force_event = asyncio.Event()
         self._cancel_event = asyncio.Event()
         self.whoami = f"{engine_debug_name} (playing)"
-        self.game_id = 1
         self.engine_lease = engine_lease
+        self.set_game_id(1)
 
-    def newgame(self):
-        """Start a new game — increments game_id for the next analysis."""
-        self.game_id += 1
+    def set_game_id(self, game_id: int):
+        """Set the current game identifier."""
+        self.game_id = game_id
 
     async def play_move(
         self,
@@ -616,6 +616,7 @@ class UciEngine(object):
         self.whoami = engine_debug_name
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
+        self.game_id = 1
 
     async def open_engine(self):
         """Open engine. Call after __init__"""
@@ -643,6 +644,8 @@ class UciEngine(object):
                 engine_lease=self.engine_lease,
                 engine_debug_name=self.whoami,
             )
+            self.analyser.set_game_id(self.game_id)
+            self.playing.set_game_id(self.game_id)
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]
@@ -960,8 +963,9 @@ class UciEngine(object):
         if self.engine:
             async with self.engine_lock:
                 # as seen in issue #78 need to prevent simultaneous newgame and start analysis
-                self.analyser.newgame()  # chess lib signals ucinewgame in next call to engine
-                self.playing.newgame()  # chess lib signals ucinewgame in next call to engine
+                self.game_id += 1
+                self.analyser.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
+                self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
                 await self.analyser.update_game(game)  # analysing sister starts from new game
                 self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop

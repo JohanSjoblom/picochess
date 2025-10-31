@@ -482,6 +482,10 @@ class PlayingContinuousAnalysis:
 
         async def _engine_task():
             lease_acquired = False
+            # Capture the outcome so we can release `_waiting` and the lease
+            # before the consumer sees a result.
+            should_queue = False
+            queue_payload: PlayResult | None = None
             try:
                 await self.engine_lease.acquire(owner="playing", preempt=True)
                 lease_acquired = True
@@ -519,29 +523,36 @@ class PlayingContinuousAnalysis:
                     logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
 
                 if self._cancel_event.is_set():
-                    await result_queue.put(None)
+                    should_queue = True
+                    queue_payload = None
                 else:
                     play_result = PlayResult(
                         move=best_move,
                         ponder=ponder_move,
                         info=copy.deepcopy(analysis.info),
                     )
-                    await result_queue.put(play_result)
+                    should_queue = True
+                    queue_payload = play_result
 
             except CancelledError:
-                await result_queue.put(None)
+                should_queue = True
+                queue_payload = None
                 raise
             except (EngineTerminatedError, chess.engine.EngineError):
                 logger.warning("%s engine terminated during play_move", self.whoami)
-                await result_queue.put(None)
+                should_queue = True
+                queue_payload = None
             except Exception as e:
                 logger.exception("%s unexpected error during play_move: %s", self.whoami, e)
-                await result_queue.put(None)
+                should_queue = True
+                queue_payload = None
             finally:
                 self._waiting = False
                 if lease_acquired:
                     self.engine_lease.release("playing")
                     lease_acquired = False
+                if should_queue:
+                    await result_queue.put(queue_payload)
 
         self._task = self.loop.create_task(_engine_task())
 

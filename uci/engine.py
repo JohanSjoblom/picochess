@@ -444,7 +444,13 @@ class ContinuousAnalysis:
 class PlayingContinuousAnalysis:
     """Lightweight async engine handler for timed searches (play-like)."""
 
-    def __init__(self, engine: UciProtocol, loop: asyncio.AbstractEventLoop, engine_lease: EngineLease):
+    def __init__(
+        self,
+        engine: UciProtocol,
+        loop: asyncio.AbstractEventLoop,
+        engine_lease: EngineLease,
+        engine_debug_name: str,
+    ):
         self.engine = engine
         self.loop = loop
         self.latest_info = {}
@@ -452,7 +458,7 @@ class PlayingContinuousAnalysis:
         self._task: asyncio.Task | None = None
         self._force_event = asyncio.Event()
         self._cancel_event = asyncio.Event()
-        self.whoami = "playing engine"
+        self.whoami = f"{engine_debug_name} (playing)"
         self.game_id = 1
         self.engine_lease = engine_lease
 
@@ -592,6 +598,7 @@ class UciEngine(object):
         self.pondering = False  # normal mode no pondering
         self.loop = loop  # main loop everywhere
         self.analyser: ContinuousAnalysis | None = None
+        self.playing: PlayingContinuousAnalysis | None = None
         # previous existing attributes:
         self.is_adaptive = False
         self.engine_rating = -1
@@ -630,7 +637,12 @@ class UciEngine(object):
                 engine_debug_name=self.whoami,
                 engine_lease=self.engine_lease,
             )
-            self.playing = PlayingContinuousAnalysis(engine=self.engine, loop=self.loop, engine_lease=self.engine_lease)
+            self.playing = PlayingContinuousAnalysis(
+                engine=self.engine,
+                loop=self.loop,
+                engine_lease=self.engine_lease,
+                engine_debug_name=self.whoami,
+            )
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]

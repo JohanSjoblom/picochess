@@ -202,7 +202,11 @@ class TimeControl(object):
 
     def add_time(self, color):
         """Add the increment value to the color given."""
-        assert self.internal_running() is False, "internal clock still running for: %s" % self.run_color
+        if self.internal_running():
+            logger.debug(
+                "add_time requested while internal clock running; stopping active color %s", self.run_color
+            )
+            self.stop_internal(log=False)
         if self.mode == TimeMode.FISCHER:
             # log times - issue #184
             w_hms, b_hms = self._log_time()
@@ -220,7 +224,11 @@ class TimeControl(object):
 
     def sub_online_time(self, color, i_dec):
         """Add the increment value to the color given."""
-        assert self.internal_running() is False, "internal clock still running for: %s" % self.run_color
+        if self.internal_running():
+            logger.debug(
+                "sub_online_time requested while internal clock running; stopping active color %s", self.run_color
+            )
+            self.stop_internal(log=False)
 
         # log times - issue #184
         w_hms, b_hms = self._log_time()
@@ -235,7 +243,11 @@ class TimeControl(object):
 
     def add_game2(self, color):
         """Add the tournamment game 2 value to the color given."""
-        assert self.internal_running() is False, "internal clock still running for: %s" % self.run_color
+        if self.internal_running():
+            logger.debug(
+                "add_game2 requested while internal clock running; stopping active color %s", self.run_color
+            )
+            self.stop_internal(log=False)
         if self.moves_to_go_orig > 0:
             # log times - issue #184
             w_hms, b_hms = self._log_time()

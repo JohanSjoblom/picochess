@@ -42,6 +42,60 @@ UCI_ELO_NON_STANDARD2 = "UCI_Limit"
 logger = logging.getLogger(__name__)
 
 
+class EngineLease:
+    """Coordinate exclusive access to a single engine analysis session."""
+
+    def __init__(self):
+        self._lock = asyncio.Lock()
+        self._owner: str | None = None
+        self._interrupt_event = asyncio.Event()
+        self._requester: str | None = None
+
+    async def acquire(self, owner: str, preempt: bool = False) -> None:
+        """
+        Acquire exclusive access for ``owner``.
+
+        When ``preempt`` is True, request the current owner to stop and release.
+        """
+        if self._owner == owner:
+            return
+
+        requester = owner if preempt else None
+        if requester:
+            self._requester = requester
+            self._interrupt_event.set()
+
+        try:
+            await self._lock.acquire()
+        except Exception:
+            if requester and self._requester == requester:
+                self._requester = None
+                if not self._lock.locked():
+                    self._interrupt_event.clear()
+            raise
+
+        self._owner = owner
+        self._requester = None
+        self._interrupt_event.clear()
+
+    def release(self, owner: str) -> None:
+        """Release the lease if ``owner`` currently holds it."""
+        if owner != self._owner:
+            return
+
+        self._owner = None
+        if self._lock.locked():
+            self._lock.release()
+
+    def interrupt_requested(self, owner: str) -> bool:
+        """Return True if ``owner`` has been asked to release the lease."""
+        return self._owner == owner and self._interrupt_event.is_set()
+
+    def owner(self) -> str | None:
+        """Return the current lease owner (if any)."""
+        return self._owner
+
+
 class WindowsShellType:
     """Shell type supporting Windows for spur."""
 
@@ -119,7 +173,14 @@ class UciShell(object):
 class ContinuousAnalysis:
     """class for continous analysis from a chess engine"""
 
-    def __init__(self, engine: UciProtocol, delay: float, loop: asyncio.AbstractEventLoop, engine_debug_name: str):
+    def __init__(
+        self,
+        engine: UciProtocol,
+        delay: float,
+        loop: asyncio.AbstractEventLoop,
+        engine_debug_name: str,
+        engine_lease: EngineLease,
+    ):
         """
         A continuous analysis generator that runs as a background async task.
 
@@ -137,77 +198,16 @@ class ContinuousAnalysis:
         self.limit = None  # limit for analysis - set in start
         self.multipv = None  # multipv for analysis - set in start
         self.lock = asyncio.Lock()
-        self.pause_event = asyncio.Event()
-        self.pause_event.set()  # Start unpaused
         self.engine: UciProtocol = engine
-        self._idle = True  # start with Engine marked as idle
         self.game_id = 1  # signal ucinewgame to engine when this game id changes
         self.current_game_id = 1  # latest game_id being analysed
+        self.engine_lease = engine_lease
         if not self.engine:
             logger.error("%s ContinuousAnalysis initialised without engine", self.whoami)
 
     def newgame(self):
         """start a new game - it only updates the game parameter in Play calls"""
         self.game_id = self.game_id + 1
-
-    async def _engine_move_task(
-        self,
-        game: Board,
-        limit: Limit,
-        ponder: bool,
-        result_queue: asyncio.Queue,
-        root_moves: Optional[Iterable[chess.Move]],
-    ) -> None:
-        """async task to ask the engine for a move - to avoid blocking result is put in queue"""
-        try:
-            self._idle = False  # engine is going to be busy now
-            r_info = chess.engine.INFO_SCORE | chess.engine.INFO_PV | chess.engine.INFO_BASIC
-            result = await self.engine.play(
-                board=copy.deepcopy(game),
-                limit=limit,
-                game=self.game_id,
-                info=r_info,
-                ponder=ponder,
-                root_moves=root_moves,
-            )
-            await result_queue.put(result)
-            self._idle = True  # engine idle again
-        except chess.engine.EngineError:
-            await result_queue.put(None)
-            self._idle = True  # engine idle again
-
-    def is_idle(self) -> bool:
-        """return True if engine is not thinking about a move"""
-        return self._idle
-
-    async def play_move(
-        self,
-        game: Board,
-        limit: Limit,
-        ponder: bool,
-        result_queue: asyncio.Queue,
-        root_moves: Optional[Iterable[chess.Move]],
-    ) -> None:
-        """Plays the best move and return played move result in the queue"""
-        self.pause_event.clear()  # Pause analysis to prevent chess library from crashing
-        try:
-            async with self.lock:
-                self.loop.create_task(
-                    self._engine_move_task(
-                        copy.deepcopy(game),
-                        limit=limit,
-                        ponder=ponder,
-                        result_queue=result_queue,
-                        root_moves=root_moves,
-                    )
-                )
-                # @todo we could update the current game here
-                # so that analysis on user turn would start immediately
-        except chess.engine.EngineTerminatedError:
-            logger.error("Engine terminated while trying to make a move")  # @todo find out, why this can happen!
-            await result_queue.put(None)  # no result
-        finally:
-            self.pause_event.set()  # Resume analysis
 
     def is_limit_reached(self) -> bool:
         """return True if limit was reached for position being analysed"""
@@ -257,26 +257,40 @@ class ContinuousAnalysis:
                 asyncio.sleep(self.delay * 2)  # maybe it helps to wait some extra?
 
     async def _analyse_forever(self, limit: Limit | None, multipv: int | None) -> None:
-        """analyse forever if no limit sent"""
-        with await self.engine.analysis(
-            board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
-        ) as analysis:
-            async for info in analysis:
-                await self.pause_event.wait()  # Wait if analysis is paused
-                async with self.lock:
-                    # after waiting, check if analysis to be stopped
-                    if (
-                        not self._running
-                        or self.current_game_id != self.game_id
-                        or self.current_game.fen() != self.game.fen()
-                    ):
-                        self._analysis_data = None  # drop ref into library
+        """Analyse forever if no limit sent, yielding the lease while pre-empted."""
+        await self.engine_lease.acquire(owner="continuous")
+        try:
+            analysis_cm = await self.engine.analysis(
+                board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
+            )
+            async with analysis_cm as analysis:
+                while True:
+                    if self.engine_lease.interrupt_requested("continuous"):
                         try:
-                            analysis.stop()  # ask engine to stop analysing
+                            analysis.stop()
                         except Exception:
                             logger.debug("failed sending stop in infinite analysis")
-                        return  # quit analysis
-                    updated = self._update_analysis_data(analysis)  # update to latest
+                        return
+
+                    try:
+                        await analysis.__anext__()
+                    except StopAsyncIteration:
+                        break
+
+                    async with self.lock:
+                        if (
+                            not self._running
+                            or self.current_game_id != self.game_id
+                            or self.current_game.fen() != self.game.fen()
+                            or self.engine_lease.interrupt_requested("continuous")
+                        ):
+                            self._analysis_data = None  # drop ref into library
+                            try:
+                                analysis.stop()  # ask engine to stop analysing
+                            except Exception:
+                                logger.debug("failed sending stop in infinite analysis")
+                            return  # quit analysis
+                        updated = self._update_analysis_data(analysis)  # update to latest
                     if updated:
                         #  self._analysis data got a value
                         #  self.debug_analyser()  # normally commented out
@@ -287,8 +301,9 @@ class ContinuousAnalysis:
                                 if info_limit.get("depth") >= limit.depth:
                                     self.limit_reached = True
                                     return  # limit reached
-                await asyncio.sleep(self.delay)  # save cpu
-                # else just wait for info so that we get updated True
+                    await asyncio.sleep(self.delay)  # save cpu
+        finally:
+            self.engine_lease.release("continuous")
 
     def debug_analyser(self):
         """use this debug call to see how low and deep depth evolves"""
@@ -429,7 +444,7 @@ class ContinuousAnalysis:
 class PlayingContinuousAnalysis:
     """Lightweight async engine handler for timed searches (play-like)."""
 
-    def __init__(self, engine: UciProtocol, loop: asyncio.AbstractEventLoop):
+    def __init__(self, engine: UciProtocol, loop: asyncio.AbstractEventLoop, engine_lease: EngineLease):
         self.engine = engine
         self.loop = loop
         self.latest_info = {}
@@ -439,6 +454,7 @@ class PlayingContinuousAnalysis:
         self._cancel_event = asyncio.Event()
         self.whoami = "playing engine"
         self.game_id = 1
+        self.engine_lease = engine_lease
 
     def newgame(self):
         """Start a new game — increments game_id for the next analysis."""
@@ -459,7 +475,10 @@ class PlayingContinuousAnalysis:
         self._cancel_event.clear()
 
         async def _engine_task():
+            lease_acquired = False
             try:
+                await self.engine_lease.acquire(owner="playing", preempt=True)
+                lease_acquired = True
                 analysis = await self.engine.analysis(
                     board=copy.deepcopy(game),
                     limit=limit,
@@ -514,6 +533,9 @@ class PlayingContinuousAnalysis:
                 await result_queue.put(None)
             finally:
                 self._waiting = False
+                if lease_acquired:
+                    self.engine_lease.release("playing")
+                    lease_acquired = False
 
         self._task = self.loop.create_task(_engine_task())
 
@@ -586,6 +608,7 @@ class UciEngine(object):
         self.shell = None  # check if uci files can be used any more
         self.whoami = engine_debug_name
         self.engine_lock = asyncio.Lock()
+        self.engine_lease: EngineLease | None = None
 
     async def open_engine(self):
         """Open engine. Call after __init__"""
@@ -599,10 +622,15 @@ class UciEngine(object):
             logger.info("opening engine")
             self.transport, self.engine = await chess.engine.popen_uci(mfile)
             # Instantiate the two “sisters”
+            self.engine_lease = EngineLease()
             self.analyser = ContinuousAnalysis(
-                engine=self.engine, delay=FLOAT_ANALYSIS_WAIT, loop=self.loop, engine_debug_name=self.whoami
+                engine=self.engine,
+                delay=FLOAT_ANALYSIS_WAIT,
+                loop=self.loop,
+                engine_debug_name=self.whoami,
+                engine_lease=self.engine_lease,
             )
-            self.playing = PlayingContinuousAnalysis(engine=self.engine, loop=self.loop)
+            self.playing = PlayingContinuousAnalysis(engine=self.engine, loop=self.loop, engine_lease=self.engine_lease)
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]

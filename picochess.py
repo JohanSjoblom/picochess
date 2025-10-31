@@ -1160,7 +1160,11 @@ async def main() -> None:
                     # dgt board: BEST_MOVE 1) informs 2) user moves, 3) dgt event to process_fen() push
                     result_queue = asyncio.Queue()  # engines move result
                     await self.engine.go(
-                        time_dict=uci_dict, game=self.state.game, result_queue=result_queue, root_moves=root_moves
+                        time_dict=uci_dict,
+                        game=self.state.game,
+                        result_queue=result_queue,
+                        root_moves=root_moves,
+                        expected_turn=self.state.game.turn,
                     )
                     engine_res: PlayResult = await result_queue.get()  # on engine error its None
                     if engine_res:

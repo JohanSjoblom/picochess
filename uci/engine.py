@@ -854,12 +854,24 @@ class UciEngine(object):
         logger.debug("user dropped dummyengine uci option %s", option)
 
     async def go(
-        self, time_dict: dict, game: Board, result_queue: asyncio.Queue, root_moves: Optional[Iterable[chess.Move]]
+        self,
+        time_dict: dict,
+        game: Board,
+        result_queue: asyncio.Queue,
+        root_moves: Optional[Iterable[chess.Move]],
+        expected_turn: chess.Color | None = None,
     ) -> None:
         """Go engine.
         parameter game will not change, it is deep copied"""
         if self.engine:
             async with self.engine_lock:
+                if expected_turn is not None and game.turn != expected_turn:
+                    logger.warning(
+                        "%s go() called with mismatching turn: board turn=%s expected=%s",
+                        self.whoami,
+                        game.turn,
+                        expected_turn,
+                    )
                 limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
                 self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
                 await self.playing.play_move(

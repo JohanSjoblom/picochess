@@ -222,14 +222,14 @@ class ContinuousAnalysis:
             try:
                 if not self._game_analysable(self.game):
                     if debug_once_game:
-                        logger.debug("%s ContinuousAnalyser no game to analyse", self.whoami)
+                        logger.debug("%s no game to analyse", self.whoami)
                         debug_once_game = False  # dont flood log
                     await asyncio.sleep(self.delay * 2)
                     continue
                 # important to check limit AND that game is still same - bug fix 13.4.2025
                 if self.limit_reached and self.current_game_id == self.game_id and self.get_fen() == self.game.fen():
                     if debug_once_limit:
-                        logger.debug("%s ContinuousAnalyser analysis limited", self.whoami)
+                        logger.debug("%s analysis limited", self.whoami)
                         debug_once_limit = False  # dont flood log
                     await asyncio.sleep(self.delay * 2)
                     continue
@@ -243,7 +243,7 @@ class ContinuousAnalysis:
                 debug_once_game = True
                 await self._analyse_forever(self.limit, self.multipv)
             except asyncio.CancelledError:
-                logger.debug("%s ContinuousAnalyser cancelled", self.whoami)
+                logger.debug("%s cancelled", self.whoami)
                 # same situation as in stop
                 self._task = None
                 self._running = False
@@ -253,7 +253,7 @@ class ContinuousAnalysis:
                 self._task = None
                 self._running = False
             except chess.engine.AnalysisComplete:
-                logger.debug("ContinuousAnalyser ran out of information")
+                logger.debug("%s ran out of information", self.whoami)
                 asyncio.sleep(self.delay * 2)  # maybe it helps to wait some extra?
 
     async def _analyse_forever(self, limit: Limit | None, multipv: int | None) -> None:
@@ -311,7 +311,7 @@ class ContinuousAnalysis:
         if self._analysis_data:
             j: InfoDict = self._analysis_data[0]
             if "depth" in j:
-                logger.debug("%s ContinuousAnalyser deep depth: %d", self.whoami, j.get("depth"))
+                logger.debug("%s deep depth: %d", self.whoami, j.get("depth"))
 
     async def get_latest_seen_depth(self) -> int:
         """return the latest depth seen in analysis info"""
@@ -357,7 +357,7 @@ class ContinuousAnalysis:
                 self.multipv = multipv
                 self._running = True
                 self._task = self.loop.create_task(self._watching_analyse())
-                logging.debug("%s ContinuousAnalysis started", self.whoami)
+                logging.debug("%s started", self.whoami)
         else:
             logging.info("%s ContinuousAnalysis already running - strange!", self.whoami)
 
@@ -372,20 +372,20 @@ class ContinuousAnalysis:
         if self._running:
             self.limit = limit  # None is also OK here
         else:
-            logger.debug("%s ContinuousAnalysis not running - cannot update", self.whoami)
+            logger.debug("%s not running - cannot update", self.whoami)
 
     def stop(self):
         """Stops the continuous analysis - in a nice way
         it lets infinite analyser stop by itself"""
         if self._running:
             self._running = False  # causes infinite analysis loop to send stop to engine
-            logging.debug("%s asking for ContinuousAnalysis to stop running", self.whoami)
+            logging.debug("%s asking to stop running", self.whoami)
 
     def cancel(self):
         """force the analyser to stop by cancelling the async task"""
         if self._running:
             if self._task is not None:
-                logger.debug("%s Cancelling ContinuousAnalysis by killing task", self.whoami)
+                logger.debug("%s cancelling by killing task", self.whoami)
                 self._task.cancel()
                 self._task = None
                 self._running = False

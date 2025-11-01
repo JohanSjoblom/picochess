@@ -212,7 +212,8 @@ class PicochessState:
         self.last_error_fen = ""
         self.artwork_in_use = False
         self.delay_fen_error = 4
-        self.pico_time = ""
+        self.pico_def_time = ""
+        self.pico_def_time_ctrl: TimeControl = None
 
     @property
     def picotutor(self) -> PicoTutor:
@@ -2637,8 +2638,9 @@ def main() -> None:
     update_elo_display(state)
 
     # set timecontrol restore data set for normal engines after leaving emulation mode
-    state.pico_time = args.def_timectrl
-
+    state.pico_def_time = args.def_timectrl
+    state.pico_def_time_ctrl, time_def_text = state.transfer_time(state.pico_def_time.split(), depth=0, node=0)
+    
     if emulation_mode():
         state.flag_last_engine_emu = True
         
@@ -3059,7 +3061,7 @@ def main() -> None:
                         text = state.dgttranslate.text("N00_oktime")
                         Observable.fire(
                             Event.SET_TIME_CONTROL(
-                                tc_init=state.tc_init_last, time_text=text, show_ok=True
+                                tc_init=state.pico_def_time_ctrl.get_parameters(), time_text=text, show_ok=True
                             )
                         )
                     DisplayMsg.show(Message.EXIT_MENU())

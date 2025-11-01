@@ -1,0 +1,119 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+.python-version
+
+# Distribution / packaging
+.Python
+venv/
+env/
+bin/
+src/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+include/
+engines/aarch64/old/
+engines/x86_64/old/
+engines/mame_emulation/
+engines/mame/
+# pgn engine audio files are large
+engines/pgn_engine/pgn_audio/
+# ignore files that pgn_engine writes
+engines/aarch64/extra/pgn_game_info.txt
+engines/aarch64/extra/pgn_engine-log.txt
+engines/x86_64/extra/pgn_game_info.txt
+engines/x86_64/extra/pgn_engine-log.txt
+# Script engines are not yet in repo
+engines/script_engines/
+# ignore engine folders - let user manage them
+engines/aarch64/
+engines/x86_64/
+engines/lc0_weights/
+engines/mame_emulation/
+engines/rodent3/
+engines/rodent4/
+engines/descriptions.txt
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+pip-selfcheck.json
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# Translations
+*.mo
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+# Rope
+.ropeproject
+
+# Django stuff:
+*.log
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# c9.io
+.c9/
+
+# PyCharm
+.idea/
+
+# PGN files
+*.pgn
+
+# Config file
+picochess.ini
+picochess.uci
+*.swp
+.venv/
+
+# Generated files
+.bluetoothctl_history
+games/
+
+# Visual Code files
+.vscode/
+
+# Game database files
+# some small twic 2024 files included
+
+# linked files with ln -sf
+gamesdb/tcscid
+obooksrv/obooksrv
+etc/dgtpicom
+etc/dgtpicom.so
+
+# ignore the talker voices.ini
+talker/voices/voices.ini
+
+# ignore resource files
+engines-aarch64-small.tar.gz
+engines-x86_64-small.tar.gz
+lc0-weights-small.tar.gz
+
+# pylint-check.sh output files
+pylint_errors.txt
+pylint_diff.txt
+

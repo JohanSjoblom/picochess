@@ -95,7 +95,7 @@ from picotutor_constants import DEEP_DEPTH
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
-FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 28  # the famous limit of deep blue?
+FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 50  # max limit for any analysis
 FLOAT_TUTOR_MAX_ANALYSIS_DEPTH = 22  # higher than DEEP_DEPTH, lower than above
 # since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING

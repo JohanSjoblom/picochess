@@ -1,0 +1,14 @@
+# Solución para el error de push
+
+# 1. Hacer pull para sincronizar con la rama remota
+git pull origin Study-Position
+
+# 2. Si hay conflictos, resolverlos y hacer commit
+# git add .
+# git commit -m "Resolve merge conflicts"
+
+# 3. Ahora hacer push
+git push origin Study-Position
+
+# ALTERNATIVA: Si quieres forzar el push (CUIDADO: sobrescribe cambios remotos)
+# git push --force origin Study-Position

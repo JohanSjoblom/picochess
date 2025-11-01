@@ -3976,23 +3976,11 @@ async def main() -> None:
                 else:
                     if self.engine.is_thinking():
                         self.engine.force_move()
-<<<<<<< HEAD
                     elif (
-                        self.eng_plays()
-                        and self.state.is_not_user_turn()
-                        and self.state.done_computer_fen is not None
-                    ):
-                        # e-board: engine move still pending on the board; allow user to request another move
-                        # use same logic as ALTERNATIVE_MOVE below - send searchlist=True
-=======
-                    elif (
-                        self.eng_plays()
-                        and self.state.is_not_user_turn()
-                        and self.state.done_computer_fen is not None
+                        self.eng_plays() and self.state.is_not_user_turn() and self.state.done_computer_fen is not None
                     ):
                         # e-board: engine move still pending on the board; allow user to request another move
                         # (when go() sees searchlist=True it removes already-played moves from the root list)
->>>>>>> 4452039c (Fixing comments only. Clarify alternative-move comment when clicking pause button 2.)
                         if not self.state.check_game_state():
                             # picotuter should be in sync as takeback already was done
                             await self.think(

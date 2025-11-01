@@ -2479,9 +2479,10 @@ async def main() -> None:
                 await self._start_or_stop_analysis_as_needed()
             else:
                 # Issue #109 and #49 before that - how to get engine thinking
-                result = await self.engine.get_thinking_analysis(self.state.game)
-                info_list: list[InfoDict] = result.get("info")
-                analysed_fen = result.get("fen", "")
+                if not self.state.is_user_turn():
+                    result = await self.engine.get_thinking_analysis(self.state.game)
+                    info_list: list[InfoDict] = result.get("info")
+                    analysed_fen = result.get("fen", "")
             if info_list and analysed_fen == self.state.game.fen():
                 info = info_list[0]  # pv first
                 if info:

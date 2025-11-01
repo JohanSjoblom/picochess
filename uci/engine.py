@@ -70,8 +70,7 @@ class EngineLease:
         except Exception:
             if requester and self._requester == requester:
                 self._requester = None
-                if not self._lock.locked():
-                    self._interrupt_event.clear()
+                self._interrupt_event.clear()
             raise
 
         self._owner = owner
@@ -84,6 +83,7 @@ class EngineLease:
             return
 
         self._owner = None
+        self._interrupt_event.clear()
         if self._lock.locked():
             self._lock.release()
 
@@ -260,22 +260,16 @@ class ContinuousAnalysis:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""
         await self.engine_lease.acquire(owner="continuous")
         try:
-            analysis_cm = await self.engine.analysis(
+            with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
-            )
-            async with analysis_cm as analysis:
-                while True:
+            ) as analysis:
+                async for info in analysis:
                     if self.engine_lease.interrupt_requested("continuous"):
                         try:
                             analysis.stop()
                         except Exception:
                             logger.debug("failed sending stop in infinite analysis")
                         return
-
-                    try:
-                        await analysis.__anext__()
-                    except StopAsyncIteration:
-                        break
 
                     async with self.lock:
                         if (

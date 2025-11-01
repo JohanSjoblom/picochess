@@ -3970,9 +3970,7 @@ async def main() -> None:
                     if self.engine.is_thinking():
                         self.engine.force_move()
                     elif (
-                        self.eng_plays()
-                        and self.state.is_not_user_turn()
-                        and self.state.done_computer_fen is not None
+                        self.eng_plays() and self.state.is_not_user_turn() and self.state.done_computer_fen is not None
                     ):
                         # engine is supposed to think - could be after takeback
                         # use same logic as ALTERNATIVE_MOVE below - send searchlist=True

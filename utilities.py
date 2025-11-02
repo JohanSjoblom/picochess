@@ -261,22 +261,23 @@ def update_pico_engines():
         logger.debug("Engines successfully moved to backup. Proceeding to update pico")
         logger.debug("Script output: %s", result.stdout)
         # the purpose of above is just to empty the engines folder, now get new engines
-        update_pico_v4()  # triggers update which runs install-engines to get new engines
+        update_pico_v4(reason="engines")  # triggers update which runs install-engines to get new engines
 
     except subprocess.CalledProcessError as e:
         logger.debug("Error while running move-engines-to-backup.sh")
         logger.debug("Return code: %s", e.returncode)
 
 
-def update_pico_v4():
+def update_pico_v4(reason: Optional[str] = None):
     """use the picochess-update.service and update on next boot"""
     # Path to the update trigger flag
     flag_path = Path("/home/pi/run_picochess_update.flag")
+    flag_reason = reason if reason else "pico"
 
     # Create the flag file if it doesn't exist
     try:
-        flag_path.touch(exist_ok=True)
-        logger.info("Update flag created. Will run on next boot.")
+        flag_path.write_text(flag_reason, encoding="utf-8")
+        logger.info("Update flag '%s' created. Will run on next boot.", flag_reason)
     except Exception:
         logger.info("Failed to create update flag. Cannot update picochess on next boot.")
 

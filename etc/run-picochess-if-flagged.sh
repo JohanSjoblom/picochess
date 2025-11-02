@@ -16,20 +16,30 @@ touch "$LOGFILE"
 
 # Check if the flag file exists
 if [ -f "$FLAG" ]; then
+    REASON=$(head -n 1 "$FLAG" 2>/dev/null | tr -d '\r')
+    if [ -z "$REASON" ]; then
+        REASON="pico"
+    fi
+
     NOW=$(date +%s)
     LAST_RUN=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo 0)
     DIFF=$((NOW - LAST_RUN))
+    FORCE_RUN=false
+
+    if [ "$REASON" = "engines" ]; then
+        FORCE_RUN=true
+    fi
 
     # Run update if >10 minutes since last successful run,
     # OR first run, OR previous update failed
-    if [ "$DIFF" -ge 600 ] || [ "$LAST_RUN" -eq 0 ] || [ -f "$FAIL_FILE" ]; then
-        echo "$(date): Running PicoChess update..." | tee -a "$LOGFILE"
+    if [ "$DIFF" -ge 600 ] || [ "$LAST_RUN" -eq 0 ] || [ -f "$FAIL_FILE" ] || [ "$FORCE_RUN" = true ]; then
+        echo "$(date): Running PicoChess update (reason: $REASON)..." | tee -a "$LOGFILE"
 
         # Clear the flag first to avoid loops
         rm -f "$FLAG"
 
         # Run the install script
-        sh "$SCRIPT" >>"$LOGFILE" 2>&1
+        sh "$SCRIPT" pico >>"$LOGFILE" 2>&1
         STATUS=$?
 
         if [ "$STATUS" -ne 0 ]; then

@@ -30,9 +30,9 @@ if [ -f "$FLAG" ]; then
         FORCE_RUN=true
     fi
 
-    # Run update if >10 minutes since last successful run,
+    # Run update if >3 minutes since last successful run,
     # OR first run, OR previous update failed
-    if [ "$DIFF" -ge 600 ] || [ "$LAST_RUN" -eq 0 ] || [ -f "$FAIL_FILE" ] || [ "$FORCE_RUN" = true ]; then
+    if [ "$DIFF" -ge 180 ] || [ "$LAST_RUN" -eq 0 ] || [ -f "$FAIL_FILE" ] || [ "$FORCE_RUN" = true ]; then
         echo "$(date): Running PicoChess update (reason: $REASON)..." | tee -a "$LOGFILE"
 
         # Clear the flag first to avoid loops
@@ -55,7 +55,7 @@ if [ -f "$FLAG" ]; then
             echo "$NOW" > "$TIMESTAMP_FILE"
         fi
     else
-        echo "$(date): Skipped update (last run <10 minutes ago)" >>"$LOGFILE"
+        echo "$(date): Skipped update (last run <3 minutes ago)" >>"$LOGFILE"
         rm -f "$FLAG"  # Optionally remove flag to prevent retry
     fi
 fi

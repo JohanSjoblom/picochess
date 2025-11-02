@@ -220,6 +220,9 @@ var bookDataTable = $('#BookTable').DataTable({
         'data': function (d) {
             d.action = 'get_book_moves';
             d.fen = dataTableFen;
+        },
+        'error': function (xhr, error, thrown) {
+            // Silenciar errores de conexión a servidor de libros
         }
     },
     'columns': [
@@ -292,7 +295,7 @@ var gameDataTable = $('#GameTable').DataTable({
             d.fen = dataTableFen;
         },
         'error': function (xhr, error, thrown) {
-            console.warn(xhr);
+            // Silenciar errores de conexión a servidores auxiliares
         }
     },
     'columns': [
@@ -1207,6 +1210,7 @@ function receive_message(wsevent) {
 }
 
 function formatEngineOutput(line) {
+    if (!line) return null;
     if (line.search('depth') > 0 && line.search('currmove') < 0) {
         var analysis_game = new Chess();
         var start_move_num = 1;
@@ -1426,7 +1430,7 @@ function multiPvIncrease() {
     window.multipv += 1;
 
     // Agregar nuevo contenedor
-    var new_div_str = "<div id=\"pv_" + window.multipv + "\"  style=\"margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;\"></div>";
+    var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
     $("#pv_output").append(new_div_str);
 
     // Solo actualizar el motor si el análisis está activo
@@ -1497,7 +1501,7 @@ function analyzePressed() {
         $('#pv_output').empty();
         // Recrear los contenedores según el multipv actual
         for (var i = 1; i <= window.multipv; i++) {
-            $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+            $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
         }
     }
     analyze(false);
@@ -1516,6 +1520,7 @@ function handleCrash(event) {
 }
 
 function handleMessage(event) {
+    if (!event || !event.data) return;
     var output = formatEngineOutput(event.data);
     if (output && output.pv_index && output.pv_index > 0) {
         $('#pv_' + output.pv_index).html(output.line);
@@ -1526,7 +1531,11 @@ function handleMessage(event) {
 function loadNaclStockfish() {
     var listener = document.getElementById('listener');
     listener.addEventListener('load', stockfishPNACLModuleDidLoad, true);
-    listener.addEventListener('message', handleMessage, true);
+    listener.addEventListener('message', function(event) {
+        if (event && event.data) {
+            handleMessage(event);
+        }
+    }, true);
     listener.addEventListener('crash', handleCrash, true);
 }
 
@@ -1548,7 +1557,7 @@ function stopAnalysis() {
     $('#pv_output').empty();
     // Recrear los contenedores según el multipv actual
     for (var i = 1; i <= window.multipv; i++) {
-        $('#pv_output').append('<div id="pv_' + i + '" style="margin-top: 0px; margin-left: 12px; margin-bottom: 3vh;"></div>');
+        $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
     }
 
     // Ocultar la barra de evaluación cuando se detiene el análisis
@@ -1610,7 +1619,9 @@ function analyze(position_update) {
     if (!window.StockfishModule) {
         window.stockfish = new Worker('/static/js/stockfish.js');
         window.stockfish.onmessage = function (event) {
-            handleMessage(event);
+            if (event && event.data) {
+                handleMessage(event);
+            }
         };
     }
     else {
@@ -1670,6 +1681,12 @@ function setTitle(data) {
 
 // copied from loadGame()
 function setHeaders(data) {
+    // Validar que data sea un objeto válido
+    if (!data || typeof data !== 'object') {
+        console.debug('setHeaders: data is not a valid object', data);
+        return;
+    }
+    
     if ('FEN' in data && 'SetUp' in data) {
         if ('Variant' in data && 'Chess960' === data['Variant']) {
             chessGameType = 1; // values from chess960.js

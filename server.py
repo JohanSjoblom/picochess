@@ -44,6 +44,7 @@ from web.picoweb import picoweb as pw
 from dgt.api import Event, Message
 from dgt.util import PlayMode, Mode, ClockSide, GameResult
 from dgt.iface import DgtIface
+from dgt.menu import DgtMenu
 from eboard.eboard import EBoard
 from pgn import ModeInfo
 
@@ -88,6 +89,68 @@ class ServerRequestHandler(tornado.web.RequestHandler):
 
 class ChannelHandler(ServerRequestHandler):
 
+    async def process_board_scan(self):
+        """Simulate exact DGT menu steps for position setup"""
+        try:
+            # Get parameters from web sliders
+            side_to_play = self.get_argument("sideToPlay", "true").lower() == "true"
+            board_reversed = self.get_argument("boardSide", "false").lower() == "true"
+            uci960_enabled = self.get_argument("uci960", "false").lower() == "true"
+            
+            # Get castling rights from web sliders
+            white_castle_king = self.get_argument("whiteCastleKing", "true").lower() == "true"
+            white_castle_queen = self.get_argument("whiteCastleQueen", "true").lower() == "true"
+            black_castle_king = self.get_argument("blackCastleKing", "true").lower() == "true"
+            black_castle_queen = self.get_argument("blackCastleQueen", "true").lower() == "true"
+            
+            # Build castling rights string for FEN
+            castling = ""
+            if white_castle_king:
+                castling += "K"
+            if white_castle_queen:
+                castling += "Q"
+            if black_castle_king:
+                castling += "k"
+            if black_castle_queen:
+                castling += "q"
+            if not castling:
+                castling = "-"
+            
+            fen = self.shared["dgt_fen"]
+
+            if not fen or fen == "8/8/8/8/8/8/8/8":
+                logger.error("No valid board position scanned")
+                return None
+            
+            # Check if board needs flipping.
+            if board_reversed:
+                fen = fen[::-1]
+            
+            # Build complete FEN with position settings.
+            fen += " {0} {1} - 0 1".format("w" if side_to_play else "b", castling)
+
+            # Validate FEN using python-chess.
+            try:
+                bit_board = chess.Board(fen, chess960=uci960_enabled)
+                is_valid = bit_board.is_valid()
+
+                if not is_valid:
+                    logger.warning(f"FEN validation failed: {fen}")
+                    logger.warning(f"Status: {bit_board.status()}")
+                    logger.warning("Accepting position anyway for setup")
+
+                # Fire SETUP_POSITION even if invalid
+                await Observable.fire(Event.SETUP_POSITION(fen=fen, uci960=uci960_enabled))
+                return fen
+
+            except Exception as fen_error:
+                logger.error(f"FEN validation error: {fen_error}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in process_board_scan: {e}")
+            return None
+
     async def process_console_command(self, raw):
         cmd = raw.lower()
 
@@ -115,6 +178,7 @@ class ChannelHandler(ServerRequestHandler):
 
     async def post(self):
         action = self.get_argument("action")
+        logger.info(f"POST recibido con action: {action}")
 
         if action == "broadcast":
             fen = self.get_argument("fen")
@@ -143,6 +207,10 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.REMOTE_ROOM(inside=inside))
         elif action == "command":
             await self.process_console_command(self.get_argument("command"))
+        elif action == "scan_board":
+            result_fen = await self.process_board_scan()
+            self.write({"success": result_fen is not None, "fen": result_fen})
+            self.set_header("Content-Type", "application/json")
 
 
 class EventHandler(WebSocketHandler):
@@ -821,6 +889,10 @@ class WebDisplay(DisplayMsg):
             WebDisplay.result_sav = ""
             result = self.shared["last_dgt_move_msg"]
             EventHandler.write_to_clients(result)
+
+        elif isinstance(message, Message.DGT_FEN):
+            # Update dgt_fen for board scan functionality
+            self.shared["dgt_fen"] = message.fen.split(" ")[0]
 
         elif isinstance(message, Message.USER_MOVE_DONE):
             WebDisplay.result_sav = ""

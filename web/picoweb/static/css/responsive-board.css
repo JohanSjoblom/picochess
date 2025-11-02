@@ -1,0 +1,270 @@
+/* Optimización del tablero para resoluciones específicas */
+
+/* Para resoluciones 1024x600 y 1024x800 */
+@media (min-width: 1000px) and (max-width: 1100px) {
+    /* Asegurar que el contenedor del tablero mantenga proporción cuadrada */
+    .svg-container {
+        display: block;
+        position: relative;
+        width: 100%;
+        padding-bottom: 100% !important;
+        vertical-align: middle;
+        overflow: hidden;
+    }
+    
+    .svg-content {
+        display: block;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+    }
+    
+    /* Asegurar que chessground ocupe todo el espacio */
+    #board {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+    }
+    
+    .cg-board-wrap {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+    }
+    
+    /* Ajustar el tamaño de las piezas */
+    .cg-board piece {
+        width: 12.5% !important;
+        height: 12.5% !important;
+        background-size: contain !important;
+    }
+    
+    /* Ajustar coordenadas del tablero */
+    .cg-board-wrap coords.ranks {
+        font-size: 11px;
+    }
+    
+    .cg-board-wrap coords.files {
+        font-size: 11px;
+    }
+}
+
+/* Optimización específica para 1024x600 */
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px) {
+    /* Reducir padding general */
+    .container-fluid {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+    }
+    
+    .card-body {
+        padding: 5px !important;
+    }
+    
+    /* Tablero más compacto */
+    #xboardsection {
+        max-width: 480px;
+        max-height: 480px;
+    }
+    
+    /* Barra de evaluación ajustada */
+    .evaluation-container-horizontal {
+        max-width: 480px;
+        margin: 0 auto;
+        height: 15px !important;
+    }
+    
+    /* Reducir altura de elementos scrollables */
+    .scroll_movelist {
+        height: 100px !important;
+        max-height: 100px !important;
+    }
+    
+    .scroll_obooklist,
+    .scroll_engine {
+        height: 250px !important;
+        max-height: 250px !important;
+    }
+    
+    #GameTable_wrapper {
+        min-height: 250px !important;
+        max-height: 250px !important;
+    }
+    
+    /* Reducir tamaño de fuentes */
+    .gameMoves, .bookMoves {
+        font-size: 1.4vw !important;
+    }
+    
+    #DGTClockText {
+        font-size: 3.5vh !important;
+    }
+    
+    #DGTClockStatus {
+        font-size: 2.5vh !important;
+    }
+    
+    .card-header {
+        font-size: 1.8vh !important;
+        padding: 3px !important;
+    }
+    
+    /* Botones más compactos */
+    .btn-group .btn {
+        padding: 0.3rem 0.5rem !important;
+    }
+    
+    #clockbuttons {
+        padding-top: 5px !important;
+        padding-bottom: 5px !important;
+    }
+    
+    /* Tabs más compactos */
+    .nav-pills .nav-link {
+        padding: 8px 10px !important;
+        font-size: 0.9rem !important;
+    }
+    
+    #data {
+        margin-top: 5px !important;
+    }
+}
+
+/* Optimización específica para 1024x800 */
+@media (min-width: 1000px) and (max-width: 1100px) and (min-height: 750px) and (max-height: 850px) {
+    /* Tablero más grande aprovechando la altura */
+    #xboardsection {
+        max-width: 550px;
+        max-height: 550px;
+    }
+    
+    /* Barra de evaluación ajustada al ancho del tablero */
+    .evaluation-container-horizontal {
+        max-width: 550px;
+        margin: 0 auto;
+    }
+    
+    /* Reducir altura de elementos scrollables */
+    .scroll_movelist {
+        height: 120px !important;
+        max-height: 120px !important;
+    }
+    
+    .scroll_obooklist,
+    .scroll_engine {
+        height: 320px !important;
+        max-height: 320px !important;
+    }
+    
+    #GameTable_wrapper {
+        min-height: 320px !important;
+        max-height: 320px !important;
+    }
+    
+    /* Fuentes optimizadas */
+    .gameMoves, .bookMoves {
+        font-size: 1.6vw !important;
+    }
+    
+    /* Prevenir scroll vertical */
+    body {
+        overflow-y: hidden !important;
+        max-height: 800px !important;
+    }
+    
+    .scroll-portrait {
+        height: 800px !important;
+        max-height: 800px !important;
+        overflow-y: hidden !important;
+    }
+    
+    /* Layout de columnas */
+    .container-fluid > .row > .col:first-child {
+        flex: 0 0 48% !important;
+        max-width: 48% !important;
+    }
+    
+    .container-fluid > .row > .col:last-child {
+        flex: 0 0 52% !important;
+        max-width: 52% !important;
+    }
+}
+
+/* Prevenir desbordamiento de piezas */
+.cg-board piece.dragging {
+    cursor: move;
+    z-index: 999 !important;
+}
+
+/* Asegurar que las piezas se vean correctamente */
+piece {
+    pointer-events: auto !important;
+}
+
+/* Mejorar la visualización de movimientos posibles */
+.cg-board square.move-dest {
+    background: radial-gradient(rgba(20, 85, 30, 0.6) 22%, #208530 0, rgba(0, 0, 0, 0.4) 0, rgba(0, 0, 0, 0) 0) !important;
+}
+
+/* Mejorar la visualización del último movimiento */
+.cg-board square.last-move {
+    background-color: rgba(155, 199, 0, 0.5) !important;
+}
+
+/* Asegurar que la promoción se vea correctamente */
+.promotion-overlay {
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1000 !important;
+}
+
+.promotion-overlay square {
+    width: 12.5% !important;
+    height: 12.5% !important;
+}
+
+.promotion-overlay piece {
+    width: 80% !important;
+    height: 80% !important;
+    top: 10% !important;
+    left: 10% !important;
+}
+
+/* Estilos comunes para 1024x600 y 1024x800 */
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 850px) {
+    /* Asegurar que las columnas se distribuyan correctamente */
+    .container-fluid > .row > .col:first-child {
+        flex: 0 0 48% !important;
+        max-width: 48% !important;
+    }
+    
+    .container-fluid > .row > .col:last-child {
+        flex: 0 0 52% !important;
+        max-width: 52% !important;
+    }
+    
+    /* Ajustar altura de cards */
+    .card {
+        margin-bottom: 5px !important;
+    }
+    
+    /* Reducir espacio entre botones */
+    #boardButtons {
+        margin-top: 5px !important;
+        margin-bottom: 5px !important;
+    }
+    
+    /* Optimizar espacio del tablero */
+    #board_panel .card-body {
+        padding: 5px !important;
+    }
+}

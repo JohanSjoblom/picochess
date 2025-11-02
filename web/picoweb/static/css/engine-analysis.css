@@ -290,6 +290,105 @@
     }
 }
 
+/* Clase para contenedor de PV */
+.pv-container {
+    margin-top: 0px;
+    margin-left: 12px;
+    margin-bottom: 3vh;
+}
+
+/* Optimización para 1024x600 y 1024x800 - Análisis compacto */
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 850px) {
+    /* Reducir margen del contenedor PV según altura */
+    .pv-container {
+        margin-left: 6px !important;
+        margin-bottom: 5px !important;
+    }
+}
+
+/* Ajustes adicionales solo para 1024x800 */
+@media (min-width: 1000px) and (max-width: 1100px) and (min-height: 750px) and (max-height: 850px) {
+    .pv-container {
+        margin-bottom: 8px !important;
+    }
+    
+    .analysis-line-compact {
+        font-size: 0.85rem !important;
+    }
+    
+    .score-display {
+        font-size: 0.95rem !important;
+    }
+    
+    .scroll_engine {
+        max-height: 320px !important;
+    }
+    /* Reducir tamaño de elementos de análisis */
+    .analysis-line-compact {
+        font-size: 0.75rem;
+        gap: 4px;
+    }
+    
+    .score-display {
+        font-size: 0.85rem;
+        padding: 2px 6px;
+        min-width: 40px;
+    }
+    
+    .first-move {
+        font-size: 0.9rem;
+        padding: 1px 4px;
+    }
+    
+    .continuation-moves {
+        font-size: 0.7rem;
+    }
+    
+    .depth-display {
+        font-size: 0.65rem;
+        padding: 1px 4px;
+    }
+    
+    /* Reducir padding y margen de líneas de análisis */
+    #pv_output .list-group-item {
+        padding: 3px 5px !important;
+        margin-bottom: 2px !important;
+    }
+    
+    /* Asegurar que el contenedor de análisis no desborde */
+    #pv_output {
+        padding: 3px !important;
+        margin-top: 2px !important;
+    }
+    
+    /* Forzar altura máxima del scroll_engine cuando está en análisis */
+    .scroll_engine {
+        max-height: 250px !important;
+        overflow-y: auto !important;
+    }
+    
+    /* Botones de análisis más compactos */
+    #analyzeBtn, #analyzePlus, #analyzeMinus {
+        font-size: 0.8rem !important;
+        padding: 4px 8px !important;
+    }
+    
+    #engineMultiPVStatus {
+        font-size: 0.75rem !important;
+        padding: 2px 6px !important;
+    }
+    
+    /* Prevenir que el tab Engine crezca demasiado */
+    #engine .row {
+        margin-bottom: 2px !important;
+    }
+    
+    #engineStatus {
+        font-size: 0.75rem !important;
+        margin-bottom: 2px !important;
+    }
+}
+
 
 
 /* Excepciones para elementos con colores específicos - mantener sus fondos distintivos */

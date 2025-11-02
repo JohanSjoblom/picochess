@@ -2410,8 +2410,8 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
-            # and the 2nd if in analyse()
-            result = result and not self.eng_plays()
+            # 128 - skip engine analyser only when engine is thinking about its move
+            result = result and not (self.eng_plays() and not self.state.is_user_turn())
             return result
 
         def eng_plays(self, consider_pgn: bool = True) -> bool:
@@ -2483,6 +2483,11 @@ async def main() -> None:
                     result = await self.engine.get_thinking_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
+                else:
+                    result = await self.engine.get_analysis(self.state.game)
+                    info_list: list[InfoDict] = result.get("info")
+                    analysed_fen = result.get("fen", "")
+                await self._start_or_stop_analysis_as_needed()
             if info_list and analysed_fen == self.state.game.fen():
                 info = info_list[0]  # pv first
                 if info:

@@ -1109,3 +1109,36 @@ class UciEngine(object):
     def _save_rating(self, new_rating: Rating):
         write_picochess_ini("pgn-elo", max(500, int(new_rating.rating)))
         write_picochess_ini("rating-deviation", int(new_rating.rating_deviation))
+
+    async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0) -> str:
+        """
+        Handle 'bestmove 0000' from a UCI engine using python-chess UciProtocol.
+
+        Returns PGN-style result strings:
+            "1-0"       → White wins (Black checkmated or resigned)
+            "0-1"       → Black wins (White checkmated or resigned)
+            "1/2-1/2"   → Stalemate or draw
+            "*"         → Engine dead/unresponsive (game not yet decided)
+        """
+
+        # --- Phase 1: Legitimate terminal states ---
+        if game.is_checkmate():
+            return "0-1" if game.turn == chess.WHITE else "1-0"
+
+        if (
+            game.is_stalemate()
+            or game.is_insufficient_material()
+            or game.is_seventyfive_moves()
+            or game.is_fivefold_repetition()
+        ):
+            return "1/2-1/2"
+
+        # --- Phase 2: No legal reason for 0000 → probe engine health ---
+        try:
+            await self.engine.ping(timeout=timeout)
+            # Engine alive ⇒ interpret as resignation
+            return "0-1" if game.turn == chess.WHITE else "1-0"
+
+        except (asyncio.TimeoutError, chess.engine.EngineTerminatedError, OSError):
+            # Engine not responsive ⇒ crashed/hung
+            return "*"

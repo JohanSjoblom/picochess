@@ -4633,15 +4633,35 @@ async def main() -> None:
                                                 Message.TAKE_BACK(game=self.state.game.copy())
                                             )  # automatic takeback mode
                                 else:
+                                    #  issue #14 0000 bestmove - not pgn replay - reload engine
+                                    result_str = self.engine.handle_bestmove_0000(self.state.game.copy())
+                                    result = game_result_from_header(result_str)  # "*" maps to ABORT
                                     await DisplayMsg.show(
                                         Message.GAME_ENDS(
                                             tc_init=self.state.time_control.get_parameters(),
-                                            result=GameResult.ABORT,
+                                            result=result,
                                             play_mode=self.state.play_mode,
                                             game=self.state.game.copy(),
                                             mode=self.state.interaction_mode,
                                         )
                                     )
+                                    if result_str == "*":
+                                        logger.error("engine crashed - trying to reload the engine")
+                                        loaded_ok = await self.engine.reopen_engine()
+                                        if loaded_ok:
+                                            eng = self.state.dgtmenu.get_engine()
+                                            eng_text = self.state.dgttranslate.text("B10_okengine")
+                                            msg = Message.ENGINE_READY(
+                                                eng=eng,
+                                                eng_text=eng_text,
+                                                engine_name=self.engine.get_name(),
+                                                has_levels=self.engine.has_levels(),
+                                                has_960=self.engine.has_chess960(),
+                                                has_ponder=self.engine.has_ponder(),
+                                                show_ok=event.show_ok,
+                                            )
+                                        else:
+                                            logger.error("engine re-load failed")
 
                             await asyncio.sleep(0.5)
                         else:

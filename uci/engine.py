@@ -669,6 +669,44 @@ class UciEngine(object):
         except chess.engine.EngineTerminatedError:
             logger.exception("engine terminated - could not execute file %s", self.file)
 
+    async def reopen_engine(self) -> bool:
+        """Re-open engine. Return True if engine re-opened ok."""
+        try:
+            # in this situation the engine is not responding properly
+            # and is assumed dead
+            # part 1 : copied from quit
+            if self.analyser.is_running():
+                self.analyser.cancel()  # quit can force full cancel
+            if self.playing.is_waiting_for_move():
+                self.playing.cancel()  # quit can force full cancel
+            # engine is dead so dont call quit
+            # @todo - what about MAME here? reopen mame as well?
+            # part 2 : copied from open_engine
+            logger.info("file %s", self.file)
+            if self.is_mame:
+                mfile = [self.file, self.mame_par]
+            else:
+                mfile = [self.file]
+            logger.info("re-opening engine %s", mfile)
+            self.transport, self.engine = await chess.engine.popen_uci(mfile)
+            # Dont instantiate the two “sisters” - they already exist, but update engine
+            self.analyser.engine = self.engine
+            self.playing.engine = self.engine
+            # game id remains the same
+            if self.engine:
+                if "name" in self.engine.id:
+                    self.engine_name = self.engine.id["name"]
+            else:
+                logger.error("engine executable %s not found", self.file)
+            return self.loaded_ok()
+        except OSError:
+            logger.exception("OS error in starting engine %s", self.file)
+        except TypeError:
+            logger.exception("engine executable not found %s", self.file)
+        except chess.engine.EngineTerminatedError:
+            logger.exception("engine terminated - could not execute file %s", self.file)
+        return False
+
     def loaded_ok(self) -> bool:
         """check if engine was loaded ok"""
         return self.engine is not None

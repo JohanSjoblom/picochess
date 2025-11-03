@@ -5,7 +5,9 @@
 #
 
 FLAG="/home/pi/run_picochess_update.flag"
-SCRIPT="/opt/picochess/install-picochess.sh"
+PICO_SCRIPT="/opt/picochess/install-picochess.sh"
+ENGINE_SCRIPT="/opt/picochess/install-engines.sh"
+
 LOGFILE="/var/log/picochess-update.log"
 TIMESTAMP_FILE="/var/log/picochess-last-update"
 FAIL_FILE="/var/log/picochess-last-update-fail"
@@ -25,9 +27,11 @@ if [ -f "$FLAG" ]; then
     LAST_RUN=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo 0)
     DIFF=$((NOW - LAST_RUN))
     FORCE_RUN=false
+    UPDATE_MODE="pico"
 
     if [ "$REASON" = "engines" ]; then
         FORCE_RUN=true
+        UPDATE_MODE="engines"
     fi
 
     # Run update if >3 minutes since last successful run,
@@ -38,9 +42,32 @@ if [ -f "$FLAG" ]; then
         # Clear the flag first to avoid loops
         rm -f "$FLAG"
 
-        # Run the install script
-        sh "$SCRIPT" pico >>"$LOGFILE" 2>&1
-        STATUS=$?
+        # Run the appropriate script based on the update mode
+        case "$UPDATE_MODE" in
+            pico)
+                if [ ! -x "$PICO_SCRIPT" ]; then
+                    echo "$(date): ERROR: Script $PICO_SCRIPT not found or not executable." | tee -a "$LOGFILE"
+                    touch "$FAIL_FILE"
+                    exit 1
+                fi
+                sh "$PICO_SCRIPT" pico >>"$LOGFILE" 2>&1
+                STATUS=$?
+                ;;
+            engines)
+                if [ ! -x "$ENGINE_SCRIPT" ]; then
+                    echo "$(date): ERROR: Script $ENGINE_SCRIPT not found or not executable." | tee -a "$LOGFILE"
+                    touch "$FAIL_FILE"
+                    exit 1
+                fi
+                sudo -u pi sh "$ENGINE_SCRIPT" >>"$LOGFILE" 2>&1
+                STATUS=$?
+                ;;
+            *)
+                echo "$(date): ERROR: Unknown update mode '$UPDATE_MODE'." | tee -a "$LOGFILE"
+                touch "$FAIL_FILE"
+                exit 1
+                ;;
+        esac
 
         if [ "$STATUS" -ne 0 ]; then
             echo "$(date): ERROR: PicoChess update failed (exit code $STATUS)" | tee -a "$LOGFILE"

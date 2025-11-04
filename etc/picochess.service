@@ -2,6 +2,8 @@
 Description=PicoChess Chess Program
 After=multi-user.target
 Wants=obooksrv.service gamesdb.service
+Wants=picochess-update.service
+After=picochess-update.service
 
 [Service]
 TimeoutStopSec=15s

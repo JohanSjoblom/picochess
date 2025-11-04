@@ -1,5 +1,6 @@
 [Unit]
 Description=PicoChess updater (runs if flagged at boot)
+Before=picochess.service
 After=network.target
 
 [Service]

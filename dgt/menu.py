@@ -818,6 +818,9 @@ class DgtMenu(object):
     def set_engine_index(self, index: int):
         self.res_engine_index = self.menu_engine_index = index
 
+    def get_engine_level_index(self) -> int:
+        return self.res_engine_index
+
     def get_engine_level(self):
         return self.res_engine_level
 

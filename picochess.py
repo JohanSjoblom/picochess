@@ -4646,23 +4646,28 @@ async def main() -> None:
                                         )
                                     )
                                     if result_str == "*":
-                                        logger.error("engine crashed - trying to reload the engine")
+                                        logger.error("engine crashed - game ended - trying to reload the engine")
+                                        await DisplayMsg.show(Message.ENGINE_FAIL())
+                                        await asyncio.sleep(0.5)
                                         loaded_ok = await self.engine.reopen_engine()
                                         if loaded_ok:
-                                            eng = self.state.dgtmenu.get_engine()
-                                            eng_text = self.state.dgttranslate.text("B10_okengine")
-                                            msg = Message.ENGINE_READY(
-                                                eng=eng,
-                                                eng_text=eng_text,
-                                                engine_name=self.engine.get_name(),
-                                                has_levels=self.engine.has_levels(),
-                                                has_960=self.engine.has_chess960(),
-                                                has_ponder=self.engine.has_ponder(),
-                                                show_ok=event.show_ok,
+                                            # @todo not sure what we should send here for reopened engine
+                                            level_index = self.state.dgtmenu.get_engine_level_index()
+                                            await DisplayMsg.show(
+                                                Message.ENGINE_STARTUP(
+                                                    installed_engines=EngineProvider.installed_engines,
+                                                    file=self.state.engine_file,
+                                                    level_index=level_index,
+                                                    has_960=self.engine.has_chess960(),
+                                                    has_ponder=self.engine.has_ponder(),
+                                                )
                                             )
+                                            await asyncio.sleep(0.5)
+                                            await DisplayMsg.show(Message.ENGINE_SETUP())
+                                            # game has ended so no need for takebacks or new think
                                         else:
                                             logger.error("engine re-load failed")
-
+                                            await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
                         else:
                             # normal computer move

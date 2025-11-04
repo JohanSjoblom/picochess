@@ -229,6 +229,7 @@ class PicochessState:
         self.ignore_next_engine_move = False  # True only after takeback during think
         self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
+        self.best_playing_info_depth = 0  # best seen depth for a playing enginge
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -2483,10 +2484,13 @@ async def main() -> None:
                     result = await self.engine.get_thinking_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
+                    self.set_best_seen_engine_depth(info_list, analysed_fen)  # optimise else part
                 else:
                     result = await self.engine.get_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
+                    if not self.is_better_than_seen_depth(info_list, analysed_fen):
+                        info_list = None  # optimised else: prevent this info from being sent
                 await self._start_or_stop_analysis_as_needed()
             if info_list and analysed_fen == self.state.game.fen():
                 info = info_list[0]  # pv first
@@ -2504,6 +2508,26 @@ async def main() -> None:
                     if triggered_by_timer:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
             return info
+
+        def is_better_than_seen_depth(self, info_list: list[InfoDict], fen: str) -> bool:
+            """return True if a better depth was found during user thinking"""
+            is_better = False
+            if info_list and fen == self.state.game.fen():
+                info = info_list[0]
+                if info and "depth" in info:
+                    if info.get("depth") > self.state.best_playing_info_depth:
+                        self.state.best_playing_info_depth = info.get("depth")
+                        is_better = True  # note that we update when better seen
+            return is_better
+
+        def set_best_seen_engine_depth(self, info_list: list[InfoDict], fen: str):
+            """Set depth seen during engine thinking
+            it's set to -1 as this depth will be used after engine move"""
+            if info_list and fen == self.state.game.fen():
+                info = info_list[0]
+                if info and "depth" in info:
+                    # this is to be used after engine move so the depth is minus one
+                    self.state.best_playing_info_depth = info.get("depth") - 1
 
         async def send_analyse(self, info: InfoDict, send_pv: bool = True):
             """send pv, depth, and score events
@@ -2610,6 +2634,7 @@ async def main() -> None:
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
                             await self.engine.newgame(self.state.game.copy(), False)
+                            self.state.best_playing_info_depth = 0
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
                             self.state.searchmoves.reset()
@@ -2627,6 +2652,7 @@ async def main() -> None:
                             if bit_board.is_valid():
                                 self.state.game = chess.Board(bit_board.fen())
                                 await self.engine.newgame(self.state.game.copy(), False)
+                                self.state.best_playing_info_depth = 0
                                 self.state.done_computer_fen = None
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
                                 self.state.searchmoves.reset()
@@ -3442,6 +3468,7 @@ async def main() -> None:
                     # issue #61 - pgn_engine needs newgame at this point for pgn_game_info file
                     await self.engine.newgame(self.state.game.copy())
                     await asyncio.sleep(0.5)  # give pgn_engine time to write the pgn_game_info file
+                    self.state.best_playing_info_depth = 0
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()
@@ -3633,6 +3660,7 @@ async def main() -> None:
 
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION_SCAN"))
                 await self.engine.newgame(self.state.game.copy())
+                self.state.best_playing_info_depth = 0
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.legal_fens_after_cmove = []
@@ -3747,6 +3775,7 @@ async def main() -> None:
 
                     await self.engine.newgame(self.state.game.copy())
 
+                    self.state.best_playing_info_depth = 0
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.time_control.reset()
@@ -3870,6 +3899,7 @@ async def main() -> None:
                         else:
                             await DisplayMsg.show(Message.ONLINE_NAMES(own_user=self.own_user, opp_user=self.opp_user))
                             await asyncio.sleep(1)
+                        self.state.best_playing_info_depth = 0
                         self.state.seeking_flag = False
                         self.state.best_move_displayed = None
                         self.state.takeback_active = False
@@ -4059,6 +4089,7 @@ async def main() -> None:
                         self.state.game = chess.Board(bit_board.fen())
                         #  await self.stop_search_and_clock()
                         await self.engine.newgame(self.state.game.copy())
+                        self.state.best_playing_info_depth = 0
                         self.state.done_computer_fen = None
                         self.state.done_move = self.state.pb_move = chess.Move.null()
                         self.state.time_control.reset()
@@ -4895,6 +4926,7 @@ async def main() -> None:
                         msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                         await DisplayMsg.show(msg)
                     await self.engine.newgame(self.state.game.copy())
+                    self.state.best_playing_info_depth = 0
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()

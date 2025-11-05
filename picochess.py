@@ -178,34 +178,30 @@ class BestSeenDepth:
         self.last_seen_depth = 0
         self.last_half_move_nr = 0
 
-    def is_better(self, info_list: list[InfoDict], analysed_fen: str, game: chess.Board) -> bool:
-        """return True if a better depth was found - does not update - use set_best for that
-        info_list    - list of InfoDicts from engine analysis
-        analysed_fen - the fen from which the info_list comes
+    def is_better(self, info: InfoDict | None, analysed_fen: str, game: chess.Board) -> bool:
+        """Return True if a deeper depth was found for the analysed FEN (no state updates here).
+        info         - InfoDict from engine analysis
+        analysed_fen - the fen from which the info comes
         game         - current game board"""
         is_better = False
         curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
-        if info_list and analysed_fen == game.fen():
-            info = info_list[0]
-            if info and "depth" in info:
+        if info and analysed_fen == game.fen():
+            if "depth" in info:
                 # calc how much depth has been lost by comparing half-moves
                 depth_diff = curr_half_move_nr - self.last_half_move_nr
                 if depth_diff < 0:
                     logger.debug("best depth out of sync - resetting it")
                     self.reset()  # throw away the worthless values
                     is_better = True  # whatever caller sent is better than "future" depth values
-                else:
-                    if info.get("depth") > self.last_seen_depth - depth_diff:
-                        is_better = True  # caller has a better depth than our old
+                elif info.get("depth") > self.last_seen_depth - depth_diff:
+                    is_better = True  # caller has a better depth than our old
         return is_better
 
-    def set_best(self, info_list: list[InfoDict], analysed_fen: str, game: chess.Board) -> None:
-        """use this when you send the latest info - being sent means its the latest seen
-        or call this when you get True from is_best_seen"""
+    def set_best(self, info: InfoDict | None, analysed_fen: str, game: chess.Board) -> None:
+        """Use this when you send the latest info - being sent means it's the latest seen."""
         curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
-        if info_list and analysed_fen == game.fen():
-            info = info_list[0]
-            if info and "depth" in info:
+        if info and analysed_fen == game.fen():
+            if "depth" in info:
                 self.last_seen_depth = info.get("depth")
                 self.last_half_move_nr = curr_half_move_nr
 
@@ -1231,10 +1227,11 @@ async def main() -> None:
                                 tutor_res = await self.state.picotutor.get_analysis_chosen_move(move)
                                 ponder_move = tutor_res.ponder
                                 info = tutor_res.info
-                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                             if info:
+                                analysed_fen = getattr(engine_res, "analysed_fen", self.state.game.fen())
                                 # send pv, score, not pv as it's sent by BEST_MOVE above
-                                await self.send_analyse(info, False)
+                                await self.send_analyse(info, analysed_fen, False)
+                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await Observable.fire(Event.BEST_MOVE(move=None, ponder=None, inbook=False))
@@ -2533,22 +2530,17 @@ async def main() -> None:
                     result = await self.engine.get_thinking_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
-                    # best seen on engine turn is remembered as best seen for else part
-                    self.state.best_sent_depth.set_best(info_list, analysed_fen, self.state.game)
                 else:
                     result = await self.engine.get_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
-                    if self.state.best_sent_depth.is_better(info_list, analysed_fen, self.state.game):
-                        self.state.best_sent_depth.set_best(info_list, analysed_fen, self.state.game)
-                    else:
+                    info_candidate = info_list[0] if info_list else None
+                    if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
                         info_list = None  # optimised else: prevent this info from being sent
                 await self._start_or_stop_analysis_as_needed()
-            if info_list and analysed_fen == self.state.game.fen():
+            if info_list:
                 info = info_list[0]  # pv first
-                if info:
-                    self.debug_pv_info(info)
-                    await self.send_analyse(info)
+                await self.send_analyse(info, analysed_fen)
             # autoplay is temporarily piggybacking on this once-a-second analyse call
             # @todo give it a separate timer task when this is stable
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
@@ -2561,12 +2553,19 @@ async def main() -> None:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
             return info
 
-        async def send_analyse(self, info: InfoDict, send_pv: bool = True):
-            """send pv, depth, and score events
+        async def send_analyse(self, info: InfoDict, analysed_fen: str, send_pv: bool = True):
+            """send pv, depth, and score events for a specific analysed fen
             with send_pv False pv message is not sent - use if its previous move InfoDict
             this is executed periodically in the background_analyse_timer task"""
+            if not info:
+                return
+            current_fen = self.state.game.fen()
+            if analysed_fen != current_fen:
+                logger.debug("ignoring analysis info for old fen: %s != %s", analysed_fen, current_fen)
+                return
             if "depth" in info:
                 depth = info.get("depth")
+                self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game)
                 # send depth before score as score is assembling depth in receiver end
                 await Observable.fire(Event.NEW_DEPTH(depth=depth))
             # ask for score from white's perspective

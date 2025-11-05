@@ -161,6 +161,55 @@ class AlternativeMover:
         self._excludedmoves.clear()
 
 
+class BestSeenDepth:
+    """a small utility class to help picochess remember last sent depth, bestmove info
+    can at the moment only be used when getting analysis from playing engine
+    it remembers the _last_seen_depth for _last_half_move_nr"""
+
+    def __init__(self):
+        self.last_seen_depth = 0  # last seen depth - info sent
+        self.last_half_move_nr = 0  # nr of halfmoves done at depth
+        # to extend this to analysis modes we need to add last_seen_bestmove logic
+        # otherwise we might not update the plus button bestmove due to low depth
+        # now used only for engine playing - each move returns bestmove which is always sent
+
+    def reset(self):
+        """forget seen depth"""
+        self.last_seen_depth = 0
+        self.last_half_move_nr = 0
+
+    def is_better(self, info_list: list[InfoDict], analysed_fen: str, game: chess.Board) -> bool:
+        """return True if a better depth was found - does not update - use set_best for that
+        info_list    - list of InfoDicts from engine analysis
+        analysed_fen - the fen from which the info_list comes
+        game         - current game board"""
+        is_better = False
+        curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
+        if info_list and analysed_fen == game.fen():
+            info = info_list[0]
+            if info and "depth" in info:
+                # calc how much depth has been lost by comparing half-moves
+                depth_diff = curr_half_move_nr - self.last_half_move_nr
+                if depth_diff < 0:
+                    logger.debug("best depth out of sync - resetting it")
+                    self.reset()  # throw away the worthless values
+                    is_better = True  # whatever caller sent is better than "future" depth values
+                else:
+                    if info.get("depth") > self.last_seen_depth - depth_diff:
+                        is_better = True  # caller has a better depth than our old
+        return is_better
+
+    def set_best(self, info_list: list[InfoDict], analysed_fen: str, game: chess.Board) -> None:
+        """use this when you send the latest info - being sent means its the latest seen
+        or call this when you get True from is_best_seen"""
+        curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
+        if info_list and analysed_fen == game.fen():
+            info = info_list[0]
+            if info and "depth" in info:
+                self.last_seen_depth = info.get("depth")
+                self.last_half_move_nr = curr_half_move_nr
+
+
 class PicochessState:
     """Class to keep track of state in Picochess."""
 
@@ -229,7 +278,7 @@ class PicochessState:
         self.ignore_next_engine_move = False  # True only after takeback during think
         self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
-        self.best_playing_info_depth = 0  # best seen depth for a playing enginge
+        self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -2484,12 +2533,15 @@ async def main() -> None:
                     result = await self.engine.get_thinking_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
-                    self.set_best_seen_engine_depth(info_list, analysed_fen)  # optimise else part
+                    # best seen on engine turn is remembered as best seen for else part
+                    self.state.best_sent_depth.set_best(info_list, analysed_fen, self.state.game)
                 else:
                     result = await self.engine.get_analysis(self.state.game)
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
-                    if not self.is_better_than_seen_depth(info_list, analysed_fen):
+                    if self.state.best_sent_depth.is_better(info_list, analysed_fen, self.state.game):
+                        self.state.best_sent_depth.set_best(info_list, analysed_fen, self.state.game)
+                    else:
                         info_list = None  # optimised else: prevent this info from being sent
                 await self._start_or_stop_analysis_as_needed()
             if info_list and analysed_fen == self.state.game.fen():
@@ -2508,26 +2560,6 @@ async def main() -> None:
                     if triggered_by_timer:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
             return info
-
-        def is_better_than_seen_depth(self, info_list: list[InfoDict], fen: str) -> bool:
-            """return True if a better depth was found during user thinking"""
-            is_better = False
-            if info_list and fen == self.state.game.fen():
-                info = info_list[0]
-                if info and "depth" in info:
-                    if info.get("depth") > self.state.best_playing_info_depth:
-                        self.state.best_playing_info_depth = info.get("depth")
-                        is_better = True  # note that we update when better seen
-            return is_better
-
-        def set_best_seen_engine_depth(self, info_list: list[InfoDict], fen: str):
-            """Set depth seen during engine thinking
-            it's set to -1 as this depth will be used after engine move"""
-            if info_list and fen == self.state.game.fen():
-                info = info_list[0]
-                if info and "depth" in info:
-                    # this is to be used after engine move so the depth is minus one
-                    self.state.best_playing_info_depth = info.get("depth") - 1
 
         async def send_analyse(self, info: InfoDict, send_pv: bool = True):
             """send pv, depth, and score events
@@ -2634,7 +2666,7 @@ async def main() -> None:
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
                             await self.engine.newgame(self.state.game.copy(), False)
-                            self.state.best_playing_info_depth = 0
+                            self.state.best_sent_depth.reset()
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
                             self.state.searchmoves.reset()
@@ -2652,7 +2684,7 @@ async def main() -> None:
                             if bit_board.is_valid():
                                 self.state.game = chess.Board(bit_board.fen())
                                 await self.engine.newgame(self.state.game.copy(), False)
-                                self.state.best_playing_info_depth = 0
+                                self.state.best_sent_depth.reset()
                                 self.state.done_computer_fen = None
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
                                 self.state.searchmoves.reset()
@@ -3468,7 +3500,7 @@ async def main() -> None:
                     # issue #61 - pgn_engine needs newgame at this point for pgn_game_info file
                     await self.engine.newgame(self.state.game.copy())
                     await asyncio.sleep(0.5)  # give pgn_engine time to write the pgn_game_info file
-                    self.state.best_playing_info_depth = 0
+                    self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()
@@ -3660,7 +3692,7 @@ async def main() -> None:
 
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION_SCAN"))
                 await self.engine.newgame(self.state.game.copy())
-                self.state.best_playing_info_depth = 0
+                self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.legal_fens_after_cmove = []
@@ -3775,7 +3807,7 @@ async def main() -> None:
 
                     await self.engine.newgame(self.state.game.copy())
 
-                    self.state.best_playing_info_depth = 0
+                    self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.time_control.reset()
@@ -3899,7 +3931,7 @@ async def main() -> None:
                         else:
                             await DisplayMsg.show(Message.ONLINE_NAMES(own_user=self.own_user, opp_user=self.opp_user))
                             await asyncio.sleep(1)
-                        self.state.best_playing_info_depth = 0
+                        self.state.best_sent_depth.reset()
                         self.state.seeking_flag = False
                         self.state.best_move_displayed = None
                         self.state.takeback_active = False
@@ -4089,7 +4121,7 @@ async def main() -> None:
                         self.state.game = chess.Board(bit_board.fen())
                         #  await self.stop_search_and_clock()
                         await self.engine.newgame(self.state.game.copy())
-                        self.state.best_playing_info_depth = 0
+                        self.state.best_sent_depth.reset()
                         self.state.done_computer_fen = None
                         self.state.done_move = self.state.pb_move = chess.Move.null()
                         self.state.time_control.reset()
@@ -4926,7 +4958,7 @@ async def main() -> None:
                         msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
                         await DisplayMsg.show(msg)
                     await self.engine.newgame(self.state.game.copy())
-                    self.state.best_playing_info_depth = 0
+                    self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()

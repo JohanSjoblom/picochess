@@ -448,6 +448,7 @@ class PlayingContinuousAnalysis:
         self.engine = engine
         self.loop = loop
         self.latest_info = {}
+        self.latest_fen: str = ""
         self._waiting = False
         self._task: asyncio.Task | None = None
         self._force_event = asyncio.Event()
@@ -471,6 +472,7 @@ class PlayingContinuousAnalysis:
         """Start engine move search. Ends automatically on bestmove."""
         self._waiting = True
         self.latest_info = {}
+        self.latest_fen = ""
         self._force_event.clear()
         self._cancel_event.clear()
 
@@ -483,6 +485,7 @@ class PlayingContinuousAnalysis:
             try:
                 await self.engine_lease.acquire(owner="playing", preempt=True)
                 lease_acquired = True
+                self.latest_fen = game.fen()
                 analysis = await self.engine.analysis(
                     board=copy.deepcopy(game),
                     limit=limit,
@@ -525,6 +528,7 @@ class PlayingContinuousAnalysis:
                         ponder=ponder_move,
                         info=copy.deepcopy(analysis.info),
                     )
+                    play_result.analysed_fen = self.latest_fen
                     should_queue = True
                     queue_payload = play_result
 
@@ -552,7 +556,9 @@ class PlayingContinuousAnalysis:
 
     async def get_analysis(self) -> dict:
         """Return latest info dict (safe to call even if not waiting)."""
-        return self.latest_info if self._waiting else {}
+        if self._waiting:
+            return {"info": self.latest_info, "fen": self.latest_fen}
+        return {"info": {}, "fen": ""}
 
     def force(self):
         """Ask the engine to stop thinking and return a bestmove as soon as possible."""
@@ -914,8 +920,13 @@ class UciEngine(object):
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
         if self.playing.is_waiting_for_move():
-            result = await self.playing.get_analysis()
-            result = {"info": [result], "fen": game.fen(), "game": None}
+            latest = await self.playing.get_analysis()
+            info_dict = latest.get("info") if latest else {}
+            analysed_fen = latest.get("fen") if latest else ""
+            if info_dict:
+                result = {"info": [info_dict], "fen": analysed_fen or game.fen(), "game": None}
+            else:
+                result = {"info": [], "fen": analysed_fen or game.fen(), "game": None}
         else:
             logger.debug("get_thinking_analysis called but engine not thinking")
         return result

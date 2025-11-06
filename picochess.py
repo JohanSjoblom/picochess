@@ -169,20 +169,21 @@ class BestSeenDepth:
     def __init__(self):
         self.last_seen_depth = 0  # last seen depth - info sent
         self.last_half_move_nr = 0  # nr of halfmoves done at depth
-        # to extend this to analysis modes we need to add last_seen_bestmove logic
-        # otherwise we might not update the plus button bestmove due to low depth
-        # now used only for engine playing - each move returns bestmove which is always sent
+        self.ponder_move: chess.Move = chess.Move.null()
 
     def reset(self):
         """forget seen depth"""
         self.last_seen_depth = 0
         self.last_half_move_nr = 0
+        self.ponder_move = chess.Move.null()
 
     def is_better(self, info: InfoDict | None, analysed_fen: str, game: chess.Board) -> bool:
         """Return True if a deeper depth was found for the analysed FEN (no state updates here).
         info         - InfoDict from engine analysis
         analysed_fen - the fen from which the info comes
         game         - current game board"""
+        if not self.ponder_move:
+            return True  # special case - without ponder_move we accept any info
         is_better = False
         curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
         if info and analysed_fen == game.fen():
@@ -197,13 +198,18 @@ class BestSeenDepth:
                     is_better = True  # caller has a better depth than our old
         return is_better
 
-    def set_best(self, info: InfoDict | None, analysed_fen: str, game: chess.Board) -> None:
-        """Use this when you send the latest info - being sent means it's the latest seen."""
+    def set_best(self, info: InfoDict | None, analysed_fen: str, game: chess.Board, ponder_move: chess.Move) -> None:
+        """Use this when you send the latest info - being sent means it's the latest seen.
+        if ponder_move is None or chess.Move.null() it's ok to call, but it will never be is_better"""
         curr_half_move_nr = len(game.move_stack)  # half_move dont work in library
         if info and analysed_fen == game.fen():
             if "depth" in info:
                 self.last_seen_depth = info.get("depth")
                 self.last_half_move_nr = curr_half_move_nr
+                # best sent ponder_move - sama as plus-button
+                # if this ponder_move is missing is_better has to return True otherwise we
+                # would not get a ponder move until new depth has reached old depth
+                self.ponder_move = ponder_move if ponder_move else chess.Move.null()
 
 
 class PicochessState:
@@ -2141,7 +2147,24 @@ async def main() -> None:
                     logger.warning("sliding detected, turn ponderhit off")
                     ponder_hit = False
 
-                #
+                # before pushing a user move check if we got a ponder hit - for analysis modes
+                if not self.eng_plays():
+                    info_result = await self.engine.get_analysis(self.state.game)
+                    info_list: list[InfoDict] = info_result.get("info")
+                    ponder_hit = False
+                    if info_list:
+                        info = info_list[0]  # pv first
+                        if info and "pv" in info:
+                            expected_ponder_move = info["pv"][0] if info["pv"] else chess.Move.null()
+                            if move == expected_ponder_move:
+                                # ponder hit! user chose the best ponder move
+                                analysed_fen = info_result.get("fen")
+                                await self.send_analyse(info, analysed_fen)
+                                ponder_hit = True
+                    if not ponder_hit:
+                        # user deviated from analysed line (or no info available) - reset cache
+                        self.state.best_sent_depth.reset()
+
                 # Clock logic after user move
                 #
                 await self.stop_search_and_clock(ponder_hit=ponder_hit)
@@ -2521,8 +2544,9 @@ async def main() -> None:
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
                 analysed_fen = result.get("fen", "")
-                # @todo - the following line here should not be needed
-                # but its safer to always correct engine analyser start/stop state
+                info_candidate = info_list[0] if info_list else None
+                if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                    info_list = None  # optimised - prevent this info from being sent
                 await self._start_or_stop_analysis_as_needed()
             else:
                 # Issue #109 and #49 before that - how to get engine thinking
@@ -2563,13 +2587,13 @@ async def main() -> None:
             if analysed_fen != current_fen:
                 logger.debug("ignoring analysis info for old fen: %s != %s", analysed_fen, current_fen)
                 return
-            if "depth" in info:
-                depth = info.get("depth")
-                self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game)
-                # send depth before score as score is assembling depth in receiver end
-                await Observable.fire(Event.NEW_DEPTH(depth=depth))
             # ask for score from white's perspective
             (move, score, mate) = PicoTutor.get_score(info)
+            if "depth" in info:
+                depth = info.get("depth")
+                self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game, move)
+                # send depth before score as score is assembling depth in receiver end
+                await Observable.fire(Event.NEW_DEPTH(depth=depth))
             if send_pv and move != chess.Move.null():
                 self.state.pb_move = move  # backward compatibility
                 await Observable.fire(Event.NEW_PV(pv=[move]))
@@ -4101,6 +4125,7 @@ async def main() -> None:
                         logger.warning("wrong function call [alternative]! mode: %s", self.state.interaction_mode)
 
             elif isinstance(event, Event.SWITCH_SIDES):
+                self.state.best_sent_depth.reset()  # safest to drop optimisation when switching sides
                 await self.get_rid_of_engine_move()
                 self.state.flag_startup = False
                 await DisplayMsg.show(Message.EXIT_MENU())
@@ -4766,6 +4791,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.SEARCH_STOPPED())
 
             elif isinstance(event, Event.SET_INTERACTION_MODE):
+                self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move

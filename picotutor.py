@@ -220,13 +220,12 @@ class PicoTutor:
         return result
 
     def can_use_coach_analyser(self) -> bool:
-        """is the tutor active and analysing, and has user turned on the watcher
+        """is the tutor active and analysing with either coach or watcher on
         - if yes InfoDicts can be used"""
         result = False
         # most analysing functions are skipped if neither coach nor watcher is on
-        # in this case its enough if watcher is on - coach can be off
         if self.best_engine:
-            if self.best_engine.loaded_ok() and self.watcher_on:  # coach can be off
+            if self.best_engine.loaded_ok() and (self.coach_on or self.watcher_on):
                 result = True
         return result
 

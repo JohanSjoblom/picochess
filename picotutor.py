@@ -816,6 +816,7 @@ class PicoTutor:
         result = PlayResult(move=move, ponder=None, info=None)
         if move and self.can_use_coach_analyser():
             analysis_result = await self.get_analysis()
+            result.analysed_fen = analysis_result.get("fen")
             info_list: list[InfoDict] = analysis_result.get("info")
             if info_list:
                 user_move_index = self._find_user_move_index(info_list, move)

@@ -1236,7 +1236,13 @@ async def main() -> None:
                             if info:
                                 analysed_fen = getattr(engine_res, "analysed_fen", self.state.game.fen())
                                 # send pv, score, not pv as it's sent by BEST_MOVE above
-                                await self.send_analyse(info, analysed_fen, False)
+                                ponder_cache = ponder_move if ponder_move else chess.Move.null()
+                                await self.send_analyse(
+                                    info,
+                                    analysed_fen,
+                                    False,
+                                    ponder_move=ponder_cache,
+                                )
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
@@ -2149,17 +2155,36 @@ async def main() -> None:
 
                 # before pushing a user move check if we got a ponder hit - for analysis modes
                 if not self.eng_plays():
-                    info_result = await self.engine.get_analysis(self.state.game)
-                    info_list: list[InfoDict] = info_result.get("info")
                     ponder_hit = False
+                    # which analyser to use? same logic as in analyse() - try tutor first
+                    if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser():
+                        play_result = await self.state.picotutor.get_analysis_chosen_move(move)
+                        if play_result.info:
+                            # ponder hit from tutor list - make an info_list to trigger ponder hit below
+                            info_list = [play_result.info]  # construct a list for "pv first" below
+                        else:
+                            info_list = None  # no ponder hit in tutor
+                        analysed_fen = getattr(play_result, "analysed_fen", "")
+                    else:
+                        # tutor not replacing engine analysis, so try normal engine analysis
+                        info_result = await self.engine.get_analysis(self.state.game)
+                        info_list: list[InfoDict] = info_result.get("info")
+                        analysed_fen = info_result.get("fen")
                     if info_list:
                         info = info_list[0]  # pv first
                         if info and "pv" in info:
-                            expected_ponder_move = info["pv"][0] if info["pv"] else chess.Move.null()
+                            pv_moves = info["pv"]
+                            expected_ponder_move = pv_moves[0] if pv_moves else chess.Move.null()
                             if move == expected_ponder_move:
                                 # ponder hit! user chose the best ponder move
-                                analysed_fen = info_result.get("fen")
-                                await self.send_analyse(info, analysed_fen)
+                                ponder_reply = pv_moves[1] if pv_moves and len(pv_moves) > 1 else chess.Move.null()
+                                send_pv = pv_moves and len(pv_moves) > 1
+                                await self.send_analyse(
+                                    info, analysed_fen, send_pv=bool(send_pv), ponder_move=ponder_reply
+                                )
+                                if not send_pv:
+                                    self.state.pb_move = chess.Move.null()
+                                    self.state.best_sent_depth.reset()
                                 ponder_hit = True
                     if not ponder_hit:
                         # user deviated from analysed line (or no info available) - reset cache
@@ -2533,17 +2558,14 @@ async def main() -> None:
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
             analysed_fen = ""  # analysis is only valid for this fen
-            # @todo remove intermediate/temporary solution which is the 2nd part after "or" below:
-            # engine_playing_moves and not user_turn and can_use_coach_analyser() and user allowed it
-            if (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser()) or (
-                self.eng_plays()
-                and not self.state.is_user_turn()
-                and self.state.picotutor.can_use_coach_analyser()
-                and self.always_run_tutor
-            ):
-                result = await self.state.picotutor.get_analysis()  # use tutor
+            if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser():
+                # here picotutor engine replaces playing engine analysis to save cpu
+                result = await self.state.picotutor.get_analysis()
                 info_list: list[InfoDict] = result.get("info")
                 analysed_fen = result.get("fen", "")
+                info_candidate = info_list[0] if info_list else None
+                if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                    info_list = None  # optimised - prevent this info from being sent
             elif not self.eng_plays():
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)
@@ -2582,9 +2604,12 @@ async def main() -> None:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
             return info
 
-        async def send_analyse(self, info: InfoDict, analysed_fen: str, send_pv: bool = True):
+        async def send_analyse(
+            self, info: InfoDict, analysed_fen: str, send_pv: bool = True, ponder_move: chess.Move | None = None
+        ):
             """send pv, depth, and score events for a specific analysed fen
             with send_pv False pv message is not sent - use if its previous move InfoDict
+            ponder_move overrides the cached ponder the optimiser remembers (None keeps previous behaviour)
             this is executed periodically in the background_analyse_timer task"""
             if not info:
                 return
@@ -2596,12 +2621,17 @@ async def main() -> None:
             (move, score, mate) = PicoTutor.get_score(info)
             if "depth" in info:
                 depth = info.get("depth")
-                self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game, move)
+                cache_ponder = move
+                if ponder_move is not None:
+                    cache_ponder = ponder_move
+                self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game, cache_ponder)
                 # send depth before score as score is assembling depth in receiver end
                 await Observable.fire(Event.NEW_DEPTH(depth=depth))
-            if send_pv and move != chess.Move.null():
-                self.state.pb_move = move  # backward compatibility
-                await Observable.fire(Event.NEW_PV(pv=[move]))
+            if send_pv:
+                pv_move_to_send = ponder_move if ponder_move and ponder_move != chess.Move.null() else move
+                if pv_move_to_send != chess.Move.null():
+                    self.state.pb_move = pv_move_to_send  # backward compatibility
+                    await Observable.fire(Event.NEW_PV(pv=[pv_move_to_send]))
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 

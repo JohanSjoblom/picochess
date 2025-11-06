@@ -1134,7 +1134,29 @@ class DgtDisplay(DisplayMsg):
             if text:
                 text.wait = True  # in case of "bad pos" message send before
             else:
-                if self.dgtmenu.get_mode() == Mode.TRAINING:
+                mode = self.dgtmenu.get_mode()
+                if (
+                    mode == Mode.ANALYSIS
+                    and self.hint_move
+                    and self.hint_move != chess.Move.null()
+                    and self.hint_fen
+                ):
+                    side = self._get_clock_side(self.hint_turn)
+                    beep = self.dgttranslate.bl(BeepLevel.NO)
+                    text = Dgt.DISPLAY_MOVE(
+                        move=self.hint_move,
+                        fen=self.hint_fen,
+                        side=side,
+                        wait=True,
+                        maxtime=0,
+                        beep=beep,
+                        devs=devs,
+                        uci960=self.uci960,
+                        lang=self.dgttranslate.language,
+                        capital=self.dgttranslate.capital,
+                        long=self.dgttranslate.notation,
+                    )
+                elif mode in (Mode.TRAINING, Mode.KIBITZ, Mode.PGNREPLAY):
                     text = self._combine_depth_and_score()
                     text.wait = True
                 else:

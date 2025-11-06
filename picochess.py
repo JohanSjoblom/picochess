@@ -1234,13 +1234,13 @@ async def main() -> None:
                                 ponder_move = tutor_res.ponder
                                 info = tutor_res.info
                             if info:
-                                analysed_fen = getattr(engine_res, "analysed_fen", self.state.game.fen())
-                                # send pv, score, not pv as it's sent by BEST_MOVE above
+                                analysed_fen = getattr(engine_res, "analysed_fen", "")
+                                # send pv, score, not sendpv as it's sent by BEST_MOVE below
                                 ponder_cache = ponder_move if ponder_move else chess.Move.null()
                                 await self.send_analyse(
                                     info,
                                     analysed_fen,
-                                    False,
+                                    send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))

@@ -2461,7 +2461,12 @@ async def main() -> None:
             # if analyse is going to use tutor, use more depth
             if self.state.interaction_mode == Mode.PGNREPLAY:
                 return None  # PGN Replay does not need any deeper than DEEP_DEPTH
-            return FLOAT_TUTOR_MAX_ANALYSIS_DEPTH if self.is_coach_analyser() else None
+            return (
+                FLOAT_TUTOR_MAX_ANALYSIS_DEPTH
+                # minor cpu bug fix in #128 - dont give larger depth if tutor cannot be used
+                if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser()
+                else None
+            )
 
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""

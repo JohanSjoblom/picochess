@@ -41,6 +41,8 @@ apt -y install python3-pyaudio portaudio19-dev
 apt -y install python3-venv
 apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
+# for mame_emulation we need
+apt -y install xdotool
 # following lines are for (building) and running leela-chess-zero
 # apt -y install libopenblas-dev ninja-build meson
 # added more tools for building lc0 0.32

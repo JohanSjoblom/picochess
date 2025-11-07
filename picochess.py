@@ -2493,6 +2493,29 @@ async def main() -> None:
                 else None
             )
 
+        # There are four case in the boolean table for is_coach_analyser and need_engine_analyser
+        # This logic is used by analyse to get the correct get_analysis
+        # I used this text to let AI review that the truth table is always working
+        # 1. Engine is playing and tutor is on:
+        #   For user turn the tutor should be analysing, and
+        #   for engine turn the new PlayingContinuousAnalysis should be running so no analysis needed as
+        #       PlayingContinuousAnalysis provides analysis from engine while engine is thinking.
+        # 2. Engine is playing and tutor is off:
+        #   For user turn engine ContinuousAnalysis should run, and
+        #   for engine turn the new PlayingContinuousAnalysis is running so no analysis needed.
+        # 3. Engine is not playing and tutor is on:
+        #   Always use tutor, which is the best engine ContinuousAnalysis running.
+        #       Its an analysis situation and user is making moves for both sides.
+        # 4. Engine is not playing and tutor is off:
+        #   Always use engine ContinuousAnalysis to analyse both sides.
+
+        # Goal is that in all these 4 cases we always only run one analyser at any point in time
+        # Dont care about the self.obvious_engine in picotutor because that one is limited to a depth of 5 only
+        # Only one of the following should run at any time in these 4 cases above.
+        # A. picotutor self.best_engine using ContinuousAnalysis
+        # B. engine ContinuousAnalysis
+        # C. engine PlayingContinuousAnalysis
+
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
@@ -2501,7 +2524,8 @@ async def main() -> None:
             else:
                 # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
                 # this saves a lot of CPU on Raspberry Pi
-                result = not self.eng_plays() and self.engine.get_name() == self.state.picotutor.get_engine_name()
+                # issue# 128 save even more cpu - always use tutor for all analysis modes
+                result = not self.eng_plays()
             # issue #78 - make sure tutor has same board othewise analysis is worthless
             result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
             return result
@@ -2510,8 +2534,16 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
-            # 128 - skip engine analyser only when engine is thinking about its move
+            # 128 - skip engine analyser when engine is thinking about its move
+            # because as of 128 the engine play will get info from PlayingContinuousAnalyser
             result = result and not (self.eng_plays() and not self.state.is_user_turn())
+            # skip engine analyser if tutor can be used on engine waiting for user turn
+            # this needs to match the if not self.state.picotutor.can_use_coach_analyser():
+            # in analyse
+            result = result and not (
+                self.eng_plays() and self.state.picotutor.can_use_coach_analyser() and self.state.is_user_turn()
+            )
+            # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
 
         def eng_plays(self, consider_pgn: bool = True) -> bool:
@@ -2582,12 +2614,14 @@ async def main() -> None:
                     info_list: list[InfoDict] = result.get("info")
                     analysed_fen = result.get("fen", "")
                 else:
-                    result = await self.engine.get_analysis(self.state.game)
-                    info_list: list[InfoDict] = result.get("info")
-                    analysed_fen = result.get("fen", "")
-                    info_candidate = info_list[0] if info_list else None
-                    if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                        info_list = None  # optimised else: prevent this info from being sent
+                    if not self.state.picotutor.can_use_coach_analyser():
+                        # save cpu - only run engine analysis on user turn if coach/watcher off
+                        result = await self.engine.get_analysis(self.state.game)
+                        info_list: list[InfoDict] = result.get("info")
+                        analysed_fen = result.get("fen", "")
+                        info_candidate = info_list[0] if info_list else None
+                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                            info_list = None  # optimised else: prevent this info from being sent
                 await self._start_or_stop_analysis_as_needed()
             if info_list:
                 info = info_list[0]  # pv first

@@ -244,6 +244,7 @@ class PicochessState:
         self.flag_premove = False
         self.flag_startup = False
         self.game = None or chess.Board()
+        self.engine_move_was_book = False
         self.game_declared = False  # User declared resignation or draw
         self.interaction_mode = Mode.NORMAL
         self.last_legal_fens: List[Any] = []
@@ -2526,6 +2527,9 @@ async def main() -> None:
                 # this saves a lot of CPU on Raspberry Pi
                 # issue# 128 save even more cpu - always use tutor for all analysis modes
                 result = not self.eng_plays()
+                # special case - when playing opening book we need to use tutor when playing engine
+                if not result:
+                    result = self.eng_plays() and self.state.engine_move_was_book and self.state.is_user_turn()
             # issue #78 - make sure tutor has same board othewise analysis is worthless
             result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
             return result
@@ -4406,6 +4410,7 @@ async def main() -> None:
                 self.state.take_back_locked = False
                 self.state.best_move_posted = False
                 self.state.takeback_active = False
+                self.state.engine_move_was_book = bool(event.inbook) if self.eng_plays() else False
 
                 if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     if self.state.is_not_user_turn():

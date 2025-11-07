@@ -15,7 +15,7 @@ if [ ! -d "$REPO_DIR" ]; then
 fi
 
 usage() {
-    echo "Usage: $0 {arch [ARCH]|lc0|mame|all [ARCH]}" 1>&2
+    echo "Usage: $0 {arch [ARCH]|lc0|mame|rodent3|rodent4|all [ARCH]}" 1>&2
     exit 1
 }
 
@@ -60,6 +60,30 @@ restore_mame() {
     fi
 }
 
+restore_rodent3() {
+    if [ -d "$BACKUP_ROOT/rodent3" ]; then
+        echo "Restoring engines/rodent3 from backup..."
+        rm -rf "$REPO_DIR/engines/rodent3"
+        mkdir -p "$REPO_DIR/engines" || exit 1
+        cp -R "$BACKUP_ROOT/rodent3" "$REPO_DIR/engines/" || exit 1
+    else
+        echo "No backup available for engines/rodent3" 1>&2
+        return 1
+    fi
+}
+
+restore_rodent4() {
+    if [ -d "$BACKUP_ROOT/rodent4" ]; then
+        echo "Restoring engines/rodent4 from backup..."
+        rm -rf "$REPO_DIR/engines/rodent4"
+        mkdir -p "$REPO_DIR/engines" || exit 1
+        cp -R "$BACKUP_ROOT/rodent4" "$REPO_DIR/engines/" || exit 1
+    else
+        echo "No backup available for engines/rodent4" 1>&2
+        return 1
+    fi
+}
+
 if [ $# -eq 0 ]; then
     ACTION="all"
 else
@@ -78,12 +102,20 @@ case $ACTION in
     mame)
         restore_mame || exit 1
         ;;
+    rodent3)
+        restore_rodent3 || exit 1
+        ;;
+    rodent4)
+        restore_rodent4 || exit 1
+        ;;
     all)
         ARCH_VALUE=$1
         STATUS=0
         restore_arch "$ARCH_VALUE" || STATUS=1
         restore_lc0 || STATUS=1
         restore_mame || STATUS=1
+        restore_rodent3 || STATUS=1
+        restore_rodent4 || STATUS=1
         exit $STATUS
         ;;
     *)

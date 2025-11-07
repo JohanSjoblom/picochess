@@ -96,6 +96,66 @@ if [ "$ARCH" = "aarch64" ]; then
     else
         echo "MAME emulation files already present."
     fi
+
+    if [ ! -d "$ENGINES_DIR/rodent3" ]; then
+        echo "No Rodent III files found. Installing package..."
+        mkdir -p "$ENGINES_DIR/rodent3" || exit 1
+
+        RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent3_lite.tar.gz"
+        RODENT3_TMP="/home/pi/pico_backups/current/tmp/aarch64_rodent3_lite.tar.gz"
+
+        echo "Downloading Rodent III package..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -L -o "$RODENT3_TMP" "$RODENT3_URL" || exit 1
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$RODENT3_TMP" "$RODENT3_URL" || exit 1
+        else
+            echo "Error: need curl or wget to download" 1>&2
+            exit 1
+        fi
+
+        echo "Extracting Rodent III package..."
+        tar -xzf "$RODENT3_TMP" -C "$ENGINES_DIR/rodent3" || {
+            echo "Extraction failed for Rodent III package." 1>&2
+            rm -f "$RODENT3_TMP"
+            exit 1
+        }
+        rm -f "$RODENT3_TMP"
+
+        echo "Rodent III package installed successfully."
+    else
+        echo "Rodent III files already present."
+    fi
+
+    if [ ! -d "$ENGINES_DIR/rodent4" ]; then
+        echo "No Rodent IV files found. Installing package..."
+        mkdir -p "$ENGINES_DIR/rodent4" || exit 1
+
+        RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent4_lite.tar.gz"
+        RODENT4_TMP="/home/pi/pico_backups/current/tmp/aarch64_rodent4_lite.tar.gz"
+
+        echo "Downloading Rodent IV package..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -L -o "$RODENT4_TMP" "$RODENT4_URL" || exit 1
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$RODENT4_TMP" "$RODENT4_URL" || exit 1
+        else
+            echo "Error: need curl or wget to download" 1>&2
+            exit 1
+        fi
+
+        echo "Extracting Rodent IV package..."
+        tar -xzf "$RODENT4_TMP" -C "$ENGINES_DIR/rodent4" || {
+            echo "Extraction failed for Rodent IV package." 1>&2
+            rm -f "$RODENT4_TMP"
+            exit 1
+        }
+        rm -f "$RODENT4_TMP"
+
+        echo "Rodent IV package installed successfully."
+    else
+        echo "Rodent IV files already present."
+    fi
 fi
 
 # --- x86_64 ------------------------------------------------------------------

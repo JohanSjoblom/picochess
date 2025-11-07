@@ -69,6 +69,28 @@ if [ "$ARCH" = "aarch64" ]; then
     else
         echo "No mame_emulation directory found — skipping."
     fi
+
+    if [ -d "$SRC_DIR/rodent3" ]; then
+        echo "Moving $SRC_DIR/rodent3 to $ENGINES_BACKUP_DIR/rodent3 ..."
+        rm -rf "$ENGINES_BACKUP_DIR/rodent3"
+        mv "$SRC_DIR/rodent3" "$ENGINES_BACKUP_DIR/rodent3" || {
+            echo "Error: Failed to move $SRC_DIR/rodent3" >&2
+            exit 1
+        }
+    else
+        echo "No rodent3 directory found — skipping."
+    fi
+
+    if [ -d "$SRC_DIR/rodent4" ]; then
+        echo "Moving $SRC_DIR/rodent4 to $ENGINES_BACKUP_DIR/rodent4 ..."
+        rm -rf "$ENGINES_BACKUP_DIR/rodent4"
+        mv "$SRC_DIR/rodent4" "$ENGINES_BACKUP_DIR/rodent4" || {
+            echo "Error: Failed to move $SRC_DIR/rodent4" >&2
+            exit 1
+        }
+    else
+        echo "No rodent4 directory found — skipping."
+    fi
 fi
 
 # Move LC0 weights if present

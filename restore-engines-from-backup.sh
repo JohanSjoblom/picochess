@@ -15,7 +15,7 @@ if [ ! -d "$REPO_DIR" ]; then
 fi
 
 usage() {
-    echo "Usage: $0 {arch [ARCH]|lc0|all [ARCH]}" 1>&2
+    echo "Usage: $0 {arch [ARCH]|lc0|mame|all [ARCH]}" 1>&2
     exit 1
 }
 
@@ -48,6 +48,18 @@ restore_lc0() {
     fi
 }
 
+restore_mame() {
+    if [ -d "$BACKUP_ROOT/mame_emulation" ]; then
+        echo "Restoring engines/mame_emulation from backup..."
+        rm -rf "$REPO_DIR/engines/mame_emulation"
+        mkdir -p "$REPO_DIR/engines" || exit 1
+        cp -R "$BACKUP_ROOT/mame_emulation" "$REPO_DIR/engines/" || exit 1
+    else
+        echo "No backup available for engines/mame_emulation" 1>&2
+        return 1
+    fi
+}
+
 if [ $# -eq 0 ]; then
     ACTION="all"
 else
@@ -63,11 +75,15 @@ case $ACTION in
     lc0)
         restore_lc0 || exit 1
         ;;
+    mame)
+        restore_mame || exit 1
+        ;;
     all)
         ARCH_VALUE=$1
         STATUS=0
         restore_arch "$ARCH_VALUE" || STATUS=1
         restore_lc0 || STATUS=1
+        restore_mame || STATUS=1
         exit $STATUS
         ;;
     *)

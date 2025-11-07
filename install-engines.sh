@@ -66,6 +66,36 @@ if [ "$ARCH" = "aarch64" ]; then
     else
         echo "Engines for aarch64 already present."
     fi
+
+    if [ ! -d "$ENGINES_DIR/mame_emulation" ]; then
+        echo "No MAME emulation files found. Installing package..."
+        mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
+
+        MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_mame_lite.tar.gz"
+        MAME_TMP="/home/pi/pico_backups/current/tmp/aarch64_mame_lite.tar.gz"
+
+        echo "Downloading MAME emulation package..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -L -o "$MAME_TMP" "$MAME_URL" || exit 1
+        elif command -v wget >/dev/null 2>&1; then
+            wget -O "$MAME_TMP" "$MAME_URL" || exit 1
+        else
+            echo "Error: need curl or wget to download" 1>&2
+            exit 1
+        fi
+
+        echo "Extracting MAME emulation package..."
+        tar -xzf "$MAME_TMP" -C "$ENGINES_DIR/mame_emulation" || {
+            echo "Extraction failed for MAME emulation package." 1>&2
+            rm -f "$MAME_TMP"
+            exit 1
+        }
+        rm -f "$MAME_TMP"
+
+        echo "MAME emulation package installed successfully."
+    else
+        echo "MAME emulation files already present."
+    fi
 fi
 
 # --- x86_64 ------------------------------------------------------------------

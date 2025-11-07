@@ -3400,6 +3400,7 @@ async def main() -> None:
             elif isinstance(event, Event.NEW_ENGINE):
                 # if we are waiting for an engine move, get rid of that first
                 await self.get_rid_of_engine_move()
+                self.state.best_sent_depth.reset()
                 old_file = self.state.engine_file
                 old_options = {}
                 old_options = self.engine.get_pgn_options()
@@ -4934,6 +4935,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.ALTMOVES(altmoves=event.altmoves))
 
             elif isinstance(event, Event.PICOWATCHER):
+                self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
                     self.state.dgtmenu.get_picocoach(),
@@ -4956,6 +4958,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
+                self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
                     self.state.dgtmenu.get_picocoach(),
@@ -4988,6 +4991,7 @@ async def main() -> None:
                     await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
+                self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
                     self.state.dgtmenu.get_picocoach(),
@@ -5071,6 +5075,7 @@ async def main() -> None:
                     await self.update_elo_display()
 
             elif isinstance(event, Event.TAKE_BACK):
+                self.state.best_sent_depth.reset()
                 if self.state.game.move_stack and (
                     event.take_back == "PGN_TAKEBACK"
                     or not (

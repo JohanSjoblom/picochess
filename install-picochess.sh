@@ -189,7 +189,7 @@ fi
 if [ -f install-engines.sh ]; then
     cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
-    sudo -u pi ./install-engines.sh
+    sudo -u pi ./install-engines.sh small
 else
     echo "install-engines.sh missing — cannot install engines."
 fi

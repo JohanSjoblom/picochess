@@ -1,7 +1,6 @@
 # Engine Installation for Picochess
 
-The `install-engines.sh` script automatically downloads and installs prepackaged chess engine bundles for your system architecture.
-Despite its name it will add all resources available in the future like opening books, audio files for the legacy pgn replay engine etc
+The `install-engines.sh` script automatically downloads and installs prepackaged chess engine bundles for your system architecture. Despite its name it also deploys related resources (MAME emulation data, Rodent engines, opening books, etc.) whenever they are available for that architecture.
 
 Each engine package is provided as a `.tar.gz` archive, hosted in the GitHub releases section.  
 The script detects the current architecture (e.g. `aarch64`, `x86_64`, `armv7l`) and installs the correct set of engines into the `engines/` folder.
@@ -42,7 +41,26 @@ engines/
 - Extracts it into place
 - Cleans up temporary files afterward
 
-If the folder already exists, the script skips installation to avoid overwriting existing engines.
+If the folder already exists, the script skips installation to avoid overwriting existing engines. To force an update you must first run `move-engines-to-backup.sh`, which empties the `engines/` folder and allows the installer to download everything again.
+
+---
+
+## ▶️ Usage
+
+`install-engines.sh` now requires an explicit package selection:
+
+```bash
+# Install the smaller engine bundle (default in installers)
+./install-engines.sh small
+
+# Install the lite/DGT-focused bundle
+./install-engines.sh lite
+```
+
+- `small` keeps the download size lean (used by `install-picochess.sh` and the regular update path).
+- `lite` installs the full lite/DGT package plus add-ons such as MAME emulation and Rodent engines.
+
+> ℹ️ The script only runs as the `pi` user and assumes the target directories do **not** already exist. Run `move-engines-to-backup.sh` first if you need to reinstall over an existing setup.
 
 ---
 

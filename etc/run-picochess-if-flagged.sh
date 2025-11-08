@@ -62,7 +62,7 @@ if [ -f "$FLAG" ]; then
                     touch "$FAIL_FILE"
                     exit 1
                 fi
-                sudo -u pi sh "$ENGINE_SCRIPT" >>"$LOGFILE" 2>&1
+                sudo -u pi sh "$ENGINE_SCRIPT" lite >>"$LOGFILE" 2>&1
                 STATUS=$?
                 ;;
             books-games)

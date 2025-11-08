@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 class DgtDisplay(DisplayMsg):
     """Dispatcher for Messages towards DGT hardware or back to the event system (picochess)."""
 
+    ANALYSIS_MESSAGE_TYPES = (Message.NEW_DEPTH, Message.NEW_PV, Message.NEW_SCORE)
+
     def __init__(
         self, dgttranslate: DgtTranslate, dgtmenu: DgtMenu, time_control: TimeControl, loop: asyncio.AbstractEventLoop
     ):
@@ -1135,12 +1137,7 @@ class DgtDisplay(DisplayMsg):
                 text.wait = True  # in case of "bad pos" message send before
             else:
                 mode = self.dgtmenu.get_mode()
-                if (
-                    mode == Mode.ANALYSIS
-                    and self.hint_move
-                    and self.hint_move != chess.Move.null()
-                    and self.hint_fen
-                ):
+                if mode == Mode.ANALYSIS and self.hint_move and self.hint_move != chess.Move.null() and self.hint_fen:
                     side = self._get_clock_side(self.hint_turn)
                     beep = self.dgttranslate.bl(BeepLevel.NO)
                     text = Dgt.DISPLAY_MOVE(
@@ -1590,6 +1587,59 @@ class DgtDisplay(DisplayMsg):
         elif isinstance(message, Message.PROMOTION_DONE):
             await DispatchDgt.fire(Dgt.PROMOTION_DONE(uci_move=message.move.uci(), devs={"ser"}))
 
+    def _grab_only_latest(self, message):
+        """Return the latest analysis message of the same type by dropping stale duplicates."""
+        if not isinstance(message, self.ANALYSIS_MESSAGE_TYPES):
+            return message
+
+        queue = getattr(self.msg_queue, "_queue", None)
+        if queue is None:
+            return message
+
+        message_type = type(message)
+        latest_message, stale_in_queue, replaced_original = self._strip_stale_analysis_messages(
+            queue, message_type, message
+        )
+
+        total_dropped = stale_in_queue
+        if replaced_original:
+            # The message we originally got becomes stale if a newer one exists.
+            self.msg_queue.task_done()
+            total_dropped += 1
+
+        if total_dropped:
+            logger.debug(
+                "Dropped %d stale %s message from msg_queue",
+                total_dropped,
+                message_type.__name__,
+            )
+
+        return latest_message
+
+    def _strip_stale_analysis_messages(self, queue, message_type, latest_message):
+        """Walk the queue once, removing older instances of the same analysis message."""
+        kept = []
+        same_type_count = 0
+        initial_length = len(queue)
+
+        for _ in range(initial_length):
+            queued_message = queue.popleft()
+            if isinstance(queued_message, message_type):
+                latest_message = queued_message
+                same_type_count += 1
+                continue
+            kept.append(queued_message)
+
+        if kept:
+            queue.extendleft(reversed(kept))
+
+        stale_in_queue = max(same_type_count - 1, 0)
+        for _ in range(stale_in_queue):
+            self.msg_queue.task_done()
+
+        replaced_original = same_type_count > 0
+        return latest_message, stale_in_queue, replaced_original
+
     async def message_consumer(self):
         """DgtDisplay message consumer"""
         logger.debug("DgtDisplay msg_queue ready")
@@ -1597,6 +1647,7 @@ class DgtDisplay(DisplayMsg):
             while True:
                 # Check if we have something to display
                 message = await self.msg_queue.get()
+                message = self._grab_only_latest(message)
                 if (
                     not isinstance(message, Message.DGT_SERIAL_NR)
                     and not isinstance(message, Message.DGT_CLOCK_TIME)

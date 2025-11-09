@@ -1647,7 +1647,7 @@ class DgtDisplay(DisplayMsg):
             while True:
                 # Check if we have something to display
                 message = await self.msg_queue.get()
-                message = self._grab_only_latest(message)
+                # message = self._grab_only_latest(message)
                 if (
                     not isinstance(message, Message.DGT_SERIAL_NR)
                     and not isinstance(message, Message.DGT_CLOCK_TIME)

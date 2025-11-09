@@ -56,6 +56,26 @@ class Dispatcher(DispatchDgt):
         self.tasks[device] = []
         self.display_hash[device] = 0
 
+    def _prune_analysis_tasks(self, dev: str, new_message):
+        """Drop stale analysis updates queued for the same device."""
+        if not getattr(new_message, "analysis_update", False):
+            return 0
+
+        representative = repr(new_message)
+        kept = []
+        dropped = 0
+        for task in self.tasks[dev]:
+            if getattr(task, "analysis_update", False) and repr(task) == representative:
+                dropped += 1
+                continue
+            kept.append(task)
+
+        if dropped:
+            self.tasks[dev] = kept
+            logger.debug("(%s) removed %d stale %s tasks", dev, dropped, representative)
+
+        return dropped
+
     def is_prio_device(self, dev, connect):
         """Return the most prio registered device."""
         #  logger.debug("(%s) clock connected: %s", dev, connect)
@@ -179,6 +199,7 @@ class Dispatcher(DispatchDgt):
             if self.maxtimer_running[dev]:
                 if hasattr(message, "wait"):
                     if message.wait:
+                        self._prune_analysis_tasks(dev, message)
                         self.tasks[dev].append(message)
                         logger.debug("(%s) tasks delayed: %s", dev, self.tasks[dev])
                         continue

@@ -902,6 +902,7 @@ class DgtDisplay(DisplayMsg):
         if message.mode in (Mode.PGNREPLAY, Mode.KIBITZ, Mode.TRAINING) and not self._inside_main_menu():
             text = self._combine_depth_and_score()
             text.wait = True
+            text.analysis_update = True
             await DispatchDgt.fire(text)
 
     async def _process_new_pv(self, message):
@@ -924,6 +925,7 @@ class DgtDisplay(DisplayMsg):
                 capital=self.dgttranslate.capital,
                 long=self.dgttranslate.notation,
             )
+            disp.analysis_update = True
             await DispatchDgt.fire(disp)
 
     async def _process_startup_info(self, message):

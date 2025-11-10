@@ -1228,14 +1228,22 @@ async def main() -> None:
                         else:
                             move = engine_res.move if engine_res.move != chess.Move.null() else None
                             ponder_move = engine_res.ponder
+                            if not ponder_move:
+                                logger.debug("engine sent no ponder move")
                             info: InfoDict | None = engine_res.info
-                            if self.pgn_mode() and move:
-                                # issue 61 - pgn_engine uses tutor to override the ponder and info
+                            analysed_fen = getattr(engine_res, "analysed_fen", "")
+                            if move and not ponder_move and info and "pv" in info:
+                                pv_line = info["pv"]
+                                if pv_line and pv_line[0] == move and len(pv_line) > 1:
+                                    logger.debug("engine sent info - extracting ponder move")
+                                    ponder_move = pv_line[1]  # not likely to happen
+                            if move and not ponder_move:
+                                # issue 61 - use tutor analysis when the engine did not supply a ponder move
                                 tutor_res = await self.state.picotutor.get_analysis_chosen_move(move)
-                                ponder_move = tutor_res.ponder
-                                info = tutor_res.info
+                                ponder_move = tutor_res.ponder or ponder_move
+                                info = tutor_res.info or info
+                                analysed_fen = getattr(tutor_res, "analysed_fen", analysed_fen)
                             if info:
-                                analysed_fen = getattr(engine_res, "analysed_fen", "")
                                 # send pv, score, not sendpv as it's sent by BEST_MOVE below
                                 ponder_cache = ponder_move if ponder_move else chess.Move.null()
                                 await self.send_analyse(
@@ -2520,7 +2528,7 @@ async def main() -> None:
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
-            if self.state.interaction_mode == Mode.PGNREPLAY:
+            if self.pgn_mode():
                 result = True  # PGN Replay always uses tutor analysis only
             else:
                 # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
@@ -2536,6 +2544,8 @@ async def main() -> None:
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
+            if self.pgn_mode():
+                return False
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
             # 128 - skip engine analyser when engine is thinking about its move
@@ -2602,7 +2612,7 @@ async def main() -> None:
                 info_candidate = info_list[0] if info_list else None
                 if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
                     info_list = None  # optimised - prevent this info from being sent
-            elif not self.eng_plays():
+            elif not self.eng_plays() and not self.pgn_mode():
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
@@ -2613,20 +2623,21 @@ async def main() -> None:
                 await self._start_or_stop_analysis_as_needed()
             else:
                 # Issue #109 and #49 before that - how to get engine thinking
-                if not self.state.is_user_turn():
-                    result = await self.engine.get_thinking_analysis(self.state.game)
-                    info_list: list[InfoDict] = result.get("info")
-                    analysed_fen = result.get("fen", "")
-                else:
-                    if not self.state.picotutor.can_use_coach_analyser():
-                        # save cpu - only run engine analysis on user turn if coach/watcher off
-                        result = await self.engine.get_analysis(self.state.game)
+                if not self.pgn_mode():
+                    if not self.state.is_user_turn() and not self.pgn_mode():
+                        result = await self.engine.get_thinking_analysis(self.state.game)
                         info_list: list[InfoDict] = result.get("info")
                         analysed_fen = result.get("fen", "")
-                        info_candidate = info_list[0] if info_list else None
-                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                            info_list = None  # optimised else: prevent this info from being sent
-                await self._start_or_stop_analysis_as_needed()
+                    else:
+                        if not self.state.picotutor.can_use_coach_analyser():
+                            # save cpu - only run engine analysis on user turn if coach/watcher off
+                            result = await self.engine.get_analysis(self.state.game)
+                            info_list: list[InfoDict] = result.get("info")
+                            analysed_fen = result.get("fen", "")
+                            info_candidate = info_list[0] if info_list else None
+                            if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                                info_list = None  # optimised else: prevent this info from being sent
+                    await self._start_or_stop_analysis_as_needed()
             if info_list:
                 info = info_list[0]  # pv first
                 await self.send_analyse(info, analysed_fen)

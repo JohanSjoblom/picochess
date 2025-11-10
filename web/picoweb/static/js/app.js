@@ -997,7 +997,7 @@ function loadGame(pgn_lines) {
             var move = board_stack[last_board_stack_index].move(preparsed_move, { sloppy: true });
             in_variation = true;
             if (move === null) {
-                console.log('Unparsed move:');
+                ('Unparsed move:');
                 console.log(preparsed_move);
                 console.log('Fen: ' + board_stack[last_board_stack_index].fen());
                 console.log('faulty line: ' + line);
@@ -1494,9 +1494,9 @@ function importPv(multipv) {
 
 function analyzePressed() {
     if ($('#AnalyzeText').text() === 'Analyze') {
-        $('#evaluationBar').show();
+        $('#evaluationBar').css('visibility', 'visible');
     } else {
-        $('#evaluationBar').hide();
+        $('#evaluationBar').css('visibility', 'hidden');
         // Limpiar contenedor de análisis al detener
         $('#pv_output').empty();
         // Recrear los contenedores según el multipv actual
@@ -1562,7 +1562,7 @@ function stopAnalysis() {
 
     // Ocultar la barra de evaluación cuando se detiene el análisis
     if (!window.analysis) {
-        $('#evaluationBar').hide();
+        $('#evaluationBar').css('visibility', 'hidden');
     }
 }
 
@@ -1605,7 +1605,7 @@ function analyze(position_update) {
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
-            $('#evaluationBar').hide();
+            $('#evaluationBar').css('visibility', 'hidden');
             return;
         }
     }
@@ -1726,7 +1726,29 @@ function getAllInfo() {
     });
 }
 
+var boardThemes = ['blue', 'green', 'metal', 'newspaper', 'soft', 'wood', 'natural-wood'];
+var currentThemeIndex = 6; // natural-wood por defecto
+
+function changeBoardTheme() {
+    currentThemeIndex = (currentThemeIndex + 1) % boardThemes.length;
+    var theme = boardThemes[currentThemeIndex];
+    
+    // Remover todas las clases de tema
+    $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
+    
+    // Agregar la nueva clase de tema
+    $('#xboardsection').addClass(theme);
+    
+    // Cargar el CSS del tema si no está cargado
+    var themeLink = $('#theme-' + theme);
+    if (themeLink.length === 0) {
+        $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
+    }
+}
+
 $('#flipOrientationBtn').on('click', boardFlip);
+$('#DgtSyncBtn').on('click', goToDGTFen);
+$('#colorBtn').on('click', changeBoardTheme);
 $('#backBtn').on('click', goBack);
 $('#fwdBtn').on('click', goForward);
 $('#startBtn').on('click', goToStart);

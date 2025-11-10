@@ -22,7 +22,7 @@ body {
 }
 
 .gameVariation {
-    font-size: 1.4vw;
+    font-size: 1.2vw;
     display: block;
     margin-left: 5vw;
     margin-top: 0.6vw;
@@ -34,7 +34,7 @@ body {
 }
 
 .comment {
-    font-size: 1.4vw;
+    font-size: 1.2vw;
     display: block;
     margin-top: 0.6vw;
     margin-bottom: 0.6vw;
@@ -43,12 +43,12 @@ body {
 }
 
 .bookMoves {
-    font-size: 1.8vw;
+    font-size: 1.4vw;
     font-family: Roboto, FreeSerif, sans-serif;
 }
 
 .gameMoves {
-    font-size: 1.8vw;
+    font-size: 1.4vw;
     font-weight: bolder;
     line-height: 150%;
     font-family: Roboto, FreeSerif, sans-serif;
@@ -56,7 +56,7 @@ body {
 
 .gameMoves .highlight {
     color: darkgreen;
-    font-size: 1.8vw;
+    font-size: 1.4vw;
 }
 
 .gameMoves a {
@@ -64,15 +64,15 @@ body {
 }
 
 .gameResult {
-    font-size: 1.8vw;
+    font-size: 1.4vw;
 }
 
 #pgn h4 {
-    font-size: 1.8vw;
+    font-size: 1.4vw;
 }
 
 #pgn h5 {
-    font-size: 1.6vw;
+    font-size: 1.2vw;
 }
 
 .panel-heading {
@@ -173,21 +173,24 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 .scroll_movelist {
-    height: 160px;
+    height: 30vh;
     overflow: auto;
     margin-bottom: 1vh;
 }
 
 .scroll_obooklist {
-    height: 400px;
+    height: 30vh;
+    overflow: auto;
 }
 
 #GameTable_wrapper {
-    min-height: 400px;
+    min-height: 30vh;
+    max-height: 30vh;
+    overflow: auto;
 }
 
 .scroll_engine {
-    height: 400px;
+    height: 30vh;
     overflow: auto;
     padding-right: 12px;
     margin-left: 0px;
@@ -206,6 +209,70 @@ div.dataTables_wrapper div.dataTables_length select {
 
 #data {
     margin-top: 10px;
+}
+
+/* Igualar altura de columnas - Sistema responsive universal */
+@media (min-width: 769px) {
+    /* Solo en desktop, hacer que las columnas tengan igual altura */
+    .container-fluid > .row {
+        display: flex;
+        align-items: stretch;
+    }
+    
+    .container-fluid > .row > .col {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* La columna derecha debe distribuir su espacio */
+    .container-fluid > .row > .col:last-child > .container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    
+    /* Cada row dentro de la columna derecha debe tomar su espacio proporcional */
+    .container-fluid > .row > .col:last-child > .container > .row:nth-child(1) {
+        flex: 0 0 auto; /* Reloj - tamaño fijo */
+    }
+    
+    .container-fluid > .row > .col:last-child > .container > .row:nth-child(2) {
+        flex: 0 0 auto; /* Botones reloj - tamaño fijo */
+    }
+    
+    .container-fluid > .row > .col:last-child > .container > .row:nth-child(3) {
+        flex: 1 1 40%; /* Lista movimientos - 40% del espacio flexible */
+        min-height: 0;
+    }
+    
+    .container-fluid > .row > .col:last-child > .container > .row:nth-child(4) {
+        flex: 1 1 60%; /* Pestañas - 60% del espacio flexible */
+        min-height: 0;
+    }
+    
+    /* Los contenedores scrollables deben llenar su espacio */
+    .scroll_movelist,
+    .scroll_obooklist,
+    .scroll_engine,
+    #GameTable_wrapper {
+        height: 100% !important;
+        max-height: 100% !important;
+    }
+    
+    /* Las cards deben llenar el espacio de su row */
+    .container-fluid > .row > .col:last-child > .container > .row > .card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    
+    .container-fluid > .row > .col:last-child > .container > .row > .card > .card-body,
+    .container-fluid > .row > .col:last-child > .container > .row > #data > .card-body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
 }
 
 canvas {

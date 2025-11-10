@@ -496,13 +496,11 @@ class PlayingContinuousAnalysis:
                     info=chess.engine.INFO_ALL,
                 )
 
-                # Main info loop — collect while engine thinks (skip for engines without info support)
-                if self.allow_info_loop:
-                    async for info in analysis:
-                        self.latest_info = info
-                        if self._force_event.is_set() or self._cancel_event.is_set():
-                            analysis.stop()
-                            break
+                async for info in analysis:
+                    self.latest_info = info
+                    if self._force_event.is_set() or self._cancel_event.is_set():
+                        analysis.stop()
+                        break
 
                 # Ensure the search is halted even if no info loop iterations ran
                 try:

@@ -2528,8 +2528,8 @@ async def main() -> None:
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
-            if self.pgn_mode():
-                result = True  # PGN Replay always uses tutor analysis only
+            if self.pgn_mode() or (self.engine and self.engine.is_mame_engine()):
+                result = True  # PGN Replay and mame engines always use tutor analysis only
             else:
                 # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
                 # this saves a lot of CPU on Raspberry Pi
@@ -2544,7 +2544,7 @@ async def main() -> None:
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
-            if self.pgn_mode():
+            if self.pgn_mode() or (self.engine and self.engine.is_mame_engine()):
                 return False
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())

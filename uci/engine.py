@@ -444,6 +444,7 @@ class PlayingContinuousAnalysis:
         loop: asyncio.AbstractEventLoop,
         engine_lease: EngineLease,
         engine_debug_name: str,
+        allow_info_loop: bool = True,
     ):
         self.engine = engine
         self.loop = loop
@@ -455,6 +456,7 @@ class PlayingContinuousAnalysis:
         self._cancel_event = asyncio.Event()
         self.whoami = f"{engine_debug_name} (playing)"
         self.engine_lease = engine_lease
+        self.allow_info_loop = allow_info_loop
         self.set_game_id(1)
 
     def set_game_id(self, game_id: int):
@@ -494,18 +496,20 @@ class PlayingContinuousAnalysis:
                     info=chess.engine.INFO_ALL,
                 )
 
-                # Main info loop — collect while engine thinks
-                async for info in analysis:
-                    self.latest_info = info
-                    if self._force_event.is_set() or self._cancel_event.is_set():
-                        analysis.stop()
-                        break
+                # Main info loop — collect while engine thinks (skip for engines without info support)
+                if self.allow_info_loop:
+                    async for info in analysis:
+                        self.latest_info = info
+                        if self._force_event.is_set() or self._cancel_event.is_set():
+                            analysis.stop()
+                            break
 
-                # Ensure the search is halted even if no info loop iterations ran
-                try:
-                    analysis.stop()
-                except Exception:
-                    pass
+                if self.allow_info_loop:
+                    # Ensure the search is halted even if no info loop iterations ran
+                    try:
+                        analysis.stop()
+                    except Exception:
+                        pass
 
                 best_move = None
                 ponder_move = None
@@ -654,6 +658,7 @@ class UciEngine(object):
                 loop=self.loop,
                 engine_lease=self.engine_lease,
                 engine_debug_name=self.whoami,
+                allow_info_loop=not self.is_mame,
             )
             self.analyser.set_game_id(self.game_id)
             self.playing.set_game_id(self.game_id)
@@ -714,6 +719,10 @@ class UciEngine(object):
     def get_name(self) -> str:
         """Get engine name that was reported by engine"""
         return self.engine_name
+
+    def is_mame_engine(self) -> bool:
+        """Return True if this engine runs through the MAME/MESS emulation layer."""
+        return self.is_mame
 
     def get_options(self):
         """Get engine options."""

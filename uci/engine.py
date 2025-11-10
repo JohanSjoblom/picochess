@@ -504,12 +504,11 @@ class PlayingContinuousAnalysis:
                             analysis.stop()
                             break
 
-                if self.allow_info_loop:
-                    # Ensure the search is halted even if no info loop iterations ran
-                    try:
-                        analysis.stop()
-                    except Exception:
-                        pass
+                # Ensure the search is halted even if no info loop iterations ran
+                try:
+                    analysis.stop()
+                except Exception:
+                    pass
 
                 best_move = None
                 ponder_move = None

@@ -96,13 +96,13 @@ class ChannelHandler(ServerRequestHandler):
             side_to_play = self.get_argument("sideToPlay", "true").lower() == "true"
             board_reversed = self.get_argument("boardSide", "false").lower() == "true"
             uci960_enabled = self.get_argument("uci960", "false").lower() == "true"
-            
+
             # Get castling rights from web sliders
             white_castle_king = self.get_argument("whiteCastleKing", "true").lower() == "true"
             white_castle_queen = self.get_argument("whiteCastleQueen", "true").lower() == "true"
             black_castle_king = self.get_argument("blackCastleKing", "true").lower() == "true"
             black_castle_queen = self.get_argument("blackCastleQueen", "true").lower() == "true"
-            
+
             # Build castling rights string for FEN
             castling = ""
             if white_castle_king:
@@ -115,17 +115,17 @@ class ChannelHandler(ServerRequestHandler):
                 castling += "q"
             if not castling:
                 castling = "-"
-            
+
             fen = self.shared["dgt_fen"]
 
             if not fen or fen == "8/8/8/8/8/8/8/8":
                 logger.error("No valid board position scanned")
                 return None
-            
+
             # Check if board needs flipping.
             if board_reversed:
                 fen = fen[::-1]
-            
+
             # Build complete FEN with position settings.
             fen += " {0} {1} - 0 1".format("w" if side_to_play else "b", castling)
 
@@ -146,7 +146,7 @@ class ChannelHandler(ServerRequestHandler):
             except Exception as fen_error:
                 logger.error(f"FEN validation error: {fen_error}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error in process_board_scan: {e}")
             return None
@@ -969,6 +969,9 @@ class WebDisplay(DisplayMsg):
                     not isinstance(message, Message.DGT_SERIAL_NR)
                     and not isinstance(message, Message.DGT_CLOCK_TIME)
                     and not isinstance(message, Message.CLOCK_TIME)
+                    and not isinstance(message, Message.NEW_DEPTH)
+                    and not isinstance(message, Message.NEW_SCORE)
+                    and not isinstance(message, Message.NEW_PV)
                 ):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task

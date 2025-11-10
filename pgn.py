@@ -781,6 +781,9 @@ class PgnDisplay(DisplayMsg):
                     not isinstance(message, Message.DGT_SERIAL_NR)
                     and not isinstance(message, Message.DGT_CLOCK_TIME)
                     and not isinstance(message, Message.CLOCK_TIME)
+                    and not isinstance(message, Message.NEW_DEPTH)
+                    and not isinstance(message, Message.NEW_SCORE)
+                    and not isinstance(message, Message.NEW_PV)
                 ):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task

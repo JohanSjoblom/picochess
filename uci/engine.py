@@ -675,7 +675,7 @@ class UciEngine(object):
             # in this situation the engine is not responding properly
             # and is assumed dead
             # part 1 : copied from quit
-            if self.analyser.is_running():
+            if self.analyser and self.analyser.is_running():
                 self.analyser.cancel()  # quit can force full cancel
             if self.playing.is_waiting_for_move():
                 self.playing.cancel()  # quit can force full cancel
@@ -782,7 +782,7 @@ class UciEngine(object):
 
     async def quit(self):
         """Quit engine."""
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             self.analyser.cancel()  # quit can force full cancel
         if self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
@@ -800,7 +800,7 @@ class UciEngine(object):
 
     def stop_analysis(self):
         """Stop background ContinuousAnalyser"""
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             self.analyser.cancel()  # @todo - find out why we need cancel and not stop
 
     def force_move(self):
@@ -927,7 +927,7 @@ class UciEngine(object):
         limit: limit for analysis - None means forever
         multipv: multipv for analysis - None means 1"""
         result = False
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             if limit and limit.depth != self.analyser.get_limit_depth():
                 logger.debug("%s picotutor limit change: %d- mode/engine switch?", self.whoami, limit.depth)
                 self.analyser.update_limit(limit)
@@ -951,7 +951,7 @@ class UciEngine(object):
 
     def is_analyser_running(self) -> bool:
         """check if analyser is running"""
-        return self.analyser.is_running()
+        return self.analyser and self.analyser.is_running()
 
     async def get_thinking_analysis(self, game: chess.Board) -> dict:
         """get analysis info from playing engine - returns dict with info and fen"""
@@ -975,7 +975,7 @@ class UciEngine(object):
         key 'fen': analysed board position fen"""
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             if self.analyser.get_fen() == game.fen():
                 result = await self.analyser.get_analysis()
             else:
@@ -987,14 +987,14 @@ class UciEngine(object):
 
     def is_analysis_limit_reached(self) -> bool:
         """return True if limit was reached for position being analysed"""
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             return self.analyser.is_limit_reached()
         return False
 
     async def get_latest_seen_depth(self) -> int:
         """return the latest depth seen in analysis info"""
         result = 0
-        if self.analyser.is_running():
+        if self.analyser and self.analyser.is_running():
             result = await self.analyser.get_latest_seen_depth()
         else:
             # this is the famous - this should not happen log

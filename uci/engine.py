@@ -488,37 +488,56 @@ class PlayingContinuousAnalysis:
                 await self.engine_lease.acquire(owner="playing", preempt=True)
                 lease_acquired = True
                 self.latest_fen = game.fen()
-                analysis = await self.engine.analysis(
-                    board=copy.deepcopy(game),
-                    limit=limit,
-                    game=self.game_id,
-                    root_moves=root_moves,
-                    info=chess.engine.INFO_ALL,
-                )
-
-                async for info in analysis:
-                    self.latest_info = info
-                    if self._force_event.is_set() or self._cancel_event.is_set():
-                        analysis.stop()
-                        break
-
-                # Ensure the search is halted even if no info loop iterations ran
-                try:
-                    analysis.stop()
-                except Exception:
-                    pass
-
                 best_move = None
                 ponder_move = None
-                try:
-                    best = await analysis.wait()
-                    if best:
-                        best_move = best.move
-                        ponder_move = best.ponder
-                except CancelledError:
-                    raise
-                except Exception:
-                    logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
+                info_snapshot: InfoDict | None = None
+
+                if self.allow_info_loop:
+                    analysis = await self.engine.analysis(
+                        board=copy.deepcopy(game),
+                        limit=limit,
+                        game=self.game_id,
+                        root_moves=root_moves,
+                        info=chess.engine.INFO_ALL,
+                    )
+
+                    async for info in analysis:
+                        self.latest_info = info
+                        if self._force_event.is_set() or self._cancel_event.is_set():
+                            analysis.stop()
+                            break
+
+                    # Ensure the search is halted even if no info loop iterations ran
+                    try:
+                        analysis.stop()
+                    except Exception:
+                        pass
+
+                    try:
+                        best = await analysis.wait()
+                        if best:
+                            best_move = best.move
+                            ponder_move = best.ponder
+                    except CancelledError:
+                        raise
+                    except Exception:
+                        logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
+
+                    info_snapshot = copy.deepcopy(analysis.info)
+                else:
+                    play_response = await self.engine.play(
+                        board=copy.deepcopy(game),
+                        limit=limit,
+                        game=self.game_id,
+                        ponder=ponder,
+                        root_moves=root_moves,
+                        info=chess.engine.INFO_ALL,
+                    )
+                    if play_response:
+                        best_move = play_response.move
+                        ponder_move = play_response.ponder
+                        self.latest_info = play_response.info or {}
+                        info_snapshot = copy.deepcopy(play_response.info)
 
                 if self._cancel_event.is_set():
                     should_queue = True
@@ -527,7 +546,7 @@ class PlayingContinuousAnalysis:
                     play_result = PlayResult(
                         move=best_move,
                         ponder=ponder_move,
-                        info=copy.deepcopy(analysis.info),
+                        info=info_snapshot,
                     )
                     play_result.analysed_fen = self.latest_fen
                     should_queue = True

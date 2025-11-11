@@ -2546,16 +2546,20 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.is_mame_engine()):
                 return False
+            engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
             # 128 - skip engine analyser when engine is thinking about its move
             # because as of 128 the engine play will get info from PlayingContinuousAnalyser
-            result = result and not (self.eng_plays() and not self.state.is_user_turn())
+            result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
             # skip engine analyser if tutor can be used on engine waiting for user turn
             # this needs to match the if not self.state.picotutor.can_use_coach_analyser():
             # in analyse
             result = result and not (
-                self.eng_plays() and self.state.picotutor.can_use_coach_analyser() and self.state.is_user_turn()
+                self.eng_plays()
+                and self.state.picotutor.can_use_coach_analyser()
+                and self.state.is_user_turn()
+                and not engine_thinking
             )
             # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
@@ -2624,12 +2628,16 @@ async def main() -> None:
             else:
                 # Issue #109 and #49 before that - how to get engine thinking
                 if not self.pgn_mode():
-                    if not self.state.is_user_turn() and not self.pgn_mode():
+                    engine_thinking = bool(self.engine and self.engine.is_thinking())
+                    if not self.state.is_user_turn() and engine_thinking:
                         result = await self.engine.get_thinking_analysis(self.state.game)
                         info_list: list[InfoDict] = result.get("info")
                         analysed_fen = result.get("fen", "")
                     else:
                         if not self.state.picotutor.can_use_coach_analyser():
+                            # is_coach_analyser() must be False here; otherwise the first branch above
+                            # would already have routed analysis through picotutor. Only fall back to
+                            # engine analysis when tutor info cannot be used.
                             # save cpu - only run engine analysis on user turn if coach/watcher off
                             result = await self.engine.get_analysis(self.state.game)
                             info_list: list[InfoDict] = result.get("info")

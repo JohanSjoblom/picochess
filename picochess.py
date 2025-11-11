@@ -1420,9 +1420,9 @@ async def main() -> None:
                 # we dont really need to copy the self.state.game but just to be sure...
                 await self.state.picotutor.set_position(self.state.game.copy(), new_game=new_game)
                 if self.state.play_mode == PlayMode.USER_BLACK:
-                    await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays())
+                    await self.state.picotutor.set_user_color(chess.BLACK, self.pgn_mode() or not self.eng_plays())
                 else:
-                    await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays())
+                    await self.state.picotutor.set_user_color(chess.WHITE, self.pgn_mode() or not self.eng_plays())
 
         def picotutor_mode(self):
             enabled = False
@@ -1471,7 +1471,9 @@ async def main() -> None:
                         logger.debug("new play mode: %s", self.state.play_mode)
                         text = self.state.play_mode.value  # type: str
                         if self.picotutor_mode():
-                            await self.state.picotutor.set_user_color(self.state.get_user_color(), not self.eng_plays())
+                            await self.state.picotutor.set_user_color(
+                                self.state.get_user_color(), self.pgn_mode() or not self.eng_plays()
+                            )
                         await DisplayMsg.show(
                             Message.PLAY_MODE(
                                 play_mode=self.state.play_mode, play_mode_text=self.state.dgttranslate.text(text)
@@ -3038,7 +3040,7 @@ async def main() -> None:
             self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
                 self.state.picotutor.stop()  # stop possible old tutor analysers
-            await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+            await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
 
             await self.stop_search_and_clock()
             turn = self.state.game.turn
@@ -3266,7 +3268,7 @@ async def main() -> None:
                 )
             if self.state.flag_picotutor:
                 # always fix the picotutor if-to-analyse both sides and depth
-                await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
             await self._start_or_stop_analysis_as_needed()  # engine mode changed
 
         def remote_engine_mode(self):
@@ -3770,7 +3772,7 @@ async def main() -> None:
                 await self.update_elo_display()
 
                 # new engine might change result of tutor_depth() to use - inform tutor
-                await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
                 # also state of main analyser might have changed
                 await self._start_or_stop_analysis_as_needed()
                 # end of NEW_ENGINE
@@ -3980,9 +3982,13 @@ async def main() -> None:
                         self.state.picotutor.newgame()
                         if not self.state.flag_startup:
                             if self.state.play_mode == PlayMode.USER_BLACK:
-                                await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays())
+                                await self.state.picotutor.set_user_color(
+                                    chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                                )
                             else:
-                                await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays())
+                                await self.state.picotutor.set_user_color(
+                                    chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                                )
                 else:
                     if self.online_mode():
                         logger.debug("starting a new game with code: %s", event.pos960)
@@ -4084,9 +4090,13 @@ async def main() -> None:
                     self.state.picotutor.newgame()
                     if not self.state.flag_startup:
                         if self.state.play_mode == PlayMode.USER_BLACK:
-                            await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays())
+                            await self.state.picotutor.set_user_color(
+                                chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                            )
                         else:
-                            await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays())
+                            await self.state.picotutor.set_user_color(
+                                chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                            )
 
                 if self.state.interaction_mode != Mode.REMOTE and not self.online_mode():
                     if self.state.dgtmenu.get_enginename():
@@ -4278,9 +4288,13 @@ async def main() -> None:
 
                     if self.picotutor_mode():
                         if self.state.play_mode == PlayMode.USER_BLACK:
-                            await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays())
+                            await self.state.picotutor.set_user_color(
+                                chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                            )
                         else:
-                            await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays())
+                            await self.state.picotutor.set_user_color(
+                                chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                            )
                         if self.state.best_move_posted:
                             self.state.best_move_posted = False
                             await self.state.picotutor.pop_last_move(self.state.game)
@@ -4695,9 +4709,13 @@ async def main() -> None:
                                 if self.pgn_mode():
                                     t_color = self.state.picotutor.get_user_color()
                                     if t_color == chess.BLACK:
-                                        await self.state.picotutor.set_user_color(chess.WHITE, not self.eng_plays())
+                                        await self.state.picotutor.set_user_color(
+                                            chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                                        )
                                     else:
-                                        await self.state.picotutor.set_user_color(chess.BLACK, not self.eng_plays())
+                                        await self.state.picotutor.set_user_color(
+                                            chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                                        )
 
                                 valid = await self.state.picotutor.push_move(event.move, game_copy)
                                 if valid and self.always_run_tutor:
@@ -4976,7 +4994,7 @@ async def main() -> None:
                     self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
@@ -5000,7 +5018,7 @@ async def main() -> None:
                     self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
                 if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
                     await DisplayMsg.show(Message.PICOCOACH(picocoach=False))
                 elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON and event.picocoach != 2:
@@ -5031,7 +5049,7 @@ async def main() -> None:
                         self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
                 await DisplayMsg.show(Message.PICOEXPLORER(picoexplorer=event.picoexplorer))
 
             elif isinstance(event, Event.RSPEED):

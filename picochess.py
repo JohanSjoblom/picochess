@@ -1238,11 +1238,8 @@ async def main() -> None:
                                     logger.debug("engine sent info - extracting ponder move")
                                     ponder_move = pv_line[1]  # not likely to happen
                             if move and not ponder_move:
-                                # issue 61 - use tutor analysis when the engine did not supply a ponder move
-                                tutor_res = await self.state.picotutor.get_analysis_chosen_move(move)
-                                ponder_move = tutor_res.ponder or ponder_move
-                                info = tutor_res.info or info
-                                analysed_fen = getattr(tutor_res, "analysed_fen", analysed_fen)
+                                # no ponder means we should allow the next analysis info to be sent ASAP
+                                self.state.best_sent_depth.reset()
                             if info:
                                 # send pv, score, not sendpv as it's sent by BEST_MOVE below
                                 ponder_cache = ponder_move if ponder_move else chess.Move.null()

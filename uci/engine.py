@@ -1198,7 +1198,7 @@ class UciEngine(object):
 
         # --- Phase 2: No legal reason for 0000 → probe engine health ---
         try:
-            await self.engine.ping(timeout=timeout)
+            await asyncio.wait_for(self.engine.ping(), timeout=timeout)
             # Engine alive ⇒ interpret as resignation
             return "0-1" if game.turn == chess.WHITE else "1-0"
 

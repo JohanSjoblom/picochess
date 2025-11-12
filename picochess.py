@@ -4649,7 +4649,7 @@ async def main() -> None:
                                             )  # automatic takeback mode
                                 else:
                                     #  issue #14 0000 bestmove - not pgn replay - reload engine
-                                    result_str = self.engine.handle_bestmove_0000(self.state.game.copy())
+                                    result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
                                     await DisplayMsg.show(
                                         Message.GAME_ENDS(

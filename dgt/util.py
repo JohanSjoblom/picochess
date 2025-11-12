@@ -21,6 +21,10 @@ try:
 except ImportError:
     import enum34 as enum  # type: ignore
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class MyEnum(enum.Enum):
     """Prevent __init__ problem Class."""
@@ -796,8 +800,10 @@ def game_result_from_header(result_str: str) -> GameResult:
 
     try:
         return mapping[result_str]
-    except KeyError as e:
-        raise ValueError(f"Unknown PGN result string: {result_str!r}") from e
+    except KeyError:
+        # Unknown result strings map to abort ("*") instead of failing loudly.
+        logger.warning("can not map bad result string %s", result_str)
+        return GameResult.ABORT
 
 
 @enum.unique

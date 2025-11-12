@@ -4661,7 +4661,7 @@ async def main() -> None:
                                 else:
                                     #  issue #14 0000 bestmove - not pgn replay - reload engine
                                     result_str = self.state.pending_engine_result
-                                    self.state.pending_engine_result = None
+                                    self.state.pending_engine_result = None  # discard cached fallback once consumed
                                     if not result_str:
                                         result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
@@ -4674,7 +4674,7 @@ async def main() -> None:
                                             mode=self.state.interaction_mode,
                                         )
                                     )
-                                    if result_str == "*":
+                                    if result == GameResult.ABORT:
                                         logger.error("engine crashed - game ended - trying to reload the engine")
                                         await DisplayMsg.show(Message.ENGINE_FAIL())
                                         await asyncio.sleep(0.5)
@@ -4696,7 +4696,7 @@ async def main() -> None:
                                             # here, set fen/position, set clocks, restart thinking
                                             # but not let a crashing engine re-loop this thinking restart etc
                                         else:
-                                            #  logger.error("engine re-load failed")
+                                            # logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
                         else:

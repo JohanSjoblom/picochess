@@ -712,10 +712,16 @@ class UciEngine(object):
                 logger.error("engine executable %s not found", self.file)
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)
+            self.transport = None
+            self.engine = None
         except TypeError:
             logger.exception("engine executable not found %s", self.file)
+            self.transport = None
+            self.engine = None
         except chess.engine.EngineTerminatedError:
             logger.exception("engine terminated - could not execute file %s", self.file)
+            self.transport = None
+            self.engine = None
 
     async def reopen_engine(self) -> bool:
         """Re-open engine. Return True if engine re-opened ok."""
@@ -750,10 +756,16 @@ class UciEngine(object):
             return self.loaded_ok()
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)
+            self.transport = None
+            self.engine = None
         except TypeError:
             logger.exception("engine executable not found %s", self.file)
+            self.transport = None
+            self.engine = None
         except chess.engine.EngineTerminatedError:
             logger.exception("engine terminated - could not execute file %s", self.file)
+            self.transport = None
+            self.engine = None
         return False
 
     def loaded_ok(self) -> bool:
@@ -770,7 +782,7 @@ class UciEngine(object):
 
     def get_options(self):
         """Get engine options."""
-        return self.engine.options
+        return self.engine.options if self.engine else {}
 
     def get_pgn_options(self):
         """Get options."""
@@ -789,6 +801,9 @@ class UciEngine(object):
 
     async def send(self):
         """Send options to engine."""
+        if not self.engine:
+            logger.warning("send called but no engine is loaded")
+            return
         try:
             # issue 85 - remove options not allowed by engine before sending
             options = self.filter_options(self.options, self.engine.options)
@@ -807,27 +822,27 @@ class UciEngine(object):
 
     def has_skill_level(self):
         """Return engine skill level support."""
-        return "Skill Level" in self.engine.options
+        return bool(self.engine and "Skill Level" in self.engine.options)
 
     def has_handicap_level(self):
         """Return engine handicap level support."""
-        return "Handicap Level" in self.engine.options
+        return bool(self.engine and "Handicap Level" in self.engine.options)
 
     def has_limit_strength(self):
         """Return engine limit strength support."""
-        return "UCI_LimitStrength" in self.engine.options
+        return bool(self.engine and "UCI_LimitStrength" in self.engine.options)
 
     def has_strength(self):
         """Return engine strength support."""
-        return "Strength" in self.engine.options
+        return bool(self.engine and "Strength" in self.engine.options)
 
     def has_chess960(self):
         """Return chess960 support."""
-        return "UCI_Chess960" in self.engine.options
+        return bool(self.engine and "UCI_Chess960" in self.engine.options)
 
     def has_ponder(self):
         """Return ponder support."""
-        return "Ponder" in self.engine.options
+        return bool(self.engine and "Ponder" in self.engine.options)
 
     def get_file(self):
         """Get File."""
@@ -898,7 +913,8 @@ class UciEngine(object):
         """Stop engine."""
         logger.info("pause audio old")
         # this is especially for pgn_engine
-        self.engine.send_line("stop")
+        if self.engine and hasattr(self.engine, "send_line"):
+            self.engine.send_line("stop")
 
     def get_engine_limit(self, time_dict: dict) -> Limit:
         """convert time_dict to engine Limit for engine go command"""
@@ -1255,6 +1271,8 @@ class UciEngine(object):
 
         # --- Phase 2: No legal reason for 0000 → probe engine health ---
         try:
+            if not self.engine:
+                raise chess.engine.EngineTerminatedError("engine not available")
             await asyncio.wait_for(self.engine.ping(), timeout=timeout)
             # Engine alive ⇒ interpret as resignation
             return "0-1" if game.turn == chess.WHITE else "1-0"

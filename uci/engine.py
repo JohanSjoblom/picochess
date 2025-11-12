@@ -598,6 +598,33 @@ class PlayingContinuousAnalysis:
         """True if engine is currently thinking about a move."""
         return self._waiting
 
+    async def wait_until_idle(self, timeout: float | None = None) -> bool:
+        """
+        Wait until the playing loop is idle.
+
+        :return: True if the engine stopped thinking before the timeout.
+        """
+        if not self._waiting:
+            return True
+
+        if timeout is None or timeout <= 0:
+            while self._waiting:
+                await asyncio.sleep(0.05)
+            return True
+
+        deadline = self.loop.time() + timeout
+        while self._waiting:
+            remaining = deadline - self.loop.time()
+            if remaining <= 0:
+                return False
+            await asyncio.sleep(min(0.05, remaining))
+        return True
+
+    def abort(self):
+        """Hard-cancel the current playing task (used when force fails)."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+
 
 class UciEngine(object):
     """Handle the uci engine communication."""
@@ -828,14 +855,43 @@ class UciEngine(object):
         if self.analyser and self.analyser.is_running():
             self.analyser.cancel()  # @todo - find out why we need cancel and not stop
 
-    def force_move(self):
-        """Force engine to move - only call this when engine not waiting"""
-        if self.engine:
-            logger.debug("forcing engine to make a move")
-            # new chess lib does not have a stop call
-            # issue 109 - use PlayingContinuousAnalysis force
-            if self.playing.is_waiting_for_move():
-                self.playing.force()
+    def force_move(self, timeout: float = 2.0):
+        """
+        Force engine to move by issuing a stop and, if needed, cancelling a hung search.
+
+        :param timeout: Seconds to wait for the engine to comply before treating it as hung.
+        """
+        if not self.engine or not self.playing:
+            return
+
+        if not self.playing.is_waiting_for_move():
+            return
+
+        logger.debug("forcing engine to make a move")
+        # new chess lib does not have a stop call
+        # issue 109 - use PlayingContinuousAnalysis force
+        self.playing.force()
+
+        # Only the MAME emulation is known to hang, so limit the watchdog to that case.
+        if not self.is_mame:
+            return
+
+        if timeout and timeout > 0:
+            self.loop.create_task(self._monitor_force_completion(timeout))
+
+    async def _monitor_force_completion(self, timeout: float):
+        """Wait for force() to finish, cancelling the search if it hangs."""
+        try:
+            if not self.playing:
+                return
+            finished = await self.playing.wait_until_idle(timeout)
+            if finished:
+                return
+            logger.warning("force move timed out after %.1fs - cancelling hung engine", timeout)
+            self.playing.cancel()
+            self.playing.abort()
+        except Exception:
+            logger.exception("force move watchdog failed")
 
     def pause_pgn_audio(self):
         """Stop engine."""

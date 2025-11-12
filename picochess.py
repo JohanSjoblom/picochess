@@ -282,6 +282,7 @@ class PicochessState:
         self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
+        self.pending_engine_result: str | None = None
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -1179,6 +1180,13 @@ async def main() -> None:
                 logger.info("Error running git status script:")
                 return None
 
+        async def _cache_engine_abort_result(self):
+            """Ensure the fallback result for a missing engine move is cached."""
+            if self.pgn_mode() or self.online_mode():
+                return
+            if self.state.pending_engine_result is None:
+                self.state.pending_engine_result = await self.engine.handle_bestmove_0000(self.state.game.copy())
+
         async def think(
             self,
             msg: Message,
@@ -1230,6 +1238,8 @@ async def main() -> None:
                             ponder_move = engine_res.ponder
                             if not ponder_move:
                                 logger.debug("engine sent no ponder move")
+                            if move is None:
+                                await self._cache_engine_abort_result()
                             info: InfoDict | None = engine_res.info
                             analysed_fen = getattr(engine_res, "analysed_fen", "")
                             if move and not ponder_move and info and "pv" in info:
@@ -1252,6 +1262,7 @@ async def main() -> None:
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
+                        await self._cache_engine_abort_result()
                         await Observable.fire(Event.BEST_MOVE(move=None, ponder=None, inbook=False))
                 except Exception as e:
                     # most likely never reached, engine exceptions in UciEngine return None above
@@ -4649,7 +4660,10 @@ async def main() -> None:
                                             )  # automatic takeback mode
                                 else:
                                     #  issue #14 0000 bestmove - not pgn replay - reload engine
-                                    result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
+                                    result_str = self.state.pending_engine_result
+                                    self.state.pending_engine_result = None
+                                    if not result_str:
+                                        result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
                                     await DisplayMsg.show(
                                         Message.GAME_ENDS(

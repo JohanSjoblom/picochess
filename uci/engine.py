@@ -727,15 +727,9 @@ class UciEngine(object):
         """Re-open engine. Return True if engine re-opened ok."""
         try:
             # @todo - might need to do more here to make sure both "sisters" are ok
-            # in this situation the engine is not responding properly
-            # and is assumed dead
-            # part 1 : copied from quit
-            if self.analyser and self.analyser.is_running():
-                self.analyser.cancel()  # quit can force full cancel
-            if self.playing.is_waiting_for_move():
-                self.playing.cancel()  # quit can force full cancel
-            # engine is dead so dont call quit
-            # @todo - what about MAME here? reopen mame as well?
+            # in this situation the engine is not responding properly and is assumed dead
+            # part 1 : call quit or copy specialized code here
+            await self.quit()
             # part 2 : copied from open_engine
             logger.info("file %s", self.file)
             if self.is_mame:
@@ -751,9 +745,7 @@ class UciEngine(object):
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]
-            else:
-                logger.error("engine executable %s not found", self.file)
-            return self.loaded_ok()
+                    return True  # we have an engine that states its name
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)
             self.transport = None
@@ -855,7 +847,8 @@ class UciEngine(object):
         if self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
         if not self.is_mame:
-            await self.engine.quit()  # Ask nicely
+            if self.engine:
+                await self.engine.quit()  # Ask nicely
         else:
             os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
         await asyncio.sleep(1)  # give it some time to quit

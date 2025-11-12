@@ -4665,20 +4665,31 @@ async def main() -> None:
                                     if not result_str:
                                         result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
-                                    await DisplayMsg.show(
-                                        Message.GAME_ENDS(
-                                            tc_init=self.state.time_control.get_parameters(),
-                                            result=result,
-                                            play_mode=self.state.play_mode,
-                                            game=self.state.game.copy(),
-                                            mode=self.state.interaction_mode,
+                                    if result != GameResult.ABORT:
+                                        await DisplayMsg.show(
+                                            Message.GAME_ENDS(
+                                                tc_init=self.state.time_control.get_parameters(),
+                                                result=result,
+                                                play_mode=self.state.play_mode,
+                                                game=self.state.game.copy(),
+                                                mode=self.state.interaction_mode,
+                                            )
                                         )
-                                    )
-                                    if result == GameResult.ABORT:
-                                        logger.error("engine crashed - game ended - trying to reload the engine")
+                                    else:
+                                        logger.error("engine crashed - game has not ended")
                                         await DisplayMsg.show(Message.ENGINE_FAIL())
                                         await asyncio.sleep(0.5)
-                                        loaded_ok = False  # in future: await self.engine.reopen_engine()
+                                        # mimic the automatic-takeback logic used for mame blunders (see ~2360)
+                                        # so the user can try a different move or pick another engine
+                                        if self.board_type == dgt.util.EBoard.NOEBOARD:
+                                            await Observable.fire(Event.TAKE_BACK(take_back="ENGINE_FAIL"))
+                                        else:
+                                            self.state.takeback_active = True
+                                            self.state.automatic_takeback = True
+                                            await self.set_wait_state(
+                                                Message.TAKE_BACK(game=self.state.game.copy())
+                                            )
+                                        loaded_ok = await self.engine.reopen_engine()
                                         if loaded_ok:
                                             level_index = self.state.dgtmenu.get_engine_level_index()
                                             await DisplayMsg.show(
@@ -4692,11 +4703,8 @@ async def main() -> None:
                                             )
                                             await asyncio.sleep(0.5)
                                             await DisplayMsg.show(Message.ENGINE_SETUP())
-                                            # @todo before ever getting loaded_ok True we need to do much more
-                                            # here, set fen/position, set clocks, restart thinking
-                                            # but not let a crashing engine re-loop this thinking restart etc
                                         else:
-                                            # logger.error("engine re-load failed")
+                                            logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
                         else:

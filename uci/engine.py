@@ -720,6 +720,7 @@ class UciEngine(object):
     async def reopen_engine(self) -> bool:
         """Re-open engine. Return True if engine re-opened ok."""
         try:
+            # @todo - might need to do more here to make sure both "sisters" are ok
             # in this situation the engine is not responding properly
             # and is assumed dead
             # part 1 : copied from quit

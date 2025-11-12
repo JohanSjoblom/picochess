@@ -4678,9 +4678,8 @@ async def main() -> None:
                                         logger.error("engine crashed - game ended - trying to reload the engine")
                                         await DisplayMsg.show(Message.ENGINE_FAIL())
                                         await asyncio.sleep(0.5)
-                                        loaded_ok = await self.engine.reopen_engine()
+                                        loaded_ok = False  # in future: await self.engine.reopen_engine()
                                         if loaded_ok:
-                                            # @todo not sure what we should send here for reopened engine
                                             level_index = self.state.dgtmenu.get_engine_level_index()
                                             await DisplayMsg.show(
                                                 Message.ENGINE_STARTUP(
@@ -4693,9 +4692,11 @@ async def main() -> None:
                                             )
                                             await asyncio.sleep(0.5)
                                             await DisplayMsg.show(Message.ENGINE_SETUP())
-                                            # game has ended so no need for takebacks or new think
+                                            # @todo before ever getting loaded_ok True we need to do much more
+                                            # here, set fen/position, set clocks, restart thinking
+                                            # but not let a crashing engine re-loop this thinking restart etc
                                         else:
-                                            logger.error("engine re-load failed")
+                                            #  logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
                         else:

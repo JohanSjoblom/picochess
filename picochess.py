@@ -2150,6 +2150,7 @@ async def main() -> None:
             """Handle an user move."""
 
             eval_str = ""
+            pending_picotutor_msgs: list[tuple[Message, float | None]] = []
 
             self.state.take_back_locked = False
 
@@ -2269,11 +2270,8 @@ async def main() -> None:
                             eval_str = ""  # no error message
                         if eval_str != "" and self.state.last_move != move:  # molli takeback_mame
                             msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
-                            await DisplayMsg.show(msg)
-                            if "??" in eval_str:
-                                await asyncio.sleep(3)
-                            else:
-                                await asyncio.sleep(1)
+                            delay = 3.0 if "??" in eval_str else 1.0
+                            pending_picotutor_msgs.append((msg, delay))
                         if l_mate:
                             n_mate = int(l_mate)
                         else:
@@ -2281,14 +2279,12 @@ async def main() -> None:
                         if n_mate < 0:
                             msg_str = "USRMATE_" + str(abs(n_mate))
                             msg = Message.PICOTUTOR_MSG(eval_str=msg_str)
-                            await DisplayMsg.show(msg)
-                            await asyncio.sleep(1.5)
+                            pending_picotutor_msgs.append((msg, 1.5))
                         elif n_mate > 1:
                             n_mate = n_mate - 1
                             msg_str = "PICMATE_" + str(abs(n_mate))
                             msg = Message.PICOTUTOR_MSG(eval_str=msg_str)
-                            await DisplayMsg.show(msg)
-                            await asyncio.sleep(1.5)
+                            pending_picotutor_msgs.append((msg, 1.5))
                         # get additional info in case of blunder
                         if eval_str == "??" and self.state.last_move != move:
                             t_hint_move = chess.Move.null()
@@ -2312,8 +2308,7 @@ async def main() -> None:
 
                                 tutor_str = "THREAT" + san_move
                                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
-                                await DisplayMsg.show(msg)
-                                await asyncio.sleep(5)
+                                pending_picotutor_msgs.append((msg, 5.0))
 
                             if t_hint_move != chess.Move.null():
                                 game_tutor = game_before.copy()
@@ -2321,8 +2316,7 @@ async def main() -> None:
                                 game_tutor.push(t_hint_move)
                                 tutor_str = "HINT" + san_move
                                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
-                                await DisplayMsg.show(msg)
-                                await asyncio.sleep(5)
+                                pending_picotutor_msgs.append((msg, 5.0))
 
                     if self.state.game.fullmove_number < 1:
                         ModeInfo.reset_opening()
@@ -2345,11 +2339,13 @@ async def main() -> None:
                             logger.info("molli: starting mame_endgame()")
                             self.mame_endgame()
                             await DisplayMsg.show(msg)
+                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
                         else:
                             await DisplayMsg.show(msg)
+                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
@@ -2382,6 +2378,7 @@ async def main() -> None:
                     )
                     game_end = self.state.check_game_state()
                     await DisplayMsg.show(msg)
+                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
                     if game_end:
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
@@ -2394,10 +2391,12 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
+                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
+                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
                         await self.observe()
                 else:  # self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
                     msg = Message.REVIEW_MOVE_DONE(
@@ -2406,11 +2405,15 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
+                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
+                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
                         await self.analyse()
+
+                await self._deliver_picotutor_messages(pending_picotutor_msgs)
 
                 #
                 # More picotutor logic (eval above)
@@ -2441,6 +2444,16 @@ async def main() -> None:
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string=game_comment))
                             await asyncio.sleep(0.7)
                 self.state.takeback_active = False
+
+        async def _deliver_picotutor_messages(self, pending_messages: list[tuple[Message, float | None]]) -> None:
+            """Send queued picotutor messages after the move announcement."""
+            if not pending_messages:
+                return
+            for message, delay in pending_messages:
+                await DisplayMsg.show(message)
+                if delay and delay > 0:
+                    await asyncio.sleep(delay)
+            pending_messages.clear()
 
         async def observe(self) -> InfoDict | None:
             """Start a new ponder search on the current game."""

@@ -2334,6 +2334,7 @@ async def main() -> None:
                         # molli: for online/emulation mode we have to publish this move as well to the engine
                         if self.online_mode():
                             logger.info("starting think()")
+                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             await self.think(msg)
                         elif self.emulation_mode():
                             logger.info("molli: starting mame_endgame()")
@@ -2365,10 +2366,12 @@ async def main() -> None:
                                 else:
                                     # send move to engine
                                     logger.debug("starting think()")
+                                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
                                     await self.think(msg)
                         else:
                             assert self.state.interaction_mode == Mode.BRAIN
                             logger.debug("new implementation of ponderhit - starting think")
+                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             await self.think(msg)
 
                     self.state.last_move = move

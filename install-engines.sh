@@ -276,6 +276,37 @@ else
     echo "LC0 weights already present in engines folder."
 fi
 
+# --- Script engines ----------------------------------------------------------
+if [ ! -d "$ENGINES_DIR/script_engines" ]; then
+    echo "Installing script engines..."
+    mkdir -p "$ENGINES_DIR/script_engines" || exit 1
+
+    SCRIPTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/script_engines.tar.gz"
+    TMPFILE="/home/pi/pico_backups/current/tmp/script_engines.tar.gz"
+
+    echo "Downloading script engines..."
+    if command -v curl >/dev/null 2>&1; then
+        curl -L -o "$TMPFILE" "$SCRIPTS_URL" || exit 1
+    elif command -v wget >/dev/null 2>&1; then
+        wget -O "$TMPFILE" "$SCRIPTS_URL" || exit 1
+    else
+        echo "Error: need curl or wget to download" 1>&2
+        exit 1
+    fi
+
+    echo "Extracting script engines..."
+    tar -xzf "$TMPFILE" -C "$ENGINES_DIR/script_engines" || {
+        echo "Extraction failed for script engines." 1>&2
+        rm -f "$TMPFILE"
+        exit 1
+    }
+    rm -f "$TMPFILE"
+
+    echo "Script engines installed successfully."
+else
+    echo "Script engines already present in engines folder."
+fi
+
 # --- pgn_audio files ---------------------------------------------------
 if [ "$ENGINE_VARIANT" = "lite" ]; then
     if [ ! -d "$ENGINES_DIR/pgn_engine/pgn_audio" ]; then

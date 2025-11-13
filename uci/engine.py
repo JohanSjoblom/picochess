@@ -745,6 +745,7 @@ class UciEngine(object):
             if self.engine:
                 if "name" in self.engine.id:
                     self.engine_name = self.engine.id["name"]
+                    await self.send()
                     return True  # we have an engine that states its name
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)

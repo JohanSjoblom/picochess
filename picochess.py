@@ -4587,7 +4587,9 @@ async def main() -> None:
                                     # molli: check if last move of pgn game file
                                     await self.stop_search_and_clock()
                                     log_pgn(self.state)
-                                    if self.state.flag_pgn_game_over:
+                                    # in Pico V4 we cannot detect end of pgn game by depth
+                                    # if max_guess uci option is zero - this must be end of game
+                                    if self.state.max_guess == 0:
                                         logger.debug("molli pgn: PGN END")
                                         (
                                             pgn_game_name,
@@ -4686,9 +4688,7 @@ async def main() -> None:
                                         else:
                                             self.state.takeback_active = True
                                             self.state.automatic_takeback = True
-                                            await self.set_wait_state(
-                                                Message.TAKE_BACK(game=self.state.game.copy())
-                                            )
+                                            await self.set_wait_state(Message.TAKE_BACK(game=self.state.game.copy()))
                                         loaded_ok = await self.engine.reopen_engine()
                                         if loaded_ok:
                                             level_index = self.state.dgtmenu.get_engine_level_index()

@@ -96,25 +96,25 @@
     <script type="text/javascript" src="/static/js/jquery-3.6.1.min.js"></script>
     <script>
         // Parche global para prevenir errores de Bootstrap
-        (function () {
+        (function() {
             // Interceptar errores globales
-            window.addEventListener('error', function (e) {
+            window.addEventListener('error', function(e) {
                 if (e.message && (e.message.includes('split') || e.message.includes('null'))) {
                     e.preventDefault();
                     return false;
                 }
             });
-
+            
             // Parche para split
             const originalSplit = String.prototype.split;
-            String.prototype.split = function () {
+            String.prototype.split = function() {
                 if (this == null || this == undefined) return [];
                 return originalSplit.apply(this, arguments);
             };
-
+            
             // Parche para getAttribute
             const originalGetAttribute = Element.prototype.getAttribute;
-            Element.prototype.getAttribute = function (name) {
+            Element.prototype.getAttribute = function(name) {
                 const value = originalGetAttribute.call(this, name);
                 return value === null ? '' : value;
             };
@@ -143,7 +143,7 @@
                     <div class="card">
                         <div id="board_panel" class="panel panel-primary">
                             <div class="card-body" style="position:relative;">
-                                <div id="evaluationBar" class="evaluation-bar-horizontal" style="display: none;">
+                                <div id="evaluationBar" class="evaluation-bar-horizontal" style="visibility: hidden;">
                                     <div class="evaluation-container-horizontal">
                                         <div class="evaluation-fill-horizontal" id="evaluationFill"></div>
                                         <div class="evaluation-center-line-horizontal"></div>
@@ -158,13 +158,13 @@
                                 <div class="container-fluid" id="boardcontrol">
                                     <div class="row" id="boardButtons">
                                         <div class="text-center">
-                                            <div class="btn-group btn-group-lg d-flex" role="group">
+                                            <div class="btn-group btn-group-sm d-flex" role="group">
                                                 <button type="button" id="flipOrientationBtn" class="btn btn-light">
-                                                    <i class="fa fa-refresh"></i> <span
-                                                        class="btn-text">Flip</span></button>
+                                                    <i class="fa fa-refresh"></i></button>
                                                 <button type="button" id="DgtSyncBtn" class="btn btn-light">
-                                                    <i class="fa fa-delicious"></i> <span
-                                                        class="btn-text">Sync</span></button>
+                                                    <i class="fa fa-delicious"></i></button>
+                                                <button type="button" id="colorBtn" class="btn btn-light" style="font-size: 0.7em;">
+                                                    color</button>
                                                 <button type="button" id="startBtn" class="btn btn-light">
                                                     <i class='fa fa-fast-backward'></i></button>
                                                 <button type="button" id="backBtn" class="btn btn-light">
@@ -213,7 +213,7 @@
                         <div class="row">
                             <div class="card">
                                 <div class="card-header"
-                                    style="font-size: 2.5vh; display: flex; justify-content: space-between; align-items: center;">
+                                    style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center;">
                                     <span>PicoChess Version 4.1.7</span>
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <form id="moveForm" autocomplete="off" style="margin: 0;">
@@ -225,8 +225,8 @@
                                                 border:none;
                                                 outline:none;
                                                 width:1px; height:1px;" maxlength="5" autocomplete="off"
-                                                autocorrect="off" autocapitalize="off" spellcheck="false" title="Move"
-                                                data-bs-toggle="" />
+                                                autocorrect="off" autocapitalize="off" spellcheck="false"
+                                                title="Move" data-bs-toggle="" />
                                         </form>
                                     </div>
                                 </div>
@@ -273,7 +273,7 @@
                                 <div class="scroll_movelist" id="moveList">
                                     <div class="card-body">
                                         <div id="pgn"
-                                            style="max-height:37%; overflow-y:auto; overflow-x:hidden; min-height:20%; position:relative;">
+                                            style="max-height:75%; overflow-y:auto; overflow-x:hidden; min-height:20%; position:relative;">
                                         </div>
                                     </div>
                                 </div>
@@ -387,131 +387,84 @@
                                                 <div class="scan-controls" style="padding: 15px;">
                                                     <div class="row mb-3">
                                                         <div class="col-12 text-center">
-                                                            <button type="button" id="scanBoardBtn"
-                                                                class="btn btn-danger btn-lg" style="width: 100%;">
-                                                                <i class="fa fa-delicious"></i> <span
-                                                                    class="d-none d-sm-inline">Sync Board</span><span
-                                                                    class="d-inline d-sm-none">Sync</span>
+                                                            <button type="button" id="scanBoardBtn" class="btn btn-danger btn-lg" style="width: 100%;">
+                                                                <i class="fa fa-delicious"></i> <span class="d-none d-sm-inline">Sync Board</span><span class="d-inline d-sm-none">Sync</span>
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <div class="row mb-3 align-items-center">
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="sideToPlaySwitch">
-                                                                </div>
-                                                                <div id="pawnPreview"
-                                                                    style="display: flex; align-items: center; gap: 3px;">
-                                                                    <div id="pawnPiece"
-                                                                        style="width: 30px; height: 30px; background-color: white; border: 0.5px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: black;">
-                                                                        ♙</div>
-                                                                    <div style="font-size: 20px; font-weight: bold;">↑
-                                                                    </div>
-                                                                </div>
+                                                    <div class="col-4">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="sideToPlaySwitch">
+                                                            </div>
+                                                            <div id="pawnPreview" style="display: flex; align-items: center; gap: 3px;">
+                                                                <div id="pawnPiece" style="width: 30px; height: 30px; background-color: white; border: 0.5px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: black;">♙</div>
+                                                                <div style="font-size: 20px; font-weight: bold;">↑</div>
                                                             </div>
                                                         </div>
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2"
-                                                                style="justify-content: center;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="boardSideSwitch">
-                                                                </div>
-                                                                <div id="boardPreview"
-                                                                    style="display: flex; flex-direction: column; align-items: center;">
-                                                                    <div
-                                                                        style="display: flex; flex-direction: column; width: 30px; height: 30px; border: 2px solid #333;">
-                                                                        <div
-                                                                            style="display: flex; width: 100%; height: 50%;">
-                                                                            <div id="topLeftSquare"
-                                                                                style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;">
-                                                                            </div>
-                                                                            <div id="topRightSquare"
-                                                                                style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;">
-                                                                            </div>
-                                                                        </div>
-                                                                        <div
-                                                                            style="display: flex; width: 100%; height: 50%;">
-                                                                            <div id="bottomLeftSquare"
-                                                                                style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;">
-                                                                            </div>
-                                                                            <div id="bottomRightSquare"
-                                                                                style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;">
-                                                                            </div>
-                                                                        </div>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <div class="d-flex align-items-center gap-2" style="justify-content: center;">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="boardSideSwitch">
+                                                            </div>
+                                                            <div id="boardPreview" style="display: flex; flex-direction: column; align-items: center;">
+                                                                <div style="display: flex; flex-direction: column; width: 30px; height: 30px; border: 2px solid #333;">
+                                                                    <div style="display: flex; width: 100%; height: 50%;">
+                                                                        <div id="topLeftSquare" style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;"></div>
+                                                                        <div id="topRightSquare" style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;"></div>
                                                                     </div>
-                                                                    <div id="sideIndicator"
-                                                                        style="width: 20px; height: 6px; background-color: white; margin-top: 3px; border: 0.5px solid #333;">
+                                                                    <div style="display: flex; width: 100%; height: 50%;">
+                                                                        <div id="bottomLeftSquare" style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;"></div>
+                                                                        <div id="bottomRightSquare" style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;"></div>
                                                                     </div>
                                                                 </div>
+                                                                <div id="sideIndicator" style="width: 20px; height: 6px; background-color: white; margin-top: 3px; border: 0.5px solid #333;"></div>
                                                             </div>
                                                         </div>
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2"
-                                                                style="justify-content: flex-end;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="uci960Switch">
-                                                                </div>
-                                                                <label class="form-check-label" for="uci960Switch"
-                                                                    id="uci960Label"
-                                                                    style="font-size: 14px; font-weight: bold;">
-                                                                    UCI960 No
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <div class="d-flex align-items-center gap-2" style="justify-content: flex-end;">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="uci960Switch">
+                                                            </div>
+                                                            <label class="form-check-label" for="uci960Switch" id="uci960Label" style="font-size: 14px; font-weight: bold;">
+                                                                UCI960 No
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="row mb-3">
+                                                    <div class="col-6">
+                                                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="whiteCastleKingSwitch" checked>
+                                                                <label class="form-check-label" for="whiteCastleKingSwitch">
+                                                                    <span style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span> O-O
+                                                                </label>
+                                                            </div>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="whiteCastleQueenSwitch" checked>
+                                                                <label class="form-check-label" for="whiteCastleQueenSwitch">
+                                                                    <span style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span> O-O-O
                                                                 </label>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div class="row mb-3">
-                                                        <div class="col-6">
-                                                            <div
-                                                                style="display: flex; flex-direction: column; gap: 10px;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="whiteCastleKingSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="whiteCastleKingSwitch">
-                                                                        <span
-                                                                            style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span>
-                                                                        O-O
-                                                                    </label>
-                                                                </div>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="whiteCastleQueenSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="whiteCastleQueenSwitch">
-                                                                        <span
-                                                                            style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span>
-                                                                        O-O-O
-                                                                    </label>
-                                                                </div>
+                                                    <div class="col-6">
+                                                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="blackCastleKingSwitch" checked>
+                                                                <label class="form-check-label" for="blackCastleKingSwitch">
+                                                                    <span style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span> O-O
+                                                                </label>
                                                             </div>
-                                                        </div>
-                                                        <div class="col-6">
-                                                            <div
-                                                                style="display: flex; flex-direction: column; gap: 10px;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="blackCastleKingSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="blackCastleKingSwitch">
-                                                                        <span
-                                                                            style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span>
-                                                                        O-O
-                                                                    </label>
-                                                                </div>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="blackCastleQueenSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="blackCastleQueenSwitch">
-                                                                        <span
-                                                                            style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span>
-                                                                        O-O-O
-                                                                    </label>
-                                                                </div>
+                                                            <div class="form-check form-switch">
+                                                                <input class="form-check-input" type="checkbox" id="blackCastleQueenSwitch" checked>
+                                                                <label class="form-check-label" for="blackCastleQueenSwitch">
+                                                                    <span style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span> O-O-O
+                                                                </label>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -526,190 +479,191 @@
                 </div>
             </div>
         </div>
-        <script type="text/javascript" src="/static/js/app.js?v=2"></script>
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                // Script del input de movimientos
-                const moveInput = document.getElementById('moveInput');
-                if (moveInput) {
-                    moveInput.focus();
-                    moveInput.addEventListener('keydown', async function (e) {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const move = (this.value || '').toString();
-                            if (move && move.length > 0) {
-                                await fetch('/channel', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                    body: 'action=command&command=' + encodeURIComponent(move)
-                                });
-                                this.value = "";
-                            }
+    </div>
+    <script type="text/javascript" src="/static/js/app.js?v=2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Script del input de movimientos
+            const moveInput = document.getElementById('moveInput');
+            if (moveInput) {
+                moveInput.focus();
+                moveInput.addEventListener('keydown', async function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const move = (this.value || '').toString();
+                        if (move && move.length > 0) {
+                            await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: 'action=command&command=' + encodeURIComponent(move)
+                            });
+                            this.value = "";
                         }
-                    });
-                    // Mantener el foco siempre en el input de jugada
-                    document.addEventListener('click', function (e) {
-                        if (e.target !== moveInput && moveInput) {
-                            setTimeout(() => moveInput.focus(), 10);
-                        }
-                    });
+                    }
+                });
+                // Mantener el foco siempre en el input de jugada
+                document.addEventListener('click', function (e) {
+                    if (e.target !== moveInput && moveInput) {
+                        setTimeout(() => moveInput.focus(), 10);
+                    }
+                });
+            }
+        });
+    </script>
+
+
+    <!-- JavaScript for consistent tab rendering and board display -->
+    <script>
+        // Force consistent board rendering regardless of active tab
+        document.addEventListener('DOMContentLoaded', function () {
+            // Get all tab buttons
+            const tabButtons = document.querySelectorAll('[data-bs-toggle="pill"]');
+
+            // Add click event listeners to all tab buttons
+            tabButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    // Get the board element
+                    const board = document.getElementById('board');
+
+                    // Force reflow of the board element
+                    if (board) {
+                        // Small delay to allow tab switching to complete
+                        setTimeout(function () {
+                            // These operations force a reflow/repaint
+                            const display = board.style.display;
+                            board.style.display = 'none';
+                            void board.offsetHeight; // Trigger reflow
+                            board.style.display = display;
+
+                            // Additional resize event to reposition chessground
+                            const evt = new Event('resize');
+                            window.dispatchEvent(evt);
+                        }, 50);
+                    }
+                });
+            });
+
+            // Ajustar el ancho de la barra de evaluación al ancho del tablero
+            function adjustEvaluationBarWidth() {
+                var boardElement = document.getElementById('board');
+                var evaluationContainer = document.querySelector('.evaluation-container-horizontal');
+                if (boardElement && evaluationContainer) {
+                    var boardWidth = boardElement.offsetWidth;
+                    evaluationContainer.style.width = boardWidth + 'px';
+                }
+            }
+
+            setTimeout(adjustEvaluationBarWidth, 500);
+            window.addEventListener('resize', adjustEvaluationBarWidth);
+
+            // Forzar redibujado del tablero
+            setTimeout(function () {
+                if (window.chessground1) {
+                    chessground1.redrawAll();
+                }
+            }, 100);
+        });
+    </script>
+
+    <!-- JavaScript para los controles del tab Scan -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Control del bando que juega
+            const sideToPlaySwitch = document.getElementById('sideToPlaySwitch');
+            const sideToPlayLabel = document.getElementById('sideToPlayLabel');
+            
+            sideToPlaySwitch.addEventListener('change', function() {
+                const pawnPiece = document.getElementById('pawnPiece');
+                if (this.checked) {
+                    pawnPiece.style.backgroundColor = 'black';
+                    pawnPiece.style.color = 'white';
+                    pawnPiece.style.border = '0.5px solid white';
+                    pawnPiece.innerHTML = '♟';
+                } else {
+                    pawnPiece.style.backgroundColor = 'white';
+                    pawnPiece.style.color = 'black';
+                    pawnPiece.style.border = '0.5px solid #333';
+                    pawnPiece.innerHTML = '♙';
                 }
             });
-        </script>
 
-
-        <!-- JavaScript for consistent tab rendering and board display -->
-        <script>
-            // Force consistent board rendering regardless of active tab
-            document.addEventListener('DOMContentLoaded', function () {
-                // Get all tab buttons
-                const tabButtons = document.querySelectorAll('[data-bs-toggle="pill"]');
-
-                // Add click event listeners to all tab buttons
-                tabButtons.forEach(function (button) {
-                    button.addEventListener('click', function () {
-                        // Get the board element
-                        const board = document.getElementById('board');
-
-                        // Force reflow of the board element
-                        if (board) {
-                            // Small delay to allow tab switching to complete
-                            setTimeout(function () {
-                                // These operations force a reflow/repaint
-                                const display = board.style.display;
-                                board.style.display = 'none';
-                                void board.offsetHeight; // Trigger reflow
-                                board.style.display = display;
-
-                                // Additional resize event to reposition chessground
-                                const evt = new Event('resize');
-                                window.dispatchEvent(evt);
-                            }, 50);
-                        }
-                    });
-                });
-
-                // Ajustar el ancho de la barra de evaluación al ancho del tablero
-                function adjustEvaluationBarWidth() {
-                    var boardElement = document.getElementById('board');
-                    var evaluationContainer = document.querySelector('.evaluation-container-horizontal');
-                    if (boardElement && evaluationContainer) {
-                        var boardWidth = boardElement.offsetWidth;
-                        evaluationContainer.style.width = boardWidth + 'px';
-                    }
+            // Control del lado del tablero
+            const boardSideSwitch = document.getElementById('boardSideSwitch');
+            
+            boardSideSwitch.addEventListener('change', function() {
+                const sideIndicator = document.getElementById('sideIndicator');
+                if (this.checked) {
+                    // Tablero desde perspectiva negras (negras abajo)
+                    sideIndicator.style.backgroundColor = 'black';
+                    sideIndicator.style.border = '0.5px solid white';
+                } else {
+                    // Tablero desde perspectiva blancas (blancas abajo)
+                    sideIndicator.style.backgroundColor = 'white';
+                    sideIndicator.style.border = '0.5px solid #333';
                 }
-
-                setTimeout(adjustEvaluationBarWidth, 500);
-                window.addEventListener('resize', adjustEvaluationBarWidth);
-
-                // Forzar redibujado del tablero
-                setTimeout(function () {
-                    if (window.chessground1) {
-                        chessground1.redrawAll();
-                    }
-                }, 100);
             });
-        </script>
 
-        <!-- JavaScript para los controles del tab Scan -->
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                // Control del bando que juega
-                const sideToPlaySwitch = document.getElementById('sideToPlaySwitch');
-                const sideToPlayLabel = document.getElementById('sideToPlayLabel');
+            // Control del UCI960
+            const uci960Switch = document.getElementById('uci960Switch');
+            const uci960Label = document.getElementById('uci960Label');
+            
+            uci960Switch.addEventListener('change', function() {
+                if (this.checked) {
+                    uci960Label.textContent = 'UCI960';
+                } else {
+                    uci960Label.textContent = 'UCI960 No';
+                }
+            });
 
-                sideToPlaySwitch.addEventListener('change', function () {
-                    const pawnPiece = document.getElementById('pawnPiece');
-                    if (this.checked) {
-                        pawnPiece.style.backgroundColor = 'black';
-                        pawnPiece.style.color = 'white';
-                        pawnPiece.style.border = '0.5px solid white';
-                        pawnPiece.innerHTML = '♟';
-                    } else {
-                        pawnPiece.style.backgroundColor = 'white';
-                        pawnPiece.style.color = 'black';
-                        pawnPiece.style.border = '0.5px solid #333';
-                        pawnPiece.innerHTML = '♙';
-                    }
-                });
-
-                // Control del lado del tablero
-                const boardSideSwitch = document.getElementById('boardSideSwitch');
-
-                boardSideSwitch.addEventListener('change', function () {
-                    const sideIndicator = document.getElementById('sideIndicator');
-                    if (this.checked) {
-                        // Tablero desde perspectiva negras (negras abajo)
-                        sideIndicator.style.backgroundColor = 'black';
-                        sideIndicator.style.border = '0.5px solid white';
-                    } else {
-                        // Tablero desde perspectiva blancas (blancas abajo)
-                        sideIndicator.style.backgroundColor = 'white';
-                        sideIndicator.style.border = '0.5px solid #333';
-                    }
-                });
-
-                // Control del UCI960
-                const uci960Switch = document.getElementById('uci960Switch');
-                const uci960Label = document.getElementById('uci960Label');
-
-                uci960Switch.addEventListener('change', function () {
-                    if (this.checked) {
-                        uci960Label.textContent = 'UCI960';
-                    } else {
-                        uci960Label.textContent = 'UCI960 No';
-                    }
-                });
-
-                // Botón de escanear tablero
-                scanBoardBtn.addEventListener('click', async function () {
-                    // Obtener valores de los controles
-                    const sideToPlay = sideToPlaySwitch.checked ? 'false' : 'true';
-                    const boardSide = boardSideSwitch.checked ? 'true' : 'false';
-                    const whiteCastleKing = document.getElementById('whiteCastleKingSwitch').checked;
-                    const whiteCastleQueen = document.getElementById('whiteCastleQueenSwitch').checked;
-                    const blackCastleKing = document.getElementById('blackCastleKingSwitch').checked;
-                    const blackCastleQueen = document.getElementById('blackCastleQueenSwitch').checked;
-                    const uci960 = uci960Switch.checked ? 'true' : 'false';
-
-                    try {
-                        // Obtener FEN actual del tablero
-                        const currentFen = window.chessground1 ? window.chessground1.getFen() : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-
-                        // Enviar solicitud de escaneo al servidor
-                        const response = await fetch('/channel', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams({
-                                action: 'scan_board',
-                                currentFen: currentFen,
-                                sideToPlay: sideToPlay,
-                                boardSide: boardSide,
-                                whiteCastleKing: whiteCastleKing,
-                                whiteCastleQueen: whiteCastleQueen,
-                                blackCastleKing: blackCastleKing,
-                                blackCastleQueen: blackCastleQueen,
-                                uci960: uci960
-                            })
-                        });
-
-                        if (response.ok) {
-                            const result = await response.json();
-                            if (result.success && result.fen) {
-                                console.log('Escaneo completado. FEN:', result.fen);
-                                // El FEN se actualiza automáticamente via WebSocket
-                            } else {
-                                console.error('Error: Posición inválida');
-                            }
+            // Botón de escanear tablero
+            scanBoardBtn.addEventListener('click', async function() {
+                // Obtener valores de los controles
+                const sideToPlay = sideToPlaySwitch.checked ? 'false' : 'true';
+                const boardSide = boardSideSwitch.checked ? 'true' : 'false';
+                const whiteCastleKing = document.getElementById('whiteCastleKingSwitch').checked;
+                const whiteCastleQueen = document.getElementById('whiteCastleQueenSwitch').checked;
+                const blackCastleKing = document.getElementById('blackCastleKingSwitch').checked;
+                const blackCastleQueen = document.getElementById('blackCastleQueenSwitch').checked;
+                const uci960 = uci960Switch.checked ? 'true' : 'false';
+                
+                try {
+                    // Obtener FEN actual del tablero
+                    const currentFen = window.chessground1 ? window.chessground1.getFen() : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+                    
+                    // Enviar solicitud de escaneo al servidor
+                    const response = await fetch('/channel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'scan_board',
+                            currentFen: currentFen,
+                            sideToPlay: sideToPlay,
+                            boardSide: boardSide,
+                            whiteCastleKing: whiteCastleKing,
+                            whiteCastleQueen: whiteCastleQueen,
+                            blackCastleKing: blackCastleKing,
+                            blackCastleQueen: blackCastleQueen,
+                            uci960: uci960
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success && result.fen) {
+                            console.log('Escaneo completado. FEN:', result.fen);
+                            // El FEN se actualiza automáticamente via WebSocket
                         } else {
-                            console.error('Error en el escaneo del tablero');
+                            console.error('Error: Posición inválida');
                         }
-                    } catch (error) {
-                        console.error('Error de conexión:', error);
+                    } else {
+                        console.error('Error en el escaneo del tablero');
                     }
-                });
+                } catch (error) {
+                    console.error('Error de conexión:', error);
+                }
             });
-        </script>
+        });
+    </script>
 </body>
 
 </html>

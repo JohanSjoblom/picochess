@@ -1283,3 +1283,7 @@ class UciEngine(object):
         except (asyncio.TimeoutError, chess.engine.EngineTerminatedError, OSError):
             # Engine not responsive ⇒ crashed/hung
             return "*"
+        except AssertionError as exc:
+            logger.warning("engine ping failed with unexpected state: %s", exc)
+            # Engine not responsive ⇒ crashed/hung
+            return "*"

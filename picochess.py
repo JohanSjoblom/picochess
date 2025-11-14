@@ -922,6 +922,11 @@ async def main() -> None:
             if self.state.engine_file is None:
                 self.state.engine_file = EngineProvider.installed_engines[0]["file"]
 
+            # ensure dgtmenu knows which engine will actually be loaded so the startup
+            # announcement reflects the saved configuration
+            if self.state.dgtmenu and self.state.engine_file:
+                self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
+
             self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()
             try:

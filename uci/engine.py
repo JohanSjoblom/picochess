@@ -884,10 +884,6 @@ class UciEngine(object):
         # issue 109 - use PlayingContinuousAnalysis force
         self.playing.force()
 
-        # Only the MAME emulation is known to hang, so limit the watchdog to that case.
-        if not self.is_mame:
-            return
-
         if timeout and timeout > 0:
             self.loop.create_task(self._monitor_force_completion(timeout))
 

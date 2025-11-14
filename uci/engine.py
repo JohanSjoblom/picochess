@@ -739,8 +739,10 @@ class UciEngine(object):
             logger.info("re-opening engine %s", mfile)
             self.transport, self.engine = await chess.engine.popen_uci(mfile)
             # Dont instantiate the two “sisters” - they already exist, but update engine
-            self.analyser.engine = self.engine
-            self.playing.engine = self.engine
+            if self.analyser:
+                self.analyser.engine = self.engine
+            if self.playing:
+                self.playing.engine = self.engine
             # game id remains the same
             if self.engine:
                 if "name" in self.engine.id:
@@ -845,7 +847,7 @@ class UciEngine(object):
         """Quit engine."""
         if self.analyser and self.analyser.is_running():
             self.analyser.cancel()  # quit can force full cancel
-        if self.playing.is_waiting_for_move():
+        if self.playing and self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
         if not self.is_mame:
             if self.engine:
@@ -993,22 +995,27 @@ class UciEngine(object):
     ) -> None:
         """Go engine.
         parameter game will not change, it is deep copied"""
-        if self.engine:
-            async with self.engine_lock:
-                if expected_turn is not None and game.turn != expected_turn:
-                    logger.warning(
-                        "%s go() called with mismatching turn: board turn=%s expected=%s",
-                        self.whoami,
-                        game.turn,
-                        expected_turn,
-                    )
-                limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
-                self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
-                await self.playing.play_move(
-                    game, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
-                )
-        else:
+        if not self.engine:
             logger.error("go called but no engine loaded")
+            return
+
+        if not self.playing:
+            logger.warning("go called but playing engine not initialised yet")
+            return
+
+        async with self.engine_lock:
+            if expected_turn is not None and game.turn != expected_turn:
+                logger.warning(
+                    "%s go() called with mismatching turn: board turn=%s expected=%s",
+                    self.whoami,
+                    game.turn,
+                    expected_turn,
+                )
+            limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
+            self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
+            await self.playing.play_move(
+                game, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
+            )
 
     async def start_analysis(self, game: chess.Board, limit: Limit | None = None, multipv: int | None = None) -> bool:
         """start analyser - returns True if if it was already running
@@ -1032,7 +1039,9 @@ class UciEngine(object):
         else:
             if self.engine:
                 async with self.engine_lock:
-                    if not self.playing.is_waiting_for_move():
+                    if not self.playing:
+                        logger.debug("%s cannot start analysis - playing engine not initialised", self.whoami)
+                    elif not self.playing.is_waiting_for_move():
                         self.analyser.start(game, limit=limit, multipv=multipv)
                     else:
                         # issue 109 - it is not allowed to start the analyser sister if playing is running
@@ -1049,7 +1058,7 @@ class UciEngine(object):
         """get analysis info from playing engine - returns dict with info and fen"""
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
-        if self.playing.is_waiting_for_move():
+        if self.playing and self.playing.is_waiting_for_move():
             latest = await self.playing.get_analysis()
             info_dict = latest.get("info") if latest else {}
             analysed_fen = latest.get("fen") if latest else ""
@@ -1058,7 +1067,7 @@ class UciEngine(object):
             else:
                 result = {"info": [], "fen": analysed_fen or game.fen(), "game": None}
         else:
-            logger.debug("get_thinking_analysis called but engine not thinking")
+            logger.debug("get_thinking_analysis called but engine not thinking or playing engine missing")
         return result
 
     async def get_analysis(self, game: chess.Board) -> dict:
@@ -1096,7 +1105,7 @@ class UciEngine(object):
     def is_thinking(self):
         """Engine thinking."""
         # as of issue 109 we have to check the playing sister
-        return self.playing.is_waiting_for_move()
+        return bool(self.playing and self.playing.is_waiting_for_move())
 
     def is_pondering(self):
         """Engine pondering."""
@@ -1109,7 +1118,9 @@ class UciEngine(object):
         """Engine waiting."""
         # as of issue 109 we have to check the playing sister
         # @todo - check if all calls from picochess.py is really needed any more
-        return not self.playing.is_waiting_for_move()
+        if self.playing:
+            return not self.playing.is_waiting_for_move()
+        return True
 
     def is_ready(self):
         """Engine waiting."""
@@ -1122,10 +1133,12 @@ class UciEngine(object):
             async with self.engine_lock:
                 # as seen in issue #78 need to prevent simultaneous newgame and start analysis
                 self.game_id += 1
-                self.analyser.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
-                self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
-                await self.analyser.update_game(game)  # analysing sister starts from new game
-                self.playing.cancel()  # cancel any ongoing playing sister
+                if self.analyser:
+                    self.analyser.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
+                    await self.analyser.update_game(game)  # analysing sister starts from new game
+                if self.playing:
+                    self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
+                    self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop
                 # @todo we could wait for ping() isready here - but it could break pgn_engine logic
                 # do not self.engine.send_line("ucinewgame"), see read_pgn_file in picochess.py

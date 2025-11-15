@@ -463,6 +463,10 @@ class PlayingContinuousAnalysis:
         """Set the current game identifier."""
         self.game_id = game_id
 
+    def set_allow_info_loop(self, allow: bool):
+        """Toggle whether analysis() info loop should run."""
+        self.allow_info_loop = allow
+
     async def play_move(
         self,
         game: chess.Board,
@@ -665,6 +669,7 @@ class UciEngine(object):
         self.mame_par = mame_par
         self.is_mame = "/mame/" in self.file
         self.is_script = "/script/" in self.file
+        self.legacy_analysis_mode = False
         self.transport = None  # find out correct type
         self.engine: UciProtocol | None = None
         self.engine_name = "NN"
@@ -702,7 +707,7 @@ class UciEngine(object):
                 loop=self.loop,
                 engine_lease=self.engine_lease,
                 engine_debug_name=self.whoami,
-                allow_info_loop=not self.is_mame,
+                allow_info_loop=not self._should_disable_info_loop(),
             )
             self.analyser.set_game_id(self.game_id)
             self.playing.set_game_id(self.game_id)
@@ -779,6 +784,23 @@ class UciEngine(object):
     def is_script_engine(self) -> bool:
         """Return True if this engine is provided via a script wrapper."""
         return self.is_script
+
+    def is_legacy_engine(self) -> bool:
+        """Return True if this engine requested legacy analysis handling via config."""
+        return self.legacy_analysis_mode
+
+    def should_skip_engine_analyser(self) -> bool:
+        """Return True if PicoChess should avoid running the engine analyser."""
+        return self.is_mame or self.is_script or self.legacy_analysis_mode
+
+    def _should_disable_info_loop(self) -> bool:
+        """Return True if PlayingContinuousAnalysis must avoid analysis() info loops."""
+        return self.is_mame or self.legacy_analysis_mode
+
+    def _apply_playing_mode_policy(self):
+        """Ensure PlayingContinuousAnalysis matches the current info-loop policy."""
+        if self.playing:
+            self.playing.set_allow_info_loop(not self._should_disable_info_loop())
 
     def get_options(self):
         """Get engine options."""
@@ -1178,12 +1200,28 @@ class UciEngine(object):
         self.level_support = bool(options)
 
         self.options = options.copy()
+        analysis_option = None
+        if "Analysis" in self.options:
+            analysis_option = self.options["Analysis"]
+            del self.options["Analysis"]
+        allow_analysis = self._parse_bool_flag(analysis_option) if analysis_option is not None else True
+        self.legacy_analysis_mode = not allow_analysis
         self._engine_rating(rating)
         logger.debug("setting engine with options %s", self.options)
         await self.send()
+        self._apply_playing_mode_policy()
 
         logger.debug("Loaded engine [%s]", self.get_name())
         logger.debug("Supported options [%s]", self.get_options())
+
+    @staticmethod
+    def _parse_bool_flag(value) -> bool:
+        """Interpret PicoChess-specific boolean flags."""
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        return str(value).strip().lower() in ("1", "true", "yes", "on", "y")
 
     def _engine_rating(self, rating: Optional[Rating] = None):
         """

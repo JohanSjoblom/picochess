@@ -2557,7 +2557,7 @@ async def main() -> None:
         def is_coach_analyser(self) -> bool:
             """should coach-analyser override make us use tutor score-depth-hint analysis"""
             # no read from ini file - auto-True if tutor and main engine same (long name)
-            if self.pgn_mode() or (self.engine and self.engine.is_mame_engine()):
+            if self.pgn_mode() or (self.engine and (self.engine.is_mame_engine() or self.engine.is_script_engine())):
                 result = True  # PGN Replay and mame engines always use tutor analysis only
             else:
                 # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
@@ -2573,7 +2573,7 @@ async def main() -> None:
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
-            if self.pgn_mode() or (self.engine and self.engine.is_mame_engine()):
+            if self.pgn_mode() or (self.engine and (self.engine.is_mame_engine() or self.engine.is_script_engine())):
                 return False
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis

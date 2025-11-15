@@ -664,6 +664,7 @@ class UciEngine(object):
         self.file = file
         self.mame_par = mame_par
         self.is_mame = "/mame/" in self.file
+        self.is_script = "/script/" in self.file
         self.transport = None  # find out correct type
         self.engine: UciProtocol | None = None
         self.engine_name = "NN"
@@ -774,6 +775,10 @@ class UciEngine(object):
     def is_mame_engine(self) -> bool:
         """Return True if this engine runs through the MAME/MESS emulation layer."""
         return self.is_mame
+
+    def is_script_engine(self) -> bool:
+        """Return True if this engine is provided via a script wrapper."""
+        return self.is_script
 
     def get_options(self):
         """Get engine options."""

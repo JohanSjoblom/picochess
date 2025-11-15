@@ -1190,6 +1190,8 @@ async def main() -> None:
             if self.pgn_mode() or self.online_mode():
                 return
             if self.state.pending_engine_result is None:
+                # For any engine that produces bestmove 0000 or an illegal move we always
+                # ping it (isready) in handle_bestmove_0000() to decide between resignation and crash.
                 self.state.pending_engine_result = await self.engine.handle_bestmove_0000(self.state.game.copy())
 
         async def think(
@@ -4686,6 +4688,8 @@ async def main() -> None:
                                     result_str = self.state.pending_engine_result
                                     self.state.pending_engine_result = None  # discard cached fallback once consumed
                                     if not result_str:
+                                        # Same logic as above: ping every engine after an illegal move
+                                        # so we can distinguish a resignation from a crashed process.
                                         result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
                                     if result != GameResult.ABORT:

@@ -2569,8 +2569,6 @@ async def main() -> None:
                 # special case - when playing opening book we need to use tutor when playing engine
                 if not result:
                     result = self.eng_plays() and self.state.engine_move_was_book and self.state.is_user_turn()
-            # issue #78 - make sure tutor has same board othewise analysis is worthless
-            result = result and self.state.picotutor.get_board().fen() == self.state.game.fen()
             return result
 
         def need_engine_analyser(self) -> bool:
@@ -2638,6 +2636,8 @@ async def main() -> None:
                 result = await self.state.picotutor.get_analysis()
                 info_list: list[InfoDict] = result.get("info")
                 analysed_fen = result.get("fen", "")
+                if self.state.picotutor.get_board().fen() != self.state.game.fen():
+                    logger.warning("picotutor board out of sync with game")
                 info_candidate = info_list[0] if info_list else None
                 if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
                     info_list = None  # optimised - prevent this info from being sent

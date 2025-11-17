@@ -418,34 +418,6 @@ piece {
     white-space: nowrap;
 }
 
-/* Centrar verticalmente el contenedor de turno y botones - TODAS LAS RESOLUCIONES */
-#boardcontrol > .row:last-child {
-    display: flex;
-    align-items: center;
-    min-height: 40px;
-    margin-top: 0;
-}
-
-/* Contenedor Games con scroll solo vertical - FORZAR ALTURA FIJA */
-#GameTable_wrapper {
-    overflow-x: hidden;
-    overflow-y: auto !important;
-    width: 100%;
-    height: 100% !important;
-}
-
-#GameTable {
-    table-layout: fixed;
-    width: 100% !important;
-}
-
-#GameTable th,
-#GameTable td {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* Asegurar que el movimiento activo se vea centrado */
 .scroll_movelist .text-warning {
     scroll-margin-top: 90px;

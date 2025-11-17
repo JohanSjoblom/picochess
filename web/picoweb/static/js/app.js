@@ -702,14 +702,18 @@ var updateStatus = function () {
 
 
     if ($('#' + strippedFen).position()) {
-        moveListEl.scrollTop(0);
         var element = $('#' + strippedFen);
-        var y_position = element.position().top;
-        moveListEl.scrollTop(y_position);
         $(".fen").each(function () {
             $(this).removeClass('text-warning');
         });
         element.addClass('text-warning');
+        
+        // Centrar el movimiento activo en el contenedor
+        var containerHeight = moveListEl.height();
+        var elementTop = element.position().top;
+        var elementHeight = element.outerHeight();
+        var scrollPosition = moveListEl.scrollTop() + elementTop - (containerHeight / 2) + (elementHeight / 2);
+        moveListEl.scrollTop(scrollPosition);
     }
 
     bookDataTable.ajax.reload();
@@ -1727,19 +1731,28 @@ function getAllInfo() {
 }
 
 var boardThemes = ['blue', 'green', 'metal', 'newspaper', 'soft', 'wood', 'natural-wood'];
-var currentThemeIndex = 6; // natural-wood por defecto
+var currentThemeIndex = parseInt(localStorage.getItem('boardThemeIndex')) || 6;
 
 function changeBoardTheme() {
     currentThemeIndex = (currentThemeIndex + 1) % boardThemes.length;
     var theme = boardThemes[currentThemeIndex];
     
-    // Remover todas las clases de tema
     $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
-    
-    // Agregar la nueva clase de tema
     $('#xboardsection').addClass(theme);
     
-    // Cargar el CSS del tema si no está cargado
+    var themeLink = $('#theme-' + theme);
+    if (themeLink.length === 0) {
+        $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
+    }
+    
+    localStorage.setItem('boardThemeIndex', currentThemeIndex);
+}
+
+function loadSavedTheme() {
+    var theme = boardThemes[currentThemeIndex];
+    $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
+    $('#xboardsection').addClass(theme);
+    
     var themeLink = $('#theme-' + theme);
     if (themeLink.length === 0) {
         $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
@@ -1811,6 +1824,7 @@ $("#ClockLeverBtn").mouseup(function () {
 })
 
 $(function () {
+    loadSavedTheme();
     getAllInfo();
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {

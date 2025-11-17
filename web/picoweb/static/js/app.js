@@ -203,7 +203,7 @@ var bookDataTable = $('#BookTable').DataTable({
     'paging': false,
     'info': false,
     'searching': false,
-    'sScrollY': '168px',
+    'sScrollY': '41vh',
     'order': [
         [1, 'desc']
     ],
@@ -280,7 +280,7 @@ var gameDataTable = $('#GameTable').DataTable({
     'paging': false,
     'info': false,
     'searching': false,
-    'sScrollY': '168px',
+    'sScrollY': '41vh',
     'ordering': false,
     'select': { items: 'row', style: 'single', toggleable: false },
     'columnDefs': [{

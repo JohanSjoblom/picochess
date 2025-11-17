@@ -619,6 +619,11 @@ td.result {
     #board_panel {
         margin-bottom: 10px !important;
     }
+    
+    /* Agregar espacio entre primera columna (tablero) y segunda columna (reloj) */
+    .container-fluid > .row > .col:last-child > .container > .row:first-child {
+        margin-top: 20px !important;
+    }
 
     /* Consistent layout for all tabs */
     .tab-content,

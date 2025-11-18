@@ -159,11 +159,11 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 .boardinfo {
-    padding-top: 21px;
+    padding-bottom: 30px;
 }
 
 #boardControlButtons {
-    padding-top: 10px;
+    padding-bottom: 35px;
 }
 
 #BoardStatus {
@@ -179,8 +179,8 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 .scroll_obooklist {
-    height: 30vh;
-    overflow: auto;
+height: 30vh;
+overflow-x: hidden;
 }
 
 #GameTable_wrapper {
@@ -254,11 +254,7 @@ div.dataTables_wrapper div.dataTables_length select {
     .scroll_movelist,
     .scroll_obooklist,
     .scroll_engine,
-    #GameTable_wrapper {
-        height: 100% !important;
-        max-height: 100% !important;
-    }
-    
+
     /* Las cards deben llenar el espacio de su row */
     .container-fluid > .row > .col:last-child > .container > .row > .card {
         flex: 1;
@@ -271,7 +267,6 @@ div.dataTables_wrapper div.dataTables_length select {
     .container-fluid > .row > .col:last-child > .container > .row > #data > .card-body {
         flex: 1;
         min-height: 0;
-        overflow: hidden;
     }
 }
 

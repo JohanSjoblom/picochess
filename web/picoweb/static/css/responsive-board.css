@@ -54,9 +54,10 @@
         font-size: 11px;
     }
 }
-
-/* Optimización específica para 1024x600 */
-@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px) {
+/***************************************************/
+/* Optimización específica para 1024x600 y 1024x768*/
+/***************************************************/
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 770px) {
     /* Reducir padding general */
     .container-fluid {
         max-width: 1010px !important;
@@ -110,7 +111,7 @@
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1.2 !important;
-        font-size: 18px !important;
+        font-size: 20px !important;
         text-align: center !important;
     }
     
@@ -118,7 +119,7 @@
         margin: 0 !important;
         padding: 0 !important;
         line-height: 1.4 !important;
-        font-size: 18px !important;
+        font-size: 20px !important;
     }
     
     .scroll_movelist .gameResult {
@@ -170,7 +171,7 @@
     
     /* Reducir tamaño de fuentes */
     .gameMoves, .bookMoves {
-        font-size: 1.4vw;
+        font-size: 2vw;
     }
     
     #DGTClockText {
@@ -205,13 +206,13 @@
     #data {
         margin-top: 2px;
     }
-    
+
     #data.card {
-        height: 300px !important;
-        min-height: 300px !important;
-        max-height: 300px !important;
+        height: 290px !important;
+        min-height: 290px !important;
+        max-height: 290px !important;
     }
-    
+
     /* Controles de Scan más compactos */
     .scan-controls {
         padding: 8px !important;
@@ -230,8 +231,9 @@
         font-size: 0.8rem !important;
     }
 }
-
+/*****************************************/
 /* Optimización específica para 1280x800 */
+/*****************************************/
 @media (min-width: 1200px) and (max-width: 1300px) and (min-height: 750px) and (max-height: 850px) {
     /* Tablero más grande aprovechando la altura */
     #xboardsection {
@@ -283,9 +285,9 @@
     }
     
     #data.card {
-        height: 380px !important;
-        min-height: 380px !important;
-        max-height: 380px !important;
+        height: 41.5vh;
+        min-height: 30vh;
+        max-height: 50vh;
     }
     
     /* Prevenir scroll vertical */
@@ -390,45 +392,10 @@ piece {
     }
 }
 
-/* Centrar verticalmente el contenedor de turno y botones - TODAS LAS RESOLUCIONES */
-#boardcontrol > .row:last-child {
-    display: flex;
-    align-items: center;
-    min-height: 40px;
-    margin-top: 0;
-}
-
-/* Contenedor Games con scroll solo vertical - FORZAR ALTURA FIJA */
-#GameTable_wrapper {
-    overflow-x: hidden;
-    overflow-y: auto !important;
-    width: 100%;
-    height: 100% !important;
-}
-
-#GameTable {
-    table-layout: fixed;
-    width: 100% !important;
-}
-
-#GameTable th,
-#GameTable td {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* Asegurar que el movimiento activo se vea centrado */
 .scroll_movelist .text-warning {
     scroll-margin-top: 90px;
     scroll-margin-bottom: 90px;
-}
-
-/* Fijar altura del card de pestañas para mantener posición constante */
-#data.card {
-    height: 320px !important;
-    min-height: 310px !important;
-    max-height: 450px !important;
 }
 
 #data .card-body {
@@ -451,5 +418,6 @@ piece {
 }
 
 #boardcontrol > .row:last-child {
+
     min-height: 30px !important;
 }

@@ -36,9 +36,9 @@ from utilities import write_picochess_ini
 FLOAT_ANALYSIS_WAIT = 0.1  # save CPU in ContinuousAnalysis
 
 # Seconds to wait for an engine to exit before escalating.
-ENGINE_QUIT_TIMEOUT = 3.0
-ENGINE_TERMINATE_TIMEOUT = 2.0
-ENGINE_KILL_TIMEOUT = 1.0
+ENGINE_QUIT_TIMEOUT = 3.0  # waiting seconds for a normal engine to quit
+ENGINE_TERMINATE_TIMEOUT = 2.0  # if not send SIGTERM and wait a bit
+ENGINE_KILL_TIMEOUT = 1.0  # finally send SIGKILL, wait time gives OS some time
 
 UCI_ELO = "UCI_Elo"
 UCI_ELO_NON_STANDARD = "UCI Elo"

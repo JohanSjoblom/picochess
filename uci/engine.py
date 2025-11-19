@@ -35,6 +35,11 @@ from utilities import write_picochess_ini
 
 FLOAT_ANALYSIS_WAIT = 0.1  # save CPU in ContinuousAnalysis
 
+# Seconds to wait for an engine to exit before escalating.
+ENGINE_QUIT_TIMEOUT = 3.0
+ENGINE_TERMINATE_TIMEOUT = 2.0
+ENGINE_KILL_TIMEOUT = 1.0
+
 UCI_ELO = "UCI_Elo"
 UCI_ELO_NON_STANDARD = "UCI Elo"
 UCI_ELO_NON_STANDARD2 = "UCI_Limit"
@@ -876,12 +881,101 @@ class UciEngine(object):
             self.analyser.cancel()  # quit can force full cancel
         if self.playing and self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
-        if not self.is_mame:
-            if self.engine:
-                await self.engine.quit()  # Ask nicely
-        else:
+        if self.is_mame:
             os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
+        else:
+            await self._shutdown_standard_engine()
         await asyncio.sleep(1)  # give it some time to quit
+
+    async def _shutdown_standard_engine(self) -> None:
+        """Attempt a graceful shutdown and escalate if the engine ignores us."""
+        if not self.engine and not self.transport:
+            return
+
+        graceful = False
+        if self.engine:
+            try:
+                await asyncio.wait_for(self.engine.quit(), timeout=ENGINE_QUIT_TIMEOUT)
+                graceful = True
+            except CancelledError:
+                raise
+            except EngineTerminatedError:
+                graceful = True
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "%s engine failed to quit within %.1fs - terminating",
+                    self.engine_name,
+                    ENGINE_QUIT_TIMEOUT,
+                )
+            except Exception:
+                logger.exception("error while shutting down %s", self.engine_name)
+
+        if not graceful:
+            await self._force_kill_transport()
+        else:
+            await self._wait_for_transport_exit(ENGINE_TERMINATE_TIMEOUT)
+
+        if self.transport:
+            try:
+                self.transport.close()
+            except Exception:
+                logger.debug("transport close failed for %s", self.engine_name, exc_info=True)
+        self.transport = None
+        self.engine = None
+
+    async def _force_kill_transport(self) -> None:
+        """Send terminate/kill signals if the engine process ignores quit."""
+        if not self.transport:
+            return
+
+        if not await self._terminate_and_wait():
+            logger.warning("%s engine still running - killing process", self.engine_name)
+            try:
+                self.transport.kill()
+            except ProcessLookupError:
+                pass
+            except Exception:
+                logger.debug("transport kill failed for %s", self.engine_name, exc_info=True)
+            await self._wait_for_transport_exit(ENGINE_KILL_TIMEOUT)
+
+    async def _terminate_and_wait(self) -> bool:
+        """Send SIGTERM and wait for the engine to exit."""
+        if not self.transport or self._transport_exited():
+            return True
+        try:
+            self.transport.terminate()
+        except ProcessLookupError:
+            return True
+        except Exception:
+            logger.debug("transport terminate failed for %s", self.engine_name, exc_info=True)
+        return await self._wait_for_transport_exit(ENGINE_TERMINATE_TIMEOUT)
+
+    async def _wait_for_transport_exit(self, timeout: float) -> bool:
+        """Wait until the current transport exits or timeout elapses."""
+        if self._transport_exited():
+            return True
+        if not self.transport or timeout <= 0:
+            return False
+        deadline = self.loop.time() + timeout
+        while not self._transport_exited():
+            remaining = deadline - self.loop.time()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(0.1, remaining))
+        return self._transport_exited()
+
+    def _transport_exited(self) -> bool:
+        """Return True if there is no transport or it already exited."""
+        if not self.transport:
+            return True
+        try:
+            get_returncode = getattr(self.transport, "get_returncode", None)
+            if not get_returncode:
+                return True
+            return get_returncode() is not None
+        except Exception:
+            logger.debug("could not read returncode for %s", self.engine_name, exc_info=True)
+            return True
 
     def stop(self):
         """Stop background ContinuousAnalyser and/or force engine to move"""

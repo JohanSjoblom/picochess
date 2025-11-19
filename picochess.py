@@ -2999,10 +2999,11 @@ async def main() -> None:
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["Black"])))
                 await asyncio.sleep(update_speed)
 
-            result_header = None
-            if l_game_pgn.headers["Result"]:
-                result_header = l_game_pgn.headers["Result"]
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(result_header)))
+            result_header_raw = l_game_pgn.headers.get("Result") if l_game_pgn.headers else None
+            result_header = (str(result_header_raw).strip() if result_header_raw else "")
+            if result_header_raw:
+                display_result = result_header or str(result_header_raw)
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
                 await asyncio.sleep(update_speed)
 
             # make sure we have "?" in important missing headers to
@@ -3024,7 +3025,7 @@ async def main() -> None:
 
             if not l_stop_at_halfmove:
                 # no PicoStop override found above - check game result
-                if result_header and result_header != "*":
+                if result_header and result_header not in ("*", "?"):
                     # a game with a final result was loaded - issue #54
                     if self.board_type == dgt.util.EBoard.NOEBOARD:
                         # @todo cant use zero on web display because Pico code below
@@ -3063,7 +3064,7 @@ async def main() -> None:
                 # publish current position to webserver
                 await self.user_move(l_move, sliding=True)
 
-            if result_header and result_header == "*":
+            if not result_header or result_header in ("*", "?"):
                 # issue #54 game is not finished - switch back to playing mode
                 if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # same as eng_plays() - preserve previous playing mode

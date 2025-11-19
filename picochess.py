@@ -3071,6 +3071,8 @@ async def main() -> None:
                     self.state.interaction_mode = old_interaction_mode
                 else:
                     self.state.interaction_mode = Mode.NORMAL
+                self.state.dgtmenu.set_mode(self.state.interaction_mode)
+                await self.engine_mode()
             # else remain in non-playing mode - as set above
 
             self.state.flag_picotutor = True  # switch tutor back on

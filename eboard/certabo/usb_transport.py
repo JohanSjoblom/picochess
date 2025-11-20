@@ -51,7 +51,6 @@ try:
 
     usb_support = True
 except ImportError:
-    serial = None
     usb_support = False
 
 

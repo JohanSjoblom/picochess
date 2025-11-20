@@ -38,12 +38,12 @@ line = ""
 p_pgn_game_file = "/opt/picochess/games/last_game.pgn"
 p_engine_path = "/opt/picochess/engines/aarch64/a-stockf"
 p_audio_comment = ""
-p_game_sequence = "backward"  ## possible values:  random, forward, backward
-##p_pgn_game_file = '/Users/molli/Desktop/games/mate_in_two.pgn'
-##p_pgn_game_file = '/Users/molli/Desktop/games/games.pgn'
-##p_pgn_game_file = '/Users/molli/Desktop/games/fool.pgn'
-##p_engine_path   = '/Users/molli/Documents/stockfish-9-mac/Mac/stockfish-9-bmi2'
-##p_audio_comment = '/Users/molli/Desktop/hoerspiel_NwZ.mp3'
+p_game_sequence = "backward"  # possible values:  random, forward, backward
+# p_pgn_game_file = '/Users/molli/Desktop/games/mate_in_two.pgn'
+# p_pgn_game_file = '/Users/molli/Desktop/games/games.pgn'
+# p_pgn_game_file = '/Users/molli/Desktop/games/fool.pgn'
+# p_engine_path   = '/Users/molli/Documents/stockfish-9-mac/Mac/stockfish-9-bmi2'
+# p_audio_comment = '/Users/molli/Desktop/hoerspiel_NwZ.mp3'
 flag_audio_playing = False
 p_think_time = 3
 think_time = 0
@@ -161,17 +161,17 @@ def get_move():
     if is_uci and game_started:
 
         if "book.pgn" in p_pgn_game_file:
-            ## for book test return ABORT to notify that last move wasn't a book move
+            # for book test return ABORT to notify that last move wasn't a book move
             uci_move = "ABORT"
             ponder_move = ""
         elif max_moves == 0 or move_counter > (max_moves - 1):
-            ## game over
+            # game over
             uci_move = "ABORT"
             ponder_move = ""
             info_str = "info depth 999 multipv 1 score cp 999"
         else:
 
-            ## get next move
+            # get next move
             move_pgn = move_list[move_counter]
             move_counter = move_counter + 1
             # Do NOT: push the board here because it might be a wrong guess
@@ -188,9 +188,9 @@ def get_move():
 
                 info_str = "info depth 0"
 
-            ponder_move = move  ## molli: the ponder move for pico is the current engine move
-            ##else:
-            ##ponder_move = move_list[move_counter]
+            ponder_move = move  # molli: the ponder move for pico is the current engine move
+            # else:
+            # ponder_move = move_list[move_counter]
 
             if move_pgn == "0000" or move_pgn == "ABORT" or move_pgn == "":
                 uci_move = "ABORT"
@@ -249,10 +249,10 @@ def get_orig_game_index(find_game):
             found = True
         i = i + 1
 
-    ##for game in orig_game_list:
-    ##    if game.headers == find_game.headers:
-    ##       orig_index = i
-    ##   i = i + 1
+    # for game in orig_game_list:
+    #     if game.headers == find_game.headers:
+    #        orig_index = i
+    #    i = i + 1
 
     return orig_index
 
@@ -297,11 +297,11 @@ def newgame():
     move_list = []
 
     if game_counter == 0:
-        ## reset list to all games
+        # reset list to all games
         game_counter = max_games
         game_list = orig_game_list.copy()
 
-    ## get game from remaining games by specified sequence
+    # get game from remaining games by specified sequence
     if p_game_sequence == "random":
         game_index = int(random.randint(0, game_counter - 1))
     elif p_game_sequence == "forward":
@@ -362,22 +362,22 @@ def newgame():
 
         if log:
             log.write("FEN: %s\n" % str(fen))
-    ## delete this game from current list
+    # delete this game from current list
     if l_continue:
         del game_list[game_index]
         game_counter = game_counter - 1
 
-    ## create move list of the new game
+    # create move list of the new game
     move_counter = 0
     max_moves = 0
 
-    ## create new game board
+    # create new game board
     board = get_start_pos(board)
     input_board = get_start_pos(input_board)
 
     i = 0
     if l_continue:
-        for move in pgn_game.mainline_moves():  ## molli: later mainline_moves() for python-chess 25
+        for move in pgn_game.mainline_moves():  # molli: later mainline_moves() for python-chess 25
             i = i + 1
             move_list.append(move.uci())
 
@@ -388,7 +388,7 @@ def newgame():
         log.write("Number of moves: %s\n" % str(max_moves))
         log.flush()
 
-    ## log current pgn game infos for picochess control in main program
+    # log current pgn game infos for picochess control in main program
 
     try:
         log_p = open(log_file_pgn_info, "w")
@@ -580,7 +580,7 @@ while True:
 
             input_board = chess.Board()
 
-            for mo in mm:  ## get last move and set current position
+            for mo in mm:  # get last move and set current position
                 input_board.push(chess.Move.from_uci(mo))
                 last_move = mo
 
@@ -597,14 +597,14 @@ while True:
         elif "position startpos" in line:
             input_board = chess.Board()
             move_counter = 0
-            ##game_started = True
+            # game_started = True
 
             if log:
                 log.write("position startpos ready\n")
                 log.flush()
 
         elif "position fen" in line:
-            ##game_started = True
+            # game_started = True
             if line == last_fen_line:
                 if log:
                     log.write("WARNING: input fen (double)")
@@ -621,7 +621,7 @@ while True:
 
             input_board = chess.Board(ff)
 
-            for mo in mm:  ## get last move and set current position
+            for mo in mm:  # get last move and set current position
                 input_board.push(chess.Move.from_uci(mo))
                 last_move = mo
 
@@ -659,7 +659,7 @@ while True:
 
         elif line == "isready":
             j = 0
-            ## load pgn file
+            # load pgn file
             if p_pgn_game_file:
                 l_continue = True
                 try:
@@ -707,7 +707,7 @@ while True:
                 pub_move()
 
         elif line == "stop":
-            ## if pygame.mixer.music.get_busy():
+            # if pygame.mixer.music.get_busy():
             if flag_audio_playing:
                 pygame.mixer.music.pause()
                 flag_audio_playing = False
@@ -728,4 +728,4 @@ while True:
             if len(line) == 4 and is_uci and game_started:
                 if line[0] in abc and line[2] in abc and line[1] in nn and line[3] in nn:
                     move = line
-                    push_uci_move(move)  ## just for testing
+                    push_uci_move(move)  # just for testing

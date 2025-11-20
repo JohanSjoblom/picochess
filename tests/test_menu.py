@@ -247,7 +247,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = menu.main_right()
         self.assertEqual("Mep. Milano", text.large_text)  # third retro engine
         menu.main_left()  # level selection menu
-        text =menu.main_left()
+        text = menu.main_left()
         self.assertEqual("Mep.Academy", text.large_text)
         text = await menu.main_down()
         self.assertEqual("Level 00 - speed", text.large_text)

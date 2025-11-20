@@ -44,7 +44,6 @@ import copy
 import eboard.chesslink.chess_link_protocol as clp
 import eboard.chesslink.chess_link_bluepy as tri
 
-
 # See document:
 # `magic-board.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>_
 # for details on the Chess Link protocol.
@@ -292,11 +291,11 @@ class ChessLink:
                 msg = self.trque.get()
                 token = "agent-state: "
                 if msg[: len(token)] == token:
-                    toks = msg[len(token) :]
+                    toks = msg[len(token):]
                     i = toks.find(" ")
                     if i != -1:
                         state = toks[:i]
-                        emsg = toks[i + 1 :]
+                        emsg = toks[i + 1:]
                     else:
                         state = toks
                         emsg = ""

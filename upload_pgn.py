@@ -12,7 +12,7 @@ from dgt.api import Event
 
 UPLOAD_BASE_DIR = "/opt/picochess/games"
 UPLOAD_DIR = "uploads"
-if not "unittest" in sys.modules:  # do not create directories while running tests
+if "unittest" not in sys.modules:  # do not create directories while running tests
     os.makedirs(os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR), exist_ok=True)
 
 

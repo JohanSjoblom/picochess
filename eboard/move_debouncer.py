@@ -66,7 +66,7 @@ class MoveDebouncer(object):
             self.timer.cancel()
 
     def _shall_start_timer(self, short_fen: str):
-        self.previous_fens = self.previous_fens[len(self.previous_fens) - 2 :]  # keep two entries max
+        self.previous_fens = self.previous_fens[len(self.previous_fens) - 2:]  # keep two entries max
         for previous in self.previous_fens:
             if self._is_move_extendable(previous, short_fen):
                 self.previous_fens = []

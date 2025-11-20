@@ -64,7 +64,7 @@ class Parser(object):
     def _parse_position(self, data, index):
         data_length = 32
         if len(data) >= (index + data_length + 2):
-            data = data[index + 2 :]
+            data = data[index + 2:]
             index += data_length + 1
             return index, data
         else:

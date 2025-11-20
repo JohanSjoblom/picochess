@@ -44,7 +44,6 @@ from web.picoweb import picoweb as pw
 from dgt.api import Event, Message
 from dgt.util import PlayMode, Mode, ClockSide, GameResult
 from dgt.iface import DgtIface
-from dgt.menu import DgtMenu
 from eboard.eboard import EBoard
 from pgn import ModeInfo
 

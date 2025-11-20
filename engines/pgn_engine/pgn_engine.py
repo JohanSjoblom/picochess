@@ -183,7 +183,6 @@ def get_move():
                 log.write("new move_counter %s\n" % str(move_counter))
 
             if think_time > 0:
-
                 move = ""
                 ponder_move = ""
 
@@ -526,7 +525,7 @@ while True:
         line = input()
     except KeyboardInterrupt:  # XBoard sends Control-C characters, so these must be caught
         if not is_uci:
-            pass  #   Otherwise Python would quit.
+            pass  # Otherwise Python would quit.
 
     mstart_t = int(time.time())
 

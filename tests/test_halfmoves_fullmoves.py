@@ -3,7 +3,6 @@ import chess
 from picotutor import PicoTutor
 
 
-
 class TestHalfMoves(unittest.TestCase):
 
     def test_halfmove_to_fullmove_unknown_start(self):
@@ -73,6 +72,7 @@ class TestHalfMoves(unittest.TestCase):
                 reconverted = PicoTutor.fullmove_to_halfmove(fullmove, turn, first_move_black)
                 self.assertEqual(reconverted, halfmove,
                                  f"Mismatch: halfmove={halfmove}, known_turn={known_turn}, got={reconverted}")
+
 
 if __name__ == '__main__':
     unittest.main()

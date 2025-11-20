@@ -25,7 +25,7 @@ import os
 import asyncio
 
 # import sys  # type: ignore - needed for redirecting stdout/stderr
-import contextlib  # type: ignore - needed for redirecting stdout/stderr
+import contextlib
 import subprocess
 
 # Suppress pygame's hardcoded output to stdout/stderr

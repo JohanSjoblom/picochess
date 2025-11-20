@@ -1,3 +1,5 @@
+import asyncio
+
 import chess  # type: ignore[import]
 import datetime
 import unittest
@@ -12,12 +14,12 @@ EMPTY_GAME = """[Event "PicoChess Game"]
 [White "?"]
 [Black "?"]
 [Result "*"]
-[BlackElo "-"]
-[PicoRemTimeB "0"]
-[PicoRemTimeW "0"]
-[PicoTimeControl "0"]
 [Time "{1}"]
 [WhiteElo "-"]
+[BlackElo "-"]
+[PicoTimeControl "0"]
+[PicoRemTimeW "0"]
+[PicoRemTimeB "0"]
 
 *"""
 
@@ -31,7 +33,9 @@ class FakeMessage:
 
 class TestPgnDisplay(unittest.TestCase):
     def setUp(self):
-        self.testee = PgnDisplay("test", None)
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.testee = PgnDisplay("test", None, {}, self.loop)
 
     def test_generate_pgn(self):
         game = chess.Board()

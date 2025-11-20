@@ -1,6 +1,7 @@
 # upload_handler.py
 
 import os
+import sys
 import base64
 import pam
 import tornado.web
@@ -9,10 +10,10 @@ from tornado import escape
 from utilities import Observable
 from dgt.api import Event
 
-
 UPLOAD_BASE_DIR = "/opt/picochess/games"
 UPLOAD_DIR = "uploads"
-os.makedirs(os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR), exist_ok=True)
+if not "unittest" in sys.modules:  # do not create directories while running tests
+    os.makedirs(os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR), exist_ok=True)
 
 
 class UploadHandler(tornado.web.RequestHandler):

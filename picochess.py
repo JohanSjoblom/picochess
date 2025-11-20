@@ -505,10 +505,8 @@ def log_pgn(state: PicochessState):
     logger.debug("molli pgn: no_guess_black: %s", state.no_guess_black)
 
 
-def read_pgn_info():
+def read_pgn_info_from_file(pgn_info_path):
     info = {}
-    arch = platform.machine()
-    pgn_info_path = "/opt/picochess/engines/" + arch + "/extra/pgn_game_info.txt"
     try:
         with open(pgn_info_path) as info_file:
             for line in info_file:
@@ -525,6 +523,11 @@ def read_pgn_info():
     except (OSError, KeyError):
         logger.error("Could not read pgn_game_info file")
         return "Game Error", "", "", "*", "", ""
+
+
+def read_pgn_info():
+    arch = platform.machine()
+    return read_pgn_info_from_file("/opt/picochess/engines/" + arch + "/extra/pgn_game_info.txt")
 
 
 def read_online_result():

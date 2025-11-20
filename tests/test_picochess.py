@@ -1,8 +1,10 @@
 import chess  # type: ignore
+import chess.polyglot
+import chess.engine
 import mock
 import unittest
 
-from picochess import AlternativeMover, read_pgn_info, read_online_result, read_online_user_info
+from picochess import AlternativeMover, read_pgn_info_from_file, read_online_result, read_online_user_info
 
 
 class TestAlternativeMover(unittest.TestCase):
@@ -50,25 +52,27 @@ class TestAlternativeMover(unittest.TestCase):
 
     def test_book_1_move_in_book(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 796, 0, 1)
+        book_move = chess.polyglot.Entry(1, 796, 0, 1, self.e2e4)
         bookreader.weighted_choice.side_effect = [book_move, IndexError()]
         move = self.testee.book(bookreader, self.game)
 
-        self.assertEqual(move, chess.engine.BestMove(self.e2e4, None))
+        self.assertEqual(move.move, self.e2e4)
+        self.assertEqual(move.ponder, None)
 
     def test_book_2_moves_in_book(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 796, 0, 1)
-        book_move_2 = chess.polyglot.Entry(1, 1804, 0, 1)
+        book_move = chess.polyglot.Entry(1, 796, 0, 1, self.e2e4)
         e4e2 = chess.Move.from_uci("e4e2")
+        book_move_2 = chess.polyglot.Entry(1, 1804, 0, 1, e4e2)
         bookreader.weighted_choice.side_effect = [book_move, book_move_2]
         move = self.testee.book(bookreader, self.game)
 
-        self.assertEqual(move, chess.engine.BestMove(self.e2e4, e4e2))
+        self.assertEqual(move.move, self.e2e4)
+        self.assertEqual(move.ponder, e4e2)
 
     def test_book_exclude_side_effect(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 796, 0, 1)
+        book_move = chess.polyglot.Entry(1, 796, 0, 1, self.e2e4)
         bookreader.weighted_choice.side_effect = [book_move, IndexError()]
         self.testee.book(bookreader, self.game)
 
@@ -78,7 +82,7 @@ class TestAlternativeMover(unittest.TestCase):
 
     def test_book_game_side_effect(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 796, 0, 1)
+        book_move = chess.polyglot.Entry(1, 796, 0, 1, self.e2e4)
         bookreader.weighted_choice.side_effect = [book_move, IndexError()]
         self.testee.book(bookreader, self.game)
 
@@ -92,14 +96,14 @@ class TestAlternativeMover(unittest.TestCase):
 
     def test_check_book_found_move(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 796, 0, 1)
+        book_move = chess.polyglot.Entry(1, 796, 0, 1, self.e2e4)
         bookreader.weighted_choice.side_effect = [book_move]
 
         self.assertTrue(self.testee.check_book(bookreader, self.game))
 
     def test_check_book_found_null_move(self):
         bookreader = mock.create_autospec(chess.polyglot.MemoryMappedReader)
-        book_move = chess.polyglot.Entry(1, 0, 0, 1)
+        book_move = chess.polyglot.Entry(1, 0, 0, 1, chess.Move.from_uci("0000"))
         bookreader.weighted_choice.side_effect = [book_move]
 
         self.assertFalse(self.testee.check_book(bookreader, self.game))
@@ -107,7 +111,7 @@ class TestAlternativeMover(unittest.TestCase):
 
 class TestReadPGNInfo(unittest.TestCase):
     def test_read_pgn_info(self):
-        game_name, problem, fen, result, white, black = read_pgn_info()
+        game_name, problem, fen, result, white, black = read_pgn_info_from_file("tests/pgn_game_info.txt")
         self.assertEqual("Kasparov 25 board Simul", game_name.strip())
         self.assertEqual("", problem.strip())
         self.assertEqual("", fen.strip())

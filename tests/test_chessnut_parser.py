@@ -15,11 +15,11 @@
 
 import unittest
 from unittest.mock import call, patch
-from chessnut.parser import Parser
-from chessnut.parser import Battery
+from eboard.chessnut.parser import Parser
+from eboard.chessnut.parser import Battery
 
 
-@patch("chessnut.parser.ParserCallback")
+@patch("eboard.chessnut.parser.ParserCallback")
 class TestParser(unittest.TestCase):
 
     def test_initial_position(self, MockedParserCallback):

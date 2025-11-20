@@ -32,7 +32,6 @@ from dgt.api import Message, Dgt
 from utilities import AsyncRepeatingTimer, DisplayMsg, hms_time
 import asyncio
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -83,13 +82,13 @@ class DgtBoard(EBoard):
     """Handle the DGT board communication."""
 
     def __init__(
-        self,
-        device: str,
-        disable_revelation_leds: bool,
-        is_pi: bool,
-        disable_end: bool,
-        loop: asyncio.AbstractEventLoop,
-        field_factor=0,
+            self,
+            device: str,
+            disable_revelation_leds: bool,
+            is_pi: bool,
+            disable_end: bool,
+            loop: asyncio.AbstractEventLoop,
+            field_factor=0,
     ):
         super(DgtBoard, self).__init__()
         self.given_device = device
@@ -470,7 +469,7 @@ class DgtBoard(EBoard):
             board = ""
             for character in message:
                 board += piece_to_char[character & 0x0F]
-            logger.debug("\n" + "\n".join(board[0 + i : 8 + i] for i in range(0, len(board), 8)))  # Show debug board
+            logger.debug("\n" + "\n".join(board[0 + i: 8 + i] for i in range(0, len(board), 8)))  # Show debug board
             # Create fen from board
             fen = ""
             empty = 0

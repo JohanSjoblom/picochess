@@ -35,7 +35,6 @@ from eboard.certabo.led_control import CertaboLedControl
 from eboard.certabo.sentio import Sentio
 from eboard.certabo.usb_transport import Transport
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -187,11 +186,11 @@ class Protocol(ParserCallback, CalibrationCallback):
                 msg = self.trque.get()
                 token = "agent-state: "
                 if msg[: len(token)] == token:
-                    toks = msg[len(token) :]
+                    toks = msg[len(token):]
                     i = toks.find(" ")
                     if i != -1:
                         state = toks[:i]
-                        emsg = toks[i + 1 :]
+                        emsg = toks[i + 1:]
                     else:
                         state = toks
                         emsg = ""

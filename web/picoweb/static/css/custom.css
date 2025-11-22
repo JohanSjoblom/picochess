@@ -179,14 +179,14 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 .scroll_obooklist {
-height: 30vh;
-overflow-x: hidden;
+    height: 30vh;
+    overflow-x: hidden;
 }
 
 #GameTable_wrapper {
     min-height: 30vh;
     max-height: 30vh;
-    overflow: auto;
+    overflow-x: hidden;
 }
 
 .scroll_engine {
@@ -213,58 +213,63 @@ overflow-x: hidden;
 
 /* Igualar altura de columnas - Sistema responsive universal */
 @media (min-width: 769px) {
+
     /* Solo en desktop, hacer que las columnas tengan igual altura */
-    .container-fluid > .row {
+    .container-fluid>.row {
         display: flex;
         align-items: stretch;
     }
-    
-    .container-fluid > .row > .col {
+
+    .container-fluid>.row>.col {
         display: flex;
         flex-direction: column;
     }
-    
+
     /* La columna derecha debe distribuir su espacio */
-    .container-fluid > .row > .col:last-child > .container {
+    .container-fluid>.row>.col:last-child>.container {
         display: flex;
         flex-direction: column;
         height: 100%;
     }
-    
+
     /* Cada row dentro de la columna derecha debe tomar su espacio proporcional */
-    .container-fluid > .row > .col:last-child > .container > .row:nth-child(1) {
-        flex: 0 0 auto; /* Reloj - tamaño fijo */
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(1) {
+        flex: 0 0 auto;
+        /* Reloj - tamaño fijo */
     }
-    
-    .container-fluid > .row > .col:last-child > .container > .row:nth-child(2) {
-        flex: 0 0 auto; /* Botones reloj - tamaño fijo */
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(2) {
+        flex: 0 0 auto;
+        /* Botones reloj - tamaño fijo */
     }
-    
-    .container-fluid > .row > .col:last-child > .container > .row:nth-child(3) {
-        flex: 1 1 40%; /* Lista movimientos - 40% del espacio flexible */
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(3) {
+        flex: 1 1 40%;
+        /* Lista movimientos - 40% del espacio flexible */
         min-height: 0;
     }
-    
-    .container-fluid > .row > .col:last-child > .container > .row:nth-child(4) {
-        flex: 1 1 60%; /* Pestañas - 60% del espacio flexible */
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(4) {
+        flex: 1 1 60%;
+        /* Pestañas - 60% del espacio flexible */
         min-height: 0;
     }
-    
+
     /* Los contenedores scrollables deben llenar su espacio */
     .scroll_movelist,
     .scroll_obooklist,
     .scroll_engine,
 
     /* Las cards deben llenar el espacio de su row */
-    .container-fluid > .row > .col:last-child > .container > .row > .card {
+    .container-fluid>.row>.col:last-child>.container>.row>.card {
         flex: 1;
         display: flex;
         flex-direction: column;
         min-height: 0;
     }
-    
-    .container-fluid > .row > .col:last-child > .container > .row > .card > .card-body,
-    .container-fluid > .row > .col:last-child > .container > .row > #data > .card-body {
+
+    .container-fluid>.row>.col:last-child>.container>.row>.card>.card-body,
+    .container-fluid>.row>.col:last-child>.container>.row>#data>.card-body {
         flex: 1;
         min-height: 0;
     }
@@ -441,8 +446,10 @@ td.result {
 
 /* Estilo base del botón */
 #btn-mute {
-    position: relative; /* ¡MUY IMPORTANTE! Esto hace que la raya sepa dónde dibujarse */
-    font-size: 24px;    /* Hacemos el icono un poco más grande */
+    position: relative;
+    /* ¡MUY IMPORTANTE! Esto hace que la raya sepa dónde dibujarse */
+    font-size: 24px;
+    /* Hacemos el icono un poco más grande */
     cursor: pointer;
     border: 1px solid #ccc;
     border-radius: 8px;
@@ -450,7 +457,8 @@ td.result {
     width: 60px;
     height: 50px;
     transition: all 0.2s;
-    display: inline-flex; /* Centra el contenido perfectamente */
+    display: inline-flex;
+    /* Centra el contenido perfectamente */
     align-items: center;
     justify-content: center;
     vertical-align: middle;
@@ -458,7 +466,8 @@ td.result {
 
 /* El icono dentro del botón */
 #btn-mute span {
-    z-index: 1; /* El icono se queda abajo */
+    z-index: 1;
+    /* El icono se queda abajo */
     pointer-events: none;
 }
 
@@ -466,7 +475,7 @@ td.result {
 #btn-mute.is-muted {
     background-color: #ffb3b3;
     border-color: #ff0000;
-    box-shadow: inset 0px 2px 5px rgba(0,0,0,0.15);
+    box-shadow: inset 0px 2px 5px rgba(0, 0, 0, 0.15);
 }
 
 /* LA RAYA BLANCA */
@@ -476,12 +485,15 @@ td.result {
     top: 50%;
     left: 50%;
     width: 60%;
-    height: 4px;      /* Grosor de la raya */
+    height: 4px;
+    /* Grosor de la raya */
     background-color: white;
-    border: 1px solid #cc0000; /* Borde rojo para contraste */
+    border: 1px solid #cc0000;
+    /* Borde rojo para contraste */
     border-radius: 2px;
     transform: translate(-50%, -50%) rotate(-45deg);
-    z-index: 10;      /* ¡IMPORTANTE! Fuerza la raya a estar ENCIMA del icono */
+    z-index: 10;
+    /* ¡IMPORTANTE! Fuerza la raya a estar ENCIMA del icono */
     pointer-events: none;
 }
 
@@ -662,9 +674,9 @@ td.result {
     #board_panel {
         margin-bottom: 10px !important;
     }
-    
+
     /* Agregar espacio entre primera columna (tablero) y segunda columna (reloj) */
-    .container-fluid > .row > .col:last-child > .container > .row:first-child {
+    .container-fluid>.row>.col:last-child>.container>.row:first-child {
         margin-top: 20px !important;
     }
 
@@ -772,7 +784,8 @@ td.result {
         display: flex !important;
         align-items: center !important;
     }
-     #boardControlButtons {
+
+    #boardControlButtons {
         display: flex !important;
         flex-direction: row !important;
         justify-content: space-between;
@@ -810,4 +823,3 @@ td.result {
         display: inline !important;
     }
 }
-

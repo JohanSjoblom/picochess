@@ -39,6 +39,8 @@ var simpleNags = {
     '142': '&#8979',
     '146': 'N'
 };
+// Speech toggle for the web client (set via setSpeechMuted)
+var speechMuted = false;
 
 var speechAvailable = true
 if (typeof speechSynthesis === "undefined") {
@@ -57,14 +59,18 @@ if (speechAvailable) {
 }
 
 function talk(text) {
-    if (speechAvailable) {
+    if (speechAvailable && !speechMuted) {
         var msg = new SpeechSynthesisUtterance(text);
         msg.lang = "en-US";
         if (myvoice != "") {
             msg.voice = myvoice;
         }
-        // window.speechSynthesis.speak(msg);
+        window.speechSynthesis.speak(msg);
     }
+}
+
+function setSpeechMuted(muted) {
+    speechMuted = !!muted;
 }
 
 talk("Hello, welcome to Picochess!");
@@ -705,7 +711,7 @@ var updateStatus = function () {
             $(this).removeClass('text-warning');
         });
         element.addClass('text-warning');
-        
+
         // Centrar el movimiento activo en el contenedor
         var containerHeight = moveListEl.height();
         var elementTop = element.position().top;
@@ -1533,7 +1539,7 @@ function handleMessage(event) {
 function loadNaclStockfish() {
     var listener = document.getElementById('listener');
     listener.addEventListener('load', stockfishPNACLModuleDidLoad, true);
-    listener.addEventListener('message', function(event) {
+    listener.addEventListener('message', function (event) {
         if (event && event.data) {
             handleMessage(event);
         }
@@ -1688,7 +1694,7 @@ function setHeaders(data) {
         console.debug('setHeaders: data is not a valid object', data);
         return;
     }
-    
+
     if ('FEN' in data && 'SetUp' in data) {
         if ('Variant' in data && 'Chess960' === data['Variant']) {
             chessGameType = 1; // values from chess960.js
@@ -1734,15 +1740,15 @@ var currentThemeIndex = parseInt(localStorage.getItem('boardThemeIndex')) || 6;
 function changeBoardTheme() {
     currentThemeIndex = (currentThemeIndex + 1) % boardThemes.length;
     var theme = boardThemes[currentThemeIndex];
-    
+
     $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
     $('#xboardsection').addClass(theme);
-    
+
     var themeLink = $('#theme-' + theme);
     if (themeLink.length === 0) {
         $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
     }
-    
+
     localStorage.setItem('boardThemeIndex', currentThemeIndex);
 }
 
@@ -1750,7 +1756,7 @@ function loadSavedTheme() {
     var theme = boardThemes[currentThemeIndex];
     $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
     $('#xboardsection').addClass(theme);
-    
+
     var themeLink = $('#theme-' + theme);
     if (themeLink.length === 0) {
         $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');

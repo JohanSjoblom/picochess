@@ -230,11 +230,38 @@
     .form-check-label {
         font-size: 0.8rem !important;
     }
+        #boardControlButtons {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: nowrap;
+    }
+
+    #boardControlButtons button {
+        font-size: 0.75rem !important;
+        padding: 0.2rem 0.4rem !important;
+        min-width: unset !important;
+        width: auto !important;
+        flex: 1 1 auto;
+    }
+
+    #btn-mute {
+        width: auto !important;
+        height: 40px !important;
+        font-size: 18px !important;
+        padding: 0 !important;
+    }
+
+    #btn-mute span {
+        font-size: 16px !important;
+    }
 }
 /*****************************************/
 /* Optimización específica para 1280x800 */
 /*****************************************/
-@media (min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px) {
+@media (min-width: 1200px) and (max-width: 1300px) and (min-height: 750px) and (max-height: 850px) {
     /* Tablero más grande aprovechando la altura */
     #xboardsection {
         max-width: 1270px;
@@ -358,7 +385,7 @@ piece {
 }
 
 /* Estilos comunes para 1024x600 y 1280x800 */
-@media ((min-width: 1000px) and (max-width: 1100px) and (max-height: 650px)), ((min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px)) {
+@media ((min-width: 1000px) and (max-width: 1100px) and (max-height: 650px)), ((min-width: 1200px) and (max-width: 1300px) and (min-height: 750px) and (max-height: 850px)) {
     /* Espacio superior estético */
     .container-fluid > .row {
         margin-top: 10px;

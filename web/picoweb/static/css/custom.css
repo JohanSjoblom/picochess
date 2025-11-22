@@ -437,7 +437,55 @@ td.result {
 }
 
 /* end promotion */
+/* --- ESTILOS DEL BOTÓN MUTE (GLOBAL) --- */
 
+/* Estilo base del botón */
+#btn-mute {
+    position: relative; /* ¡MUY IMPORTANTE! Esto hace que la raya sepa dónde dibujarse */
+    font-size: 24px;    /* Hacemos el icono un poco más grande */
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f0f0f0;
+    width: 60px;
+    height: 50px;
+    transition: all 0.2s;
+    display: inline-flex; /* Centra el contenido perfectamente */
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+/* El icono dentro del botón */
+#btn-mute span {
+    z-index: 1; /* El icono se queda abajo */
+    pointer-events: none;
+}
+
+/* ESTADO MUTEADO (Rojo claro) */
+#btn-mute.is-muted {
+    background-color: #ffb3b3;
+    border-color: #ff0000;
+    box-shadow: inset 0px 2px 5px rgba(0,0,0,0.15);
+}
+
+/* LA RAYA BLANCA */
+#btn-mute.is-muted::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60%;
+    height: 4px;      /* Grosor de la raya */
+    background-color: white;
+    border: 1px solid #cc0000; /* Borde rojo para contraste */
+    border-radius: 2px;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    z-index: 10;      /* ¡IMPORTANTE! Fuerza la raya a estar ENCIMA del icono */
+    pointer-events: none;
+}
+
+/* --- FIN BOTÓN MUTE --- */
 /* Responsive styles for portrait mode */
 @media (max-width: 768px) and (orientation: portrait) {
 
@@ -724,4 +772,42 @@ td.result {
         display: flex !important;
         align-items: center !important;
     }
+     #boardControlButtons {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: nowrap;
+        margin-top: 5px !important;
+    }
+
+    #boardControlButtons button {
+        font-size: 0.7rem !important;
+        padding: 0.2rem 0.35rem !important;
+        min-width: unset !important;
+        flex: 1 1 auto;
+        white-space: nowrap;
+    }
+
+    #btn-mute {
+        width: auto !important;
+        height: 38px !important;
+        font-size: 16px !important;
+        padding: 0 6px !important;
+        flex: 0 0 auto;
+    }
+
+    #btn-mute span {
+        font-size: 14px !important;
+    }
+
+    .btn-text {
+        display: none !important;
+    }
+
+    #downloadBtn .btn-text {
+        display: inline !important;
+    }
 }
+

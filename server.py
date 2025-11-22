@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import subprocess # boton mute.
 import datetime
 import logging
 from collections import OrderedDict
@@ -45,7 +44,6 @@ from web.picoweb import picoweb as pw
 from dgt.api import Event, Message
 from dgt.util import PlayMode, Mode, ClockSide, GameResult
 from dgt.iface import DgtIface
-from dgt.menu import DgtMenu
 from eboard.eboard import EBoard
 from pgn import ModeInfo
 
@@ -212,25 +210,7 @@ class ChannelHandler(ServerRequestHandler):
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
             self.set_header("Content-Type", "application/json")
-        elif action == "mute":
-            state = self.get_argument("state")
 
-            # Si el estado del botón es 'true' (queremos silenciar), el switch de amixer es 'off'.
-            # Si el estado del botón es 'false' (queremos activar), el switch de amixer es 'on'.
-            switch_cmd = "off" if state == "true" else "on"
-
-            try:
-                # 1. Ejecuta el comando de sistema usando el control 'Master' y el comando 'on' o 'off'.
-                subprocess.call(["amixer", "-q", "set", "Master", switch_cmd])
-
-                # 2. (Opcional) Asegurar que si encendemos, el volumen esté al máximo (100%).
-                if switch_cmd == "on":
-                    subprocess.call(["amixer", "-q", "set", "Master", "100%"])
-
-                logger.info(f"Sistema de audio: switch cambiado a: {switch_cmd}")
-            except Exception as e:
-                logger.error(f"Error al cambiar switch de volumen: {e}. Asegúrate de que tienes permisos.")
-                
 
 class EventHandler(WebSocketHandler):
     """Started by /event HTTP call - Clients are WebDisplay and WebVr classes"""

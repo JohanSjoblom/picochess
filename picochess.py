@@ -929,6 +929,8 @@ async def main() -> None:
             # announcement reflects the saved configuration
             if self.state.dgtmenu and self.state.engine_file:
                 self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
+                # avoid leaving the menu state inside the engine submenu on startup
+                self.state.dgtmenu.enter_top_menu()
 
             self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()

@@ -97,3 +97,4 @@ This repository does not contain all engines, books or voice samples the
 community has built over the years. Unfortunately, a lot of those files cannot
 be easily hosted in this repository. You can find additional content for your
 picochess installation in the [Picochess Google Group](https://groups.google.com/g/picochess).
+<img width="1284" height="767" alt="Captura de pantalla 2025-11-22 191548" src="https://github.com/user-attachments/assets/cc391e26-277a-4bca-84cf-eab26e7314f7" />

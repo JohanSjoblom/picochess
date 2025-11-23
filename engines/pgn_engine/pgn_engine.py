@@ -11,9 +11,11 @@
 
 import sys
 import time
-import chess
-import chess.pgn
-import chess.engine
+from typing import Any
+
+import chess  # type: ignore
+import chess.pgn  # type: ignore
+import chess.engine  # type: ignore
 import random
 import pygame
 from pathlib import Path
@@ -58,10 +60,10 @@ last_fen_line = ""
 j = 0
 i = 0
 
-move_list = []
-game_list = []
-orig_game_list = []
-pgn_file = ""
+move_list: list[str] = []
+game_list: list[Any] = []
+orig_game_list: list[Any] = []
+pgn_file: Any = ""
 pgn_game = None
 board = None
 input_board = None
@@ -70,11 +72,11 @@ info_handler = None
 info_str = ""
 fen = ""
 l_continue = True
+log: Any = None
 
 try:
     log = open(log_file, "w")
-except:
-    log = ""
+except OSError:
     print("# Could not create log file")
 
 
@@ -93,65 +95,20 @@ def play_audio():
 
 
 def print2(x):
-    global log
     print(x)
-    if log:
-        log.write("< %s\n" % x)
-        log.flush()
+    write_log(x)
 
 
 def write_log(x):
-    global log
-    if log:
+    if log is not None:
         log.write("< %s\n" % x)
         log.flush()
 
 
-def convert_to_uci(move):
-    global p_own_color
-
-    if move == "O-O" or move == "o-o":
-        if p_own_color == "b":
-            uci_move = "e1g1"
-        else:
-            uci_move = "e8g8"
-    elif move == "O-O-O" or move == "o-o-o":
-        if p_own_color == "b":
-            uci_move = "e1c1"
-        else:
-            uci_move = "e8c8"
-    else:
-        move_fr = move[0:2]
-        move_to = move[3:5]
-
-        if move[-1] == "q" or move[-1] == "Q":
-            promotion = "q"
-        elif move[-1] == "b" or move[-1] == "B":
-            promotion = "b"
-        elif move[-1] == "k" or move[-1] == "K":
-            promotion = "n"
-        elif move[-1] == "n" or move[-1] == "N":
-            promotion = "n"
-        elif move[-1] == "r" or move[-1] == "R":
-            promotion = "r"
-        else:
-            promotion = ""
-
-        uci_move = move_fr + move_to + promotion
-    return uci_move
-
-
 def get_move():
-    global is_uci
-    global game_started
     global move_counter
-    global move_list
-    global board
     global ponder_move
     global info_str
-    global info_handler
-    global think_time
-    global engine
 
     move = ""
     uci_move = ""
@@ -178,7 +135,7 @@ def get_move():
             # Do NOT: board.push(chess.Move.from_uci(move_pgn))
             # push it in caller pub_move
 
-            if log:
+            if log is not None:
                 log.write("get pgn_move: %s\n" % str(move_pgn))
                 log.write("new move_counter %s\n" % str(move_counter))
 
@@ -204,7 +161,6 @@ def get_move():
 def pub_move():
     global guess_ok
     global move_counter
-    global board
     global info_str
 
     uci_move, ponder_move, info_str = get_move()
@@ -228,7 +184,7 @@ def pub_move():
 
     print2(result_str)
 
-    if log:
+    if log is not None:
         log.write(info_str)
         log.write(result_str)
         log.write("\nready for next move!\n")
@@ -238,7 +194,6 @@ def pub_move():
 
 
 def get_orig_game_index(find_game):
-    global orig_game_list
     found = False
     orig_index = 0
     i = 0
@@ -249,34 +204,20 @@ def get_orig_game_index(find_game):
             found = True
         i = i + 1
 
-    # for game in orig_game_list:
-    #     if game.headers == find_game.headers:
-    #        orig_index = i
-    #    i = i + 1
-
     return orig_index
 
 
 def newgame():
-    global p_audio_comment
     global game_started
-    global p_pgn_game_file
-    global log_file_pgn_info
-    global p_think_time
     global board
     global input_board
     global move_list
     global move_counter
-    global info_handler
     global max_moves
     global pgn_game
-    global pgn_file
     global game_list
     global game_counter
-    global max_games
-    global orig_game_list
     global fen
-    global l_continue
 
     if move_counter <= 1 and game_started and max_moves > 1 and fen == "":
         move_counter = 0
@@ -293,7 +234,6 @@ def newgame():
 
     move_counter = 0
     max_moves = 0
-    j = 0
     move_list = []
 
     if game_counter == 0:
@@ -314,7 +254,7 @@ def newgame():
     if game_index < 0:
         game_index = 0
 
-    if log:
+    if log is not None:
         log.write("game index: %s\n" % str(game_index))
 
     if l_continue:
@@ -360,7 +300,7 @@ def newgame():
         else:
             black_elo = "?"
 
-        if log:
+        if log is not None:
             log.write("FEN: %s\n" % str(fen))
     # delete this game from current list
     if l_continue:
@@ -383,7 +323,7 @@ def newgame():
 
     max_moves = i
 
-    if log:
+    if log is not None:
         log.write("Next game no. from PGN: %s\n" % str(game_index))
         log.write("Number of moves: %s\n" % str(max_moves))
         log.flush()
@@ -393,7 +333,7 @@ def newgame():
     try:
         log_p = open(log_file_pgn_info, "w")
     except OSError:
-        log_p = ""
+        log_p = None
         print("# Could not create user log file")
 
     game_started = True
@@ -401,7 +341,7 @@ def newgame():
     if p_audio_comment:
         play_audio()
 
-    if log_p:
+    if log_p is not None:
 
         if l_continue:
             orig_index = get_orig_game_index(pgn_game)
@@ -450,14 +390,12 @@ def newgame():
 
 
 def push_uci_move(uci_move):
-    if log:
+    if log is not None:
         log.write("Received an uci move: %s\n" % uci_move)
         log.flush()
 
 
 def get_start_pos(board):
-    global fen
-
     if fen:
         board = chess.Board()
         board.set_fen(fen)
@@ -468,10 +406,8 @@ def get_start_pos(board):
 
 
 def set_move_counter_from_fen(last_move):
-    global input_board
     global move_counter
     global board
-    global max_moves
     s_board = None
 
     current_move = ""
@@ -487,14 +423,14 @@ def set_move_counter_from_fen(last_move):
             current_move = ""
         else:
             current_move = move_list[count - 1]
-        if log:
+        if log is not None:
             log.write("Input last move: %s\n" % str(last_move))
             log.write("Current search move: %s\n" % str(current_move))
 
         if fen1 == fen2 and str(last_move) == str(current_move):
             found = True
 
-            if log:
+            if log is not None:
                 log.write("Found FEN position in game\n")
                 log.write("Old move_counter: %s\n" % str(move_counter))
                 log.write("New move_counter: %s\n" % str(count))
@@ -530,7 +466,7 @@ while True:
     mstart_t = int(time.time())
 
     if line:
-        if log:
+        if log is not None:
             log.write("*** " + line + "\n")
             log.flush()
         if line == "quit":
@@ -548,7 +484,7 @@ while True:
         elif line == "uci":
             if is_uci and game_started and p_audio_comment:
                 if flag_audio_playing:
-                    if log:
+                    if log is not None:
                         log.write("pause audio\n")
                         log.flush()
                     pygame.mixer.music.pause()
@@ -556,7 +492,7 @@ while True:
                 else:
                     pygame.mixer.music.unpause()
                     flag_audio_playing = True
-                    if log:
+                    if log is not None:
                         log.write("continue audio\n")
                         log.flush()
 
@@ -584,7 +520,7 @@ while True:
                 input_board.push(chess.Move.from_uci(mo))
                 last_move = mo
 
-            if log:
+            if log is not None:
                 log.write("input move %s\n" % last_move)
                 log.write("game_started %s\n" % game_started)
                 log.flush()
@@ -599,14 +535,14 @@ while True:
             move_counter = 0
             # game_started = True
 
-            if log:
+            if log is not None:
                 log.write("position startpos ready\n")
                 log.flush()
 
         elif "position fen" in line:
             # game_started = True
             if line == last_fen_line:
-                if log:
+                if log is not None:
                     log.write("WARNING: input fen (double)")
                     log.flush()
             last_fen_line = line
@@ -615,17 +551,17 @@ while True:
                 line = " ".join(line.split()[:6] + ["0", "1"] + line.split()[6:])
             ff = line.split()[2:8]
             mm = line.split()[9:]
-            ff = " ".join(ff)
+            _fen = " ".join(ff)
 
             last_move = ""
 
-            input_board = chess.Board(ff)
+            input_board = chess.Board(_fen)
 
             for mo in mm:  # get last move and set current position
                 input_board.push(chess.Move.from_uci(mo))
                 last_move = mo
 
-            if log:
+            if log is not None:
                 log.write("input move %s\n" % last_move)
                 log.flush()
 
@@ -671,7 +607,7 @@ while True:
                 if l_continue:
                     while True:
                         game = chess.pgn.read_game(pgn_file)
-                        if game == None:
+                        if game is None:
                             break
                         j = j + 1
                         max_games = j
@@ -681,7 +617,7 @@ while True:
                 if max_games > 0:
                     game_counter = max_games
 
-                if log:
+                if log is not None:
                     log.write("Game(s) from PGN file loaded.\n")
                     log.write("max_games %s\n" % str(max_games))
                     log.write("game_counter %s\n" % str(game_counter))
@@ -715,13 +651,13 @@ while True:
                 pygame.mixer.music.unpause()
                 flag_audio_playing = True
 
-            if log:
+            if log is not None:
                 log.write("Stop audio\n")
                 log.flush()
 
         elif line == "?":
             print("move", uci_move)
-            if log:
+            if log is not None:
                 log.write("move %s\n" % uci_move)
                 log.flush()
         else:

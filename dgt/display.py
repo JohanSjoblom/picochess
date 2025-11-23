@@ -1295,25 +1295,17 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(message.play_mode_text)
 
         elif isinstance(message, Message.NEW_SCORE):
-            if self.play_move == chess.Move.null():
-                # issue #45 - skip if user has not made computer move on eboard
-                await self._process_new_score(message)
+            await self._process_new_score(message)
 
         elif isinstance(message, Message.BOOK_MOVE):
-            if self.play_move == chess.Move.null():
-                # issue #45 - skip if user has not made computer move on eboard
-                self.score = self.dgttranslate.text("N10_score", None)
-                await DispatchDgt.fire(self.dgttranslate.text("N10_bookmove"))
+            self.score = self.dgttranslate.text("N10_score", None)
+            await DispatchDgt.fire(self.dgttranslate.text("N10_bookmove"))
 
         elif isinstance(message, Message.NEW_PV):
-            if self.play_move == chess.Move.null():
-                # issue #45 - skip if user has not made computer move on eboard
-                await self._process_new_pv(message)
+            await self._process_new_pv(message)
 
         elif isinstance(message, Message.NEW_DEPTH):
-            if self.play_move == chess.Move.null():
-                # issue #45 - skip if user has not made computer move on eboard
-                self.depth = message.depth
+            self.depth = message.depth
 
         elif isinstance(message, Message.IP_INFO):
             self.dgtmenu.int_ip = message.info["int_ip"]

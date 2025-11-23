@@ -1262,16 +1262,16 @@ async def main() -> None:
                             if move and not ponder_move:
                                 # no ponder means we should allow the next analysis info to be sent ASAP
                                 self.state.best_sent_depth.reset()
+                            ponder_cache = ponder_move if ponder_move else chess.Move.null()
                             if info:
-                                # send pv, score, not sendpv as it's sent by BEST_MOVE below
-                                ponder_cache = ponder_move if ponder_move else chess.Move.null()
+                                # send depth/score; NEW_PV will be announced via BEST_MOVE ponder
                                 await self.send_analyse(
                                     info,
                                     analysed_fen,
                                     send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
-                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
+                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_cache, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await self._cache_engine_abort_result()

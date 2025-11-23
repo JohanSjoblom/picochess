@@ -2987,6 +2987,7 @@ async def main() -> None:
                 event_str = l_game_pgn.headers["Event"]
                 if (event_str or "").startswith("PicoChess"):
                     is_pico_save_game = True  # game was saved by Pico
+                logger.debug(f"is_pico_save_game: {is_pico_save_game}")  # TODO clarify usage of is_pico_save_game
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(event_str)))
                 await asyncio.sleep(update_speed)
 

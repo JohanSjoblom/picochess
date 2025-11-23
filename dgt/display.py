@@ -63,6 +63,9 @@ class DgtDisplay(DisplayMsg):
         self.low_time = False
         self.c_last_player = ""
         self.c_time_counter = 0
+        self.pending_pv: Message | None = None
+        self.pending_score: Message | None = None
+        self.pending_depth: int | None = None
         self._task = None  # task for message consumer
         self.timer = AsyncRepeatingTimer(1, self._process_once_per_second, loop=self.loop)
 
@@ -160,6 +163,21 @@ class DgtDisplay(DisplayMsg):
         self.last_turn = None
         self.score = self.dgttranslate.text("N10_score", None)
         self.depth = 0
+        self.pending_pv = None
+        self.pending_score = None
+        self.pending_depth = None
+
+    async def _flush_pending_analysis(self):
+        """Send any queued analysis updates that were held back while waiting for a move to be entered."""
+        if self.pending_depth is not None:
+            self.depth = self.pending_depth
+            self.pending_depth = None
+        if self.pending_score is not None:
+            await self._process_new_score(self.pending_score)
+            self.pending_score = None
+        if self.pending_pv is not None:
+            await self._process_new_pv(self.pending_pv)
+            self.pending_pv = None
 
     @staticmethod
     def _score_to_string(score_val, length="l"):
@@ -771,6 +789,10 @@ class DgtDisplay(DisplayMsg):
         if not message.is_user_move:
             self.last_pos_start = False  # issue 54, see below
             await self.force_leds_off(log=True)  # can happen in case of a book move
+        # new engine move announced – drop any stale pending analysis from previous position
+        self.pending_pv = None
+        self.pending_score = None
+        self.pending_depth = None
         move = message.move
         ponder = message.ponder
         if not message.is_user_move:
@@ -834,6 +856,7 @@ class DgtDisplay(DisplayMsg):
         self.play_fen = None
         self.play_turn = None
         await self._exit_menu()
+        await self._flush_pending_analysis()
 
         if self.dgtmenu.get_time_mode() == TimeMode.FIXED:  # go back to a stopped time display and reset times
             self.time_control.reset()
@@ -865,6 +888,7 @@ class DgtDisplay(DisplayMsg):
         self.play_fen = None
         self.play_turn = None
         await self._exit_menu()
+        await self._flush_pending_analysis()
 
         if self.dgtmenu.get_mode() == Mode.TRAINING:
             await self._display_confirm("K05_okmove")
@@ -1298,6 +1322,8 @@ class DgtDisplay(DisplayMsg):
             if self.play_move == chess.Move.null():
                 # issue #45 - skip if user has not made computer move on eboard
                 await self._process_new_score(message)
+            else:
+                self.pending_score = message
 
         elif isinstance(message, Message.BOOK_MOVE):
             if self.play_move == chess.Move.null():
@@ -1309,11 +1335,15 @@ class DgtDisplay(DisplayMsg):
             if self.play_move == chess.Move.null():
                 # issue #45 - skip if user has not made computer move on eboard
                 await self._process_new_pv(message)
+            else:
+                self.pending_pv = message
 
         elif isinstance(message, Message.NEW_DEPTH):
             if self.play_move == chess.Move.null():
                 # issue #45 - skip if user has not made computer move on eboard
                 self.depth = message.depth
+            else:
+                self.pending_depth = message.depth
 
         elif isinstance(message, Message.IP_INFO):
             self.dgtmenu.int_ip = message.info["int_ip"]

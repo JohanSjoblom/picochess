@@ -29,7 +29,6 @@ from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 from typing import Optional
-from smtplib import SMTP_SSL as SMTP
 from smtplib import SMTP
 from ssl import create_default_context
 

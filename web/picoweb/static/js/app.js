@@ -227,7 +227,7 @@ var bookDataTable = $('#BookTable').DataTable({
             d.fen = dataTableFen;
         },
         'error': function (xhr, error, thrown) {
-            // Silenciar errores de conexión a servidor de libros
+            // Silence connection errors to book server
         }
     },
     'columns': [
@@ -299,7 +299,7 @@ var gameDataTable = $('#GameTable').DataTable({
             d.fen = dataTableFen;
         },
         'error': function (xhr, error, thrown) {
-            // Silenciar errores de conexión a servidores auxiliares
+            // Silence connection errors to auxiliary servers
         }
     },
     'columns': [
@@ -712,7 +712,7 @@ var updateStatus = function () {
         });
         element.addClass('text-warning');
 
-        // Centrar el movimiento activo en el contenedor
+        // Center active move in the container
         var containerHeight = moveListEl.height();
         var elementTop = element.position().top;
         var elementHeight = element.outerHeight();
@@ -1245,7 +1245,7 @@ function formatEngineOutput(line) {
         if (token === 'mate') {
             rawScore = parseInt(tokens[score_index + 1]);
 
-            // Para mate, mantener el signo original del motor
+            // For mate, keep the original engine sign
             if (analysis_game.turn() === 'b') {
                 rawScore *= -1;
             }
@@ -1254,7 +1254,7 @@ function formatEngineOutput(line) {
         else if (tokens[score_index + 1]) {
             rawScore = parseInt(tokens[score_index + 1]) / 100.0;
 
-            // Invertir puntuación solo si le toca a las negras
+            // Invert score only if it's black's turn
             if (analysis_game.turn() === 'b') {
                 rawScore *= -1;
             }
@@ -1271,7 +1271,7 @@ function formatEngineOutput(line) {
 
         var pv_out = tokens.slice(pv_index);
 
-        var MAX_PV_MOVES = 8;                        // *** Limita PV max 8 movimientos.
+        var MAX_PV_MOVES = 8;                        // *** Limits PV to max 8 moves.
         pv_out = pv_out.slice(0, MAX_PV_MOVES);
         var first_move = pv_out[0];
         for (var i = 0; i < pv_out.length; i++) {
@@ -1296,7 +1296,7 @@ function formatEngineOutput(line) {
             turn_sep = '..';
         }
 
-        // Determinar clase de puntuacion
+        // Determine score class
         var scoreClass = 'score-display';
         var numericScore = parseFloat(score);
         if (String(score).includes('#')) {
@@ -1310,12 +1310,12 @@ function formatEngineOutput(line) {
         output = '<div class="list-group-item">';
         output += '<div class="analysis-line-compact">';
 
-        // Puntuacion (siempre en relacion al blanco)
+        // Score (always in relation to white)
         if (score !== null) {
             output += '<span class="' + scoreClass + '">' + score + '</span>';
         }
 
-        // Primer movimiento destacado
+        // First highlighted move
         if (history.length > 0) {
             var firstMoveText = '';
             // Crear una copia del juego para obtener el turno actual
@@ -1325,27 +1325,27 @@ function formatEngineOutput(line) {
             }
             var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
 
-            // Calcular el número de movimiento correctamente
+            // Calculate the move number correctly
             var moveNumber = Math.floor((start_move_num + 1) / 2);
 
             if (currentTurn === 'w') {
-                // Le toca a las blancas
+                // It's white's turn
                 firstMoveText += moveNumber + '. ';
             } else {
-                // Le toca a las negras
+                // It's black's turn
                 firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
         }
-        // Continuacion de la linea (mas discreta)
+        // Continuation of the line (more discreet)
         if (history.length > 1) {
             var continuationText = '';
             var currentMoveNum = start_move_num;
 
             for (i = 1; i < history.length; ++i) {
                 currentMoveNum++;
-                // Si es turno de las blancas (número impar), mostrar número de movimiento
+                // If it is white's turn (odd number), show move number
                 if (currentMoveNum % 2 === 1) {
                     continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
                 }
@@ -1353,14 +1353,14 @@ function formatEngineOutput(line) {
             }
             output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-        // Profundidad al final
+        // Depth at the end
         output += '<span class="depth-display">d' + depth + '</span>';
 
         output += '</div></div>';
 
         analysis_game = null;
 
-        // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
+        // Update the evaluation bar with the first line (best evaluation)
         if (multipv === 1) {
             updateEvaluationBar(score);
         }
@@ -1372,7 +1372,7 @@ function formatEngineOutput(line) {
     }
 }
 
-// Función para actualizar la barra de evaluación horizontal
+// Function to update the horizontal evaluation bar
 function updateEvaluationBar(score) {
     if (!score || score === '?') return;
 
@@ -1391,7 +1391,7 @@ function updateEvaluationBar(score) {
     var valueElement = $('#evaluationValue');
 
     if (isMate) {
-        // Para mate, llenar completamente la barra
+        // For mate, fill the bar completely
         if (numericScore > 0) {
             fillElement.removeClass('negative');
             fillElement.css({
@@ -1409,14 +1409,14 @@ function updateEvaluationBar(score) {
         numericScore = Math.max(-8, Math.min(8, numericScore));
 
         if (numericScore >= 0) {
-            // Ventaja blancas - llenar hacia la derecha desde el centro
+            // White advantage - fill to the right from center
             fillElement.removeClass('negative');
             fillElement.css({
                 'left': '50%',
                 'width': ((numericScore / 8) * 50) + '%'
             });
         } else {
-            // Ventaja negras - llenar hacia la izquierda desde el centro
+            // Black advantage - fill to the left from center
             fillElement.addClass('negative');
             fillElement.css({
                 'left': (50 + (numericScore / 8) * 50) + '%',
@@ -1425,7 +1425,7 @@ function updateEvaluationBar(score) {
         }
     }
 
-    // Mostrar el valor original del motor, no el limitado
+    // Show the original engine value, not the limited one
     var originalScore = parseFloat(score);
     if (isMate) {
         valueElement.text(score);
@@ -1437,11 +1437,11 @@ function updateEvaluationBar(score) {
 function multiPvIncrease() {
     window.multipv += 1;
 
-    // Agregar nuevo contenedor
+    // Add new container
     var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
     $("#pv_output").append(new_div_str);
 
-    // Solo actualizar el motor si el análisis está activo
+    // Only update the engine if analysis is active
     if (window.analysis && window.stockfish) {
         window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
         window.stockfish.postMessage('stop');
@@ -1453,17 +1453,17 @@ function multiPvIncrease() {
         }
     }
 
-    // Actualizar el estado visual
+    // Update the visual state
     $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
 }
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
-        // Remover el contenedor
+        // Remove the container
         $('#pv_' + window.multipv).remove();
         window.multipv -= 1;
 
-        // Solo actualizar el motor si el análisis está activo
+        // Only update the engine if analysis is active
         if (window.analysis && window.stockfish) {
             window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
             window.stockfish.postMessage('stop');
@@ -1475,7 +1475,7 @@ function multiPvDecrease() {
             }
         }
 
-        // Actualizar el estado visual
+        // Update the visual state
         $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
     }
 }
@@ -1505,9 +1505,9 @@ function analyzePressed() {
         $('#evaluationBar').css('visibility', 'visible');
     } else {
         $('#evaluationBar').css('visibility', 'hidden');
-        // Limpiar contenedor de análisis al detener
+        // Clear analysis container when stopping
         $('#pv_output').empty();
-        // Recrear los contenedores según el multipv actual
+        // Recreate containers according to current multipv
         for (var i = 1; i <= window.multipv; i++) {
             $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
         }
@@ -1561,14 +1561,14 @@ function stopAnalysis() {
         }
     }
 
-    // Limpiar todas las líneas de análisis
+    // Clear all analysis lines
     $('#pv_output').empty();
-    // Recrear los contenedores según el multipv actual
+    // Recreate containers according to current multipv
     for (var i = 1; i <= window.multipv; i++) {
         $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
     }
 
-    // Ocultar la barra de evaluación cuando se detiene el análisis
+    // Hide the evaluation bar when analysis stops
     if (!window.analysis) {
         $('#evaluationBar').css('visibility', 'hidden');
     }
@@ -1689,7 +1689,7 @@ function setTitle(data) {
 
 // copied from loadGame()
 function setHeaders(data) {
-    // Validar que data sea un objeto válido
+    // Validate that data is a valid object
     if (!data || typeof data !== 'object') {
         console.debug('setHeaders: data is not a valid object', data);
         return;

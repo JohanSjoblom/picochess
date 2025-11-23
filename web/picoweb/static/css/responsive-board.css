@@ -1,8 +1,8 @@
-/* Optimización del tablero para resoluciones específicas */
+/* Board optimization for specific resolutions */
 
-/* Para resoluciones 1024x600 y 1024x800 */
+/* For resolutions 1024x600 and 1024x800 */
 @media (min-width: 1000px) and (max-width: 1100px) {
-    /* Asegurar que el contenedor del tablero mantenga proporción cuadrada */
+    /* Ensure board container maintains square proportion */
     .svg-container {
         display: block;
         position: relative;
@@ -21,7 +21,7 @@
         height: 100% !important;
     }
     
-    /* Asegurar que chessground ocupe todo el espacio */
+    /* Ensure chessground occupies all space */
     #board {
         width: 100% !important;
         height: 100% !important;
@@ -38,14 +38,14 @@
         left: 0 !important;
     }
     
-    /* Ajustar el tamaño de las piezas */
+    /* Adjust piece size */
     .cg-board piece {
         width: 12.5% !important;
         height: 12.5% !important;
         background-size: contain !important;
     }
     
-    /* Ajustar coordenadas del tablero */
+    /* Adjust board coordinates */
     .cg-board-wrap coords.ranks {
         font-size: 11px;
     }
@@ -55,7 +55,7 @@
     }
 }
 /***************************************************/
-/* Optimización específica para 1024x600 y 1024x768*/
+/* Specific optimization for 1024x600 and 1024x768 */
 /***************************************************/
 @media (min-width: 1000px) and (max-width: 1100px) and (max-height: 770px) {
     /* Reducir padding general */
@@ -70,20 +70,20 @@
         padding: 5px !important;
     }
     
-    /* Tablero más compacto */
+    /* More compact board */
     #xboardsection {
         max-width: 1014px;
         max-height: 580px;
     }
     
-    /* Barra de evaluación ajustada */
+    /* Adjusted evaluation bar */
     .evaluation-container-horizontal {
         max-width: 1014px;
         margin: 0 auto;
         height: 15px;
     }
     
-    /* Reducir altura de elementos scrollables */
+    /* Reduce height of scrollable elements */
     .scroll_movelist {
         height: 160px !important;
         min-height: 160px !important;
@@ -95,12 +95,12 @@
         scroll-behavior: smooth !important;
     }
     
-    /* Reducir padding interno del contenedor de movimientos */
+    /* Reduce internal padding of move container */
     .scroll_movelist .card-body {
         padding: 2px 5px !important;
     }
     
-    /* Eliminar márgenes del contenido de movimientos */
+    /* Remove margins from move content */
     .scroll_movelist #pgn {
         margin: 0 !important;
         padding: 0 !important;
@@ -134,19 +134,19 @@
         padding: 0 !important;
     }
     
-    /* Reducir márgenes del contenedor row de movimientos */
+    /* Reduce margins of move row container */
     .container > .row:nth-child(3) {
         margin-top: 2px !important;
         margin-bottom: 2px !important;
-        flex: 0 0 auto !important; /* Desactivar flex, usar altura fija */
+        flex: 0 0 auto !important; /* Deactivate flex, use fixed height */
         min-height: auto !important;
     }
     
     .container > .row:nth-child(3) .card {
         margin-bottom: 2px !important;
-        flex: none !important; /* Desactivar flex del card */
+        flex: none !important; /* Deactivate flex of card */
         height: auto !important;
-        min-height: 170px !important; /* Asegurar altura mínima */
+        min-height: 170px !important; /* Ensure minimum height */
     }
     
     .scroll_movelist .text-warning {
@@ -169,7 +169,7 @@
         max-height: 250px;
     }
     
-    /* Reducir tamaño de fuentes */
+    /* Reduce font size */
     .gameMoves, .bookMoves {
         font-size: 2vw;
     }
@@ -187,7 +187,7 @@
         padding: 3px !important;
     }
     
-    /* Botones más compactos */
+    /* More compact buttons */
     .btn-group .btn {
         padding: 0.3rem 0.5rem !important;
     }
@@ -197,7 +197,7 @@
         padding-bottom: 5px;
     }
     
-    /* Tabs más compactos */
+    /* More compact tabs */
     .nav-pills .nav-link {
         padding: 6px 8px !important;
         font-size: 0.85rem !important;
@@ -213,7 +213,7 @@
         max-height: 290px !important;
     }
 
-    /* Controles de Scan más compactos */
+    /* More compact Scan controls */
     .scan-controls {
         padding: 8px !important;
     }
@@ -259,22 +259,22 @@
     }
 }
 /*****************************************/
-/* Optimización específica para 1280x800 */
+/* Specific optimization for 1280x800    */
 /*****************************************/
 @media (min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px) {
-    /* Tablero más grande aprovechando la altura */
+    /* Larger board taking advantage of height */
     #xboardsection {
         max-width: 1270px;
         max-height: 790px;
     }
     
-    /* Barra de evaluación ajustada al ancho del tablero */
+    /* Evaluation bar adjusted to board width */
     .evaluation-container-horizontal {
         max-width: 1270px;
         margin: 0 auto;
     }
     
-    /* Reducir altura de elementos scrollables */
+    /* Reduce height of scrollable elements */
     .scroll_movelist {
         height: 180px !important;
         min-height: 180px !important;
@@ -306,7 +306,7 @@
         max-height: 320px;
     }
     
-    /* Fuentes optimizadas */
+    /* Optimized fonts */
     .gameMoves, .bookMoves {
         font-size: 1.6vw;
     }
@@ -317,7 +317,7 @@
         max-height: 50vh;
     }
     
-    /* Prevenir scroll vertical */
+    /* Prevent vertical scroll */
     body {
         overflow-y: hidden !important;
         max-height: 800px;
@@ -329,7 +329,7 @@
         overflow-y: hidden;
     }
     
-    /* Layout de columnas */
+    /* Column layout */
     .container-fluid > .row > .col:first-child {
         flex: 0 0 48% !important;
         max-width: 48% !important;
@@ -341,28 +341,28 @@
     }
 }
 
-/* Prevenir desbordamiento de piezas */
+/* Prevent piece overflow */
 .cg-board piece.dragging {
     cursor: move;
     z-index: 999 !important;
 }
 
-/* Asegurar que las piezas se vean correctamente */
+/* Ensure pieces are displayed correctly */
 piece {
     pointer-events: auto !important;
 }
 
-/* Mejorar la visualización de movimientos posibles */
+/* Improve visualization of possible moves */
 .cg-board square.move-dest {
     background: radial-gradient(rgba(20, 85, 30, 0.6) 22%, #208530 0, rgba(0, 0, 0, 0.4) 0, rgba(0, 0, 0, 0) 0) !important;
 }
 
-/* Mejorar la visualización del último movimiento */
+/* Improve visualization of last move */
 .cg-board square.last-move {
     background-color: rgba(155, 199, 0, 0.5) !important;
 }
 
-/* Asegurar que la promoción se vea correctamente */
+/* Ensure promotion is displayed correctly */
 .promotion-overlay {
     width: 100% !important;
     height: 100% !important;
@@ -384,14 +384,14 @@ piece {
     left: 10% !important;
 }
 
-/* Estilos comunes para 1024x600 y 1280x800 */
+/* Common styles for 1024x600 and 1280x800 */
 @media ((min-width: 1000px) and (max-width: 1100px) and (max-height: 650px)), ((min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px)) {
-    /* Espacio superior estético */
+    /* Aesthetic top space */
     .container-fluid > .row {
         margin-top: 10px;
     }
     
-    /* Asegurar que las columnas se distribuyan correctamente */
+    /* Ensure columns are distributed correctly */
     .container-fluid > .row > .col:first-child {
         flex: 0 0 48% !important;
         max-width: 48% !important;
@@ -402,24 +402,24 @@ piece {
         max-width: 52% !important;
     }
     
-    /* Ajustar altura de cards */
+    /* Adjust card height */
     .card {
         margin-bottom: 3px;
     }
     
-    /* Reducir espacio entre botones */
+    /* Reduce space between buttons */
     #boardButtons {
         margin-top: 5px;
         margin-bottom: 5px;
     }
     
-    /* Optimizar espacio del tablero */
+    /* Optimize board space */
     #board_panel .card-body {
         padding: 5px !important;
     }
 }
 
-/* Asegurar que el movimiento activo se vea centrado */
+/* Ensure active move appears centered */
 .scroll_movelist .text-warning {
     scroll-margin-top: 90px;
     scroll-margin-bottom: 90px;
@@ -438,7 +438,7 @@ piece {
     height: 100% !important;
 }
 
-/* Reducir espacio del boardcontrol - TODAS LAS RESOLUCIONES */
+/* Reduce boardcontrol space - ALL RESOLUTIONS */
 #boardcontrol {
     padding-left: 0px !important;
     padding-right: 0px !important;

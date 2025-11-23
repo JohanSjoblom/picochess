@@ -1,6 +1,6 @@
-/* Mejoras para el motor de análisis */
+/* Improvements for the analysis engine */
 
-/* Contenedor principal del análisis - hereda estilo del tema */
+/* Main analysis container - inherits theme style */
 #pv_output {
     background-color: transparent !important;
     border-radius: 6px;
@@ -8,7 +8,7 @@
     margin-top: 5px;
 }
 
-/* Forzar tema en TODOS los elementos del análisis */
+/* Force theme on ALL analysis elements */
 #pv_output,
 #pv_output *,
 #pv_output div,
@@ -23,14 +23,14 @@
     color: inherit !important;
 }
 
-/* Asegurar que hereda del contenedor padre */
+/* Ensure inheritance from parent container */
 #pv_output .list-group-item {
     background-color: transparent !important;
     color: inherit !important;
     border: 1px solid rgba(var(--bs-border-color-rgb, 233, 236, 239), 0.5) !important;
 }
 
-/* Cada línea de análisis - MÁS COMPACTA */
+/* Each analysis line - MORE COMPACT */
 #pv_output .list-group-item {
     background-color: transparent !important;
     color: inherit !important;
@@ -54,7 +54,7 @@
     background-color: transparent !important;
 }
 
-/* NUEVA ESTRUCTURA: Una sola línea compacta */
+/* NEW STRUCTURE: Single compact line */
 .analysis-line-compact {
     display: flex;
     align-items: center;
@@ -66,7 +66,7 @@
     line-height: 1.3;
 }
 
-/* Botón de copiar */
+/* Copy button */
 .list-group-item-heading .btn {
     font-size: 0.8rem;
     padding: 4px 8px;
@@ -74,7 +74,7 @@
     margin-right: 10px;
 }
 
-/* Puntuación compacta */
+/* Compact score */
 .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
@@ -89,19 +89,19 @@
     flex-shrink: 0;
 }
 
-/* Puntuación positiva (ventaja blancas) */
+/* Positive score (white advantage) */
 .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34);
     box-shadow: 0 2px 4px rgba(40,167,69,0.3);
 }
 
-/* Puntuación negativa (ventaja negras) */
+/* Negative score (black advantage) */
 .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333);
     box-shadow: 0 2px 4px rgba(220,53,69,0.3);
 }
 
-/* Puntuación de mate */
+/* Mate score */
 .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100);
     box-shadow: 0 2px 4px rgba(253,126,20,0.3);
@@ -113,7 +113,7 @@
     50% { transform: scale(1.05); }
 }
 
-/* Profundidad compacta */
+/* Compact depth */
 .depth-display {
     background: #6c757d;
     color: white;
@@ -124,7 +124,7 @@
     order: 3;
 }
 
-/* Movimientos de continuación - más discretos */
+/* Continuation moves - more discreet */
 .continuation-moves {
     font-size: 0.85rem;
     color: #6c757d;
@@ -136,13 +136,13 @@
     order: 2;
 }
 
-/* Movimientos en la variación */
+/* Moves in variation */
 .pv-moves {
     font-family: 'Courier New', monospace;
     font-weight: 500;
 }
 
-/* Primer movimiento destacado - MÁS COMPACTO */
+/* First highlighted move - MORE COMPACT */
 .first-move {
     background: #fff3cd;
     color: #856404;
@@ -158,21 +158,21 @@
     flex-shrink: 0;
 }
 
-/* Números de jugada */
+/* Move numbers */
 .move-number {
     color: #6c757d;
     font-weight: normal;
     margin-right: 4px;
 }
 
-/* Contenedor de múltiples líneas */
+/* Multiple lines container */
 .multi-pv-container {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-/* Indicador de línea múltiple */
+/* Multiple line indicator */
 .pv-line-indicator {
     position: absolute;
     left: -8px;
@@ -189,7 +189,7 @@
 .pv-line-4 { background: #dc3545; }
 .pv-line-5 { background: #6f42c1; }
 
-/* Controles del motor - MÁS COMPACTOS */
+/* Engine controls - MORE COMPACT */
 #engineMultiPVStatus {
     background: #e9ecef;
     padding: 4px 8px;
@@ -200,7 +200,7 @@
     font-size: 0.85rem;
 }
 
-/* Botones de análisis */
+/* Analysis buttons */
 #analyzeBtn {
     background: linear-gradient(135deg, #28a745, #20c997);
     border: none;
@@ -225,7 +225,7 @@
     50% { opacity: 0.7; }
 }
 
-/* Botones más/menos */
+/* Plus/minus buttons */
 #analyzePlus, #analyzeMinus {
     background: #6c757d;
     border: none;
@@ -245,7 +245,7 @@
     transform: scale(1.1);
 }
 
-/* Estilos adicionales para la nueva estructura */
+/* Additional styles for new structure */
 .move-number {
     color: #6c757d;
     font-weight: normal;
@@ -257,7 +257,7 @@
     font-weight: 500;
 }
 
-/* Responsive para móviles */
+/* Mobile responsive */
 @media (max-width: 768px) {
     .analysis-line-compact {
         font-size: 0.8rem;
@@ -290,23 +290,23 @@
     }
 }
 
-/* Clase para contenedor de PV */
+/* Class for PV container */
 .pv-container {
     margin-top: 0px;
     margin-left: 12px;
     margin-bottom: 1vh;
 }
 
-/* Optimización para 1024x600 y 1024x800 - Análisis compacto */
+/* Optimization for 1024x600 and 1024x800 - Compact analysis */
 @media (min-width: 1000px) and (max-width: 1100px) and (max-height: 850px) {
-    /* Reducir margen del contenedor PV según altura */
+    /* Reduce PV container margin according to height */
     .pv-container {
         margin-left: 6px !important;
         margin-bottom: 5px !important;
     }
 }
 
-/* Ajustes adicionales solo para 1024x800 */
+/* Additional adjustments only for 1024x800 */
 @media (min-width: 1000px) and (max-width: 1100px) and (min-height: 750px) and (max-height: 850px) {
     .pv-container {
         margin-bottom: 8px !important;
@@ -323,7 +323,7 @@
     .scroll_engine {
         max-height: 320px !important;
     }
-    /* Reducir tamaño de elementos de análisis */
+    /* Reduce size of analysis elements */
     .analysis-line-compact {
         font-size: 0.75rem;
         gap: 4px;
@@ -349,25 +349,25 @@
         padding: 1px 4px;
     }
     
-    /* Reducir padding y margen de líneas de análisis */
+    /* Reduce padding and margin of analysis lines */
     #pv_output .list-group-item {
         padding: 3px 5px !important;
         margin-bottom: 2px !important;
     }
     
-    /* Asegurar que el contenedor de análisis no desborde */
+    /* Ensure analysis container doesn't overflow */
     #pv_output {
         padding: 3px !important;
         margin-top: 2px !important;
     }
     
-    /* Forzar altura máxima del scroll_engine cuando está en análisis */
+    /* Force maximum height of scroll_engine when in analysis */
     .scroll_engine {
         max-height: 250px !important;
         overflow-y: auto !important;
     }
     
-    /* Botones de análisis más compactos */
+    /* More compact analysis buttons */
     #analyzeBtn, #analyzePlus, #analyzeMinus {
         font-size: 0.8rem !important;
         padding: 4px 8px !important;
@@ -378,7 +378,7 @@
         padding: 2px 6px !important;
     }
     
-    /* Prevenir que el tab Engine crezca demasiado */
+    /* Prevent Engine tab from growing too much */
     #engine .row {
         margin-bottom: 2px !important;
     }
@@ -391,7 +391,7 @@
 
 
 
-/* Excepciones para elementos con colores específicos - mantener sus fondos distintivos */
+/* Exceptions for elements with specific colors - keep their distinctive backgrounds */
 #pv_output .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3) !important;
     color: white !important;
@@ -423,7 +423,7 @@
     color: white !important;
 }
 
-/* Tema oscuro */
+/* Dark theme */
 @media (prefers-color-scheme: dark) {
     .continuation-moves {
         color: #adb5bd;

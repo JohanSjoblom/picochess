@@ -727,6 +727,7 @@ class DgtDisplay(DisplayMsg):
 
     def _process_engine_startup(self, message):
         self.dgtmenu.installed_engines = message.installed_engines
+        was_in_menu = self.dgtmenu.inside_main_menu()
         for index in range(0, len(self.dgtmenu.installed_engines)):
             eng = self.dgtmenu.installed_engines[index]
             if eng["file"] == message.file:
@@ -735,6 +736,9 @@ class DgtDisplay(DisplayMsg):
                 self.dgtmenu.set_engine_has_960(message.has_960)
                 self.dgtmenu.set_engine_has_ponder(message.has_ponder)
                 self.dgtmenu.set_engine_level(message.level_index)
+        if not was_in_menu:
+            # avoid leaving the menu positioned inside the engine submenu when startup messages arrive
+            self.dgtmenu.enter_top_menu()
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""

@@ -25,7 +25,7 @@ from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
-from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode
+from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
@@ -739,6 +739,7 @@ class DgtDisplay(DisplayMsg):
         if not was_in_menu:
             # avoid leaving the menu positioned inside the engine submenu when startup messages arrive
             self.dgtmenu.enter_top_menu()
+            self.dgtmenu.menu_top = Top.MODE
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""

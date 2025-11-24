@@ -739,7 +739,7 @@ class DgtDisplay(DisplayMsg):
         if not was_in_menu:
             # avoid leaving the menu positioned inside the engine submenu when startup messages arrive
             self.dgtmenu.enter_top_menu()
-            self.dgtmenu.menu_top = Top.MODE
+            self.dgtmenu.menu_top = Top.ENGINE
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""

@@ -1,14 +1,14 @@
 /*
- * Tema Madera Natural - Simulación realista de tablero de ajedrez de madera
+ * Natural Wood Theme - Realistic simulation of wooden chess board
  */
 
-/* Contenedor principal del tablero */
+/* Main board container */
 .natural-wood .cg-board-wrap {
   background-image: url('images/board/wood.svg');
   background-size: 100% 100%;
 }
 
-/* Efecto de veta de madera en el marco */
+/* Wood grain effect on frame */
 .natural-wood .cg-board-wrap::before {
   content: '';
   position: absolute;
@@ -27,41 +27,41 @@
   pointer-events: none;
 }
 
-/* Casillas claras - Madera clara */
+/* Light squares - Light wood */
 .natural-wood .cg-board square.light {
   background-color: #F5DEB3;
 }
 
-/* Casillas oscuras - Madera oscura */
+/* Dark squares - Dark wood */
 .natural-wood .cg-board square.dark {
   background-color: #A0522D;
 }
 
 
 
-/* Casillas seleccionadas */
+/* Selected squares */
 .natural-wood .cg-board square.selected {
   background-color: rgba(255, 215, 0, 0.5) !important;
 }
 
-/* Casillas de destino válido */
+/* Valid destination squares */
 .natural-wood .cg-board square.move-dest {
   background: radial-gradient(rgba(20, 85, 30, 0.5) 22%, #208530 0, rgba(0, 0, 0, 0.3) 0, rgba(0, 0, 0, 0) 0);
 }
 
-/* Última jugada */
+/* Last move */
 .natural-wood .cg-board square.last-move {
   background-color: rgba(155, 199, 0, 0.41);
 }
 
-/* Casilla en jaque */
+/* Square in check */
 .natural-wood .cg-board square.check {
   background: radial-gradient(ellipse at center, rgba(255, 0, 0, 1) 0%, rgba(231, 0, 0, 1) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%);
 }
 
 
 
-/* Piezas blancas con set Merida */
+/* White pieces with Merida set */
 .natural-wood .cg-board piece.pawn.white {
   background-image: url('images/pieces/merida/wP.svg');
 }
@@ -81,7 +81,7 @@
   background-image: url('images/pieces/merida/wK.svg');
 }
 
-/* Piezas negras con set Merida */
+/* Black pieces with Merida set */
 .natural-wood .cg-board piece.pawn.black {
   background-image: url('images/pieces/merida/bP.svg');
 }

@@ -1141,12 +1141,19 @@ async def main() -> None:
                 # allow slow boards up to ~5 minutes to connect
                 max_checks = 1500
                 board_connected = getattr(self.dgtboard, "is_connected", None)
+                board_ready = True
                 if callable(board_connected):
+                    board_ready = board_connected()
                     while max_checks > 0 and not board_connected():
                         await asyncio.sleep(0.2)
                         max_checks -= 1
-
-            await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+                        board_ready = board_connected()
+                if board_ready:
+                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+                else:
+                    logger.warning("e-Board not connected after waiting, skipping startup OK")
+            else:
+                await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
 
             await self._start_or_stop_analysis_as_needed()  # start analysis if needed
             self.background_analyse_timer.start()  # always run background analyser

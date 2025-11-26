@@ -82,13 +82,13 @@ class DgtBoard(EBoard):
     """Handle the DGT board communication."""
 
     def __init__(
-            self,
-            device: str,
-            disable_revelation_leds: bool,
-            is_pi: bool,
-            disable_end: bool,
-            loop: asyncio.AbstractEventLoop,
-            field_factor=0,
+        self,
+        device: str,
+        disable_revelation_leds: bool,
+        is_pi: bool,
+        disable_end: bool,
+        loop: asyncio.AbstractEventLoop,
+        field_factor=0,
     ):
         super(DgtBoard, self).__init__()
         self.given_device = device
@@ -304,6 +304,7 @@ class DgtBoard(EBoard):
                 maxtime=1.1,
                 devs={"i2c", "web"},
             )  # serial clock lateron
+            self.connected = True
             DisplayMsg.show_sync(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             self.startup_serial_clock()  # now ask the serial clock to answer
             if self.watchdog_timer.is_running():
@@ -470,7 +471,7 @@ class DgtBoard(EBoard):
             board = ""
             for character in message:
                 board += piece_to_char[character & 0x0F]
-            logger.debug("\n" + "\n".join(board[0 + i: 8 + i] for i in range(0, len(board), 8)))  # Show debug board
+            logger.debug("\n" + "\n".join(board[0 + i : 8 + i] for i in range(0, len(board), 8)))  # Show debug board
             # Create fen from board
             fen = ""
             empty = 0
@@ -832,7 +833,6 @@ class DgtBoard(EBoard):
         def _success(device: str):
             self.device = device
             logger.debug("(ser) board connected to %s", self.device)
-            self.connected = True
             return True
 
         waitchars = ["/", "-", "\\", "|"]
@@ -868,6 +868,7 @@ class DgtBoard(EBoard):
         )
         DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
         self.wait_counter = (self.wait_counter + 1) % len(waitchars)
+        self.connected = False
         return False
 
     def is_connected(self) -> bool:

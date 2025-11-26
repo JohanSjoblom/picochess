@@ -1100,8 +1100,6 @@ async def main() -> None:
                 ModeInfo.set_online_mode(mode=False)
                 await self.engine.newgame(self.state.game.copy())
 
-            await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
-
             self.state.comment_file = self.get_comment_file()
             tutor_engine = self.args.tutor_engine
             if self.remote_engine_mode() and self.uci_remote_shell:
@@ -1137,6 +1135,18 @@ async def main() -> None:
             if self.state.dgtmenu.get_enginename():
                 msg = Message.ENGINE_NAME(engine_name=self.state.engine_text)
                 await DisplayMsg.show(msg)
+
+            # Wait for eBoard connection unless we are in no-eboards mode
+            if self.board_type != dgt.util.EBoard.NOEBOARD:
+                # allow slow boards up to ~5 minutes to connect
+                max_checks = 1500
+                board_connected = getattr(self.dgtboard, "is_connected", None)
+                if callable(board_connected):
+                    while max_checks > 0 and not board_connected():
+                        await asyncio.sleep(0.2)
+                        max_checks -= 1
+
+            await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
 
             await self._start_or_stop_analysis_as_needed()  # start analysis if needed
             self.background_analyse_timer.start()  # always run background analyser

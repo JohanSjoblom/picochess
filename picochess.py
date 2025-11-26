@@ -1151,7 +1151,8 @@ async def main() -> None:
                 if board_ready:
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
                 else:
-                    logger.warning("e-Board not connected after waiting, skipping startup OK")
+                    logger.warning("e-Board not connected after waiting during startup")
+                    await DisplayMsg.show(Message.ENGINE_FAIL())
             else:
                 await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
 

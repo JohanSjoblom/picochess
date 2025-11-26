@@ -33,6 +33,7 @@ class IChessOneBoard(EBoard):
     def __init__(self):
         self.agent = None
         self.appque = queue.Queue()
+        self.connected = False
 
     def light_squares_on_revelation(self, uci_move: str):
         logger.debug("turn LEDs on - move: %s", uci_move)
@@ -71,6 +72,7 @@ class IChessOneBoard(EBoard):
 
         if result["state"] != "offline":
             logger.info("incoming_board ready")
+            self.connected = True
         self._process_after_connection()
 
     def _process_after_connection(self):
@@ -97,8 +99,10 @@ class IChessOneBoard(EBoard):
 
     def _process_board_state(self, result):
         if result["state"] == "offline":
+            self.connected = False
             text = self._display_text(result["message"], result["message"], "no Board", "no brd")
         else:
+            self.connected = True
             self.agent.request_board_updates()
             text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
         DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
@@ -157,3 +161,6 @@ class IChessOneBoard(EBoard):
 
     def promotion_done(self, uci_move: str):
         pass
+
+    def is_connected(self) -> bool:
+        return self.connected

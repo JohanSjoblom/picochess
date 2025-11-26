@@ -32,6 +32,7 @@ class CertaboBoard(EBoard):
     def __init__(self):
         self.agent = None
         self.appque = queue.Queue()
+        self.connected = False
 
     def light_squares_on_revelation(self, uci_move: str):
         logger.debug("turn LEDs on - move: %s", uci_move)
@@ -71,6 +72,7 @@ class CertaboBoard(EBoard):
 
         if result["state"] != "offline":
             logger.info("incoming_board ready")
+            self.connected = True
 
         self._process_after_connection()
 
@@ -81,8 +83,10 @@ class CertaboBoard(EBoard):
                     result = self.appque.get(block=False)
                     if "cmd" in result and result["cmd"] == "agent_state" and "state" in result and "message" in result:
                         if result["state"] == "offline":
+                            self.connected = False
                             text = self._display_text(result["message"], result["message"], "no/", "Board")
                         else:
+                            self.connected = True
                             text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
                         DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
                     elif "cmd" in result and result["cmd"] == "raw_board_position" and "fen" in result:
@@ -136,3 +140,6 @@ class CertaboBoard(EBoard):
 
     def promotion_done(self, uci_move: str):
         self.agent.promotion_done(uci_move)
+
+    def is_connected(self) -> bool:
+        return self.connected

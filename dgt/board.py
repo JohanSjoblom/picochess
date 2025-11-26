@@ -136,6 +136,7 @@ class DgtBoard(EBoard):
 
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
+        self.connected = False
 
     def expired_field_timer(self):
         """Board position hasnt changed for some time."""
@@ -831,6 +832,7 @@ class DgtBoard(EBoard):
         def _success(device: str):
             self.device = device
             logger.debug("(ser) board connected to %s", self.device)
+            self.connected = True
             return True
 
         waitchars = ["/", "-", "\\", "|"]
@@ -867,6 +869,9 @@ class DgtBoard(EBoard):
         DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
         self.wait_counter = (self.wait_counter + 1) % len(waitchars)
         return False
+
+    def is_connected(self) -> bool:
+        return self.connected
 
     # dgtHw functions start
     def _wait_for_clock(self, func: str):

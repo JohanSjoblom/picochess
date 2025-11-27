@@ -1138,21 +1138,15 @@ async def main() -> None:
 
             # Wait for eBoard connection unless we are in no-eboards mode
             if self.board_type != dgt.util.EBoard.NOEBOARD:
-                # allow slow boards up to ~5 minutes to connect
-                max_checks = 1500
                 board_connected = getattr(self.dgtboard, "is_connected", None)
                 board_ready = True
                 if callable(board_connected):
                     board_ready = board_connected()
-                    while max_checks > 0 and not board_connected():
+                    while not board_ready:
                         await asyncio.sleep(0.2)
-                        max_checks -= 1
                         board_ready = board_connected()
                 if board_ready:
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
-                else:
-                    logger.warning("e-Board not connected after waiting during startup")
-                    await DisplayMsg.show(Message.ENGINE_FAIL())
             else:
                 await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
 

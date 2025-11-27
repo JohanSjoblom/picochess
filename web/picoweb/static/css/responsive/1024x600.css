@@ -1,0 +1,353 @@
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px) {
+    /* Reducir margen del contenedor PV según altura */
+    .pv-container {
+        margin-left: 8px !important;
+        margin-bottom: 5px !important;
+    }
+
+    /* Reducir tamaño de elementos de análisis */
+    .analysis-line-compact {
+        font-size: 0.85rem;
+        gap: 4px;
+    }
+    
+    .score-display {
+        font-size: 0.95rem;
+        padding: 2px 6px;
+        min-width: 40px;
+    }
+    
+    .first-move {
+        font-size: 0.9rem;
+        padding: 1px 4px;
+    }
+    
+    .continuation-moves {
+        font-size: 0.7rem;
+    }
+    
+    .depth-display {
+        font-size: 0.65rem;
+        padding: 1px 4px;
+    }
+    
+    #pv_output,
+    #pv_output * {
+        font-size: 1.15rem !important;
+        line-height: 1.4 !important;
+    }
+
+    
+    /* Forzar altura máxima del scroll_engine cuando está en análisis */
+    .scroll_engine {
+        max-height: 250px !important;
+        overflow-y: auto !important;
+    }
+    
+    /* Botones de análisis más compactos */
+    #analyzeBtn, #analyzePlus, #analyzeMinus {
+        font-size: 1rem !important;
+        padding: 4px 8px !important;
+    }
+    
+    #engineMultiPVStatus {
+        font-size: 0.75rem !important;
+        padding: 2px 6px !important;
+    }
+    
+    /* Prevenir que el tab Engine crezca demasiado */
+    #engine .row {
+        margin-bottom: 2px !important;
+    }
+    
+    #engineStatus {
+        font-size: 0.75rem !important;
+        margin-bottom: 2px !important;
+    }
+
+    /* Asegurar que el contenedor del tablero mantenga proporción cuadrada */
+    .svg-container {
+        display: block;
+        position: relative;
+        width: 100%;
+        padding-bottom: 100% !important;
+        vertical-align: middle;
+        overflow: hidden;
+    }
+    
+    .svg-content {
+        display: block;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+    }
+    
+    /* Asegurar que chessground ocupe todo el espacio */
+    #board {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+    }
+    
+    .cg-board-wrap {
+        width: 100% !important;
+        height: 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+    }
+    
+    /* Ajustar el tamaño de las piezas */
+    .cg-board piece {
+        width: 12.5% !important;
+        height: 12.5% !important;
+        background-size: contain !important;
+    }
+    
+    /* Ajustar coordenadas del tablero */
+    .cg-board-wrap coords.ranks {
+        font-size: 11px;
+    }
+    
+    .cg-board-wrap coords.files {
+        font-size: 11px;
+    }
+
+    /* Reducir padding general */
+    .container-fluid {
+        max-width: 1010px !important;
+        max-height: 575px !important;
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+    }
+    
+    .card-body {
+        padding: 5px !important;
+    }
+    
+    /* Tablero más compacto */
+    #xboardsection {
+        max-width: 1014px;
+        max-height: 580px;
+    }
+    
+    /* Barra de evaluación ajustada */
+    .evaluation-container-horizontal {
+        max-width: 1014px;
+        margin: 0 auto;
+        height: 15px;
+    }
+    
+    /* Reducir altura de elementos scrollables */
+    .scroll_movelist {
+        height: 160px !important;
+        min-height: 160px !important;
+        max-height: 160px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        margin-top: 3px !important;
+        margin-bottom: 3px !important;
+        scroll-behavior: smooth !important;
+    }
+    
+    /* Reducir padding interno del contenedor de movimientos */
+    .scroll_movelist .card-body {
+        padding: 2px 5px !important;
+    }
+    
+    /* Eliminar márgenes del contenido de movimientos */
+    .scroll_movelist #pgn {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .scroll_movelist #pgn h4,
+    .scroll_movelist #pgn h5 {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.2 !important;
+        font-size: 20px !important;
+        text-align: center !important;
+    }
+    
+    .scroll_movelist .comment,
+    .scroll_movelist .gameVariation,
+    .scroll_movelist .gameMoves {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+    
+    .scroll_movelist .gameResult {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline !important;
+    }
+
+    /* Reducir márgenes del contenedor row de movimientos */
+    .container > .row:nth-child(3) {
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        flex: 0 0 auto !important; /* Desactivar flex, usar altura fija */
+        min-height: auto !important;
+    }
+    
+    .container > .row:nth-child(3) .card {
+        margin-bottom: 2px !important;
+        flex: none !important; /* Desactivar flex del card */
+        height: auto !important;
+        min-height: 170px !important; /* Asegurar altura mínima */
+    }
+    
+    .scroll_movelist .text-warning {
+        scroll-margin-top: 30px;
+        scroll-margin-bottom: 30px;
+    }
+    
+    .gameMoves {
+        white-space: normal;
+    }
+    
+    .scroll_obooklist,
+    .scroll_engine {
+        height: 250px;
+        max-height: 250px;
+    }
+    
+    #GameTable_wrapper {
+        min-height: 250px;
+        max-height: 250px;
+    }
+    
+    /* Reducir tamaño de fuentes */
+    .gameMoves, .bookMoves {
+        font-size: 2vw;
+    }
+    
+    #DGTClockText {
+        font-size: 5vh;
+    }
+    
+    #DGTClockStatus {
+        font-size: 2.5vh;
+    }
+    
+    .card-header {
+        font-size: 2.5vh !important;
+        padding: 3px !important;
+    }
+    
+    /* Botones más compactos */
+    .btn-group .btn {
+        padding: 0.3rem 0.5rem !important;
+    }
+    
+    #clockbuttons {
+        padding-top: 5px;
+        padding-bottom: 5px;
+    }
+
+    #clockbuttons .btn {
+    padding: 0.8rem 1.2rem;
+    font-size: 1.3rem;
+    }
+
+    /* Tabs más compactos */
+    .nav-pills .nav-link {
+        padding: 6px 8px !important;
+        font-size: 0.85rem !important;
+    }
+    
+    #data {
+        margin-top: 2px;
+    }
+
+    #data.card {
+        height: 262px !important;
+        min-height: 250px !important;
+        max-height: 290px !important;
+    }
+
+    /* Controles de Scan más compactos */
+    .scan-controls {
+        padding: 8px !important;
+    }
+    
+    .scan-controls .row {
+        margin-bottom: 8px !important;
+    }
+    
+    .scan-controls .btn {
+        padding: 0.4rem 0.6rem !important;
+        font-size: 0.85rem !important;
+    }
+    
+    .form-check-label {
+        font-size: 0.8rem !important;
+    }
+        #boardControlButtons {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        gap: 5px;
+        flex-wrap: nowrap;
+    }
+
+    #boardControlButtons button {
+        font-size: 0.75rem !important;
+        padding: 0.2rem 0.4rem !important;
+        min-width: unset !important;
+        width: auto !important;
+        flex: 1 1 auto;
+    }
+
+    /* Espacio superior estético */
+    .container-fluid > .row {
+        margin-top: 10px;
+    }
+    
+    /* Asegurar que las columnas se distribuyan correctamente */
+    .container-fluid > .row > .col:first-child {
+        flex: 0 0 48% !important;
+        max-width: 48% !important;
+    }
+    
+    .container-fluid > .row > .col:last-child {
+        flex: 0 0 52% !important;
+        max-width: 52% !important;
+    }
+    
+    /* Ajustar altura de cards */
+    .card {
+        margin-bottom: 3px;
+    }
+    
+    #boardButtons button {
+    font-size: 1rem;
+    padding: 0.45rem 0.8rem;
+    min-width: 60px;
+    min-height: 38px;
+}
+
+    /* Optimizar espacio del tablero */
+    #board_panel .card-body {
+        padding: 5px !important;
+    }
+
+    #downloadBtn,
+    #uploadBtn {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 4px 8px !important;
+    }
+
+    #btn-mute {
+    height: 34px !important;
+    width: 42px !important;
+    font-size: 16px !important;
+    }
+
+}

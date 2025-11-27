@@ -108,68 +108,51 @@
 
     }
 }
-/* Overrides SOLO cuando la altura es 720px */
+
 @media (min-width: 1200px) and (max-width: 1300px)
        and (height: 720px)  {
-    
- body {
-        overflow-y: auto !important;
+    body {
         max-height: 720px;
     }
 
     .scroll-portrait {
         height: 720px;
         max-height: 720px;
-        overflow-y: hidden;
     }
-   
+
     #xboardsection {
         max-width: 1270px;
         max-height: 715px;
     }
-
     #board_panel {
         height: 715px;
     }
 
+    #boardControlButtons {
+    padding-top: 5px;
+    }
+
+    #downloadBtn,
+    #uploadBtn {
+        height: 36px !important;
+    }
+
+    #btn-mute {
+        height: 36px !important;
+    }
     .boardinfo {
-    padding-top: 10px !important;
+        padding-top: 5px !important;
     }
-    #data.card {
-        height: 43vh !important;
-        min-height: 30vh!important;
-        max-height: 50vh!important;
-    }
-     /* 🔹 Games */
-    .scroll_movelist {
-        height: 140px !important;
-        max-height: 140px !important;
-        min-height: 140px !important;
-    }
-
-    #GameTable_wrapper {
-        height: 220px !important;
-        max-height: 220px !important;
-        min-height: 220px !important;
-    }
-
-    /* 🔹 Book */
-    .scroll_obooklist,
-    .scroll_engine {
-        height: 260px !important;
-        max-height: 260px !important;
-        min-height: 260px !important;
-    }
-
     #BookTable_wrapper {
-        height: 235px !important;
-        max-height: 235px !important;
-        min-height: 165px !important;
+        height: 230px !important;
+        min-height: 235px !important;
+        max-height: 320px;
+        overflow-y: auto;
+        overflow-x: hidden
     }
-        #boardControlButtons {
-        padding-left: 0px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
+    #GameTable_wrapper {
+        height: 235px;
+        min-height: 200px;
+        max-height: 320px;
     }
-
 }

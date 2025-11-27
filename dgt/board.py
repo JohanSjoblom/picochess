@@ -872,6 +872,16 @@ class DgtBoard(EBoard):
         return False
 
     def is_connected(self) -> bool:
+        # Keep the connected flag in sync with the serial handle so callers get a
+        # reliable answer even after a drop on the RevII / BT link.
+        if self.serial is None:
+            self.connected = False
+        else:
+            is_open = getattr(self.serial, "is_open", None)
+            if is_open is False:  # pyserial 3.x exposes is_open
+                self.connected = False
+                self.serial = None
+
         return self.connected
 
     # dgtHw functions start

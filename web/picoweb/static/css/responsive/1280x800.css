@@ -1,0 +1,175 @@
+@media (min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px) {
+    /* Tablero más grande aprovechando la altura */
+    #xboardsection {
+        max-width: 1270px;
+        max-height: 790px;
+    }
+
+    #board_panel {
+        height: 790px;
+    }
+    /* Barra de evaluación ajustada al ancho del tablero */
+    .evaluation-container-horizontal {
+        max-width: 1270px;
+        margin: 0 auto;
+    }
+    
+    /* Reducir altura de elementos scrollables */
+    .scroll_movelist {
+        height: 180px !important;
+        min-height: 180px !important;
+        max-height: 180px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        margin-top: 12px !important;
+        margin-bottom: 12px !important;
+        scroll-behavior: smooth !important;
+    }
+    
+    .scroll_movelist .text-warning {
+        scroll-margin-top: 75px;
+        scroll-margin-bottom: 75px;
+    }
+    
+    .gameMoves {
+        white-space: normal;
+    }
+    
+    .scroll_obooklist,
+    .scroll_engine {
+        height: 320px;
+        max-height: 320px;
+    }
+    
+    #GameTable_wrapper {
+        height: 270px;
+        min-height: 250px;
+        max-height: 320px;
+    }
+    #BookTable_wrapper {
+    height: 270px;
+    min-height: 250px;
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden
+}
+
+    /* Fuentes optimizadas */
+    .gameMoves, .bookMoves {
+        font-size: 1.6vw;
+    }
+    
+    #data.card {
+        height: 44vh;
+        min-height: 30vh;
+        max-height: 50vh;
+    }
+    
+    /* Prevenir scroll vertical */
+    body {
+        overflow-y: auto !important;
+        max-height: 800px;
+    }
+    
+    .scroll-portrait {
+        height: 800px;
+        max-height: 800px;
+        overflow-y: hidden;
+    }
+    
+    /* Layout de columnas */
+    .container-fluid > .row > .col:first-child {
+        flex: 0 0 48% !important;
+        max-width: 48% !important;
+    }
+
+    #boardControlButtons {
+    padding-left: 0px;
+    padding-top: 30px;
+    padding-bottom: 30px;
+}
+
+    #boardcontrol {
+    padding-top: 12px !important;
+    }
+    .boardinfo {
+    padding-top: 30px;
+    }
+     #boardButtons button {
+        padding: 10px 14px !important;
+        min-height: 44px !important;
+        min-width: 48px !important;
+        font-size: 1rem !important;
+        border-radius: 0px !important;
+    }
+    #pv_output,
+    #pv_output * {
+        font-size: 1.3vw !important;
+
+    }
+}
+/* Overrides SOLO cuando la altura es 720px */
+@media (min-width: 1200px) and (max-width: 1300px)
+       and (height: 720px)  {
+    
+ body {
+        overflow-y: auto !important;
+        max-height: 720px;
+    }
+
+    .scroll-portrait {
+        height: 720px;
+        max-height: 720px;
+        overflow-y: hidden;
+    }
+   
+    #xboardsection {
+        max-width: 1270px;
+        max-height: 715px;
+    }
+
+    #board_panel {
+        height: 715px;
+    }
+
+    .boardinfo {
+    padding-top: 10px !important;
+    }
+    #data.card {
+        height: 43vh !important;
+        min-height: 30vh!important;
+        max-height: 50vh!important;
+    }
+     /* 🔹 Games */
+    .scroll_movelist {
+        height: 140px !important;
+        max-height: 140px !important;
+        min-height: 140px !important;
+    }
+
+    #GameTable_wrapper {
+        height: 220px !important;
+        max-height: 220px !important;
+        min-height: 220px !important;
+    }
+
+    /* 🔹 Book */
+    .scroll_obooklist,
+    .scroll_engine {
+        height: 260px !important;
+        max-height: 260px !important;
+        min-height: 260px !important;
+    }
+
+    #BookTable_wrapper {
+        height: 235px !important;
+        max-height: 235px !important;
+        min-height: 165px !important;
+    }
+        #boardControlButtons {
+        padding-left: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+
+}

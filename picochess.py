@@ -1136,22 +1136,7 @@ async def main() -> None:
                 msg = Message.ENGINE_NAME(engine_name=self.state.engine_text)
                 await DisplayMsg.show(msg)
 
-            # Wait for eBoard connection unless we are in no-eboards mode
-            if self.board_type != dgt.util.EBoard.NOEBOARD:
-                board_connected = getattr(self.dgtboard, "is_connected", None)
-                board_ready = True
-                if callable(board_connected):
-                    board_ready = board_connected()
-                    while not board_ready:
-                        await asyncio.sleep(0.2)
-                        board_ready = board_connected()
-                if board_ready:
-                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
-            else:
-                await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
-
-            await self._start_or_stop_analysis_as_needed()  # start analysis if needed
-            self.background_analyse_timer.start()  # always run background analyser
+            # board connection wait moved to wait_for_board_connection to avoid blocking startup
 
         def get_last_update_status(self) -> str | None:
             """
@@ -5449,6 +5434,25 @@ async def main() -> None:
                 logger.error("Error during shutdown: %s", e)
                 sys.exit(-1)  # force exit on error
 
+        async def wait_for_board_connection(self):
+            """Wait for the DGT eBoard connection without blocking other startup tasks."""
+            # Wait for eBoard connection unless we are in no-eboards mode
+            if self.board_type != dgt.util.EBoard.NOEBOARD:
+                board_connected = getattr(self.dgtboard, "is_connected", None)
+                board_ready = True
+                if callable(board_connected):
+                    board_ready = board_connected()
+                    while not board_ready:
+                        await asyncio.sleep(0.2)
+                        board_ready = board_connected()
+                if board_ready:
+                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+            else:
+                await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+
+            await self._start_or_stop_analysis_as_needed()  # start analysis if needed
+            self.background_analyse_timer.start()  # always run background analyser
+
     my_main = MainLoop(
         own_user,
         opp_user,
@@ -5468,6 +5472,8 @@ async def main() -> None:
 
     await my_main.initialise(time_text)
     main_task = main_loop.create_task(my_main.event_consumer())  # start main message loop
+    board_wait_task = main_loop.create_task(my_main.wait_for_board_connection())
+    non_main_tasks.add(board_wait_task)  # ensure it gets cancelled on shutdown if still waiting
     all_tasks = non_main_tasks
     all_tasks.add(main_task)
     await asyncio.gather(*all_tasks)  # wait until all tasks are done

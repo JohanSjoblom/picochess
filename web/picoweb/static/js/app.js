@@ -1776,6 +1776,7 @@ $(window).on('load', function () {
     if (hostname === '127.0.0.1' || hostname === 'localhost') {
         $('#downloadBtn').hide();
         $('#uploadBtn').hide();
+        $('#btn-mute').hide();
     } else {
         $('#downloadBtn').on('click', download);
         $('#uploadBtn').on('click', function () {

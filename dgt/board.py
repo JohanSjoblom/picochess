@@ -124,6 +124,7 @@ class DgtBoard(EBoard):
         self.bt_name_list: List[str] = []
         self.bt_name = ""
         self.wait_counter = 0
+        self.last_no_board_display = 0.0
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -821,6 +822,30 @@ class DgtBoard(EBoard):
                         logger.debug("Restarting bluetoothctl")
         return False
 
+    def _queue_no_board_spinner(self):
+        """Schedule a non-blocking spinner update on the async loop."""
+        now = time.time()
+        if now - self.last_no_board_display < 0.5:
+            return
+
+        waitchars = ["/", "-", "\\", "|"]
+        bwait = waitchars[self.wait_counter]
+        text = Dgt.DISPLAY_TEXT(
+            web_text="no DGT e-Board" + bwait,
+            large_text="DGT eBoard" + bwait,
+            medium_text="DGT" + bwait,
+            small_text=bwait,
+            wait=True,
+            beep=False,
+            maxtime=0.1,
+            devs={"i2c", "web"},
+        )
+        asyncio.run_coroutine_threadsafe(
+            DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text)), self.loop
+        )
+        self.wait_counter = (self.wait_counter + 1) % len(waitchars)
+        self.last_no_board_display = now
+
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial
         try:
@@ -834,8 +859,6 @@ class DgtBoard(EBoard):
             self.device = device
             logger.debug("(ser) board connected to %s", self.device)
             return True
-
-        waitchars = ["/", "-", "\\", "|"]
 
         if self.watchdog_timer.is_running():
             logger.debug("watchdog timer is stopped now")
@@ -855,19 +878,9 @@ class DgtBoard(EBoard):
                 if self._open_bluetooth():
                     return _success("/dev/rfcomm123")
 
-        bwait = waitchars[self.wait_counter]
-        text = Dgt.DISPLAY_TEXT(
-            web_text="no DGT e-Board" + bwait,
-            large_text="DGT eBoard" + bwait,
-            medium_text="DGT" + bwait,
-            small_text=bwait,
-            wait=True,
-            beep=False,
-            maxtime=0.1,
-            devs={"i2c", "web"},
-        )
-        DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
-        self.wait_counter = (self.wait_counter + 1) % len(waitchars)
+        # Issue spinner updates via the async loop to avoid blocking UI threads.
+        self._queue_no_board_spinner()
+
         self.connected = False
         return False
 

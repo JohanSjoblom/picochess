@@ -139,7 +139,7 @@ class DgtBoard(EBoard):
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
         self.connected = False
-        self.version_timer = AsyncRepeatingTimer(2, self._retry_handshake, self.loop)
+        self.version_timer = AsyncRepeatingTimer(3, self._retry_handshake, self.loop)
 
     def expired_field_timer(self):
         """Board position hasnt changed for some time."""
@@ -868,6 +868,8 @@ class DgtBoard(EBoard):
                 self.version_timer.stop()
             return
         if not self.serial:
+            # Try to re-open the serial/Bluetooth connection
+            self._setup_serial_port()
             return
         # Re-run the startup sequence that should elicit a DGT_MSG_VERSION
         self._startup_serial_board()

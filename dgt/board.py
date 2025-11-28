@@ -127,6 +127,8 @@ class DgtBoard(EBoard):
         self.last_no_board_display = 0.0
         self.handshake_pending = False
         self.ever_connected = False
+        self.handshake_retry_count = 0
+        self.last_board_msg_ts = time.time()
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -277,6 +279,8 @@ class DgtBoard(EBoard):
         if False:  # switch-case
             pass
         elif message_id == DgtMsg.DGT_MSG_VERSION:
+            self.last_board_msg_ts = time.time()
+            self.handshake_retry_count = 0
             if message_length != 2:
                 logger.warning("illegal length in data")
             board_version = str(message[0]) + "." + str(message[1])
@@ -595,6 +599,8 @@ class DgtBoard(EBoard):
                 logger.warning("struct error => maybe a reconnected board?")
 
         self._process_board_message(message_id, message, message_length)
+        self.last_board_msg_ts = time.time()
+        self.handshake_retry_count = 0
         return message
 
     def _process_incoming_board_forever(self):
@@ -874,12 +880,21 @@ class DgtBoard(EBoard):
             if self.version_timer.is_running():
                 self.version_timer.stop()
             return
+        now = time.time()
         if not self.serial:
             # Try to re-open the serial/Bluetooth connection
             self._setup_serial_port()
             return
+        # If we've been waiting a long time with no incoming messages, force a reconnect.
+        if now - self.last_board_msg_ts > 10 and self.handshake_retry_count >= 5:
+            self.serial.close()
+            self._on_disconnect()
+            self._setup_serial_port()
+            self.handshake_retry_count = 0
+            return
         # Re-run the startup sequence that should elicit a DGT_MSG_VERSION
         self._startup_serial_board()
+        self.handshake_retry_count += 1
 
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial

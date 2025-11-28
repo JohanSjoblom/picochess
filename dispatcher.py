@@ -198,7 +198,17 @@ class Dispatcher(DispatchDgt):
         for dev in message.devs & self.devices:
             if self.maxtimer_running[dev]:
                 if hasattr(message, "wait"):
-                    if message.wait:
+                    # Prioritize "no e-Board" spinner: do not queue behind existing max timer.
+                    if (
+                        message.wait
+                        and repr(message) == DgtApi.DISPLAY_TEXT
+                        and getattr(message, "maxtime", None) == 0.1
+                    ):
+                        logger.debug("(%s) prioritizing no e-Board display over maxtimer", dev)
+                        self.stop_maxtimer(dev)
+                        self.tasks[dev] = []
+                        self.maxtimer_running[dev] = False
+                    if message.wait and self.maxtimer_running[dev]:
                         self._prune_analysis_tasks(dev, message)
                         self.tasks[dev].append(message)
                         logger.debug("(%s) tasks delayed: %s", dev, self.tasks[dev])

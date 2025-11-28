@@ -646,6 +646,8 @@ class DgtBoard(EBoard):
         self.write_command(command)  # Get clock version
         self.handshake_pending = True
         self.handshake_retry_count = 0
+        if not self.version_timer.is_running():
+            self.version_timer.start()
 
     def _startup_serial_board(self):
         self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode

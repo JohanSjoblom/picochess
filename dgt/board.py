@@ -858,6 +858,8 @@ class DgtBoard(EBoard):
         if not self.version_timer.is_running():
             self.version_timer.start()
         self.serial = None
+        self.clock_lock = 0.0
+        self.last_clock_command = []
 
     def _retry_handshake(self):
         """Keep requesting version info until the board replies."""

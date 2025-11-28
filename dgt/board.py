@@ -308,6 +308,7 @@ class DgtBoard(EBoard):
                 maxtime=1.1,
                 devs={"i2c", "web"},
             )  # serial clock lateron
+            was_reconnect = self.ever_connected
             self.connected = True
             DisplayMsg.show_sync(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             self.startup_serial_clock()  # now ask the serial clock to answer
@@ -320,6 +321,10 @@ class DgtBoard(EBoard):
             self.ever_connected = True
             if self.version_timer.is_running():
                 self.version_timer.stop()
+            if was_reconnect:
+                asyncio.run_coroutine_threadsafe(
+                    DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok")), self.loop
+                )
 
         elif message_id == DgtMsg.DGT_MSG_BWTIME:
             if message_length != 7:

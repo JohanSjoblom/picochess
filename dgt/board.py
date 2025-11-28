@@ -282,6 +282,7 @@ class DgtBoard(EBoard):
         elif message_id == DgtMsg.DGT_MSG_VERSION:
             self.last_board_msg_ts = time.time()
             self.handshake_retry_count = 0
+            self.clock_lock_resends = 0
             if message_length != 2:
                 logger.warning("illegal length in data")
             board_version = str(message[0]) + "." + str(message[1])

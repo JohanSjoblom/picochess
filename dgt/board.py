@@ -129,6 +129,7 @@ class DgtBoard(EBoard):
         self.ever_connected = False
         self.handshake_retry_count = 0
         self.last_board_msg_ts = time.time()
+        self.clock_lock_resends = 0
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -601,6 +602,7 @@ class DgtBoard(EBoard):
         self._process_board_message(message_id, message, message_length)
         self.last_board_msg_ts = time.time()
         self.handshake_retry_count = 0
+        self.clock_lock_resends = 0
         return message
 
     def _process_incoming_board_forever(self):
@@ -641,6 +643,8 @@ class DgtBoard(EBoard):
             DgtClk.DGT_CMD_CLOCK_END_MESSAGE,
         ]
         self.write_command(command)  # Get clock version
+        self.handshake_pending = True
+        self.handshake_retry_count = 0
 
     def _startup_serial_board(self):
         self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
@@ -658,6 +662,13 @@ class DgtBoard(EBoard):
                 logger.debug("resending locked (ser) clock message [%s]", self.last_clock_command)
                 self.clock_lock = 0.0
                 self.write_command(self.last_clock_command)
+                self.clock_lock_resends += 1
+                if self.clock_lock_resends >= 10:
+                    logger.warning("clock locked too long without response => forcing reconnect")
+                    self._on_disconnect()
+                    self._setup_serial_port()
+                    self.handshake_retry_count = 0
+                    self.clock_lock_resends = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
 
     def _open_bluetooth(self):

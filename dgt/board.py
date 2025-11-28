@@ -645,6 +645,9 @@ class DgtBoard(EBoard):
     def _startup_serial_board(self):
         self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
         self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
+        if not self.connected:
+            self.handshake_pending = True
+            self.handshake_retry_count = 0
 
     def _watchdog(self):
         """callback by repeated timer"""

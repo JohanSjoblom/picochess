@@ -126,6 +126,7 @@ class DgtBoard(EBoard):
         self.wait_counter = 0
         self.last_no_board_display = 0.0
         self.handshake_pending = False
+        self.ever_connected = False
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -316,6 +317,7 @@ class DgtBoard(EBoard):
                 logger.debug("watchdog timer is started")
                 self.watchdog_timer.start()
             self.handshake_pending = False
+            self.ever_connected = True
             if self.version_timer.is_running():
                 self.version_timer.stop()
 
@@ -853,6 +855,7 @@ class DgtBoard(EBoard):
 
     def _on_disconnect(self):
         """Central place to mark the board as disconnected and trigger re-handshake."""
+        was_connected = self.connected or self.ever_connected
         self.connected = False
         self.handshake_pending = True
         if not self.version_timer.is_running():
@@ -860,6 +863,9 @@ class DgtBoard(EBoard):
         self.serial = None
         self.clock_lock = 0.0
         self.last_clock_command = []
+        # Play an audible alert only after we've had a connection before to avoid startup noise
+        if was_connected:
+            asyncio.run_coroutine_threadsafe(DisplayMsg.show(Message.BEEPER(type=1)), self.loop)
 
     def _retry_handshake(self):
         """Keep requesting version info until the board replies."""

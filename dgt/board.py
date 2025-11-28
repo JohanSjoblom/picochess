@@ -321,10 +321,6 @@ class DgtBoard(EBoard):
             self.ever_connected = True
             if self.version_timer.is_running():
                 self.version_timer.stop()
-            if was_reconnect:
-                asyncio.run_coroutine_threadsafe(
-                    DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok")), self.loop
-                )
 
         elif message_id == DgtMsg.DGT_MSG_BWTIME:
             if message_length != 7:

@@ -125,6 +125,7 @@ class DgtBoard(EBoard):
         self.bt_name = ""
         self.wait_counter = 0
         self.last_no_board_display = 0.0
+        self.handshake_pending = False
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -138,6 +139,7 @@ class DgtBoard(EBoard):
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
         self.connected = False
+        self.version_timer = AsyncRepeatingTimer(2, self._retry_handshake, self.loop)
 
     def expired_field_timer(self):
         """Board position hasnt changed for some time."""
@@ -248,11 +250,11 @@ class DgtBoard(EBoard):
                     except SerialException as write_expection:
                         logger.error(write_expection)
                         self.serial.close()
-                        self.serial = None
+                        self._on_disconnect()
                     except IOError as write_expection:
                         logger.error(write_expection)
                         self.serial.close()
-                        self.serial = None
+                        self._on_disconnect()
             if mes == DgtCmd.DGT_RETURN_SERIALNR:
                 break
             time.sleep(0.1)
@@ -313,6 +315,9 @@ class DgtBoard(EBoard):
             else:
                 logger.debug("watchdog timer is started")
                 self.watchdog_timer.start()
+            self.handshake_pending = False
+            if self.version_timer.is_running():
+                self.version_timer.stop()
 
         elif message_id == DgtMsg.DGT_MSG_BWTIME:
             if message_length != 7:
@@ -846,6 +851,25 @@ class DgtBoard(EBoard):
         self.wait_counter = (self.wait_counter + 1) % len(waitchars)
         self.last_no_board_display = now
 
+    def _on_disconnect(self):
+        """Central place to mark the board as disconnected and trigger re-handshake."""
+        self.connected = False
+        self.handshake_pending = True
+        if not self.version_timer.is_running():
+            self.version_timer.start()
+        self.serial = None
+
+    def _retry_handshake(self):
+        """Keep requesting version info until the board replies."""
+        if not self.handshake_pending:
+            if self.version_timer.is_running():
+                self.version_timer.stop()
+            return
+        if not self.serial:
+            return
+        # Re-run the startup sequence that should elicit a DGT_MSG_VERSION
+        self._startup_serial_board()
+
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial
         try:
@@ -882,18 +906,20 @@ class DgtBoard(EBoard):
         self._queue_no_board_spinner()
 
         self.connected = False
+        self.handshake_pending = True
+        if not self.version_timer.is_running():
+            self.version_timer.start()
         return False
 
     def is_connected(self) -> bool:
         # Keep the connected flag in sync with the serial handle so callers get a
         # reliable answer even after a drop on the RevII / BT link.
         if self.serial is None:
-            self.connected = False
+            self._on_disconnect()
         else:
             is_open = getattr(self.serial, "is_open", None)
             if is_open is False:  # pyserial 3.x exposes is_open
-                self.connected = False
-                self.serial = None
+                self._on_disconnect()
 
         return self.connected
 

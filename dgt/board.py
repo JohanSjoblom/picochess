@@ -139,7 +139,7 @@ class DgtBoard(EBoard):
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
         self.connected = False
-        self.version_timer = AsyncRepeatingTimer(3, self._retry_handshake, self.loop)
+        self.version_timer = AsyncRepeatingTimer(2, self._retry_handshake, self.loop)
 
     def expired_field_timer(self):
         """Board position hasnt changed for some time."""

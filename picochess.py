@@ -703,13 +703,13 @@ async def main() -> None:
 
     # wire some dgt classes
     if board_type == dgt.util.EBoard.CHESSLINK:
-        dgtboard: EBoard = ChessLinkBoard()
+        dgtboard: EBoard = ChessLinkBoard(main_loop)
     elif board_type == dgt.util.EBoard.CHESSNUT:
-        dgtboard = ChessnutBoard()
+        dgtboard = ChessnutBoard(main_loop)
     elif board_type == dgt.util.EBoard.ICHESSONE:
-        dgtboard = IChessOneBoard()
+        dgtboard = IChessOneBoard(main_loop)
     elif board_type == dgt.util.EBoard.CERTABO:
-        dgtboard = CertaboBoard()
+        dgtboard = CertaboBoard(main_loop)
     else:
         dgtboard = DgtBoard(
             args.dgt_port, args.disable_revelation_leds, args.dgtpi, args.disable_et, main_loop, args.slow_slide

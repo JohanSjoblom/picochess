@@ -17,7 +17,6 @@
 
 import asyncio
 import logging
-import time
 from threading import Lock
 from ctypes import cdll, c_byte, create_string_buffer, pointer
 
@@ -47,21 +46,26 @@ class DgtPi(DgtIface):
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
 
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
+        self._startup_complete = asyncio.Event()
 
-        self._startup_i2c_clock()
+        self.loop.create_task(self._startup_i2c_clock())
 
-    def _startup_i2c_clock(self):
-        while self.lib.dgtpicom_init() < 0:
-            logger.warning("Init() failed - Jack half connected?")
-            DisplayMsg.show_sync(Message.DGT_JACK_CONNECTED_ERROR())
-            time.sleep(0.5)  # dont flood the log
-        if self.lib.dgtpicom_configure() < 0:
-            logger.warning("Configure() failed - Jack connected back?")
-            DisplayMsg.show_sync(Message.DGT_JACK_CONNECTED_ERROR())
-        DisplayMsg.show_sync(Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="i2c", text=None))
+    async def _startup_i2c_clock(self):
+        try:
+            while self.lib.dgtpicom_init() < 0:
+                logger.warning("Init() failed - Jack half connected?")
+                await DisplayMsg.show(Message.DGT_JACK_CONNECTED_ERROR())
+                await asyncio.sleep(0.5)  # dont flood the log
+            if self.lib.dgtpicom_configure() < 0:
+                logger.warning("Configure() failed - Jack connected back?")
+                await DisplayMsg.show(Message.DGT_JACK_CONNECTED_ERROR())
+            await DisplayMsg.show(Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="i2c", text=None))
+        finally:
+            self._startup_complete.set()
 
     async def process_incoming_clock_forever(self):
         try:
+            await self._startup_complete.wait()
             but = c_byte(0)
             buttime = c_byte(0)
             clktime = create_string_buffer(6)
@@ -75,32 +79,32 @@ class DgtPi(DgtIface):
                         ack3 = but.value
                         if ack3 == 0x01:
                             logger.debug("(i2c) clock button 0 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=0, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=0, dev="i2c"))
                         if ack3 == 0x02:
                             logger.debug("(i2c) clock button 1 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=1, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=1, dev="i2c"))
                         if ack3 == 0x04:
                             logger.debug("(i2c) clock button 2 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=2, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=2, dev="i2c"))
                         if ack3 == 0x08:
                             logger.debug("(i2c) clock button 3 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=3, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=3, dev="i2c"))
                         if ack3 == 0x10:
                             logger.debug("(i2c) clock button 4 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=4, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=4, dev="i2c"))
                         if ack3 == 0x20:
                             logger.debug("(i2c) clock button on/off pressed")
                             self.lib.dgtpicom_configure()  # restart the clock - cause its OFF
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=0x20, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=0x20, dev="i2c"))
                         if ack3 == 0x11:
                             logger.debug("(i2c) clock button 0+4 pressed")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=0x11, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=0x11, dev="i2c"))
                         if ack3 == 0x40:
                             logger.debug("(i2c) clock lever pressed > right side down")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=0x40, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=0x40, dev="i2c"))
                         if ack3 == -0x40:
                             logger.debug("(i2c) clock lever pressed > left side down")
-                            DisplayMsg.show_sync(Message.DGT_BUTTON(button=-0x40, dev="i2c"))
+                            await DisplayMsg.show(Message.DGT_BUTTON(button=-0x40, dev="i2c"))
                     if res < 0:
                         logger.warning("GetButtonMessage returned error %i", res)
 
@@ -129,8 +133,8 @@ class DgtPi(DgtIface):
                     text = Message.DGT_CLOCK_TIME(
                         time_left=self.l_time, time_right=self.r_time, connect=True, dev="i2c"
                     )
-                    DisplayMsg.show_sync(text)
-                await asyncio.sleep(0.1)
+                    await DisplayMsg.show(text)
+                await asyncio.sleep(0.05)
         except asyncio.CancelledError:
             logger.debug("incoming_clock cancelled")
 
@@ -169,6 +173,9 @@ class DgtPi(DgtIface):
         text = message.large_text
         if text is None:
             text = message.medium_text
+        if not self._startup_complete.is_set():
+            logger.debug("(i2c) clock not ready yet - drop text %s", text)
+            return False
         if self.get_name() not in message.devs:
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return
@@ -182,6 +189,9 @@ class DgtPi(DgtIface):
         if Rev2Info.get_new_rev2_mode():
             text = ". " + text
         text = "{:3d}{:s}".format(bit_board.fullmove_number, text)
+        if not self._startup_complete.is_set():
+            logger.debug("(i2c) clock not ready yet - drop move %s", text)
+            return False
         if self.get_name() not in message.devs:
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True
@@ -191,6 +201,9 @@ class DgtPi(DgtIface):
 
     def display_time_on_clock(self, message):
         """Display the time on the dgtpi."""
+        if not self._startup_complete.is_set():
+            logger.debug("(i2c) clock not ready yet - drop endText")
+            return False
         if self.get_name() not in message.devs:
             logger.debug("ignored endText - devs: %s", message.devs)
             return True
@@ -222,6 +235,7 @@ class DgtPi(DgtIface):
 
     async def stop_clock(self, devs: set):
         """Stop the dgtpi."""
+        await self._startup_complete.wait()
         if self.get_name() not in devs:
             logger.debug("ignored stopClock - devs: %s", devs)
             return True
@@ -264,6 +278,7 @@ class DgtPi(DgtIface):
 
     async def start_clock(self, side: ClockSide, devs: set):
         """Start the dgtpi."""
+        await self._startup_complete.wait()
         if self.get_name() not in devs:
             logger.debug("ignored startClock - devs: %s", devs)
             return True

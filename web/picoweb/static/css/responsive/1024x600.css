@@ -350,4 +350,21 @@
     font-size: 16px !important;
     }
 
+    /* Alinear altura de botones de análisis con + y - */
+    #analyzeBtn, #analyzePlus, #analyzeMinus {
+        font-size: 1rem !important;
+        height: 34px !important;
+        padding: 4px 10px !important;
+        border-radius: 6px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+    }
+
+    #analyzePlus, #analyzeMinus {
+        min-width: 40px !important;
+        padding: 4px 8px !important;
+    }
+
 }

@@ -92,6 +92,46 @@
             white-space: nowrap;
             text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
         }
+
+        /* Keep multipv indicator on a single line */
+        .engine-multipv {
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .engine-version {
+            font-size: 0.8rem;
+        }
+
+        /* Ocultar las barras de scroll pero mantener el desplazamiento */
+        .scroll_movelist,
+        .scroll_engine,
+        .scroll_obooklist,
+        .scroll_games,
+        .scroll_scan {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .scroll_movelist::-webkit-scrollbar,
+        .scroll_engine::-webkit-scrollbar,
+        .scroll_obooklist::-webkit-scrollbar,
+        .scroll_games::-webkit-scrollbar,
+        .scroll_scan::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Ocultar scroll vertical del DataTable de games */
+        #games .dataTables_scrollBody {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        #games .dataTables_scrollBody::-webkit-scrollbar {
+            display: none;
+        }
     </style>
 
 
@@ -311,6 +351,11 @@
                                                 data-bs-target="#scan" type="button" role="tab">Scan
                                             </button>
                                         </li>
+                                        <li class="nav-item ms-auto" role="presentation">
+                                            <button class="nav-link" id="pills-menu-tab" data-bs-toggle="pill"
+                                                data-bs-target="#menu" type="button" role="tab">Menu
+                                            </button>
+                                        </li>
                                     </ul>
 
                                 </div>
@@ -320,9 +365,12 @@
                                             <div class="scroll_engine">
                                                 <div class="row">
                                                     <div class="col-4">
-                                                        <span id="engineMultiPVStatus" class="btn-group"></span>
+                                                        <div class="engine-multipv">
+                                                            <span id="engineMultiPVStatus" class="btn-group"></span>
+                                                            <small class="engine-version text-muted">Stockfish 17.1</small>
+                                                        </div>
                                                     </div>
-                                                    <div class="col-8">
+                                                    <div class="col-8" style="padding-right: 0px;">
                                                         <div class="btn-group btn-group-xs pull-right" role="group">
                                                             <button id="analyzeBtn" class="btn btn-success"
                                                                 data-placement="auto">
@@ -388,6 +436,13 @@
                                                     </tr>
                                                 </thead>
                                             </table>
+                                        </div>
+                                        <div class="tab-pane fade" id="menu" role="tabpanel">
+                                            <div class="scroll_obooklist">
+                                                <div class="p-3" style="font-size: 1.2vw;">
+                                                    <p class="mb-0 text-center">Menu</p>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="tab-pane fade" id="scan" role="tabpanel">
                                             <div class="scroll_obooklist">
@@ -533,6 +588,10 @@
                 </div>
             </div>
         </div>
+        <script>
+            // Language for browser speech synthesis
+            window.picoLanguage = "{{ language or 'en' }}";
+        </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {

@@ -126,10 +126,6 @@ class DgtBoard(EBoard):
         self.wait_counter = 0
         self.last_no_board_display = 0.0
         self.handshake_pending = False
-        self.ever_connected = False
-        self.handshake_retry_count = 0
-        self.last_board_msg_ts = time.time()
-        self.clock_lock_resends = 0
         # keep the last time to find out erroneous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
         self.l_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -280,9 +276,6 @@ class DgtBoard(EBoard):
         if False:  # switch-case
             pass
         elif message_id == DgtMsg.DGT_MSG_VERSION:
-            self.last_board_msg_ts = time.time()
-            self.handshake_retry_count = 0
-            self.clock_lock_resends = 0
             if message_length != 2:
                 logger.warning("illegal length in data")
             board_version = str(message[0]) + "." + str(message[1])
@@ -314,7 +307,6 @@ class DgtBoard(EBoard):
                 maxtime=1.1,
                 devs={"i2c", "web"},
             )  # serial clock lateron
-            was_reconnect = self.ever_connected
             self.connected = True
             DisplayMsg.show_sync(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             self.startup_serial_clock()  # now ask the serial clock to answer
@@ -324,7 +316,6 @@ class DgtBoard(EBoard):
                 logger.debug("watchdog timer is started")
                 self.watchdog_timer.start()
             self.handshake_pending = False
-            self.ever_connected = True
             if self.version_timer.is_running():
                 self.version_timer.stop()
 
@@ -601,9 +592,6 @@ class DgtBoard(EBoard):
                 logger.warning("struct error => maybe a reconnected board?")
 
         self._process_board_message(message_id, message, message_length)
-        self.last_board_msg_ts = time.time()
-        self.handshake_retry_count = 0
-        self.clock_lock_resends = 0
         return message
 
     def _process_incoming_board_forever(self):
@@ -645,7 +633,6 @@ class DgtBoard(EBoard):
         ]
         self.write_command(command)  # Get clock version
         self.handshake_pending = True
-        self.handshake_retry_count = 0
         if not self.version_timer.is_running():
             self.version_timer.start()
 
@@ -654,7 +641,6 @@ class DgtBoard(EBoard):
         self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
         if not self.connected:
             self.handshake_pending = True
-            self.handshake_retry_count = 0
 
     def _watchdog(self):
         """callback by repeated timer"""
@@ -665,13 +651,6 @@ class DgtBoard(EBoard):
                 logger.debug("resending locked (ser) clock message [%s]", self.last_clock_command)
                 self.clock_lock = 0.0
                 self.write_command(self.last_clock_command)
-                self.clock_lock_resends += 1
-                if self.clock_lock_resends >= 10:
-                    logger.warning("clock locked too long without response => forcing reconnect")
-                    self._on_disconnect()
-                    self._setup_serial_port()
-                    self.handshake_retry_count = 0
-                    self.clock_lock_resends = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
 
     def _open_bluetooth(self):
@@ -879,7 +858,6 @@ class DgtBoard(EBoard):
 
     def _on_disconnect(self):
         """Central place to mark the board as disconnected and trigger re-handshake."""
-        was_connected = self.connected or self.ever_connected
         self.connected = False
         self.handshake_pending = True
         if not self.version_timer.is_running():
@@ -887,9 +865,6 @@ class DgtBoard(EBoard):
         self.serial = None
         self.clock_lock = 0.0
         self.last_clock_command = []
-        # Play an audible alert only after we've had a connection before to avoid startup noise
-        if was_connected:
-            asyncio.run_coroutine_threadsafe(DisplayMsg.show(Message.BEEPER(type=1)), self.loop)
 
     def _retry_handshake(self):
         """Keep requesting version info until the board replies."""
@@ -897,21 +872,12 @@ class DgtBoard(EBoard):
             if self.version_timer.is_running():
                 self.version_timer.stop()
             return
-        now = time.time()
         if not self.serial:
             # Try to re-open the serial/Bluetooth connection
             self._setup_serial_port()
             return
-        # If we've been waiting a long time with no incoming messages, force a reconnect.
-        if now - self.last_board_msg_ts > 10 and self.handshake_retry_count >= 5:
-            self.serial.close()
-            self._on_disconnect()
-            self._setup_serial_port()
-            self.handshake_retry_count = 0
-            return
         # Re-run the startup sequence that should elicit a DGT_MSG_VERSION
         self._startup_serial_board()
-        self.handshake_retry_count += 1
 
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial

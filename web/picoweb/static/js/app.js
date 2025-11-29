@@ -46,23 +46,39 @@ var speechAvailable = true
 if (typeof speechSynthesis === "undefined") {
     speechAvailable = false
 }
-if (speechAvailable) {
-    var myvoice = "";
-    var voices = speechSynthesis.getVoices();
-    // for Safari we need to pick an English voice explicitly, otherwise the system default is used
-    for (i = 0; i < voices.length; i++) {
-        if (voices[i].lang == "en-US") {
-            myvoice = voices[i];
-            break;
-        }
-    }
-}
+var preferredLanguage = (typeof window !== "undefined" && window.picoLanguage) ? window.picoLanguage.toLowerCase() : "en";
+var localeMap = {
+    "en": "en-US",
+    "de": "de-DE",
+    "nl": "nl-NL",
+    "fr": "fr-FR",
+    "es": "es-ES",
+    "it": "it-IT"
+};
+var preferredLocale = localeMap[preferredLanguage] || preferredLanguage;
+window.analysis = window.analysis || false;
 
 function talk(text) {
     if (speechAvailable && !speechMuted) {
+        var voiceList = speechSynthesis.getVoices();
+        var myvoice = "";
+        for (var i = 0; i < voiceList.length; i++) {
+            if (voiceList[i].lang.toLowerCase().startsWith(preferredLanguage)) {
+                myvoice = voiceList[i];
+                break;
+            }
+        }
+        if (myvoice === "") {
+            for (var j = 0; j < voiceList.length; j++) {
+                if (voiceList[j].lang.toLowerCase() === preferredLocale.toLowerCase()) {
+                    myvoice = voiceList[j];
+                    break;
+                }
+            }
+        }
         var msg = new SpeechSynthesisUtterance(text);
-        msg.lang = "en-US";
-        if (myvoice != "") {
+        msg.lang = preferredLocale || "en-US";
+        if (myvoice !== "") {
             msg.voice = myvoice;
         }
         window.speechSynthesis.speak(msg);
@@ -1609,9 +1625,9 @@ function analyze(position_update) {
             $('#AnalyzeText').text('Stop');
         }
         else {
-            $('#AnalyzeText').text('Analyze');
             stopAnalysis();
             window.analysis = false;
+            $('#AnalyzeText').text('Analyze');
             $('#engineStatus').html('');
             $('#evaluationBar').css('visibility', 'hidden');
             return;

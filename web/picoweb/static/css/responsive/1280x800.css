@@ -39,6 +39,9 @@
     .scroll_engine {
         height: 320px;
         max-height: 320px;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        scroll-behavior: smooth;
     }
     
     #GameTable_wrapper {
@@ -134,14 +137,14 @@
 
     #downloadBtn,
     #uploadBtn {
-        height: 36px !important;
+        height: 34px !important;
     }
 
     #btn-mute {
-        height: 36px !important;
+        height: 34px !important;
     }
     .boardinfo {
-        padding-top: 5px !important;
+        padding-top: 0px !important;
     }
     #BookTable_wrapper {
         height: 230px !important;
@@ -154,5 +157,11 @@
         height: 235px;
         min-height: 200px;
         max-height: 320px;
+    }
+
+    .scroll_engine {
+        max-height: 300px;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
     }
 }

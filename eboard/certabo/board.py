@@ -11,9 +11,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import time
+import asyncio
 import logging
-from threading import Thread
 import queue
 
 from eboard.eboard import EBoard
@@ -28,11 +27,11 @@ logger = logging.getLogger(__name__)
 
 
 class CertaboBoard(EBoard):
-
-    def __init__(self):
+    def __init__(self, loop: asyncio.AbstractEventLoop):
         self.agent = None
         self.appque = queue.Queue()
         self.connected = False
+        self.loop = loop
 
     def light_squares_on_revelation(self, uci_move: str):
         logger.debug("turn LEDs on - move: %s", uci_move)
@@ -55,7 +54,7 @@ class CertaboBoard(EBoard):
         if self.agent is not None:
             self.agent.set_led_off()
 
-    def _process_incoming_board_forever(self):
+    async def _process_incoming_board_forever(self):
         result = {}
         wait_counter = 0
         waitchars = ["/", "-", "\\", "|"]
@@ -66,17 +65,17 @@ class CertaboBoard(EBoard):
                 pass
             bwait = waitchars[wait_counter]
             text = self._display_text("no Certabo e-Board" + bwait, "Certabo" + bwait, "Certabo" + bwait, bwait)
-            DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
+            await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
             wait_counter = (wait_counter + 1) % len(waitchars)
-            time.sleep(1.0)
+            await asyncio.sleep(1.0)
 
         if result["state"] != "offline":
             logger.info("incoming_board ready")
             self.connected = True
 
-        self._process_after_connection()
+        await self._process_after_connection()
 
-    def _process_after_connection(self):
+    async def _process_after_connection(self):
         while True:
             if self.agent is not None:
                 try:
@@ -88,20 +87,20 @@ class CertaboBoard(EBoard):
                         else:
                             self.connected = True
                             text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
-                        DisplayMsg.show_sync(Message.DGT_NO_EBOARD_ERROR(text=text))
+                        await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
                     elif "cmd" in result and result["cmd"] == "raw_board_position" and "fen" in result:
                         fen = result["fen"].split(" ")[0]
-                        DisplayMsg.show_sync(Message.DGT_FEN(fen=fen, raw=True))
+                        await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=True))
                     elif "cmd" in result and result["cmd"] == "request_promotion_dialog" and "move" in result:
-                        DisplayMsg.show_sync(Message.PROMOTION_DIALOG(move=result["move"]))
+                        await DisplayMsg.show(Message.PROMOTION_DIALOG(move=result["move"]))
                 except queue.Empty:
                     pass
 
-            time.sleep(0.1)
+            await asyncio.sleep(0.05)
 
-    def _connect(self):
+    async def _connect(self):
         logger.info("connecting to board")
-        self.agent = CertaboAgent(self.appque)
+        self.agent = await asyncio.to_thread(CertaboAgent, self.appque)
 
     def set_text_rp(self, text: bytes, beep: int):
         return True
@@ -119,12 +118,11 @@ class CertaboBoard(EBoard):
         )
 
     def run(self):
-        connect_thread = Thread(target=self._connect)
-        connect_thread.setDaemon(True)
-        connect_thread.start()
-        incoming_board_thread = Thread(target=self._process_incoming_board_forever)
-        incoming_board_thread.setDaemon(True)
-        incoming_board_thread.start()
+        self.loop.create_task(self._startup())
+
+    async def _startup(self):
+        await self._connect()
+        await self._process_incoming_board_forever()
 
     def set_text_xl(self, text: str, beep: int, left_icons=ClockIcons.NONE, right_icons=ClockIcons.NONE):
         pass

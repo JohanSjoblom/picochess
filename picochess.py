@@ -813,7 +813,7 @@ async def main() -> None:
         logger.info("message queues ready - starting web server")
         dgtdispatcher.register("web")
         theme: str = calc_theme(args.theme, state.set_location)
-        web_app = my_web_server.make_app(theme, shared)
+        web_app = my_web_server.make_app(theme, shared, args.language)
         try:
             web_app.listen(args.web_server_port)
         except PermissionError:
@@ -929,8 +929,6 @@ async def main() -> None:
             # announcement reflects the saved configuration
             if self.state.dgtmenu and self.state.engine_file:
                 self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
-                # avoid leaving the menu state inside the engine submenu on startup
-                self.state.dgtmenu.enter_top_menu()
 
             self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()
@@ -1259,16 +1257,16 @@ async def main() -> None:
                             if move and not ponder_move:
                                 # no ponder means we should allow the next analysis info to be sent ASAP
                                 self.state.best_sent_depth.reset()
-                            ponder_cache = ponder_move if ponder_move else chess.Move.null()
                             if info:
-                                # send depth/score; NEW_PV will be announced via BEST_MOVE ponder
+                                # send pv, score, not sendpv as it's sent by BEST_MOVE below
+                                ponder_cache = ponder_move if ponder_move else chess.Move.null()
                                 await self.send_analyse(
                                     info,
                                     analysed_fen,
                                     send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
-                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_cache, inbook=False))
+                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await self._cache_engine_abort_result()

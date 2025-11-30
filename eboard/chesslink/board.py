@@ -100,7 +100,13 @@ class ChessLinkBoard(EBoard):
 
     async def _connect(self):
         logger.info("connecting to board")
-        self.agent = await asyncio.to_thread(ChessLinkAgent, self.appque)
+        try:
+            self.agent = await asyncio.to_thread(ChessLinkAgent, self.appque)
+        except Exception as exc:
+            logger.warning("ChessLink connect failed: %s", exc)
+            self.agent = None
+            self.connected = False
+            return
         # mark connected if agent reports success
         if getattr(self.agent, "cl_brd", None) is not None and getattr(self.agent.cl_brd, "connected", False):
             self.connected = True
@@ -125,6 +131,9 @@ class ChessLinkBoard(EBoard):
 
     async def _startup(self):
         await self._connect()
+        if not self.connected:
+            if self.reconnect_task is None or self.reconnect_task.done():
+                self.reconnect_task = self.loop.create_task(self._reconnect())
         await self._process_incoming_board_forever()
 
     async def _reconnect(self):

@@ -670,14 +670,13 @@ td.result {
     background: #6c757d;
     border: none;
     color: white;
-    min-width: 40px;
-    height: 34px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 4px;
+    margin: 0 2px;
     transition: all 0.3s ease;
 }
 

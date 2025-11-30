@@ -273,21 +273,19 @@ class InfoHandler(ServerRequestHandler):
 
 
 class ChessBoardHandler(ServerRequestHandler):
-    def initialize(self, theme="dark", language="en"):
+    def initialize(self, theme="dark"):
         self.theme = theme
-        self.language = language
 
     def get(self):
-        self.render("web/picoweb/templates/clock.html", theme=self.theme, language=self.language)
+        self.render("web/picoweb/templates/clock.html", theme=self.theme)
 
 
 class HelpHandler(ServerRequestHandler):
-    def initialize(self, theme="dark", language="en"):
+    def initialize(self, theme="dark"):
         self.theme = theme
-        self.language = language
 
     def get(self):
-        self.render("web/picoweb/templates/help.html", theme=self.theme, language=self.language)
+        self.render("web/picoweb/templates/help.html", theme=self.theme)
 
 
 class UploadPageHandler(tornado.web.RequestHandler):
@@ -299,16 +297,16 @@ class WebServer:
     def __init__(self):
         pass
 
-    def make_app(self, theme: str, shared: dict, language: str) -> tornado.web.Application:
+    def make_app(self, theme: str, shared: dict) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
         return tornado.web.Application(
             [
-                (r"/", ChessBoardHandler, dict(theme=theme, language=language)),
+                (r"/", ChessBoardHandler, dict(theme=theme)),
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),
                 (r"/info", InfoHandler, dict(shared=shared)),
-                (r"/help", HelpHandler, dict(theme=theme, language=language)),
+                (r"/help", HelpHandler, dict(theme=theme)),
                 (r"/channel", ChannelHandler, dict(shared=shared)),
                 (r"/upload-pgn", UploadHandler),
                 (r"/upload", UploadPageHandler),

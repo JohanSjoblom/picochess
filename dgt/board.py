@@ -110,6 +110,7 @@ class DgtBoard(EBoard):
         # the next three are only used for "not dgtpi" mode
         self.clock_lock: float = 0.0  # serial connected clock is locked
         self.last_clock_command: list = []  # Used for resend last (failed) clock command
+        self.clock_resend_attempts = 0
         self.enable_ser_clock: Optional[bool] = (
             None  # None = "unknown status" False="only board found" True="clock also found"
         )
@@ -272,6 +273,7 @@ class DgtBoard(EBoard):
             else:
                 logger.debug("(ser) clock is locked now")
             self.clock_lock = time.time()
+            self.clock_resend_attempts = 0
         else:
             time.sleep(0.1)  # give the board some time to process the command
         return True
@@ -455,7 +457,8 @@ class DgtBoard(EBoard):
                 logger.debug("(ser) clock null message ignored")
             if self.clock_lock:
                 logger.debug("(ser) clock unlocked after %.3f secs", time.time() - self.clock_lock)
-                self.clock_lock = False
+                self.clock_lock = 0.0
+                self.clock_resend_attempts = 0
 
         elif message_id == DgtMsg.DGT_MSG_BOARD_DUMP:
             if message_length != 64:
@@ -650,11 +653,17 @@ class DgtBoard(EBoard):
         """callback by repeated timer"""
         logger.debug("running watchdog")
         if self.clock_lock and not self.is_pi:
-            if time.time() - self.clock_lock > 2:
-                logger.debug("(ser) clock is locked over 2secs")
-                logger.debug("resending locked (ser) clock message [%s]", self.last_clock_command)
-                self.clock_lock = 0.0
-                self.write_command(self.last_clock_command)
+            age = time.time() - self.clock_lock
+            if age > 2:
+                if self.clock_resend_attempts < 3:
+                    logger.debug("(ser) clock is locked over 2secs (attempt %s) - resending last message", self.clock_resend_attempts + 1)
+                    self.clock_resend_attempts += 1
+                    self.clock_lock = 0.0
+                    self.write_command(self.last_clock_command)
+                else:
+                    logger.warning("(ser) clock locked for %.1f secs, giving up and clearing lock", age)
+                    self.clock_lock = 0.0
+                    self.last_clock_command = []
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
 
     def _open_bluetooth(self):
@@ -869,6 +878,7 @@ class DgtBoard(EBoard):
         self.serial = None
         self.clock_lock = 0.0
         self.last_clock_command = []
+        self.clock_resend_attempts = 0
 
     def _retry_handshake(self):
         """Keep requesting version info until the board replies."""
@@ -940,14 +950,21 @@ class DgtBoard(EBoard):
     def _wait_for_clock(self, func: str):
         has_to_wait = False
         counter = 0
+        start = time.time() if self.clock_lock else 0.0
         while self.clock_lock:
             if not has_to_wait:
                 has_to_wait = True
                 logger.debug("(ser) clock is locked => waiting to serve: %s", func)
-            time.sleep(0.1)
+            time.sleep(0.05)
             counter = (counter + 1) % 30
-            if counter == 0:
+            if counter == 0 and self.clock_lock:
                 logger.warning("(ser) clock is locked over 3secs")
+            if start and time.time() - start > 6:
+                logger.warning("(ser) clock lock timed out after %.1f secs during %s, clearing lock", time.time() - start, func)
+                self.clock_lock = 0.0
+                self.last_clock_command = []
+                self.clock_resend_attempts = 0
+                break
         if has_to_wait:
             logger.debug("(ser) clock is released now")
 

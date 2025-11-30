@@ -325,6 +325,7 @@
     .analysis-line-compact {
         font-size: 0.8rem;
         gap: 4px;
+        flex-wrap: nowrap;
     }
     
     .score-display {

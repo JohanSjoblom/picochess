@@ -6,6 +6,11 @@
         align-items: stretch;
     }
 
+    /* Altura fija para las dos columnas principales */
+    .scroll-portrait > .container-fluid > .row {
+        min-height: 98vh;
+    }
+
     .container-fluid>.row>.col {
         display: flex;
         flex-direction: column;
@@ -59,6 +64,11 @@
         flex: 1;
         min-height: 0;
     }
+
+    .container-fluid > .row > .col:last-child {
+    min-height: 0 !important;
+    }
+    
 }@media (prefers-color-scheme: dark) {
     .continuation-moves {
         color: #adb5bd;

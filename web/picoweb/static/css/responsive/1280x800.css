@@ -1,5 +1,5 @@
 @media (min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px) {
-    /* Tablero m√°s grande aprovechando la altura */
+    /* Tablero m·s grande aprovechando la altura */
     #xboardsection {
         max-width: 1270px;
         max-height: 790px;
@@ -8,7 +8,7 @@
     #board_panel {
         height: 790px;
     }
-    /* Barra de evaluaci√≥n ajustada al ancho del tablero */
+    /* Barra de evaluaciÛn ajustada al ancho del tablero */
     .evaluation-container-horizontal {
         max-width: 1270px;
         margin: 0 auto;
@@ -37,12 +37,10 @@
     
     .scroll_obooklist,
     .scroll_engine {
-        height: 320px;
         max-height: 320px;
     }
     
     #GameTable_wrapper {
-        height: 270px;
         min-height: 250px;
         max-height: 320px;
     }
@@ -144,21 +142,18 @@
         padding-top: 5px !important;
     }
     #BookTable_wrapper {
-        height: 230px !important;
         min-height: 235px !important;
         max-height: 320px;
         overflow-y: auto;
         overflow-x: hidden
     }
     #GameTable_wrapper {
-        height: 235px;
         min-height: 200px;
         max-height: 320px;
     }
 	
     .scroll_obooklist,
     .scroll_engine {
-        height: 320px;
         max-height: 320px;
     }
 

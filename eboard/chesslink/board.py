@@ -32,6 +32,10 @@ class ChessLinkBoard(EBoard):
         self.appque = queue.Queue()
         self.connected = False
         self.loop = loop
+        self.waitchars = ["/", "-", "\\", "|"]
+        self.wait_counter = 0
+        self.reconnect_task: asyncio.Task | None = None
+        self.reconnect_delay = 1.0
 
     def light_squares_on_revelation(self, uci_move: str):
         logger.debug("turn LEDs on - move: %s", uci_move)
@@ -55,18 +59,16 @@ class ChessLinkBoard(EBoard):
 
     async def _process_incoming_board_forever(self):
         result = {}
-        wait_counter = 0
-        waitchars = ["/", "-", "\\", "|"]
-        bwait = waitchars[wait_counter]
+        bwait = self.waitchars[self.wait_counter]
         while "cmd" not in result or (result["cmd"] == "agent_state" and result["state"] == "offline"):
             try:
                 result = self.appque.get(block=False)
             except queue.Empty:
                 pass
-            bwait = waitchars[wait_counter]
+            bwait = self.waitchars[self.wait_counter]
             text = self._display_text("no ChessLink e-Board" + bwait, "ChessLink" + bwait, "ChesLnk" + bwait, bwait)
             await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
-            wait_counter = (wait_counter + 1) % len(waitchars)
+            self.wait_counter = (self.wait_counter + 1) % len(self.waitchars)
             await asyncio.sleep(1.0)
 
         if result["state"] != "offline":
@@ -81,9 +83,13 @@ class ChessLinkBoard(EBoard):
                         if result["state"] == "offline":
                             self.connected = False
                             text = self._display_text(result["message"], result["message"], "no/", bwait)
+                            if self.reconnect_task is None or self.reconnect_task.done():
+                                self.reconnect_task = self.loop.create_task(self._reconnect())
                         else:
                             self.connected = True
                             text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
+                            # successful online state cancels any reconnect backoff
+                            self.reconnect_delay = 1.0
                         await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
                     elif "cmd" in result and result["cmd"] == "raw_board_position" and "fen" in result:
                         fen = result["fen"].split(" ")[0]
@@ -95,6 +101,9 @@ class ChessLinkBoard(EBoard):
     async def _connect(self):
         logger.info("connecting to board")
         self.agent = await asyncio.to_thread(ChessLinkAgent, self.appque)
+        # mark connected if agent reports success
+        if getattr(self.agent, "cl_brd", None) is not None and getattr(self.agent.cl_brd, "connected", False):
+            self.connected = True
 
     def set_text_rp(self, text: bytes, beep: int):
         return True
@@ -117,6 +126,43 @@ class ChessLinkBoard(EBoard):
     async def _startup(self):
         await self._connect()
         await self._process_incoming_board_forever()
+
+    async def _reconnect(self):
+        """Attempt to reconnect with simple backoff and emit spinner while offline."""
+        self.connected = False
+        while not self.connected:
+            if self.agent is not None:
+                try:
+                    self.agent.quit()
+                except Exception:
+                    logger.debug("error while quitting ChessLink agent during reconnect", exc_info=True)
+                self.agent = None
+
+            # drain stale queue messages
+            try:
+                while True:
+                    self.appque.get_nowait()
+            except queue.Empty:
+                pass
+
+            # show spinner while attempting
+            bwait = self.waitchars[self.wait_counter]
+            self.wait_counter = (self.wait_counter + 1) % len(self.waitchars)
+            text = self._display_text("no ChessLink e-Board" + bwait, "ChessLink" + bwait, "ChesLnk" + bwait, bwait)
+            await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
+
+            try:
+                await self._connect()
+            except Exception as exc:
+                logger.warning("ChessLink reconnect attempt failed: %s", exc)
+
+            if self.connected:
+                self.reconnect_delay = 1.0
+                await DisplayMsg.show(Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"}))
+                return
+
+            await asyncio.sleep(self.reconnect_delay)
+            self.reconnect_delay = min(self.reconnect_delay * 2, 10.0)
 
     def set_text_xl(self, text: str, beep: int, left_icons=ClockIcons.NONE, right_icons=ClockIcons.NONE):
         pass

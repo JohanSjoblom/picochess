@@ -1722,48 +1722,6 @@ class DgtMenu(object):
                 logger.debug(result.stdout)
         return
 
-    def _update_voice_language(self, language: str):
-        """Align the active voices with the selected language if possible."""
-        if not self.voices_conf or language not in self.voices_conf:
-            return []
-
-        speakers = list(self.voices_conf[language].keys())
-        if not speakers:
-            return []
-
-        lang_keys = list(self.voices_conf.keys())
-        lang_index = lang_keys.index(language)
-        self.menu_system_voice_user_lang = lang_index
-        self.menu_system_voice_comp_lang = lang_index
-        self.menu_system_voice_user_speak %= len(speakers)
-        self.menu_system_voice_comp_speak %= len(speakers)
-
-        user_speaker = speakers[self.menu_system_voice_user_speak]
-        comp_speaker = speakers[self.menu_system_voice_comp_speak]
-
-        events = []
-        if self.menu_system_voice_user_active:
-            write_picochess_ini("user-voice", f"{language}:{user_speaker}")
-            events.append(
-                Event.SET_VOICE(
-                    type=Voice.USER,
-                    lang=language,
-                    speaker=user_speaker,
-                    speed=self.menu_system_voice_speedfactor,
-                )
-            )
-        if self.menu_system_voice_comp_active:
-            write_picochess_ini("computer-voice", f"{language}:{comp_speaker}")
-            events.append(
-                Event.SET_VOICE(
-                    type=Voice.COMP,
-                    lang=language,
-                    speaker=comp_speaker,
-                    speed=self.menu_system_voice_speedfactor,
-                )
-            )
-        return events
-
     def enter_sys_disp_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_DISP
@@ -2994,9 +2952,6 @@ class DgtMenu(object):
             language = langs[self.menu_system_language]
             self.dgttranslate.set_language(language)
             write_picochess_ini("language", language)
-            # Switch available voices to the selected language so audio matches UI text
-            for event in self._update_voice_language(language):
-                await Observable.fire(event)
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_oklang"))
 

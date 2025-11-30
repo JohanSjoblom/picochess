@@ -2,7 +2,7 @@
     /* Reducir margen del contenedor PV según altura */
     .pv-container {
         margin-left: 8px !important;
-        margin-bottom: 5px !important;
+        margin-bottom: 2px !important;
     }
 
     /* Reducir tamaño de elementos de análisis */
@@ -35,6 +35,14 @@
     #pv_output * {
         font-size: 1.15rem !important;
         line-height: 1.4 !important;
+    }
+
+    /* Acortar m��rgenes verticales de cada salida del motor */
+    #pv_output .list-group-item {
+        margin-top: 0 !important;
+        margin-bottom: 1px !important;
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
     }
 
     
@@ -120,7 +128,7 @@
     /* Reducir padding general */
     .container-fluid {
         max-width: 1010px !important;
-        max-height: 575px !important;
+        max-height: 590px !important;
         padding-left: 5px !important;
         padding-right: 5px !important;
     }
@@ -131,8 +139,8 @@
     
     /* Tablero más compacto */
     #xboardsection {
-        max-width: 1014px;
-        max-height: 580px;
+        max-width: 1015px;
+        max-height: 590px;
     }
     
     /* Barra de evaluación ajustada */
@@ -348,6 +356,24 @@
     height: 34px !important;
     width: 42px !important;
     font-size: 16px !important;
+    }
+
+    /* Asegurar que las l��neas de PV no se salgan horizontalmente */
+    #pv_output .analysis-line-compact {
+        flex-wrap: nowrap;
+    }
+
+    /* Dejar visible el borde derecho de cada l��nea de PV */
+    /* Evitar scroll de ventana a 1024x600 */
+    html,
+    body {
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
+    }
+
+    .scroll-portrait {
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
     }
 
 }

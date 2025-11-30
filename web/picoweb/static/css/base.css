@@ -18,7 +18,7 @@
 }
 
 body {
-    overflow-y: hidden;
+    overflow-y: auto !important;
 }
 
 .gameVariation {
@@ -190,11 +190,9 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 .scroll_engine {
-    height: 30vh;
-    overflow: auto;
-    padding-right: 12px;
-    margin-left: 0px;
-    overflow-y: scroll;
+    max-height: 30vh;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .card-header {
@@ -386,38 +384,30 @@ td.result {
 /* Estilo base del botón */
 #btn-mute {
     position: relative;
-    /* ¡MUY IMPORTANTE! Esto hace que la raya sepa dónde dibujarse */
     font-size: 24px;
-    /* Hacemos el icono un poco más grande */
     cursor: pointer;
     border: 1px solid #ccc;
     border-radius: 8px;
     background-color: #f0f0f0;
     width: 60px;
-    height: 50px;
     transition: all 0.2s;
     display: inline-flex;
-    /* Centra el contenido perfectamente */
     align-items: center;
     justify-content: center;
     vertical-align: middle;
 }
 
-/* El icono dentro del botón */
 #btn-mute span {
     z-index: 1;
-    /* El icono se queda abajo */
     pointer-events: none;
 }
 
-/* ESTADO MUTEADO (Rojo claro) */
 #btn-mute.is-muted {
     background-color: #ffb3b3;
     border-color: #ff0000;
     box-shadow: inset 0px 2px 5px rgba(0, 0, 0, 0.15);
 }
 
-/* LA RAYA BLANCA */
 #btn-mute.is-muted::after {
     content: '';
     position: absolute;
@@ -425,30 +415,24 @@ td.result {
     left: 50%;
     width: 60%;
     height: 4px;
-    /* Grosor de la raya */
     background-color: white;
     border: 1px solid #cc0000;
-    /* Borde rojo para contraste */
     border-radius: 2px;
     transform: translate(-50%, -50%) rotate(-45deg);
     z-index: 10;
-    /* ¡IMPORTANTE! Fuerza la raya a estar ENCIMA del icono */
     pointer-events: none;
 }
 
-/* --- FIN BOTÓN MUTE --- */
-/* Responsive styles for portrait mode */
-/* Mejoras para el motor de análisis */
-
-/* Contenedor principal del análisis - hereda estilo del tema */
 #pv_output {
     background-color: transparent !important;
     border-radius: 6px;
     padding: 6px;
     margin-top: 5px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
-/* Forzar tema en TODOS los elementos del análisis */
 #pv_output,
 #pv_output *,
 #pv_output div,
@@ -476,7 +460,7 @@ td.result {
     color: inherit !important;
     border: 1px solid rgba(128, 128, 128, 0.3);
     border-radius: 4px;
-    margin-bottom: 3px;
+    margin: 0 6px 3px 6px;
     padding: 6px 8px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     transition: all 0.2s ease;
@@ -488,10 +472,6 @@ td.result {
     border-color: #007bff;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-#pv_output .list-group-item:hover * {
-    background-color: transparent !important;
 }
 
 /* NUEVA ESTRUCTURA: Una sola línea compacta */
@@ -703,7 +683,7 @@ td.result {
 /* Clase para contenedor de PV */
 .pv-container {
     margin-top: 0px;
-    margin-left: 12px;
+    margin-left: 0px;
     margin-bottom: 1vh;
 }
 

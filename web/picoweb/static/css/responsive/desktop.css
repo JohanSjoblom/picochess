@@ -1,0 +1,66 @@
+@media (min-width: 769px) {
+
+    /* Solo en desktop, hacer que las columnas tengan igual altura */
+    .container-fluid>.row {
+        display: flex;
+        align-items: stretch;
+    }
+
+    .container-fluid>.row>.col {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* La columna derecha debe distribuir su espacio */
+    .container-fluid>.row>.col:last-child>.container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    /* Cada row dentro de la columna derecha debe tomar su espacio proporcional */
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(1) {
+        flex: 0 0 auto;
+        /* Reloj - tamaño fijo */
+    }
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(2) {
+        flex: 0 0 auto;
+        /* Botones reloj - tamaño fijo */
+    }
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(3) {
+        flex: 1 1 40%;
+        /* Lista movimientos - 40% del espacio flexible */
+        min-height: 0;
+    }
+
+    .container-fluid>.row>.col:last-child>.container>.row:nth-child(4) {
+        flex: 1 1 60%;
+        /* Pestañas - 60% del espacio flexible */
+        min-height: 0;
+    }
+
+    /* Los contenedores scrollables deben llenar su espacio */
+    .scroll_movelist,
+    .scroll_obooklist,
+    .scroll_engine,
+
+    /* Las cards deben llenar el espacio de su row */
+    .container-fluid>.row>.col:last-child>.container>.row>.card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .container-fluid>.row>.col:last-child>.container>.row>.card>.card-body,
+    .container-fluid>.row>.col:last-child>.container>.row>#data>.card-body {
+        flex: 1;
+        min-height: 0;
+    }
+}@media (prefers-color-scheme: dark) {
+    .continuation-moves {
+        color: #adb5bd;
+    }
+}

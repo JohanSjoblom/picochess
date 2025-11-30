@@ -25,7 +25,7 @@ from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
-from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top
+from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
@@ -727,7 +727,6 @@ class DgtDisplay(DisplayMsg):
 
     def _process_engine_startup(self, message):
         self.dgtmenu.installed_engines = message.installed_engines
-        was_in_menu = self.dgtmenu.inside_main_menu()
         for index in range(0, len(self.dgtmenu.installed_engines)):
             eng = self.dgtmenu.installed_engines[index]
             if eng["file"] == message.file:
@@ -736,10 +735,6 @@ class DgtDisplay(DisplayMsg):
                 self.dgtmenu.set_engine_has_960(message.has_960)
                 self.dgtmenu.set_engine_has_ponder(message.has_ponder)
                 self.dgtmenu.set_engine_level(message.level_index)
-        if not was_in_menu:
-            # avoid leaving the menu positioned inside the engine submenu when startup messages arrive
-            self.dgtmenu.enter_top_menu()
-            self.dgtmenu.menu_top = Top.ENGINE
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""
@@ -1300,17 +1295,25 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(message.play_mode_text)
 
         elif isinstance(message, Message.NEW_SCORE):
-            await self._process_new_score(message)
+            if self.play_move == chess.Move.null():
+                # issue #45 - skip if user has not made computer move on eboard
+                await self._process_new_score(message)
 
         elif isinstance(message, Message.BOOK_MOVE):
-            self.score = self.dgttranslate.text("N10_score", None)
-            await DispatchDgt.fire(self.dgttranslate.text("N10_bookmove"))
+            if self.play_move == chess.Move.null():
+                # issue #45 - skip if user has not made computer move on eboard
+                self.score = self.dgttranslate.text("N10_score", None)
+                await DispatchDgt.fire(self.dgttranslate.text("N10_bookmove"))
 
         elif isinstance(message, Message.NEW_PV):
-            await self._process_new_pv(message)
+            if self.play_move == chess.Move.null():
+                # issue #45 - skip if user has not made computer move on eboard
+                await self._process_new_pv(message)
 
         elif isinstance(message, Message.NEW_DEPTH):
-            self.depth = message.depth
+            if self.play_move == chess.Move.null():
+                # issue #45 - skip if user has not made computer move on eboard
+                self.depth = message.depth
 
         elif isinstance(message, Message.IP_INFO):
             self.dgtmenu.int_ip = message.info["int_ip"]

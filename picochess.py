@@ -3069,7 +3069,11 @@ async def main() -> None:
                 # publish current position to webserver
                 await self.user_move(l_move, sliding=True)
 
-            if not result_header or result_header in ("*", "?"):
+            if fen_header:
+                # any FEN in PGN forces analysis mode (Mode.PONDER)
+                self.state.interaction_mode = Mode.PONDER
+                self.state.dgtmenu.set_mode(Mode.PONDER)
+            elif not result_header or result_header in ("*", "?"):
                 # issue #54 game is not finished - switch back to playing mode
                 if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # same as eng_plays() - preserve previous playing mode
@@ -3077,11 +3081,7 @@ async def main() -> None:
                 else:
                     self.state.interaction_mode = Mode.NORMAL
                 self.state.dgtmenu.set_mode(self.state.interaction_mode)
-            elif fen_header:
-                # finished games with FEN go into analysis mode (Mode.PONDER)
-                self.state.interaction_mode = Mode.PONDER
-                self.state.dgtmenu.set_mode(Mode.PONDER)
-            # else remain in non-playing mode - as set above
+            # else remain in PGNREPLAY mode
 
             # restore picotutor flag to previous state
             self.state.flag_picotutor = old_flag_picotutor

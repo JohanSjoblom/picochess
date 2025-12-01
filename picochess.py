@@ -3061,10 +3061,6 @@ async def main() -> None:
             if fen_header and fen_board_valid:
                 # publish FEN-started game to displays/engine listeners
                 await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
-                # also send a Fen update so web clients sync position without any moves
-                await DisplayMsg.show(
-                    Message.REVIEW_MOVE_DONE(game=self.state.game.copy(), move=chess.Move.null())
-                )
 
             # switch temporarly picotutor off
             old_flag_picotutor = self.state.flag_picotutor

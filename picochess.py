@@ -3099,8 +3099,8 @@ async def main() -> None:
                 self.state.picotutor.stop()  # stop possible old tutor analysers
             await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
 
-            await self.stop_search_and_clock()
             await self.engine_mode()
+            await self.stop_search_and_clock()
             turn = self.state.game.turn
             self.state.done_computer_fen = None
             self.state.done_move = self.state.pb_move = chess.Move.null()

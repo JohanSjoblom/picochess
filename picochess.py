@@ -3071,8 +3071,12 @@ async def main() -> None:
 
             if fen_header:
                 # any FEN in PGN forces analysis mode (Mode.PONDER)
-                self.state.interaction_mode = Mode.PONDER
-                self.state.dgtmenu.set_mode(Mode.PONDER)
+                try:
+                    self.state.game = chess.Board(fen_header)
+                    self.state.interaction_mode = Mode.PONDER
+                    self.state.dgtmenu.set_mode(Mode.PONDER)
+                except ValueError:
+                    logger.warning("Invalid FEN in PGN headers: %s", fen_header)
             elif not result_header or result_header in ("*", "?"):
                 # issue #54 game is not finished - switch back to playing mode
                 if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):

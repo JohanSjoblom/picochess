@@ -3058,6 +3058,9 @@ async def main() -> None:
 
             # issue #72 - newgame sends a ucinewgame unless stopped
             await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
+            if fen_header and fen_board_valid:
+                # publish FEN-started game to displays/engine listeners
+                await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
 
             # switch temporarly picotutor off
             old_flag_picotutor = self.state.flag_picotutor

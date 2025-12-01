@@ -2973,7 +2973,13 @@ async def main() -> None:
             if self.picotutor_mode():
                 self.state.picotutor.newgame()
 
-            self.state.game = chess.Board()
+            fen_header_raw = l_game_pgn.headers.get("FEN") if l_game_pgn.headers else None
+            fen_header = (str(fen_header_raw).strip() if fen_header_raw else "")
+            try:
+                self.state.game = chess.Board(fen_header) if fen_header else chess.Board()
+            except ValueError:
+                logger.warning("Invalid FEN in PGN headers: %s", fen_header)
+                self.state.game = chess.Board()
             l_move = chess.Move.null()
 
             update_speed = 1.0
@@ -3051,6 +3057,7 @@ async def main() -> None:
             await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
 
             # switch temporarly picotutor off
+            old_flag_picotutor = self.state.flag_picotutor
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
             self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
@@ -3070,16 +3077,21 @@ async def main() -> None:
                 else:
                     self.state.interaction_mode = Mode.NORMAL
                 self.state.dgtmenu.set_mode(self.state.interaction_mode)
-                await self.engine_mode()
+            elif fen_header:
+                # finished games with FEN go into analysis mode (Mode.PONDER)
+                self.state.interaction_mode = Mode.PONDER
+                self.state.dgtmenu.set_mode(Mode.PONDER)
             # else remain in non-playing mode - as set above
 
-            self.state.flag_picotutor = True  # switch tutor back on
+            # restore picotutor flag to previous state
+            self.state.flag_picotutor = old_flag_picotutor
             # always fix the picotutor if-to-analyse both sides and depth
             self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
                 self.state.picotutor.stop()  # stop possible old tutor analysers
             await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
 
+            await self.engine_mode()
             await self.stop_search_and_clock()
             turn = self.state.game.turn
             self.state.done_computer_fen = None

@@ -477,7 +477,7 @@ class DgtBoard(EBoard):
             board = ""
             for character in message:
                 board += piece_to_char[character & 0x0F]
-            logger.debug("\n" + "\n".join(board[0 + i : 8 + i] for i in range(0, len(board), 8)))  # Show debug board
+            logger.debug("\n" + "\n".join(board[0 + i: 8 + i] for i in range(0, len(board), 8)))  # Show debug board
             # Create fen from board
             fen = ""
             empty = 0

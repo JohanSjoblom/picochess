@@ -36,6 +36,7 @@ class ChessLinkBoard(EBoard):
         self.wait_counter = 0
         self.reconnect_task: asyncio.Task | None = None
         self.reconnect_delay = 1.0
+        self.process_task: asyncio.Task | None = None
 
     def light_squares_on_revelation(self, uci_move: str):
         logger.debug("turn LEDs on - move: %s", uci_move)
@@ -127,14 +128,15 @@ class ChessLinkBoard(EBoard):
         )
 
     def run(self):
-        self.loop.create_task(self._startup())
+        if self.process_task is None or self.process_task.done():
+            self.process_task = self.loop.create_task(self._process_incoming_board_forever())
+        self.loop.create_task(self._initial_connect())
 
-    async def _startup(self):
+    async def _initial_connect(self):
         await self._connect()
         if not self.connected:
             if self.reconnect_task is None or self.reconnect_task.done():
                 self.reconnect_task = self.loop.create_task(self._reconnect())
-        await self._process_incoming_board_forever()
 
     async def _reconnect(self):
         """Attempt to reconnect with simple backoff and emit spinner while offline."""

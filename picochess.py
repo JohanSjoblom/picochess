@@ -3063,12 +3063,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
                 # also send a Fen update so web clients sync position without any moves
                 await DisplayMsg.show(
-                    Message.REVIEW_MOVE_DONE(
-                        game=self.state.game.copy(),
-                        move=chess.Move.null(),
-                        fen=self.state.game.fen(),
-                        turn=self.state.game.turn,
-                    )
+                    Message.REVIEW_MOVE_DONE(game=self.state.game.copy(), move=chess.Move.null())
                 )
 
             # switch temporarly picotutor off

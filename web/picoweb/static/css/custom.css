@@ -211,10 +211,10 @@ div.dataTables_wrapper div.dataTables_length select {
     margin-top: 10px;
 }
 
-/* Igualar altura de columnas - Sistema responsive universal */
+/* Equal column height - Universal responsive system */
 @media (min-width: 769px) {
 
-    /* Solo en desktop, hacer que las columnas tengan igual altura */
+    /* Only on desktop, make columns have equal height */
     .container-fluid>.row {
         display: flex;
         align-items: stretch;
@@ -225,7 +225,7 @@ div.dataTables_wrapper div.dataTables_length select {
         flex-direction: column;
     }
 
-    /* La columna derecha debe distribuir su espacio */
+    /* The right column must distribute its space */
     .container-fluid>.row>.col:last-child>.container {
         display: flex;
         flex-direction: column;
@@ -235,32 +235,32 @@ div.dataTables_wrapper div.dataTables_length select {
     /* Cada row dentro de la columna derecha debe tomar su espacio proporcional */
     .container-fluid>.row>.col:last-child>.container>.row:nth-child(1) {
         flex: 0 0 auto;
-        /* Reloj - tamaño fijo */
+        /* Clock - fixed size */
     }
 
     .container-fluid>.row>.col:last-child>.container>.row:nth-child(2) {
         flex: 0 0 auto;
-        /* Botones reloj - tamaño fijo */
+        /* Clock buttons - fixed size */
     }
 
     .container-fluid>.row>.col:last-child>.container>.row:nth-child(3) {
         flex: 1 1 40%;
-        /* Lista movimientos - 40% del espacio flexible */
+        /* Move list - 40% of flexible space */
         min-height: 0;
     }
 
     .container-fluid>.row>.col:last-child>.container>.row:nth-child(4) {
         flex: 1 1 60%;
-        /* Pestañas - 60% del espacio flexible */
+        /* Tabs - 60% of flexible space */
         min-height: 0;
     }
 
-    /* Los contenedores scrollables deben llenar su espacio */
+    /* Scrollable containers must fill their space */
     .scroll_movelist,
     .scroll_obooklist,
     .scroll_engine,
 
-    /* Las cards deben llenar el espacio de su row */
+    /* Cards must fill the space of their row */
     .container-fluid>.row>.col:last-child>.container>.row>.card {
         flex: 1;
         display: flex;
@@ -442,14 +442,14 @@ td.result {
 }
 
 /* end promotion */
-/* --- ESTILOS DEL BOTÓN MUTE (GLOBAL) --- */
+/* --- STYLES DEL BUTTON MUTE (GLOBAL) --- */
 
-/* Estilo base del botón */
+/* Base style of the button */
 #btn-mute {
     position: relative;
-    /* ¡MUY IMPORTANTE! Esto hace que la raya sepa dónde dibujarse */
+    /* VERY IMPORTANT! This makes the line know where to draw itself */
     font-size: 24px;
-    /* Hacemos el icono un poco más grande */
+    /* Make the icon a bit larger */
     cursor: pointer;
     border: 1px solid #ccc;
     border-radius: 8px;
@@ -464,10 +464,10 @@ td.result {
     vertical-align: middle;
 }
 
-/* El icono dentro del botón */
+/* The icon inside the button */
 #btn-mute span {
     z-index: 1;
-    /* El icono se queda abajo */
+    /* The icon stays at the bottom */
     pointer-events: none;
 }
 
@@ -478,7 +478,7 @@ td.result {
     box-shadow: inset 0px 2px 5px rgba(0, 0, 0, 0.15);
 }
 
-/* LA RAYA BLANCA */
+/* THE WHITE LINE */
 #btn-mute.is-muted::after {
     content: '';
     position: absolute;
@@ -486,18 +486,18 @@ td.result {
     left: 50%;
     width: 60%;
     height: 4px;
-    /* Grosor de la raya */
+    /* Line thickness */
     background-color: white;
     border: 1px solid #cc0000;
-    /* Borde rojo para contraste */
+    /* Red border for contrast */
     border-radius: 2px;
     transform: translate(-50%, -50%) rotate(-45deg);
     z-index: 10;
-    /* ¡IMPORTANTE! Fuerza la raya a estar ENCIMA del icono */
+    /* IMPORTANT! Forces the line to be ON TOP of the icon */
     pointer-events: none;
 }
 
-/* --- FIN BOTÓN MUTE --- */
+/* --- END MUTE BUTTON --- */
 /* Responsive styles for portrait mode */
 @media (max-width: 768px) and (orientation: portrait) {
 

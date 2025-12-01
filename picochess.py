@@ -2975,10 +2975,13 @@ async def main() -> None:
 
             fen_header_raw = l_game_pgn.headers.get("FEN") if l_game_pgn.headers else None
             fen_header = str(fen_header_raw).strip() if fen_header_raw else ""
+            fen_board_valid = True
             try:
-                self.state.game = chess.Board(fen_header) if fen_header else chess.Board()
+                base_board = l_game_pgn.board()
+                self.state.game = base_board.copy()
             except ValueError:
-                logger.warning("Invalid FEN in PGN headers: %s", fen_header)
+                fen_board_valid = False
+                logger.warning("Invalid board setup in PGN headers: %s", fen_header)
                 self.state.game = chess.Board()
             l_move = chess.Move.null()
 
@@ -3069,14 +3072,12 @@ async def main() -> None:
                 # publish current position to webserver
                 await self.user_move(l_move, sliding=True)
 
-            if fen_header:
+            if fen_header and fen_board_valid:
                 # any FEN in PGN forces analysis mode (Mode.PONDER)
-                try:
-                    self.state.game = chess.Board(fen_header)
-                    self.state.interaction_mode = Mode.PONDER
-                    self.state.dgtmenu.set_mode(Mode.PONDER)
-                except ValueError:
-                    logger.warning("Invalid FEN in PGN headers: %s", fen_header)
+                self.state.interaction_mode = Mode.PONDER
+                self.state.dgtmenu.set_mode(Mode.PONDER)
+            elif fen_header:
+                logger.warning("FEN header found but could not apply board setup: %s", fen_header)
             elif not result_header or result_header in ("*", "?"):
                 # issue #54 game is not finished - switch back to playing mode
                 if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):

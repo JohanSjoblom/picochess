@@ -2974,7 +2974,7 @@ async def main() -> None:
                 self.state.picotutor.newgame()
 
             fen_header_raw = l_game_pgn.headers.get("FEN") if l_game_pgn.headers else None
-            fen_header = (str(fen_header_raw).strip() if fen_header_raw else "")
+            fen_header = str(fen_header_raw).strip() if fen_header_raw else ""
             try:
                 self.state.game = chess.Board(fen_header) if fen_header else chess.Board()
             except ValueError:
@@ -3004,7 +3004,7 @@ async def main() -> None:
                 await asyncio.sleep(update_speed)
 
             result_header_raw = l_game_pgn.headers.get("Result") if l_game_pgn.headers else None
-            result_header = (str(result_header_raw).strip() if result_header_raw else "")
+            result_header = str(result_header_raw).strip() if result_header_raw else ""
             if result_header_raw:
                 display_result = result_header or str(result_header_raw)
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
@@ -3039,7 +3039,7 @@ async def main() -> None:
                     else:
                         l_stop_at_halfmove = 0  # for DGT board its better with zero
 
-            if l_stop_at_halfmove != 0:
+            if not fen_header and l_stop_at_halfmove != 0:
                 for l_move in l_game_pgn.mainline_moves():
                     self.state.game.push(l_move)
                     if l_stop_at_halfmove and len(self.state.game.move_stack) >= l_stop_at_halfmove:
@@ -3050,7 +3050,7 @@ async def main() -> None:
             # @ todo Pico V3 made user + engine move here = unnecessary waiting for engine move
             # Pico V4 only makes an engine move... just to update the web screen and main states?
             # maybe there is a smarter way to do this?
-            if l_move and l_stop_at_halfmove != 0:
+            if not fen_header and l_move and l_stop_at_halfmove != 0:
                 self.state.game.pop()
 
             # issue #72 - newgame sends a ucinewgame unless stopped
@@ -3191,11 +3191,12 @@ async def main() -> None:
                     await asyncio.sleep(1)
 
             self.state.take_back_locked = True  # important otherwise problems for setting up the position
-            pgn_game_to_step = None if l_stop_at_halfmove is None else l_game_pgn
-            if pgn_game_to_step:
-                # this PGN game was not loaded to the end (above) - remember it
-                self.state.picotutor.set_pgn_game_to_step(pgn_game_to_step)
-                self.state.autoplay_half_moves = 0  # remember last seen autoplay move
+            if not fen_header:
+                pgn_game_to_step = None if l_stop_at_halfmove is None else l_game_pgn
+                if pgn_game_to_step:
+                    # this PGN game was not loaded to the end (above) - remember it
+                    self.state.picotutor.set_pgn_game_to_step(pgn_game_to_step)
+                    self.state.autoplay_half_moves = 0  # remember last seen autoplay move
 
         def emulation_mode(self):
             emulation = False

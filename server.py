@@ -234,6 +234,12 @@ class EventHandler(WebSocketHandler):
     def open(self, *args: str, **kwargs: str):
         EventHandler.clients.add(self)
         client_ips.append(self.real_ip())
+        # sync newly connected client with last known board state, if available
+        if self.shared and "last_dgt_move_msg" in self.shared:
+            try:
+                self.write_message(self.shared["last_dgt_move_msg"])
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync board state to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)

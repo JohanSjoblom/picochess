@@ -3078,9 +3078,9 @@ async def main() -> None:
                 await self.user_move(l_move, sliding=True)
 
             if fen_header and fen_board_valid:
-                # any FEN in PGN forces analysis mode (Mode.PONDER)
-                self.state.interaction_mode = Mode.PONDER
-                self.state.dgtmenu.set_mode(Mode.PONDER)
+                # any FEN in PGN forces kibitz/analysis mode (Mode.KIBITZ)
+                self.state.interaction_mode = Mode.KIBITZ
+                self.state.dgtmenu.set_mode(Mode.KIBITZ)
             elif fen_header:
                 logger.warning("FEN header found but could not apply board setup: %s", fen_header)
             elif not result_header or result_header in ("*", "?"):

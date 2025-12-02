@@ -2967,6 +2967,8 @@ async def main() -> None:
             logger.debug("molli: read game filename %s", l_filename)
 
             await self.stop_search_and_clock()
+            # reset best depth so new analysis results are not filtered by previous game
+            self.state.best_sent_depth.reset()
 
             # forget possible previously loaded PGN game
             self.state.picotutor.set_pgn_game_to_step(None)
@@ -3108,6 +3110,9 @@ async def main() -> None:
 
             # game state should be done now, start picotutor
             await self.set_picotutor_position(new_game=True)
+
+            # ensure analysis optimisation is fresh after header display/setup
+            self.state.best_sent_depth.reset()
 
             self.state.tc_init_last = self.state.time_control.get_parameters()
             self.state.time_control.reset()  # fallback is same as ini setting

@@ -105,7 +105,7 @@
 
     /* Move list height */
     .scroll_movelist {
-        height: 120px !important;
+        height: 20vh !important;
         overflow: auto;
         margin-bottom: 1vh;
     }

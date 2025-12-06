@@ -1,11 +1,9 @@
 @media (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px) {
-    /* Reducir margen del contenedor PV según altura */
     .pv-container {
         margin-left: 8px !important;
         margin-bottom: 2px !important;
     }
 
-    /* Reducir tamaño de elementos de análisis */
     .analysis-line-compact {
         font-size: 0.85rem;
         gap: 4px;
@@ -37,16 +35,13 @@
         line-height: 1.4 !important;
     }
 
-    /* Acortar m��rgenes verticales de cada salida del motor */
     #pv_output .list-group-item {
         margin-top: 0 !important;
         margin-bottom: 1px !important;
-        padding-top: 4px !important;
-        padding-bottom: 4px !important;
+        padding-top: 0.7vh !important;
+        padding-bottom: 0.7vh !important;
     }
 
-    
-    /* Forzar altura máxima del scroll_engine cuando está en análisis */
     .scroll_engine {
         max-height: 250px !important;
         overflow-y: auto !important;
@@ -127,8 +122,8 @@
 
     /* Reducir padding general */
     .container-fluid {
-        max-width: 1010px !important;
-        max-height: 590px !important;
+        max-width: 98.6vw !important;
+        max-height: 98.3vh !important;
         padding-left: 5px !important;
         padding-right: 5px !important;
     }
@@ -137,37 +132,32 @@
         padding: 5px !important;
     }
     
-    /* Tablero más compacto */
     #xboardsection {
-        max-width: 1015px;
-        max-height: 590px;
+        max-width: 99.1vw;
+        max-height: 98.3vh;
     }
     
-    /* Barra de evaluación ajustada */
     .evaluation-container-horizontal {
-        max-width: 1014px;
+        max-width: 99.0vw;
         margin: 0 auto;
-        height: 15px;
+        height: 2.5vh;
     }
     
-    /* Reducir altura de elementos scrollables */
     .scroll_movelist {
-        height: 160px !important;
-        min-height: 160px !important;
-        max-height: 160px !important;
+        height: 26.7vh !important;
+        min-height: 26.7vh !important;
+        max-height: 26.7vh !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
-        margin-top: 3px !important;
-        margin-bottom: 3px !important;
+        margin-top: 0.5vh !important;
+        margin-bottom: 0.5vh !important;
         scroll-behavior: smooth !important;
     }
     
-    /* Reducir padding interno del contenedor de movimientos */
     .scroll_movelist .card-body {
         padding: 2px 5px !important;
     }
     
-    /* Eliminar márgenes del contenido de movimientos */
     .scroll_movelist #pgn {
         margin: 0 !important;
         padding: 0 !important;
@@ -211,8 +201,8 @@
     }
     
     .scroll_movelist .text-warning {
-        scroll-margin-top: 30px;
-        scroll-margin-bottom: 30px;
+        scroll-margin-top: 5vh;
+        scroll-margin-bottom: 5vh;
     }
     
     .gameMoves {
@@ -221,16 +211,15 @@
     
     .scroll_obooklist,
     .scroll_engine {
-        height: 250px;
-        max-height: 250px;
+        height: 41.7vh !important;
+        max-height: 41.7vh !important;
     }
     
     #GameTable_wrapper {
-        min-height: 250px;
-        max-height: 250px;
+        min-height: 41.7vh ;
+        max-height: 41.7vh ;
     }
     
-    /* Reducir tamaño de fuentes */
     .gameMoves, .bookMoves {
         font-size: 2vw;
     }
@@ -254,8 +243,8 @@
     }
     
     #clockbuttons {
-        padding-top: 5px;
-        padding-bottom: 5px;
+        padding-top: 0.8vh;
+        padding-bottom: 0.8vh;
     }
 
     #clockbuttons .btn {
@@ -263,7 +252,6 @@
     font-size: 1.3rem;
     }
 
-    /* Tabs más compactos */
     .nav-pills .nav-link {
         padding: 6px 8px !important;
         font-size: 0.85rem !important;
@@ -274,12 +262,11 @@
     }
 
     #data.card {
-        height: 262px !important;
-        min-height: 250px !important;
-        max-height: 290px !important;
+        height: 43.7vh !important;
+        min-height: 41.7vh !important;
+        max-height: 48.3vh !important;
     }
 
-    /* Controles de Scan más compactos */
     .scan-controls {
         padding: 8px !important;
     }
@@ -312,12 +299,10 @@
         flex: 1 1 auto;
     }
 
-    /* Espacio superior estético */
     .container-fluid > .row {
         margin-top: 10px;
     }
     
-    /* Asegurar que las columnas se distribuyan correctamente */
     .container-fluid > .row > .col:first-child {
         flex: 0 0 48% !important;
         max-width: 48% !important;
@@ -328,7 +313,6 @@
         max-width: 52% !important;
     }
     
-    /* Ajustar altura de cards */
     .card {
         margin-bottom: 3px;
     }
@@ -336,8 +320,8 @@
     #boardButtons button {
     font-size: 1rem;
     padding: 0.45rem 0.8rem;
-    min-width: 60px;
-    min-height: 38px;
+    min-width: 5.9vw;
+    min-height: 6.3vh;
 }
 
     /* Optimizar espacio del tablero */
@@ -347,24 +331,21 @@
 
     #downloadBtn,
     #uploadBtn {
-    min-height: 34px !important;
-    height: 34px !important;
+    min-height: 5.7vh !important;
+    height: 5.7vh !important;
     padding: 4px 8px !important;
     }
 
     #btn-mute {
-    height: 34px !important;
-    width: 42px !important;
+    height: 5.7vh !important;
+    width: 42.41vw !important;
     font-size: 16px !important;
     }
 
-    /* Asegurar que las l��neas de PV no se salgan horizontalmente */
     #pv_output .analysis-line-compact {
         flex-wrap: nowrap;
     }
 
-    /* Dejar visible el borde derecho de cada l��nea de PV */
-    /* Evitar scroll de ventana a 1024x600 */
     html,
     body {
         overflow-x: hidden !important;

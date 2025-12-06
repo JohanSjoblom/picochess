@@ -1,35 +1,32 @@
-@media (min-width: 1200px) and (max-width: 1300px) and (min-height: 700px) and (max-height: 850px) {
-    /* Tablero más grande aprovechando la altura */
+@media (min-width: 1200px) and (max-width: 1300px) and (min-height: 800px) and (max-height: 850px) {
     #xboardsection {
-        max-width: 1270px;
-        max-height: 790px;
+        max-width: 99.2vw;
+        max-height: 98.75vh;
     }
 
     #board_panel {
     height: 98vh;    
-    max-height: 790px;
+    max-height: 98.75vh;
 }
-    /* Barra de evaluación ajustada al ancho del tablero */
     .evaluation-container-horizontal {
-        max-width: 1270px;
+        max-width: 99.2vw;
         margin: 0 auto;
     }
     
-    /* Reducir altura de elementos scrollables */
     .scroll_movelist {
-        height: 180px !important;
-        min-height: 180px !important;
-        max-height: 180px !important;
+        height: 22.5vh !important;
+        min-height: 22.5vh !important;
+        max-height: 22.5vh !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
-        margin-top: 12px !important;
-        margin-bottom: 12px !important;
+        margin-top: 1.5vh !important;
+        margin-bottom: 1.5vh !important;
         scroll-behavior: smooth !important;
     }
     
     .scroll_movelist .text-warning {
-        scroll-margin-top: 75px;
-        scroll-margin-bottom: 75px;
+        scroll-margin-top: 9.375vh;
+        scroll-margin-bottom: 9.375vh;
     }
     
     .gameMoves {
@@ -44,19 +41,21 @@
     }
     
    #GameTable_wrapper {
-    min-height: 250px;
-    max-height: 320px;
+    min-height: 31.25vh;
+    max-height: 40vh;
     overflow-y: auto;
 }
 
     #BookTable_wrapper {
-    min-height: 250px;
-    max-height: 320px;
-    overflow-y: auto;
+    min-height: 31.25vh;
+    max-height: 40vh;
     overflow-x: hidden;
 }
 
-    /* Fuentes optimizadas */
+#BookTable_wrapper .dataTables_scrollBody {
+        overflow-y:visible !important;
+    } 
+
     .gameMoves, .bookMoves {
         font-size: 1.6vw;
     }
@@ -67,7 +66,6 @@
         max-height: 50vh;
     }
     
-    /* Prevenir scroll vertical de la página */
     html {
         overflow-x: hidden !important;
         overflow-y: hidden !important;
@@ -76,16 +74,15 @@
     body {
         overflow-x: hidden !important;
         overflow-y: hidden !important;
-        max-height: 800px;
+        max-height: 100vh;
     }
     
     .scroll-portrait {
-    max-height: 800px;
+    max-height: 100vh;
     overflow-x: hidden !important;
     overflow-y: hidden !important;
 }
     
-    /* Layout de columnas */
     .container-fluid > .row > .col:first-child {
         flex: 0 0 48% !important;
         max-width: 48% !important;
@@ -93,20 +90,22 @@
 
     #boardControlButtons {
     padding-left: 0px;
-    padding-top: 30px;
-    padding-bottom: 30px;
+    padding-top: 3.75vh;
+    padding-bottom: 3.75vh;
 }
 
     #boardcontrol {
-    padding-top: 12px !important;
+    padding-top: 1.5vh !important;
     }
+
     .boardinfo {
-    padding-top: 30px;
+    padding-top: 3.75vh;
     }
+
     #boardButtons button {
         padding: 10px 14px !important;
-        min-height: 44px !important;
-        min-width: 48px !important;
+        min-height: 5.5vh !important;
+        min-width: 3.75vw !important;
         font-size: 1rem !important;
         border-radius: 0px !important;
     }
@@ -116,15 +115,15 @@
 
     }
 
-    /* Mantener cada l��nea de PV en una sola fila */
     #pv_output .analysis-line-compact {
         flex-wrap: nowrap;
     }
 }
 
 @media (min-width: 1200px) and (max-width: 1300px)
-       and (height: 720px)  {
-    html {
+       and (min-height: 720px) and (max-height: 800px) {
+    
+        html {
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     }
@@ -132,56 +131,56 @@
     body {
     overflow-x: hidden !important;
     overflow-y: hidden !important;
-    max-height: 720px;
+    max-height: 100vh;
     }
 
     .scroll-portrait {
-    max-height: 720px;
+    max-height: 100vh;
     overflow-x: hidden !important;
     overflow-y: hidden !important;
     }
 
     #xboardsection {
-        max-width: 1270px;
-        max-height: 715px;
+        max-width: 99.2vw;
+        max-height: 99.3vh;
     }
 
     #board_panel {
-        max-height: 715px;
+        max-height: 99.3vh;
         height: 98vh;
     }
 
     #boardControlButtons {
-    padding-top: 5px;
+    padding-top: 0.7vh;
     }
 
     #downloadBtn,
-    #uploadBtn {
-        height: 25px !important;
+    #uploadBtn, #btn-mute {
+        height: 3.5vh !important;
     }
-
-    #btn-mute {
-        height: 25px !important;
-    }
-
+    
     .boardinfo {
         padding-top: 5px !important;
     }
     #BookTable_wrapper {
-        min-height: 235px !important;
-        max-height: 320px;
-        overflow-y: auto;
+        min-height: 32.6vh !important;
+        max-height: 44.4vh;
         overflow-x: hidden
     }
+
+    #BookTable_wrapper .dataTables_scrollBody {
+        overflow-y:visible !important;
+    }   
+
     #GameTable_wrapper {
-        min-height: 200px;
-        max-height: 320px;
+        min-height: 27.8vh !important;
+        max-height: 32.8vh;
         overflow-y: auto;
     }
 	
     .scroll_engine {
-        height: 100%;
-        max-height: 100%;
+        height: 37.5vh;
+        max-height: 37.5vh;
         overflow-y: auto !important;
         overflow-x: hidden !important;
     }

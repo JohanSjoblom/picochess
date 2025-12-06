@@ -321,7 +321,7 @@
     }
     
     .scroll_engine {
-        max-height: 320px !important;
+        max-height: 40vh !important;
     }
     /* Reducir tamaño de elementos de análisis */
     .analysis-line-compact {
@@ -363,7 +363,7 @@
     
     /* Forzar altura máxima del scroll_engine cuando está en análisis */
     .scroll_engine {
-        max-height: 250px !important;
+        max-height: 31.25vh !important;
         overflow-y: auto !important;
     }
     

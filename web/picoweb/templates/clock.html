@@ -290,29 +290,33 @@
                         <div class="row">
                             <div id="data" class="card">
                                 <div class="card-header">
-                                    <ul class="nav nav-pills mb-0" id="pills-tab" role="tablist">
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="pills-home-tab" data-bs-toggle="pill"
-                                                data-bs-target="#engine" type="button" role="tab">Engine
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link active" id="pills-profile-tab" data-bs-toggle="pill"
-                                                data-bs-target="#book" type="button" role="tab">Book
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="pills-contact-tab" data-bs-toggle="pill"
-                                                data-bs-target="#games" type="button" role="tab">Games
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="pills-scan-tab" data-bs-toggle="pill"
-                                                data-bs-target="#scan" type="button" role="tab">Scan
-                                            </button>
-                                        </li>
-                                    </ul>
-
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <ul class="nav nav-pills mb-0" id="pills-tab" role="tablist">
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="pills-home-tab" data-bs-toggle="pill"
+                                                    data-bs-target="#engine" type="button" role="tab">Engine
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link active" id="pills-profile-tab"
+                                                    data-bs-toggle="pill" data-bs-target="#book" type="button"
+                                                    role="tab">Book
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="pills-contact-tab" data-bs-toggle="pill"
+                                                    data-bs-target="#games" type="button" role="tab">Games
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="pills-scan-tab" data-bs-toggle="pill"
+                                                    data-bs-target="#scan" type="button" role="tab">Scan
+                                                </button>
+                                            </li>
+                                        </ul>
+                                        <span id="engine-version-text"
+                                            style="display: none; font-weight: bold; color: #666;">Stockfish 17.1</span>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="tab-content" id="pills-tabContent">
@@ -571,6 +575,19 @@
             document.addEventListener('DOMContentLoaded', function () {
                 // Get all tab buttons
                 const tabButtons = document.querySelectorAll('[data-bs-toggle="pill"]');
+                const engineVersionText = document.getElementById('engine-version-text');
+
+                // Function to update engine version text visibility
+                function updateEngineVersionVisibility() {
+                    const engineTab = document.getElementById('pills-home-tab');
+                    if (engineTab && engineVersionText) {
+                        if (engineTab.classList.contains('active')) {
+                            engineVersionText.style.display = 'inline';
+                        } else {
+                            engineVersionText.style.display = 'none';
+                        }
+                    }
+                }
 
                 // Add click event listeners to all tab buttons
                 tabButtons.forEach(function (button) {
@@ -591,9 +608,20 @@
                                 // Additional resize event to reposition chessground
                                 const evt = new Event('resize');
                                 window.dispatchEvent(evt);
+
+                                // Update engine version text visibility
+                                updateEngineVersionVisibility();
                             }, 50);
                         }
                     });
+                });
+
+                // Initial check for engine version text visibility
+                updateEngineVersionVisibility();
+
+                // Listen for Bootstrap tab events
+                document.addEventListener('shown.bs.tab', function (e) {
+                    updateEngineVersionVisibility();
                 });
 
                 // Ajustar el ancho de la barra de evaluación al ancho del tablero

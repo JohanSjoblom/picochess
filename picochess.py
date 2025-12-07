@@ -3801,6 +3801,23 @@ async def main() -> None:
                         pgn_white,
                         pgn_black,
                     ) = read_pgn_info()
+                    # refresh shared headers for pgn_engine games so web/display show correct metadata
+                    headers = {
+                        "Event": pgn_game_name or "?",
+                        "Site": "?",
+                        "Date": "?",
+                        "Round": "?",
+                        "White": pgn_white or "?",
+                        "Black": pgn_black or "?",
+                        "Result": pgn_result or "?",
+                    }
+                    if pgn_fen:
+                        headers["SetUp"] = "1"
+                        headers["FEN"] = pgn_fen
+                    ensure_important_headers(headers)
+                    self.shared["headers"] = headers
+                    EventHandler.write_to_clients({"event": "Header", "headers": dict(headers)})
+
                     if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                         await self.set_fen_from_pgn(pgn_fen)
                         self.state.play_mode = (

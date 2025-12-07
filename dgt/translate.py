@@ -8583,7 +8583,13 @@ class DgtTranslate(object):
                 medium_text="Updt Eng",  # 8
                 small_text="UpdEng",  # 6
             )
-            ittxt = detxt = nltxt = frtxt = entxt
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Sostituisci con ultimi motori",  # 32
+                large_text="Sostitui",  # 8
+                medium_text="Sostitui",  # 8
+                small_text="Sos",  # 3
+            )
+            detxt = nltxt = frtxt = entxt
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Actualizar motores a última versión",
                 large_text="Act motores",

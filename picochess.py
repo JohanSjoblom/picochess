@@ -254,6 +254,7 @@ class PicochessState:
         self.max_guess = 0
         self.max_guess_black = 0
         self.max_guess_white = 0
+        self.pgn_engine_total_halfmoves: int | None = None
         self.no_guess_black = 1
         self.no_guess_white = 1
         self.online_decrement = 0
@@ -3801,6 +3802,20 @@ async def main() -> None:
                         pgn_white,
                         pgn_black,
                     ) = read_pgn_info()
+                    # try to read metadata directly from the PGN engine file (for move counts/end detection)
+                    pgn_options = self.engine.get_pgn_options() or {}
+                    pgn_file = pgn_options.get("pgn_game_file")
+                    pgn_headers: dict[str, str] = {}
+                    self.state.pgn_engine_total_halfmoves = None
+                    if pgn_file:
+                        try:
+                            with open(pgn_file) as f:
+                                pgn_game = chess.pgn.read_game(f)
+                            if pgn_game:
+                                pgn_headers = dict(pgn_game.headers)
+                                self.state.pgn_engine_total_halfmoves = sum(1 for _ in pgn_game.mainline_moves())
+                        except (OSError, ValueError) as exc:
+                            logger.debug("Could not read pgn_engine file %s: %s", pgn_file, exc)
                     # refresh shared headers for pgn_engine games so web/display show correct metadata
                     headers = {
                         "Event": pgn_game_name or "?",
@@ -3814,6 +3829,9 @@ async def main() -> None:
                     if pgn_fen:
                         headers["SetUp"] = "1"
                         headers["FEN"] = pgn_fen
+                    # prefer headers parsed directly from the PGN file when available
+                    if pgn_headers:
+                        headers = {**headers, **pgn_headers}
                     ensure_important_headers(headers)
                     self.shared["headers"] = headers
                     EventHandler.write_to_clients({"event": "Header", "headers": dict(headers)})
@@ -4659,7 +4677,10 @@ async def main() -> None:
                                     log_pgn(self.state)
                                     # in Pico V4 we cannot detect end of pgn game by depth
                                     # if max_guess uci option is zero - this must be end of game
-                                    if self.state.max_guess == 0:
+                                    if self.state.max_guess == 0 or (
+                                        self.state.pgn_engine_total_halfmoves is not None
+                                        and len(self.state.game.move_stack) >= self.state.pgn_engine_total_halfmoves
+                                    ):
                                         logger.debug("molli pgn: PGN END")
                                         (
                                             pgn_game_name,

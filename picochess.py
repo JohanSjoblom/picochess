@@ -255,6 +255,7 @@ class PicochessState:
         self.max_guess_black = 0
         self.max_guess_white = 0
         self.pgn_engine_total_halfmoves: int | None = None
+        self.pgn_engine_result = "*"
         self.no_guess_black = 1
         self.no_guess_white = 1
         self.online_decrement = 0
@@ -2944,16 +2945,13 @@ async def main() -> None:
                             await DisplayMsg.show(msg)
 
                         if self.pgn_mode():
-                            pgn_white = ""
-                            pgn_black = ""
-                            (
-                                pgn_game_name,
-                                pgn_problem,
-                                pgn_fen,
-                                pgn_result,
-                                pgn_white,
-                                pgn_black,
-                            ) = read_pgn_info()
+                            headers = self.shared.get("headers", {}) or {}
+                            pgn_white = headers.get("White", "")
+                            pgn_black = headers.get("Black", "")
+                            pgn_game_name = headers.get("Event", "")
+                            pgn_problem = headers.get("Problem", "")
+                            pgn_fen = headers.get("FEN", "")
+                            pgn_result = headers.get("Result", "")
 
                             update_speed = 1.0
                             if pgn_white:
@@ -3764,20 +3762,14 @@ async def main() -> None:
                     await self.set_emulation_tctrl()
 
                 if self.pgn_mode():
-                    pgn_fen = ""
-                    (
-                        pgn_game_name,
-                        pgn_problem,
-                        pgn_fen,
-                        pgn_result,
-                        pgn_white,
-                        pgn_black,
-                    ) = read_pgn_info()
-                    # try to read metadata directly from the PGN engine file (for move counts/end detection)
+                    # read metadata directly from the PGN engine file (for headers, move counts, end detection)
                     pgn_options = self.engine.get_pgn_options() or {}
                     pgn_file = pgn_options.get("pgn_game_file")
                     pgn_headers: dict[str, str] = {}
                     self.state.pgn_engine_total_halfmoves = None
+                    self.state.pgn_engine_result = "*"
+                    pgn_problem = ""
+                    pgn_fen = ""
                     if pgn_file:
                         try:
                             with open(pgn_file) as f:
@@ -3785,24 +3777,24 @@ async def main() -> None:
                             if pgn_game:
                                 pgn_headers = dict(pgn_game.headers)
                                 self.state.pgn_engine_total_halfmoves = sum(1 for _ in pgn_game.mainline_moves())
+                                self.state.pgn_engine_result = pgn_headers.get("Result", "*")
+                                pgn_problem = pgn_headers.get("Problem", "") or ""
+                                pgn_fen = pgn_headers.get("FEN", "") or ""
                         except (OSError, ValueError) as exc:
                             logger.debug("Could not read pgn_engine file %s: %s", pgn_file, exc)
                     # refresh shared headers for pgn_engine games so web/display show correct metadata
                     headers = {
-                        "Event": pgn_game_name or "?",
-                        "Site": "?",
-                        "Date": "?",
-                        "Round": "?",
-                        "White": pgn_white or "?",
-                        "Black": pgn_black or "?",
-                        "Result": pgn_result or "?",
+                        "Event": pgn_headers.get("Event", "?") if pgn_headers else "?",
+                        "Site": pgn_headers.get("Site", "?") if pgn_headers else "?",
+                        "Date": pgn_headers.get("Date", "?") if pgn_headers else "?",
+                        "Round": pgn_headers.get("Round", "?") if pgn_headers else "?",
+                        "White": pgn_headers.get("White", "?") if pgn_headers else "?",
+                        "Black": pgn_headers.get("Black", "?") if pgn_headers else "?",
+                        "Result": pgn_headers.get("Result", "*") if pgn_headers else "*",
                     }
-                    if pgn_fen:
-                        headers["SetUp"] = "1"
-                        headers["FEN"] = pgn_fen
-                    # prefer headers parsed directly from the PGN file when available
-                    if pgn_headers:
-                        headers = {**headers, **pgn_headers}
+                    if pgn_headers.get("FEN"):
+                        headers["SetUp"] = pgn_headers.get("SetUp", "1")
+                        headers["FEN"] = pgn_headers["FEN"]
                     ensure_important_headers(headers)
                     self.shared["headers"] = headers
                     EventHandler.write_to_clients({"event": "Header", "headers": dict(headers)})
@@ -4030,15 +4022,9 @@ async def main() -> None:
                         if self.state.max_guess > 0:
                             self.state.max_guess_white = self.state.max_guess
                             self.state.max_guess_black = 0
-                        pgn_fen = ""
-                        (
-                            pgn_game_name,
-                            pgn_problem,
-                            pgn_fen,
-                            pgn_result,
-                            pgn_white,
-                            pgn_black,
-                        ) = read_pgn_info()
+                        headers = self.shared.get("headers", {}) or {}
+                        pgn_fen = headers.get("FEN", "")
+                        pgn_problem = headers.get("Problem", "")
                         if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                             await self.set_fen_from_pgn(pgn_fen)
                     if self.state.interaction_mode == Mode.PGNREPLAY:
@@ -4133,17 +4119,11 @@ async def main() -> None:
                     else:
                         logger.debug("no need to start a new game")
                         if self.pgn_mode():
-                            pgn_fen = ""
                             self.state.takeback_active = False
                             self.state.automatic_takeback = False
-                            (
-                                pgn_game_name,
-                                pgn_problem,
-                                pgn_fen,
-                                pgn_result,
-                                pgn_white,
-                                pgn_black,
-                            ) = read_pgn_info()
+                            headers = self.shared.get("headers", {}) or {}
+                            pgn_fen = headers.get("FEN", "")
+                            pgn_problem = headers.get("Problem", "")
                             if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                                 await self.set_fen_from_pgn(pgn_fen)
                                 await self.set_wait_state(
@@ -4174,17 +4154,13 @@ async def main() -> None:
                         msg = Message.ENGINE_NAME(engine_name=self.state.engine_text)
                         await DisplayMsg.show(msg)
                     if self.pgn_mode():
-                        pgn_white = ""
-                        pgn_black = ""
+                        headers = self.shared.get("headers", {}) or {}
+                        pgn_white = headers.get("White", "")
+                        pgn_black = headers.get("Black", "")
+                        pgn_game_name = headers.get("Event", "")
+                        pgn_problem = headers.get("Problem", "")
+                        pgn_result = headers.get("Result", "")
                         await asyncio.sleep(1)
-                        (
-                            pgn_game_name,
-                            pgn_problem,
-                            pgn_fen,
-                            pgn_result,
-                            pgn_white,
-                            pgn_black,
-                        ) = read_pgn_info()
 
                         update_speed = 1.0
                         if not pgn_white:
@@ -4653,14 +4629,7 @@ async def main() -> None:
                                         and len(self.state.game.move_stack) >= self.state.pgn_engine_total_halfmoves
                                     ):
                                         logger.debug("molli pgn: PGN END")
-                                        (
-                                            pgn_game_name,
-                                            pgn_problem,
-                                            pgn_fen,
-                                            pgn_result,
-                                            pgn_white,
-                                            pgn_black,
-                                        ) = read_pgn_info()
+                                        pgn_result = self.state.pgn_engine_result or "*"
                                         await DisplayMsg.show(Message.PGN_GAME_END(result=pgn_result))
                                     elif self.state.pgn_book_test:
                                         l_game_copy = self.state.game.copy()

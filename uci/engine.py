@@ -52,12 +52,18 @@ logger = logging.getLogger(__name__)
 
 
 class TolerantUciProtocol(UciProtocol):
-    """UCI protocol that drops all info lines to avoid pre-uciok chatter crashes."""
+    """UCI protocol that drops pre-uciok info lines to avoid init chatter crashes."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ready_seen = False
 
     def _line_received(self, line: str) -> None:
-        if line.startswith("info"):
-            # Drop all info chatter (e.g. tablebase banners) to keep python-chess state machine happy.
-            logger.debug("tolerant uci: dropping info line: %s", line)
+        if line.strip() in ("uciok", "readyok"):
+            self._ready_seen = True
+        if line.startswith("info") and not self._ready_seen:
+            # Drop early info chatter (e.g. tablebase banners) before the engine is ready.
+            logger.debug("tolerant uci: dropping pre-ready info line: %s", line)
             return
         logger.debug("tolerant uci: line: %s", line)
         super()._line_received(line)

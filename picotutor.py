@@ -188,7 +188,14 @@ class PicoTutor:
 
     async def _load_engine(self, options: dict, debug_whoami: str) -> UciEngine:
         """internal function to load each tutor engine"""
-        engine = UciEngine(self.engine_path, self.ucishell, self.mame_par, self.loop, debug_whoami)
+        engine = UciEngine(
+            self.engine_path,
+            self.ucishell,
+            self.mame_par,
+            self.loop,
+            debug_whoami,
+            suppress_info=False,
+        )
         await engine.open_engine()
         if engine.loaded_ok() is True:
             await engine.startup(options=options)

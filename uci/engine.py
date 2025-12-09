@@ -684,6 +684,7 @@ class UciEngine(object):
         mame_par: str,
         loop: asyncio.AbstractEventLoop,
         engine_debug_name: str = "engine",
+        suppress_info: bool = True,
     ):
         """initialise engine with file and mame_par info"""
         super(UciEngine, self).__init__()
@@ -712,6 +713,8 @@ class UciEngine(object):
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
         self.game_id = 1
+        # Whether to suppress early/verbose info lines (used for remote main engine, not for tutor).
+        self.suppress_info = suppress_info
         # Remote engine settings (asyncssh)
         self.remote_conn: asyncssh.SSHClientConnection | None = None
         self.remote_host = uci_shell.hostname if uci_shell else None
@@ -763,7 +766,8 @@ class UciEngine(object):
         self.remote_conn = await asyncssh.connect(**conn_kwargs)
         remote_cmd = self._remote_engine_command()
         logger.info("remote command: %s", remote_cmd)
-        channel, engine = await self.remote_conn.create_subprocess(TolerantUciProtocol, remote_cmd)
+        protocol_cls = TolerantUciProtocol if self.suppress_info else UciProtocol
+        channel, engine = await self.remote_conn.create_subprocess(protocol_cls, remote_cmd)
         await engine.initialize()
         self.loop.create_task(self._log_remote_exit(channel))
         self.transport, self.engine = channel, engine

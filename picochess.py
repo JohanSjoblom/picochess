@@ -917,11 +917,19 @@ async def main() -> None:
             # try the given engine first and if that fails the first from "engines.ini" then exit
             self.state.engine_file = self.args.engine
 
-            self.engine_remote_home = self.args.engine_remote_home.rstrip(os.sep)
-
-            self.uci_remote_shell = None
+            self.engine_remote_home = self.args.engine_remote_home
 
             self.uci_local_shell = UciShell(hostname="", username="", key_file="", password="")
+            self.uci_remote_shell = None
+            if self.args.engine_remote_server:
+                self.uci_remote_shell = UciShell(
+                    hostname=self.args.engine_remote_server,
+                    username=self.args.engine_remote_user,
+                    key_file=self.args.engine_remote_key,
+                    password=self.args.engine_remote_pass,
+                    remote_home=self.engine_remote_home,
+                    windows=self.remote_windows(),
+                )
 
             if self.state.engine_file is None:
                 self.state.engine_file = EngineProvider.installed_engines[0]["file"]
@@ -971,9 +979,11 @@ async def main() -> None:
                     self.state.artwork_in_use = True
                     engine_file_to_load = engine_file_art  # load mame
 
+            uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
+
             self.engine = UciEngine(
                 file=engine_file_to_load,
-                uci_shell=self.uci_local_shell,
+                uci_shell=uci_shell,
                 mame_par=self.calc_engine_mame_par(),
                 loop=self.loop,
             )
@@ -3502,95 +3512,43 @@ async def main() -> None:
                     else:
                         await DisplayMsg.show(Message.SHOW_TEXT(text_string="NO_ARTWORK"))
 
-                help_str = engine_file_to_load.rsplit(os.sep, 1)[1]
-                remote_file = self.engine_remote_home + os.sep + help_str
-
-                flag_eng = False
-                # V4 removed paramiko check_ssh - it has to be rewritten anyway
-                logger.debug("molli check_ssh:%s", flag_eng)
                 await DisplayMsg.show(Message.ENGINE_SETUP())
-
-                if self.remote_engine_mode():
-                    if flag_eng:
-                        if not self.uci_remote_shell:
-                            if self.remote_windows():
-                                logger.info("molli: Remote Windows Connection")
-                                self.uci_remote_shell = UciShell(
-                                    hostname=self.args.engine_remote_server,
-                                    username=self.args.engine_remote_user,
-                                    key_file=self.args.engine_remote_key,
-                                    password=self.args.engine_remote_pass,
-                                    windows=True,
-                                )
-                            else:
-                                logger.info("molli: Remote Mac/UNIX Connection")
-                                self.uci_remote_shell = UciShell(
-                                    hostname=self.args.engine_remote_server,
-                                    username=self.args.engine_remote_user,
-                                    key_file=self.args.engine_remote_key,
-                                    password=self.args.engine_remote_pass,
-                                )
-                    else:
-                        engine_fallback = True
-                        await DisplayMsg.show(Message.ONLINE_FAILED())
-                        await asyncio.sleep(2)
-                        await DisplayMsg.show(Message.REMOTE_FAIL())
-                        await asyncio.sleep(2)
-
                 await self.engine.quit()
                 # Load the new one and send self.args.
-                if self.remote_engine_mode() and flag_eng and self.uci_remote_shell:
-                    self.engine = UciEngine(
-                        file=remote_file,
-                        uci_shell=self.uci_remote_shell,
-                        mame_par=self.calc_engine_mame_par(),
-                        loop=self.loop,
-                    )
-                    await self.engine.open_engine()
-                else:
-                    self.engine = UciEngine(
-                        file=engine_file_to_load,
-                        uci_shell=self.uci_local_shell,
-                        mame_par=self.calc_engine_mame_par(),
-                        loop=self.loop,
-                    )
-                    await self.engine.open_engine()
-                    if engine_file_to_load != self.state.engine_file:
-                        await asyncio.sleep(1)  # mame artwork wait
+                uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
+                self.engine = UciEngine(
+                    file=engine_file_to_load,
+                    uci_shell=uci_shell,
+                    mame_par=self.calc_engine_mame_par(),
+                    loop=self.loop,
+                )
+                await self.engine.open_engine()
+                if engine_file_to_load != self.state.engine_file:
+                    await asyncio.sleep(1)  # mame artwork wait
                 if not self.engine.loaded_ok():
                     # New engine failed to start, restart old engine
                     logger.error("new engine failed to start, reverting to %s", old_file)
                     engine_fallback = True
                     event.options = old_options
                     self.state.engine_file = old_file
-                    help_str = old_file.rsplit(os.sep, 1)[1]
-                    remote_file = self.engine_remote_home + os.sep + help_str
+                    # restart old mame engine?
+                    self.state.artwork_in_use = False
+                    if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
+                        old_file_art = old_file + "_art"
+                        my_file = Path(old_file_art)
+                        if my_file.is_file():
+                            self.state.artwork_in_use = True
+                            old_file = old_file_art
 
-                    if self.remote_engine_mode() and flag_eng and self.uci_remote_shell:
-                        self.engine = UciEngine(
-                            file=remote_file,
-                            uci_shell=self.uci_remote_shell,
-                            mame_par=self.calc_engine_mame_par(),
-                            loop=self.loop,
-                        )
-                        await self.engine.open_engine()
-                    else:
-                        # restart old mame engine?
-                        self.state.artwork_in_use = False
-                        if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
-                            old_file_art = old_file + "_art"
-                            my_file = Path(old_file_art)
-                            if my_file.is_file():
-                                self.state.artwork_in_use = True
-                                old_file = old_file_art
+                    uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
 
-                        self.engine = UciEngine(
-                            file=old_file,
-                            uci_shell=self.uci_local_shell,
-                            mame_par=self.calc_engine_mame_par(),
-                            loop=self.loop,
-                        )
-                        await self.engine.open_engine()
+                    self.engine = UciEngine(
+                        file=old_file,
+                        uci_shell=uci_shell,
+                        mame_par=self.calc_engine_mame_par(),
+                        loop=self.loop,
+                    )
+                    await self.engine.open_engine()
                     if not self.engine.loaded_ok():
                         # Help - old engine failed to restart. There is no engine
                         logger.error("no engines started")
@@ -3639,25 +3597,16 @@ async def main() -> None:
                         engine_fallback = True
                         event.options = dict()
                         old_file = "engines/aarch64/a-stockf"
-                        help_str = old_file.rsplit(os.sep, 1)[1]
-                        remote_file = self.engine_remote_home + os.sep + help_str
 
-                        if self.remote_engine_mode() and flag_eng and self.uci_remote_shell:
-                            self.engine = UciEngine(
-                                file=remote_file,
-                                uci_shell=self.uci_remote_shell,
-                                mame_par=self.calc_engine_mame_par(),
-                                loop=self.loop,
-                            )
-                            await self.engine.open_engine()
-                        else:
-                            self.engine = UciEngine(
-                                file=old_file,
-                                uci_shell=self.uci_local_shell,
-                                mame_par=self.calc_engine_mame_par(),
-                                loop=self.loop,
-                            )
-                            await self.engine.open_engine()
+                        uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
+
+                        self.engine = UciEngine(
+                            file=old_file,
+                            uci_shell=uci_shell,
+                            mame_par=self.calc_engine_mame_par(),
+                            loop=self.loop,
+                        )
+                        await self.engine.open_engine()
                         if not self.engine.loaded_ok():
                             # Help - old engine failed to restart. There is no engine
                             logger.error("no engines started")

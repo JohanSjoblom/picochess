@@ -29,6 +29,8 @@ import copy
 import spur  # type: ignore
 import paramiko
 
+import asyncssh  # type: ignore
+
 import chess.engine  # type: ignore
 from chess.engine import InfoDict, Limit, UciProtocol, AnalysisResult, PlayResult, EngineTerminatedError
 from chess import Board  # type: ignore
@@ -47,6 +49,22 @@ UCI_ELO_NON_STANDARD = "UCI Elo"
 UCI_ELO_NON_STANDARD2 = "UCI_Limit"
 
 logger = logging.getLogger(__name__)
+
+
+class TolerantUciProtocol(UciProtocol):
+    """UCI protocol that drops all info lines to avoid pre-uciok chatter crashes."""
+
+    def _line_received(self, line: str) -> None:
+        if line.startswith("info"):
+            # Drop all info chatter (e.g. tablebase banners) to keep python-chess state machine happy.
+            logger.debug("tolerant uci: dropping info line: %s", line)
+            return
+        logger.debug("tolerant uci: line: %s", line)
+        super()._line_received(line)
+
+    def pipe_data_received(self, fd, data):
+        """Guard against protocol state glitches when receiving data."""
+        super().pipe_data_received(fd, data)
 
 
 class EngineLease:
@@ -149,8 +167,14 @@ class WindowsShellType:
 class UciShell(object):
     """Handle the uci engine shell."""
 
-    def __init__(self, hostname=None, username=None, key_file=None, password=None, windows=False):
+    def __init__(self, hostname=None, username=None, key_file=None, password=None, windows=False, remote_home=None):
         super(UciShell, self).__init__()
+        self.hostname = hostname
+        self.username = username
+        self.key_file = key_file
+        self.password = password
+        self.remote_home = remote_home
+        self.windows = windows
         if hostname:
             logger.info("connecting to [%s]", hostname)
             shell_params = {
@@ -688,92 +712,155 @@ class UciEngine(object):
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
         self.game_id = 1
+        # Remote engine settings (asyncssh)
+        self.remote_conn: asyncssh.SSHClientConnection | None = None
+        self.remote_host = uci_shell.hostname if uci_shell else None
+        self.remote_user = uci_shell.username if uci_shell else None
+        self.remote_password = uci_shell.password if uci_shell else None
+        self.remote_key_file = uci_shell.key_file if uci_shell else None
+        self.remote_home = getattr(uci_shell, "remote_home", None) if uci_shell else None
+        self.remote_is_windows = bool(getattr(uci_shell, "windows", False)) if uci_shell else False
+        self.is_remote = bool(self.remote_host)
+
+    def _remote_engine_command(self) -> str:
+        """Build the command to start the remote engine."""
+        engine_name = os.path.basename(self.file)
+        if self.remote_is_windows and not engine_name.lower().endswith(".exe"):
+            engine_name = engine_name + ".exe"
+        if self.remote_home:
+            sep = "\\" if "\\" in self.remote_home else "/"
+            home = self.remote_home.rstrip("\\/")
+            cmd_path = f"{home}{sep}{engine_name}" if home else engine_name
+        else:
+            cmd_path = self.file
+        if " " in cmd_path and not cmd_path.startswith(("'", '"')):
+            return f'"{cmd_path}"'
+        return cmd_path
+
+    async def _open_local_engine(self):
+        logger.info("file %s", self.file)
+        if self.is_mame:
+            mfile = [self.file, self.mame_par]
+        else:
+            mfile = [self.file]
+        logger.info("mfile %s", mfile)
+        logger.info("opening engine locally")
+        self.transport, self.engine = await chess.engine.popen_uci(mfile)
+
+    async def _open_remote_engine(self):
+        if not self.remote_host:
+            raise ValueError("remote engine requested but no host configured")
+        conn_kwargs = {
+            "host": self.remote_host,
+            "username": self.remote_user,
+            "known_hosts": None,  # accept unknown hosts for now
+        }
+        if self.remote_key_file:
+            conn_kwargs["client_keys"] = [self.remote_key_file]
+        elif self.remote_password:
+            conn_kwargs["password"] = self.remote_password
+        logger.info("opening engine via ssh on %s", self.remote_host)
+        self.remote_conn = await asyncssh.connect(**conn_kwargs)
+        remote_cmd = self._remote_engine_command()
+        logger.info("remote command: %s", remote_cmd)
+        channel, engine = await self.remote_conn.create_subprocess(TolerantUciProtocol, remote_cmd)
+        await engine.initialize()
+        self.loop.create_task(self._log_remote_exit(channel))
+        self.transport, self.engine = channel, engine
+
+    async def _log_remote_exit(self, channel):
+        """Log remote exit status when the SSH subprocess ends."""
+        try:
+            await channel.wait_closed()
+            get_rc = getattr(channel, "get_returncode", None)
+            rc = get_rc() if get_rc else None
+            logger.info("remote engine channel closed with return code %s", rc)
+        except Exception:
+            logger.debug("failed to log remote exit status", exc_info=True)
+
+    async def _after_engine_started(self):
+        # Instantiate the two “sisters”
+        self.engine_lease = EngineLease()
+        self.analyser = ContinuousAnalysis(
+            engine=self.engine,
+            delay=FLOAT_ANALYSIS_WAIT,
+            loop=self.loop,
+            engine_debug_name=self.whoami,
+            engine_lease=self.engine_lease,
+        )
+        self.playing = PlayingContinuousAnalysis(
+            engine=self.engine,
+            loop=self.loop,
+            engine_lease=self.engine_lease,
+            engine_debug_name=self.whoami,
+            allow_info_loop=not self._should_disable_info_loop(),
+        )
+        self.analyser.set_game_id(self.game_id)
+        self.playing.set_game_id(self.game_id)
+        if self.engine:
+            if "name" in self.engine.id:
+                self.engine_name = self.engine.id["name"]
+        else:
+            logger.error("engine executable %s not found", self.file)
 
     async def open_engine(self):
         """Open engine. Call after __init__"""
         try:
-            logger.info("file %s", self.file)
-            if self.is_mame:
-                mfile = [self.file, self.mame_par]
+            if self.is_remote:
+                await self._open_remote_engine()
             else:
-                mfile = [self.file]
-            logger.info("mfile %s", mfile)
-            logger.info("opening engine")
-            self.transport, self.engine = await chess.engine.popen_uci(mfile)
-            # Instantiate the two “sisters”
-            self.engine_lease = EngineLease()
-            self.analyser = ContinuousAnalysis(
-                engine=self.engine,
-                delay=FLOAT_ANALYSIS_WAIT,
-                loop=self.loop,
-                engine_debug_name=self.whoami,
-                engine_lease=self.engine_lease,
-            )
-            self.playing = PlayingContinuousAnalysis(
-                engine=self.engine,
-                loop=self.loop,
-                engine_lease=self.engine_lease,
-                engine_debug_name=self.whoami,
-                allow_info_loop=not self._should_disable_info_loop(),
-            )
-            self.analyser.set_game_id(self.game_id)
-            self.playing.set_game_id(self.game_id)
-            if self.engine:
-                if "name" in self.engine.id:
-                    self.engine_name = self.engine.id["name"]
-            else:
-                logger.error("engine executable %s not found", self.file)
+                await self._open_local_engine()
+            await self._after_engine_started()
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)
             self.transport = None
             self.engine = None
+            await self._close_remote_connection()
         except TypeError:
             logger.exception("engine executable not found %s", self.file)
             self.transport = None
             self.engine = None
+            await self._close_remote_connection()
         except chess.engine.EngineTerminatedError:
             logger.exception("engine terminated - could not execute file %s", self.file)
             self.transport = None
             self.engine = None
+            await self._close_remote_connection()
+        except asyncssh.Error:
+            logger.exception("ssh error while starting remote engine %s", self.file)
+            self.transport = None
+            self.engine = None
+            await self._close_remote_connection()
 
     async def reopen_engine(self) -> bool:
         """Re-open engine. Return True if engine re-opened ok."""
         try:
-            # @todo - might need to do more here to make sure both "sisters" are ok
-            # in this situation the engine is not responding properly and is assumed dead
-            # part 1 : call quit or copy specialized code here
             await self.quit()
-            # part 2 : copied from open_engine
-            logger.info("file %s", self.file)
-            if self.is_mame:
-                mfile = [self.file, self.mame_par]
+            logger.info("re-opening engine %s", self.file)
+
+            # Re-open using the same path (local or remote)
+            if self.is_remote:
+                await self._open_remote_engine()
             else:
-                mfile = [self.file]
-            logger.info("re-opening engine %s", mfile)
-            self.transport, self.engine = await chess.engine.popen_uci(mfile)
-            # Dont instantiate the two “sisters” - they already exist, but update engine
-            if self.analyser:
+                mfile = [self.file, self.mame_par] if self.is_mame else [self.file]
+                self.transport, self.engine = await chess.engine.popen_uci(mfile)
+
+            # Reuse existing sisters if present, otherwise create them
+            if self.analyser and self.playing and self.engine_lease:
                 self.analyser.engine = self.engine
-            if self.playing:
                 self.playing.engine = self.engine
-            # game id remains the same
-            if self.engine:
-                if "name" in self.engine.id:
-                    self.engine_name = self.engine.id["name"]
-                    await self.send()
-                    return True  # we have an engine that states its name
-        except OSError:
-            logger.exception("OS error in starting engine %s", self.file)
+            else:
+                await self._after_engine_started()
+
+            if self.engine and "name" in self.engine.id:
+                self.engine_name = self.engine.id["name"]
+                await self.send()
+                return True  # engine responded with its name
+        except Exception:
+            logger.exception("failed to reopen engine %s", self.file)
             self.transport = None
             self.engine = None
-        except TypeError:
-            logger.exception("engine executable not found %s", self.file)
-            self.transport = None
-            self.engine = None
-        except chess.engine.EngineTerminatedError:
-            logger.exception("engine terminated - could not execute file %s", self.file)
-            self.transport = None
-            self.engine = None
+            await self._close_remote_connection()
         return False
 
     def loaded_ok(self) -> bool:
@@ -837,10 +924,6 @@ class UciEngine(object):
             # issue 85 - remove options not allowed by engine before sending
             options = self.filter_options(self.options, self.engine.options)
             await self.engine.configure(options)
-            try:
-                await self.engine.ping()  # send isready and wait for answer
-            except CancelledError:
-                logger.debug("ping isready cancelled - we are probably closing down")
         except chess.engine.EngineError as e:
             logger.warning(e)
 
@@ -888,6 +971,7 @@ class UciEngine(object):
         else:
             await self._shutdown_standard_engine()
         await asyncio.sleep(1)  # give it some time to quit
+        await self._close_remote_connection()
 
     async def _shutdown_standard_engine(self) -> None:
         """Attempt a graceful shutdown and escalate if the engine ignores us."""
@@ -924,6 +1008,17 @@ class UciEngine(object):
                 logger.debug("transport close failed for %s", self.engine_name, exc_info=True)
         self.transport = None
         self.engine = None
+
+    async def _close_remote_connection(self):
+        """Close any open SSH connection."""
+        if not self.remote_conn:
+            return
+        try:
+            self.remote_conn.close()
+            await self.remote_conn.wait_closed()
+        except Exception:
+            logger.debug("closing remote ssh connection failed for %s", self.engine_name, exc_info=True)
+        self.remote_conn = None
 
     async def _force_kill_transport(self) -> None:
         """Send terminate/kill signals if the engine process ignores quit."""

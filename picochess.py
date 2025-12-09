@@ -1111,10 +1111,11 @@ async def main() -> None:
 
             self.state.comment_file = self.get_comment_file()
             tutor_engine = self.args.tutor_engine
-            if self.remote_engine_mode() and self.uci_remote_shell:
-                uci_shell = self.uci_remote_shell
-            else:
-                uci_shell = self.uci_local_shell
+            tutor_basename = Path(tutor_engine).name if tutor_engine else ""
+            tutor_remote = tutor_basename.startswith("remote_") and self.uci_remote_shell
+            if tutor_remote:
+                logger.info("using remote tutor engine via ssh: %s", tutor_basename)
+            uci_shell = self.uci_remote_shell if tutor_remote else self.uci_local_shell
             # not using self.args.coach_analyser any more
             self.state.picotutor = PicoTutor(
                 i_ucishell=uci_shell,

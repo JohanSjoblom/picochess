@@ -930,6 +930,7 @@ async def main() -> None:
                     remote_home=self.engine_remote_home,
                     windows=self.remote_windows(),
                 )
+            self.tutor_remote_engine = self.args.tutor_remote_engine
 
             if self.state.engine_file is None:
                 self.state.engine_file = EngineProvider.installed_engines[0]["file"]
@@ -1111,28 +1112,48 @@ async def main() -> None:
 
             self.state.comment_file = self.get_comment_file()
             tutor_engine = self.args.tutor_engine
-            tutor_basename = Path(tutor_engine).name if tutor_engine else ""
-            tutor_remote = tutor_basename.startswith("remote_") and self.uci_remote_shell
-            if tutor_remote:
-                logger.info("using remote tutor engine via ssh: %s", tutor_basename)
-            uci_shell = self.uci_remote_shell if tutor_remote else self.uci_local_shell
-            # not using self.args.coach_analyser any more
-            self.state.picotutor = PicoTutor(
-                i_ucishell=uci_shell,
-                i_engine_path=tutor_engine,
-                i_comment_file=self.state.comment_file,
-                i_lang=self.args.language,
-                i_always_run_tutor=self.always_run_tutor,
-                loop=self.loop,
-            )
-            # @ todo first init status should be set in init above
-            await self.state.picotutor.set_status(
-                self.state.dgtmenu.get_picowatcher(),
-                self.state.dgtmenu.get_picocoach(),
-                self.state.dgtmenu.get_picoexplorer(),
-                self.state.dgtmenu.get_picocomment(),
-            )
-            await self.state.picotutor.open_engine()
+            remote_tutor_override = self.tutor_remote_engine
+            # try remote tutor first if configured and remote shell exists
+            self.state.picotutor = None
+            if remote_tutor_override and self.uci_remote_shell:
+                logger.info("using remote tutor engine via ssh: %s", remote_tutor_override)
+                self.state.picotutor = PicoTutor(
+                    i_ucishell=self.uci_remote_shell,
+                    i_engine_path=tutor_engine,
+                    i_comment_file=self.state.comment_file,
+                    i_lang=self.args.language,
+                    i_always_run_tutor=self.always_run_tutor,
+                    loop=self.loop,
+                    remote_binary_override=remote_tutor_override,
+                )
+                await self.state.picotutor.set_status(
+                    self.state.dgtmenu.get_picowatcher(),
+                    self.state.dgtmenu.get_picocoach(),
+                    self.state.dgtmenu.get_picoexplorer(),
+                    self.state.dgtmenu.get_picocomment(),
+                )
+                await self.state.picotutor.open_engine()
+                # fallback if remote tutor failed to load
+                if not self.state.picotutor.best_engine or not self.state.picotutor.obvious_engine:
+                    logger.warning("remote tutor failed to start - falling back to local tutor")
+                    self.state.picotutor = None
+
+            if not self.state.picotutor:
+                self.state.picotutor = PicoTutor(
+                    i_ucishell=self.uci_local_shell,
+                    i_engine_path=tutor_engine,
+                    i_comment_file=self.state.comment_file,
+                    i_lang=self.args.language,
+                    i_always_run_tutor=self.always_run_tutor,
+                    loop=self.loop,
+                )
+                await self.state.picotutor.set_status(
+                    self.state.dgtmenu.get_picowatcher(),
+                    self.state.dgtmenu.get_picocoach(),
+                    self.state.dgtmenu.get_picoexplorer(),
+                    self.state.dgtmenu.get_picocomment(),
+                )
+                await self.state.picotutor.open_engine()
             my_pgn_display.set_picotutor(self.state.picotutor)  # needed for comments in pgn
             # set_mode in picotutor init set to False
 

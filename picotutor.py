@@ -51,9 +51,11 @@ class PicoTutor:
         i_lang="en",
         i_always_run_tutor=False,
         loop=None,
+        remote_binary_override: str | None = None,
     ):
         self.user_color: chess.Color = i_player_color
         self.engine_path: str = i_engine_path
+        self.remote_binary_override = remote_binary_override
 
         self.best_engine: UciEngine | None = None  # best - max
         self.obvious_engine: UciEngine | None = None  # obvious - min
@@ -195,6 +197,7 @@ class PicoTutor:
             self.loop,
             debug_whoami,
             suppress_info=False,
+            remote_binary_override=self.remote_binary_override,
         )
         await engine.open_engine()
         if engine.loaded_ok() is True:

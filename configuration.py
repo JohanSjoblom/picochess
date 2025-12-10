@@ -38,6 +38,11 @@ class Configuration:
         self.parser.add_argument("-erp", "--engine-remote-pass", type=str, help="password for the remote engine server")
         self.parser.add_argument("-erk", "--engine-remote-key", type=str, help="key file for the remote engine server")
         self.parser.add_argument(
+            "--tutor-remote-engine",
+            type=str,
+            help="optional remote tutor engine (relative to engine-remote-home); falls back to local tutor-engine on failure",
+        )
+        self.parser.add_argument(
             "-erh",
             "--engine-remote-home",
             type=str,

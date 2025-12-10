@@ -691,6 +691,7 @@ class UciEngine(object):
         loop: asyncio.AbstractEventLoop,
         engine_debug_name: str = "engine",
         suppress_info: bool = True,
+        remote_binary_override: str | None = None,
     ):
         """initialise engine with file and mame_par info"""
         super(UciEngine, self).__init__()
@@ -730,10 +731,14 @@ class UciEngine(object):
         self.remote_home = getattr(uci_shell, "remote_home", None) if uci_shell else None
         self.remote_is_windows = bool(getattr(uci_shell, "windows", False)) if uci_shell else False
         self.is_remote = bool(self.remote_host)
+        self.remote_binary_override = remote_binary_override
 
     def _remote_engine_command(self) -> str:
         """Build the command to start the remote engine."""
-        engine_name = os.path.basename(self.file)
+        engine_name = self.remote_binary_override if self.remote_binary_override else os.path.basename(self.file)
+        if os.path.isabs(engine_name):
+            cmd_path = engine_name
+            return f'"{cmd_path}"' if " " in cmd_path and not cmd_path.startswith(("'", '"')) else cmd_path
         if self.remote_is_windows and not engine_name.lower().endswith(".exe"):
             engine_name = engine_name + ".exe"
         if self.remote_home:

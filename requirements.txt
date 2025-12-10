@@ -8,6 +8,7 @@ chess==1.11.1
 pyOpenSSL==25.0.0
 requests==2.32.3
 spur==0.3.23
+asyncssh==2.16.0
 tornado==6.4.2
 configobj==5.0.9
 geopy==2.4.1

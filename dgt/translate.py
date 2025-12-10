@@ -133,12 +133,7 @@ class DgtTranslate(object):
             detxt = entxt
             nltxt = entxt
             frtxt = entxt
-            estxt = Dgt.DISPLAY_TEXT(
-                web_text="Salir del menú",
-                large_text="Salir menú",
-                medium_text="Salir  ",
-                small_text="salir",
-            )
+            estxt = entxt
             ittxt = entxt
         if text_id == "onlineuser":
             l_len = len(msg) - 1
@@ -153,12 +148,7 @@ class DgtTranslate(object):
             detxt = entxt
             nltxt = entxt
             frtxt = entxt
-            estxt = Dgt.DISPLAY_TEXT(
-                web_text="Pico Explorador",
-                large_text="Explorador",
-                medium_text="Explora",
-                small_text="explor",
-            )
+            estxt = entxt
             ittxt = entxt
         if text_id == "pgngame_end":
             entxt = Dgt.DISPLAY_TEXT(
@@ -1540,12 +1530,7 @@ class DgtTranslate(object):
             detxt = entxt
             nltxt = entxt
             frtxt = entxt
-            estxt = Dgt.DISPLAY_TEXT(
-                web_text="Error de sala",
-                large_text="error sala",
-                medium_text="err sala",
-                small_text="norom",
-            )
+            estxt = entxt
             ittxt = entxt
         if text_id == "restoregame":
             entxt = Dgt.DISPLAY_TEXT(

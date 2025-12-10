@@ -21,10 +21,12 @@ from __future__ import annotations
 import asyncio
 from asyncio import CancelledError
 import os
+import platform
 from typing import Optional, Iterable
 import logging
 import configparser
 import copy
+from pathlib import Path
 
 import spur  # type: ignore
 import paramiko
@@ -735,18 +737,36 @@ class UciEngine(object):
 
     def _remote_engine_command(self) -> str:
         """Build the command to start the remote engine."""
-        engine_name = self.remote_binary_override if self.remote_binary_override else os.path.basename(self.file)
-        if os.path.isabs(engine_name):
-            cmd_path = engine_name
-            return f'"{cmd_path}"' if " " in cmd_path and not cmd_path.startswith(("'", '"')) else cmd_path
-        if self.remote_is_windows and not engine_name.lower().endswith(".exe"):
-            engine_name = engine_name + ".exe"
-        if self.remote_home:
-            sep = "\\" if "\\" in self.remote_home else "/"
-            home = self.remote_home.rstrip("\\/")
-            cmd_path = f"{home}{sep}{engine_name}" if home else engine_name
+        # Start from either an explicit override or the configured engine file.
+        target_path = self.remote_binary_override if self.remote_binary_override else self.file
+
+        # Determine a relative subpath under engines/<arch>/ when possible, even if the file is absolute.
+        engine_subpath: str | None = None
+        if not self.remote_binary_override:
+            local_engines_root = Path(__file__).resolve().parent.parent / "engines" / platform.machine()
+            try:
+                engine_subpath = str(Path(self.file).resolve().relative_to(local_engines_root).as_posix())
+            except Exception:
+                engine_subpath = None
+
+        # If override is absolute and not under engines root, use it verbatim.
+        if self.remote_binary_override and os.path.isabs(target_path) and engine_subpath is None:
+            cmd_path = target_path
         else:
-            cmd_path = self.file
+            engine_subpath = engine_subpath if engine_subpath else os.path.basename(target_path)
+
+            # Add .exe for Windows remotes when no extension is present.
+            if self.remote_is_windows and not engine_subpath.lower().endswith(".exe"):
+                engine_subpath = engine_subpath + ".exe"
+
+            if self.remote_home:
+                sep = "\\" if "\\" in self.remote_home else "/"
+                home = self.remote_home.rstrip("\\/")
+                engine_subpath = engine_subpath.replace("/", sep).replace("\\", sep)
+                cmd_path = f"{home}{sep}{engine_subpath}" if home else engine_subpath
+            else:
+                cmd_path = engine_subpath
+
         if " " in cmd_path and not cmd_path.startswith(("'", '"')):
             return f'"{cmd_path}"'
         return cmd_path

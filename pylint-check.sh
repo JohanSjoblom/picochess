@@ -35,6 +35,13 @@ if [ "$1" = "--update" ]; then
     pip install --upgrade -r requirements.txt || exit 1
 fi
 
+# Ensure pylint is available before running
+if ! python -m pylint --version >/dev/null 2>&1; then
+    echo "❌ pylint is not installed in this environment. Install with:"
+    echo "   pip install pylint"
+    exit 1
+fi
+
 echo "Running pylint (E + W only) and capturing output..."
 # Run pylint via python module (robust across envs), capture stdout+stderr,
 # and remove ANSI color codes (if any) before further processing.

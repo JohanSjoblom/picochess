@@ -1373,6 +1373,13 @@ async def main() -> None:
                     t_best_mate,
                     t_alt_best_moves,
                 ) = await self.state.picotutor.get_pos_analysis()
+                logger.debug(
+                    "call_pico_coach analysis result: best_move=%s best_score=%s best_mate=%s alt_moves=%d",
+                    t_best_move,
+                    t_best_score,
+                    t_best_mate,
+                    len(t_alt_best_moves),
+                )
 
                 tutor_str = "POS" + str(t_best_score)
                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, score=t_best_score)
@@ -2801,6 +2808,11 @@ async def main() -> None:
             if self.state.error_fen:
                 logger.debug("fen_timer expired %s", self.state.error_fen)
                 game_fen = self.state.game.board_fen()
+                internal_fen = game_fen
+                external_fen = self.state.error_fen
+                fen_res = compare_fen(external_fen, internal_fen)
+                if fen_res and (fen_res[4] == "K" or fen_res[4] == "k"):
+                    self.state.coach_triggered = True
                 if (
                     self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.BRAIN)
                     and self.state.error_fen != chess.STARTING_BOARD_FEN
@@ -2821,7 +2833,11 @@ async def main() -> None:
 
                 # issue #78 - fast moving ponder mode - commit c253f2c 15.6.2025 was first
                 # see also issue #82 - allow switching sides in PONDER mode
-                elif self.state.interaction_mode == Mode.PONDER and self.state.flag_flexible_ponder:
+                elif (
+                    self.state.interaction_mode == Mode.PONDER
+                    and self.state.flag_flexible_ponder
+                    and not self.state.coach_triggered
+                ):
                     if (not self.state.newgame_happened) or self.state.flag_startup:
                         # molli: no error in analysis(ponder) mode => start new game with current fen
                         # and try to keep same player to play (white or black) but check

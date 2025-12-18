@@ -19,18 +19,12 @@
 
 import logging
 from pathlib import Path
-import io
 from random import randint
 import os
 import asyncio
 
 # import sys  # type: ignore - needed for redirecting stdout/stderr
-import contextlib
 import subprocess
-
-# Suppress pygame's hardcoded output to stdout/stderr
-with contextlib.redirect_stdout(io.StringIO()):
-    import pygame
 
 # from pydub import AudioSegment  # type: ignore
 import chess  # type: ignore
@@ -128,8 +122,7 @@ class PicoTalkerDisplay(DisplayMsg):
         :param computer_voice: The voice to use for the computer (eg. en:christina).
         """
         super(PicoTalkerDisplay, self).__init__(loop)
-        # init pygame sound stuff
-        pygame.mixer.init()  # keep all pygame.mixer here in PicoTalkerDisplay, not in PicoTalkers
+        # Avoid initializing pygame mixer when using SoX playback (V3 behavior).
         self.sound_cache = {}  # cache for voice files
         self.common_queue = asyncio.Queue()  # queue for sound_player
         asyncio.create_task(self.sound_player())  # background sound player
@@ -208,11 +201,7 @@ class PicoTalkerDisplay(DisplayMsg):
         await asyncio.sleep(0.1)  # give sound player time to process None
         self.sound_cache.clear()  # clear sound cache
         self.sound_cache = {}
-        if pygame.mixer.get_init():  # prevent mixer not initialized error in shutdown
-            pygame.mixer.stop()  # stop all sounds
-            pygame.mixer.quit()  # clean up mixer subsystem
-        # finally call quit that only exists in runtime - ignore linter error
-        pygame.quit()  # pylint: disable=E1101
+        # No pygame cleanup needed when using SoX playback.
 
     async def sound_player(self):
         """Common sound player to play one sound at a time from the sound queue

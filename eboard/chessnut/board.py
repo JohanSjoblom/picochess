@@ -142,9 +142,11 @@ class ChessnutBoard(EBoard):
         self.loop.create_task(self._startup())
 
     async def _startup(self):
+        # Start the spinner loop immediately so users see a status during connect.
+        process_task = self.loop.create_task(self._process_incoming_board_forever())
         await self._connect()
-        await self._process_incoming_board_forever()
-
+        await process_task
+        
     def set_text_xl(self, text: str, beep: int, left_icons=ClockIcons.NONE, right_icons=ClockIcons.NONE):
         pass
 

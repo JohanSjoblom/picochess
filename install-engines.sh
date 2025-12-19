@@ -210,16 +210,23 @@ fi
 
 # --- x86_64 ------------------------------------------------------------------
 if [ "$ARCH" = "x86_64" ]; then
-    echo "Detected architecture: x86_64"
+    echo "Detected architecture: x86_64 (variant: $ENGINE_VARIANT)"
 
     if [ ! -d "$ENGINES_DIR/x86_64" ]; then
-        echo "No engines found for x86_64. Installing small package..."
+        echo "No engines found for x86_64. Installing requested engine package..."
         mkdir -p "$ENGINES_DIR/x86_64" || exit 1
 
-        ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
-        TMPFILE="/home/pi/pico_backups/current/tmp/engines-x86_64-small.tar.gz"
+        if [ "$ENGINE_VARIANT" = "lite" ]; then
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_engines_lite.tar.gz"
+            TMPFILE="/home/pi/pico_backups/current/tmp/x86_64_engines_lite.tar.gz"
+            ENGINE_DESC="x86_64 lite engine package"
+        else
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
+            TMPFILE="/home/pi/pico_backups/current/tmp/engines-x86_64-small.tar.gz"
+            ENGINE_DESC="x86_64 small engine package"
+        fi
 
-        echo "Downloading x86_64 engines..."
+        echo "Downloading $ENGINE_DESC..."
         if command -v curl >/dev/null 2>&1; then
             curl -L -o "$TMPFILE" "$ENGINE_URL" || exit 1
         elif command -v wget >/dev/null 2>&1; then
@@ -229,18 +236,116 @@ if [ "$ARCH" = "x86_64" ]; then
             exit 1
         fi
 
-        echo "Extracting x86_64 engines..."
+        echo "Extracting $ENGINE_DESC..."
         tar -xzf "$TMPFILE" -C "$ENGINES_DIR/x86_64" || {
-            echo "Extraction failed for x86_64 engines." 1>&2
+            echo "Extraction failed for $ENGINE_DESC." 1>&2
             sh "$RESTORE_SCRIPT" arch "$ARCH"
             rm -f "$TMPFILE"
             exit 1
         }
         rm -f "$TMPFILE"
 
-        echo "x86_64 engine package installed successfully."
+        echo "$ENGINE_DESC installed successfully."
     else
         echo "Engines for x86_64 already present."
+    fi
+
+    if [ "$ENGINE_VARIANT" = "lite" ]; then
+        if [ ! -d "$ENGINES_DIR/mame_emulation" ]; then
+            echo "No MAME emulation files found. Installing package..."
+            mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
+
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_mame_lite.tar.gz"
+            MAME_TMP="/home/pi/pico_backups/current/tmp/x86_64_mame_lite.tar.gz"
+
+            echo "Downloading MAME emulation package..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -L -o "$MAME_TMP" "$MAME_URL" || exit 1
+            elif command -v wget >/dev/null 2>&1; then
+                wget -O "$MAME_TMP" "$MAME_URL" || exit 1
+            else
+                echo "Error: need curl or wget to download" 1>&2
+                exit 1
+            fi
+
+            echo "Extracting MAME emulation package..."
+            tar -xzf "$MAME_TMP" -C "$ENGINES_DIR/mame_emulation" || {
+                echo "Extraction failed for MAME emulation package." 1>&2
+                rm -f "$MAME_TMP"
+                exit 1
+            }
+            rm -f "$MAME_TMP"
+
+            echo "MAME emulation package installed successfully."
+        else
+            echo "MAME emulation files already present."
+        fi
+    else
+        echo "Skipping MAME emulation package for small variant."
+    fi
+
+    if [ "$ENGINE_VARIANT" = "lite" ]; then
+        if [ ! -d "$ENGINES_DIR/rodent3" ]; then
+            echo "No Rodent III files found. Installing package..."
+            mkdir -p "$ENGINES_DIR/rodent3" || exit 1
+
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent3_lite.tar.gz"
+            RODENT3_TMP="/home/pi/pico_backups/current/tmp/x86_64_rodent3_lite.tar.gz"
+
+            echo "Downloading Rodent III package..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -L -o "$RODENT3_TMP" "$RODENT3_URL" || exit 1
+            elif command -v wget >/dev/null 2>&1; then
+                wget -O "$RODENT3_TMP" "$RODENT3_URL" || exit 1
+            else
+                echo "Error: need curl or wget to download" 1>&2
+                exit 1
+            fi
+
+            echo "Extracting Rodent III package..."
+            tar -xzf "$RODENT3_TMP" -C "$ENGINES_DIR/rodent3" || {
+                echo "Extraction failed for Rodent III package." 1>&2
+                rm -f "$RODENT3_TMP"
+                exit 1
+            }
+            rm -f "$RODENT3_TMP"
+
+            echo "Rodent III package installed successfully."
+        else
+            echo "Rodent III files already present."
+        fi
+
+        if [ ! -d "$ENGINES_DIR/rodent4" ]; then
+            echo "No Rodent IV files found. Installing package..."
+            mkdir -p "$ENGINES_DIR/rodent4" || exit 1
+
+            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent4_lite.tar.gz"
+            RODENT4_TMP="/home/pi/pico_backups/current/tmp/x86_64_rodent4_lite.tar.gz"
+
+            echo "Downloading Rodent IV package..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -L -o "$RODENT4_TMP" "$RODENT4_URL" || exit 1
+            elif command -v wget >/dev/null 2>&1; then
+                wget -O "$RODENT4_TMP" "$RODENT4_URL" || exit 1
+            else
+                echo "Error: need curl or wget to download" 1>&2
+                exit 1
+            fi
+
+            echo "Extracting Rodent IV package..."
+            tar -xzf "$RODENT4_TMP" -C "$ENGINES_DIR/rodent4" || {
+                echo "Extraction failed for Rodent IV package." 1>&2
+                rm -f "$RODENT4_TMP"
+                exit 1
+            }
+            rm -f "$RODENT4_TMP"
+
+            echo "Rodent IV package installed successfully."
+        else
+            echo "Rodent IV files already present."
+        fi
+    else
+        echo "Skipping Rodent III and IV packages for small variant."
     fi
 fi
 

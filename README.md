@@ -37,6 +37,11 @@ The script installs the following services in `/etc/systemd/system/`:
 - obooksrv (opening books window on web page)
 - gamesdb (games window on web page)
 
+`install-picochess.sh` flags:
+- `pico` skips system update (useful on existing systems).
+- `small` (default) or `lite` selects the engine pack to install.
+- `noengines` skips installing engines (used internally during code-only updates).
+
 How to stay updated
 -------------------
 You can manually update to latest version from within the program. Go to the System, Power menu and select Restart and Update Picochess. If you really want to stay updated you can edit your picochess.ini file and uncomment the line enable-update = True. In this case it will update the code every time you reboot. It will not run a system update at boot, as that takes quite some time. It will only update the picochess code.

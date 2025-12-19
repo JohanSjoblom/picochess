@@ -53,7 +53,7 @@ if [ -f "$FLAG" ]; then
                     touch "$FAIL_FILE"
                     exit 1
                 fi
-                sh "$PICO_SCRIPT" pico >>"$LOGFILE" 2>&1
+                sh "$PICO_SCRIPT" pico noengines >>"$LOGFILE" 2>&1
                 STATUS=$?
                 ;;
             engines)

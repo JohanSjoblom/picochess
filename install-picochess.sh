@@ -13,11 +13,31 @@ BACKUP_DIR="$BACKUP_DIR_BASE/current"
 WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
 UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 
-# Check for the "pico" parameter, if present skip system upgrade
+# Parameters:
+#   pico       -> skip system update
+#   small/lite -> choose engine pack (default: small)
+#   noengines  -> skip engine installation
 SKIP_UPDATE=false
+ENGINE_VARIANT="small"
+SKIP_ENGINES=false
+
+# Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
     SKIP_UPDATE=true
+    shift
 fi
+
+# Parse remaining args for engine variant / noengines
+for arg in "$@"; do
+    case "$arg" in
+        small|lite)
+            ENGINE_VARIANT="$arg"
+            ;;
+        noengines)
+            SKIP_ENGINES=true
+            ;;
+    esac
+done
 
 if [ "$SKIP_UPDATE" = false ]; then
     echo "starting by upgrading system before installing picochess"
@@ -186,10 +206,13 @@ else
 fi
 
 # install engines as user pi if there is no engines architecture folder
-if [ -f install-engines.sh ]; then
+if [ "$SKIP_ENGINES" = true ]; then
+    echo "Skipping engine installation (noengines flag set)."
+elif [ -f install-engines.sh ]; then
     cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
-    sudo -u pi ./install-engines.sh small
+    echo "Installing engines variant: $ENGINE_VARIANT"
+    sudo -u pi ./install-engines.sh "$ENGINE_VARIANT"
 else
     echo "install-engines.sh missing — cannot install engines."
 fi

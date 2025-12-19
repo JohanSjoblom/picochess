@@ -149,7 +149,11 @@ class AsyncRepeatingTimer:
 
     async def _run(self):
         while self._running:  # Continue running until the timer is stopped
-            await asyncio.sleep(self.interval)
+            try:
+                await asyncio.sleep(self.interval)
+            except asyncio.CancelledError:
+                # Timer cancelled during shutdown; exit quietly.
+                break
             if asyncio.iscoroutinefunction(self.callback):
                 await self.callback(*self.args, **self.kwargs)
             else:

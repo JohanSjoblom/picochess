@@ -1397,6 +1397,13 @@ class UciEngine(object):
                 # due to errors with readyok response crash issue #78 restrict to mame
                 if (self.is_mame or "PGN Replay" in self.engine_name) and send_ucinewgame:
                     # most calls except read_pgn_file newgame, and load new engine
+                    if "PGN Replay" in self.engine_name:
+                        # Legacy pgn_engine expects isready to load games before ucinewgame.
+                        try:
+                            logger.debug("sending isready ping before ucinewgame")
+                            await asyncio.wait_for(self.engine.ping(), timeout=2.0)
+                        except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
+                            logger.warning("engine isready ping failed before ucinewgame: %s", exc)
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine
         else:

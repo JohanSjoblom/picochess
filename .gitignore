@@ -32,6 +32,8 @@ engines/aarch64/extra/pgn_game_info.txt
 engines/aarch64/extra/pgn_engine-log.txt
 engines/x86_64/extra/pgn_game_info.txt
 engines/x86_64/extra/pgn_engine-log.txt
+engines/pgn_engine/pgn_game_info.txt
+engines/pgn_engine/pgn_engine-log.txt
 # Script engines are not yet in repo
 engines/script_engines/
 # ignore engine folders - let user manage them
@@ -117,4 +119,3 @@ lc0-weights-small.tar.gz
 pylint_errors.txt
 pylint_diff.txt
 pylint_raw_output.txt
-

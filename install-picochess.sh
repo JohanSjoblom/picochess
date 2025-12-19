@@ -240,6 +240,13 @@ else
     echo "creating virtual Python env named venv"
     sudo -u pi python3 -m venv "$REPO_DIR/venv"
 fi
+VENV_PYTHON="$REPO_DIR/venv/bin/python"
+if [ -x "$VENV_PYTHON" ]; then
+    if ! sudo -u pi "$VENV_PYTHON" -m pip --version >/dev/null 2>&1; then
+        echo "pip missing in venv - bootstrapping with ensurepip"
+        sudo -u pi "$VENV_PYTHON" -m ensurepip --upgrade >/dev/null 2>&1 || true
+    fi
+fi
 
 # picochess.ini
 if [ -f "$REPO_DIR/picochess.ini" ]; then
@@ -266,8 +273,8 @@ fi
 echo " ------- "
 echo "checking required python modules..."
 cd "$REPO_DIR"
-sudo -u pi "$REPO_DIR/venv/bin/pip3" install --upgrade pip
-sudo -u pi "$REPO_DIR/venv/bin/pip3" install --upgrade -r requirements.txt
+sudo -u pi "$REPO_DIR/venv/bin/python" -m pip install --upgrade pip
+sudo -u pi "$REPO_DIR/venv/bin/python" -m pip install --upgrade -r requirements.txt
 
 echo " ------- "
 echo "setting up picochess, obooksrv, gamesdb, and update services"

@@ -286,6 +286,12 @@ class ContinuousAnalysis:
                 # same situation as in stop
                 self._task = None
                 self._running = False
+                # Avoid bubbling cancellation in background analyser tasks (3.11+ keeps it pending).
+                task = asyncio.current_task()
+                if task and hasattr(task, "uncancel"):
+                    while task.cancelling():
+                        task.uncancel()
+                return
             except chess.engine.EngineTerminatedError:
                 logger.debug("Engine terminated while analysing - maybe user switched engine")
                 # have to stop analysing
@@ -1116,9 +1122,17 @@ class UciEngine(object):
             self.force_move()
 
     def stop_analysis(self):
-        """Stop background ContinuousAnalyser"""
+        """Stop background ContinuousAnalyser (soft-stop, then force-cancel if needed)."""
         if self.analyser and self.analyser.is_running():
-            self.analyser.cancel()  # @todo - find out why we need cancel and not stop
+            self.analyser.stop()
+
+            async def _force_cancel_if_hung():
+                await asyncio.sleep(0.5)
+                if self.analyser and self.analyser.is_running():
+                    self.analyser.cancel()
+
+            if self.loop:
+                self.loop.create_task(_force_cancel_if_hung())
 
     def force_move(self, timeout: float = 2.0):
         """

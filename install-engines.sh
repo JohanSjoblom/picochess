@@ -10,8 +10,8 @@ usage() {
 Usage: $0 [small|lite]
 
 Options:
-  small   Install the smaller aarch64 engine bundle.
-  lite    Install the lite/DGT-focused aarch64 engine bundle.
+  small   Install the smaller engine bundle for your architecture (aarch64 or x86_64).
+  lite    Install the lite/DGT-focused engine bundle for your architecture (aarch64 or x86_64).
 
 Notes:
   - Script only installs engines when the target directories are missing.

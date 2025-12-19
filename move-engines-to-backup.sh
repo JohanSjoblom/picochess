@@ -58,40 +58,18 @@ else
 fi
 
 # Move mame_emulation
-if [ "$ARCH" = "aarch64" ]; then
-    if [ -d "$SRC_DIR/mame_emulation" ]; then
-        echo "Moving $SRC_DIR/mame_emulation to $ENGINES_BACKUP_DIR/mame_emulation ..."
-        rm -rf "$ENGINES_BACKUP_DIR/mame_emulation"
-        mv "$SRC_DIR/mame_emulation" "$ENGINES_BACKUP_DIR/mame_emulation" || {
-            echo "Error: Failed to move $SRC_DIR/mame_emulation" >&2
+for extra_dir in mame_emulation rodent3 rodent4; do
+    if [ -d "$SRC_DIR/$extra_dir" ]; then
+        echo "Moving $SRC_DIR/$extra_dir to $ENGINES_BACKUP_DIR/$extra_dir ..."
+        rm -rf "$ENGINES_BACKUP_DIR/$extra_dir"
+        mv "$SRC_DIR/$extra_dir" "$ENGINES_BACKUP_DIR/$extra_dir" || {
+            echo "Error: Failed to move $SRC_DIR/$extra_dir" >&2
             exit 1
         }
     else
-        echo "No mame_emulation directory found — skipping."
+        echo "No $extra_dir directory found — skipping."
     fi
-
-    if [ -d "$SRC_DIR/rodent3" ]; then
-        echo "Moving $SRC_DIR/rodent3 to $ENGINES_BACKUP_DIR/rodent3 ..."
-        rm -rf "$ENGINES_BACKUP_DIR/rodent3"
-        mv "$SRC_DIR/rodent3" "$ENGINES_BACKUP_DIR/rodent3" || {
-            echo "Error: Failed to move $SRC_DIR/rodent3" >&2
-            exit 1
-        }
-    else
-        echo "No rodent3 directory found — skipping."
-    fi
-
-    if [ -d "$SRC_DIR/rodent4" ]; then
-        echo "Moving $SRC_DIR/rodent4 to $ENGINES_BACKUP_DIR/rodent4 ..."
-        rm -rf "$ENGINES_BACKUP_DIR/rodent4"
-        mv "$SRC_DIR/rodent4" "$ENGINES_BACKUP_DIR/rodent4" || {
-            echo "Error: Failed to move $SRC_DIR/rodent4" >&2
-            exit 1
-        }
-    else
-        echo "No rodent4 directory found — skipping."
-    fi
-fi
+done
 
 # Move LC0 weights if present
 if [ -d "$SRC_DIR/lc0_weights" ]; then

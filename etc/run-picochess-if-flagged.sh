@@ -7,8 +7,13 @@
 REPO_DIR="/opt/picochess"
 INSTALL_USER=$(stat -c %U "$REPO_DIR" 2>/dev/null || true)
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    echo "Error: could not determine non-root install user from $REPO_DIR owner." >&2
-    exit 1
+    if getent passwd pi >/dev/null 2>&1; then
+        INSTALL_USER="pi"
+        echo "Warning: using fallback install user 'pi'." >&2
+    else
+        echo "Error: could not determine non-root install user from $REPO_DIR owner." >&2
+        exit 1
+    fi
 fi
 INSTALL_USER_HOME=$(getent passwd "$INSTALL_USER" | cut -d: -f6)
 if [ -z "$INSTALL_USER_HOME" ]; then

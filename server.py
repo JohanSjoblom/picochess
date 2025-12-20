@@ -55,27 +55,6 @@ client_ips = []
 logger = logging.getLogger(__name__)
 
 
-def read_pgn_info():
-    info = {}
-    arch = platform.machine()
-    pgn_info_path = "/opt/picochess/engines/" + arch + "/extra/pgn_game_info.txt"
-    try:
-        with open(pgn_info_path) as info_file:
-            for line in info_file:
-                name, value = line.partition("=")[::2]
-                info[name.strip()] = value.strip()
-        return info
-    except (OSError, KeyError):
-        logger.error("Could not read pgn_game_info file")
-        info["PGN_GAME"] = "Game Error"
-        info["PGN_PROBLEM"] = ""
-        info["PGN_FEN"] = ""
-        info["PGN_RESULT"] = "*"
-        info["PGN_White"] = ""
-        info["PGN_Black"] = ""
-        info["PGN_White_ELO"] = ""
-        info["PGN_Black_ELO"] = ""
-        return info
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):

@@ -509,16 +509,6 @@ def log_pgn(state: PicochessState):
     logger.debug("molli pgn: no_guess_black: %s", state.no_guess_black)
 
 
-def read_pgn_info(headers: dict | None = None):
-    headers = headers or {}
-    return (
-        headers.get("Event", "?"),
-        headers.get("Problem", ""),
-        headers.get("FEN", ""),
-        headers.get("Result", "*"),
-        headers.get("White", ""),
-        headers.get("Black", ""),
-    )
 
 
 def read_online_result():

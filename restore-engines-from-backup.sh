@@ -15,8 +15,13 @@ if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
     INSTALL_USER=$(id -un 2>/dev/null || true)
 fi
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
-    exit 1
+    if getent passwd pi >/dev/null 2>&1; then
+        INSTALL_USER="pi"
+        echo "Warning: using fallback install user 'pi'." >&2
+    else
+        echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+        exit 1
+    fi
 fi
 INSTALL_USER_HOME=${HOME:-$(getent passwd "$INSTALL_USER" | cut -d: -f6)}
 if [ -z "$INSTALL_USER_HOME" ]; then

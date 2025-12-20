@@ -5,19 +5,10 @@
 #
 
 REPO_DIR="/opt/picochess"
-INSTALL_USER="${SUDO_USER:-${USER:-}}"
+INSTALL_USER=$(stat -c %U "$REPO_DIR" 2>/dev/null || true)
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(logname 2>/dev/null || true)
-fi
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(stat -c %U "$REPO_DIR" 2>/dev/null || true)
-fi
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    echo "Error: could not determine non-root install user from $REPO_DIR owner." >&2
     exit 1
-fi
-if [ "$INSTALL_USER" != "pi" ]; then
-    echo "Info: install user is '$INSTALL_USER' (not 'pi')."
 fi
 INSTALL_USER_HOME=$(getent passwd "$INSTALL_USER" | cut -d: -f6)
 if [ -z "$INSTALL_USER_HOME" ]; then

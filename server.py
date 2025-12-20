@@ -605,20 +605,8 @@ class WebDisplay(DisplayMsg):
                     pgn_game.headers["WhiteElo"] = str(comp_elo)
                     pgn_game.headers["BlackElo"] = str(user_elo)
             if "PGN Replay" in WebDisplay.engine_name:
-                info = {}
-                info = read_pgn_info()
-                pgn_game.headers["Event"] = WebDisplay.engine_name + engine_level
-                pgn_game.headers["Date"] = datetime.datetime.today().strftime("%Y.%m.%d")
-                pgn_game.headers["Site"] = "picochess.org"
-                pgn_game.headers["Round"] = ""
-                pgn_game.headers["White"] = info["PGN_White"]
-                pgn_game.headers["Black"] = info["PGN_Black"]
-                if "PGN_White_ELO" in info and "PGN_Black_ELO" in info:
-                    pgn_game.headers["WhiteElo"] = str(info["PGN_White_ELO"])
-                    pgn_game.headers["BlackElo"] = str(info["PGN_Black_ELO"])
-                else:
-                    pgn_game.headers["WhiteElo"] = "?"
-                    pgn_game.headers["BlackElo"] = "?"
+                # keep headers from shared state; do not re-read transfer file
+                pass
 
         if "ip_info" in self.shared:
             if "location" in self.shared["ip_info"]:

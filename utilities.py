@@ -265,7 +265,7 @@ def update_pico_engines():
 def update_pico_v4(reason: Optional[str] = None):
     """use the picochess-update.service and update on next boot"""
     # Path to the update trigger flag
-    flag_path = Path("/home/pi/run_picochess_update.flag")
+    flag_path = Path.home() / "run_picochess_update.flag"
     flag_reason = reason if reason else "pico"
 
     # Create the flag file if it doesn't exist

@@ -4,12 +4,33 @@
 # POSIX shell script to run PicoChess updater if flagged
 #
 
-FLAG="/home/pi/run_picochess_update.flag"
-PICO_SCRIPT="/opt/picochess/install-picochess.sh"
-ENGINE_SCRIPT="/opt/picochess/install-engines.sh"
-BOOKS_SCRIPT="/opt/picochess/install-books-games.sh"
-ENGINE_RESTORE_SCRIPT="/opt/picochess/restore-engines-from-backup.sh"
-BOOKS_RESTORE_SCRIPT="/opt/picochess/restore-books-games-from-backup.sh"
+REPO_DIR="/opt/picochess"
+INSTALL_USER="${SUDO_USER:-${USER:-}}"
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(logname 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(stat -c %U "$REPO_DIR" 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    exit 1
+fi
+if [ "$INSTALL_USER" != "pi" ]; then
+    echo "Info: install user is '$INSTALL_USER' (not 'pi')."
+fi
+INSTALL_USER_HOME=$(getent passwd "$INSTALL_USER" | cut -d: -f6)
+if [ -z "$INSTALL_USER_HOME" ]; then
+    echo "Error: could not determine home directory for $INSTALL_USER." >&2
+    exit 1
+fi
+
+FLAG="$INSTALL_USER_HOME/run_picochess_update.flag"
+PICO_SCRIPT="$REPO_DIR/install-picochess.sh"
+ENGINE_SCRIPT="$REPO_DIR/install-engines.sh"
+BOOKS_SCRIPT="$REPO_DIR/install-books-games.sh"
+ENGINE_RESTORE_SCRIPT="$REPO_DIR/restore-engines-from-backup.sh"
+BOOKS_RESTORE_SCRIPT="$REPO_DIR/restore-books-games-from-backup.sh"
 
 LOGFILE="/var/log/picochess-update.log"
 TIMESTAMP_FILE="/var/log/picochess-last-update"
@@ -62,7 +83,7 @@ if [ -f "$FLAG" ]; then
                     touch "$FAIL_FILE"
                     exit 1
                 fi
-                sudo -u pi sh "$ENGINE_SCRIPT" lite >>"$LOGFILE" 2>&1
+                sudo -u "$INSTALL_USER" sh "$ENGINE_SCRIPT" lite >>"$LOGFILE" 2>&1
                 STATUS=$?
                 ;;
             books-games)
@@ -71,7 +92,7 @@ if [ -f "$FLAG" ]; then
                     touch "$FAIL_FILE"
                     exit 1
                 fi
-                sudo -u pi sh "$BOOKS_SCRIPT" >>"$LOGFILE" 2>&1
+                sudo -u "$INSTALL_USER" sh "$BOOKS_SCRIPT" >>"$LOGFILE" 2>&1
                 STATUS=$?
                 ;;
             *)
@@ -87,14 +108,14 @@ if [ -f "$FLAG" ]; then
                 engines)
                     if [ -x "$ENGINE_RESTORE_SCRIPT" ]; then
                         echo "$(date): Restoring engines from backup due to failure." | tee -a "$LOGFILE"
-                        sudo -u pi sh "$ENGINE_RESTORE_SCRIPT" >>"$LOGFILE" 2>&1 || \
+                        sudo -u "$INSTALL_USER" sh "$ENGINE_RESTORE_SCRIPT" >>"$LOGFILE" 2>&1 || \
                             echo "$(date): WARNING: Failed to restore engines from backup." | tee -a "$LOGFILE"
                     fi
                     ;;
                 books-games)
                     if [ -x "$BOOKS_RESTORE_SCRIPT" ]; then
                         echo "$(date): Restoring book/game resources from backup due to failure." | tee -a "$LOGFILE"
-                        sudo -u pi sh "$BOOKS_RESTORE_SCRIPT" >>"$LOGFILE" 2>&1 || \
+                        sudo -u "$INSTALL_USER" sh "$BOOKS_RESTORE_SCRIPT" >>"$LOGFILE" 2>&1 || \
                             echo "$(date): WARNING: Failed to restore book/game resources from backup." | tee -a "$LOGFILE"
                     fi
                     ;;

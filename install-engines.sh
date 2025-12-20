@@ -2,7 +2,7 @@
 # install-engines.sh – Download and extract chess engines if missing
 # POSIX-compliant
 #
-# Run this as normal user pi, not as sudo
+# Run this as normal user, not as sudo
 #
 
 usage() {
@@ -40,6 +40,25 @@ if [ "$ENGINE_VARIANT" != "small" ] && [ "$ENGINE_VARIANT" != "lite" ]; then
     usage 1
 fi
 
+INSTALL_USER="${SUDO_USER:-${USER:-}}"
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(logname 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(id -un 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    exit 1
+fi
+INSTALL_USER_HOME=${HOME:-$(getent passwd "$INSTALL_USER" | cut -d: -f6)}
+if [ -z "$INSTALL_USER_HOME" ]; then
+    echo "Error: could not determine home directory for $INSTALL_USER." >&2
+    exit 1
+fi
+BACKUP_DIR_BASE="$INSTALL_USER_HOME/pico_backups"
+TMP_DIR="$BACKUP_DIR_BASE/current/tmp"
+
 REPO_DIR=${REPO_DIR:-/opt/picochess}
 RESTORE_SCRIPT="$REPO_DIR/restore-engines-from-backup.sh"
 ENGINES_DIR="$REPO_DIR/engines"
@@ -65,7 +84,7 @@ fi
 
 # Ensure top-level engines folder and tmp folder exist
 mkdir -p "$ENGINES_DIR" || exit 1
-mkdir -p /home/pi/pico_backups/current/tmp || exit 1
+mkdir -p "$TMP_DIR" || exit 1
 
 # --- aarch64 -----------------------------------------------------------------
 if [ "$ARCH" = "aarch64" ]; then
@@ -77,11 +96,11 @@ if [ "$ARCH" = "aarch64" ]; then
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_engines_lite.tar.gz"
-            TMPFILE="/home/pi/pico_backups/current/tmp/aarch64_engines_lite.tar.gz"
+            TMPFILE="$TMP_DIR/aarch64_engines_lite.tar.gz"
             ENGINE_DESC="aarch64 lite engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
-            TMPFILE="/home/pi/pico_backups/current/tmp/engines-aarch64-small.tar.gz"
+            TMPFILE="$TMP_DIR/engines-aarch64-small.tar.gz"
             ENGINE_DESC="aarch64 small engine package"
         fi
 
@@ -115,7 +134,7 @@ if [ "$ARCH" = "aarch64" ]; then
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
             MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_mame_lite.tar.gz"
-            MAME_TMP="/home/pi/pico_backups/current/tmp/aarch64_mame_lite.tar.gz"
+            MAME_TMP="$TMP_DIR/aarch64_mame_lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then
@@ -149,7 +168,7 @@ if [ "$ARCH" = "aarch64" ]; then
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
             RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent3_lite.tar.gz"
-            RODENT3_TMP="/home/pi/pico_backups/current/tmp/aarch64_rodent3_lite.tar.gz"
+            RODENT3_TMP="$TMP_DIR/aarch64_rodent3_lite.tar.gz"
 
             echo "Downloading Rodent III package..."
             if command -v curl >/dev/null 2>&1; then
@@ -179,7 +198,7 @@ if [ "$ARCH" = "aarch64" ]; then
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
             RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent4_lite.tar.gz"
-            RODENT4_TMP="/home/pi/pico_backups/current/tmp/aarch64_rodent4_lite.tar.gz"
+            RODENT4_TMP="$TMP_DIR/aarch64_rodent4_lite.tar.gz"
 
             echo "Downloading Rodent IV package..."
             if command -v curl >/dev/null 2>&1; then
@@ -218,11 +237,11 @@ if [ "$ARCH" = "x86_64" ]; then
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_engines_lite.tar.gz"
-            TMPFILE="/home/pi/pico_backups/current/tmp/x86_64_engines_lite.tar.gz"
+            TMPFILE="$TMP_DIR/x86_64_engines_lite.tar.gz"
             ENGINE_DESC="x86_64 lite engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
-            TMPFILE="/home/pi/pico_backups/current/tmp/engines-x86_64-small.tar.gz"
+            TMPFILE="$TMP_DIR/engines-x86_64-small.tar.gz"
             ENGINE_DESC="x86_64 small engine package"
         fi
 
@@ -256,7 +275,7 @@ if [ "$ARCH" = "x86_64" ]; then
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
             MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_mame_lite.tar.gz"
-            MAME_TMP="/home/pi/pico_backups/current/tmp/x86_64_mame_lite.tar.gz"
+            MAME_TMP="$TMP_DIR/x86_64_mame_lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then
@@ -290,7 +309,7 @@ if [ "$ARCH" = "x86_64" ]; then
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
             RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent3_lite.tar.gz"
-            RODENT3_TMP="/home/pi/pico_backups/current/tmp/x86_64_rodent3_lite.tar.gz"
+            RODENT3_TMP="$TMP_DIR/x86_64_rodent3_lite.tar.gz"
 
             echo "Downloading Rodent III package..."
             if command -v curl >/dev/null 2>&1; then
@@ -320,7 +339,7 @@ if [ "$ARCH" = "x86_64" ]; then
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
             RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent4_lite.tar.gz"
-            RODENT4_TMP="/home/pi/pico_backups/current/tmp/x86_64_rodent4_lite.tar.gz"
+            RODENT4_TMP="$TMP_DIR/x86_64_rodent4_lite.tar.gz"
 
             echo "Downloading Rodent IV package..."
             if command -v curl >/dev/null 2>&1; then
@@ -355,7 +374,7 @@ if [ ! -d "$ENGINES_DIR/lc0_weights" ]; then
     mkdir -p "$ENGINES_DIR/lc0_weights" || exit 1
 
     WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/lc0_weights.tar.gz"
-    TMPFILE="/home/pi/pico_backups/current/tmp/lc0_weights.tar.gz"
+    TMPFILE="$TMP_DIR/lc0_weights.tar.gz"
 
     echo "Downloading LC0 weights..."
     if command -v curl >/dev/null 2>&1; then
@@ -387,7 +406,7 @@ if [ ! -d "$ENGINES_DIR/script_engines" ]; then
     mkdir -p "$ENGINES_DIR/script_engines" || exit 1
 
     SCRIPTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/script_engines.tar.gz"
-    TMPFILE="/home/pi/pico_backups/current/tmp/script_engines.tar.gz"
+    TMPFILE="$TMP_DIR/script_engines.tar.gz"
 
     echo "Downloading script engines..."
     if command -v curl >/dev/null 2>&1; then
@@ -419,7 +438,7 @@ if [ "$ENGINE_VARIANT" = "lite" ]; then
         mkdir -p "$ENGINES_DIR/pgn_engine/pgn_audio" || exit 1
 
         AUDIO_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/pgn_audio.tar.gz"
-        TMPFILE="/home/pi/pico_backups/current/tmp/pgn_audio.tar.gz"
+        TMPFILE="$TMP_DIR/pgn_audio.tar.gz"
 
         echo "Downloading pgn_audio files..."
         if command -v curl >/dev/null 2>&1; then

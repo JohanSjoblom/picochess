@@ -2,12 +2,28 @@
 # restore-engines-from-backup.sh - Restore engine directories from backup
 # POSIX-compliant companion to move-engines-to-backup.sh
 #
-# Run this as pi user - not root
+# Run this as a normal user - not root
 #
 
-BACKUP_ROOT="/home/pi/pico_backups/current/engines_backup"
 DEFAULT_ARCH=$(uname -m)
 REPO_DIR=${REPO_DIR:-/opt/picochess}
+INSTALL_USER="${SUDO_USER:-${USER:-}}"
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(logname 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(id -un 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    exit 1
+fi
+INSTALL_USER_HOME=${HOME:-$(getent passwd "$INSTALL_USER" | cut -d: -f6)}
+if [ -z "$INSTALL_USER_HOME" ]; then
+    echo "Error: could not determine home directory for $INSTALL_USER." >&2
+    exit 1
+fi
+BACKUP_ROOT="$INSTALL_USER_HOME/pico_backups/current/engines_backup"
 
 if [ ! -d "$REPO_DIR" ]; then
     echo "Repository directory $REPO_DIR does not exist." 1>&2

@@ -8,7 +8,23 @@
 # See install-picochess.md documentation for more info
 REPO_DIR="/opt/picochess"
 BRANCH="master"
-BACKUP_DIR_BASE="/home/pi/pico_backups"
+INSTALL_USER="${SUDO_USER:-${USER:-}}"
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(logname 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    exit 1
+fi
+if [ "$INSTALL_USER" != "pi" ]; then
+    echo "Info: install user is '$INSTALL_USER' (not 'pi')."
+fi
+INSTALL_USER_HOME=$(getent passwd "$INSTALL_USER" | cut -d: -f6)
+if [ -z "$INSTALL_USER_HOME" ]; then
+    echo "Error: could not determine home directory for $INSTALL_USER." >&2
+    exit 1
+fi
+BACKUP_DIR_BASE="$INSTALL_USER_HOME/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current"
 WORKING_COPY_DIR="$BACKUP_DIR/working_copy"
 UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
@@ -80,14 +96,14 @@ echo " --------------------------------------------------- "
 echo "System updates done - Starting Picochess installation"
 echo " --------------------------------------------------- "
 if [ -d "$REPO_DIR" ]; then
-    chown -R pi:pi "$REPO_DIR"
-    sudo -u pi git config --global --add safe.directory "$REPO_DIR"
+    chown -R "$INSTALL_USER:$INSTALL_USER" "$REPO_DIR"
+    sudo -u "$INSTALL_USER" git config --global --add safe.directory "$REPO_DIR"
 fi
 
 # BACKUP section starts
 ###############################################################################
 # Fast Incremental Backup & Git Reset Script for $REPO_DIR
-# - Maintains a single backup in /home/pi/pico_backups/current
+# - Maintains a single backup in $BACKUP_DIR
 # - Uses rsync to copy only changed files
 # - Excludes 'engines/' and 'mame/' from backup
 # - Preserves untracked files outside excluded folders
@@ -98,8 +114,8 @@ if [ -d "$REPO_DIR" ]; then
     cd "$REPO_DIR" || exit 1
 
     # Determine Git state
-    CURRENT_BRANCH=$(sudo -u pi git rev-parse --abbrev-ref HEAD)
-    DETACHED_TAG=$(sudo -u pi git describe --tags --exact-match 2>/dev/null)
+    CURRENT_BRANCH=$(sudo -u "$INSTALL_USER" git rev-parse --abbrev-ref HEAD)
+    DETACHED_TAG=$(sudo -u "$INSTALL_USER" git describe --tags --exact-match 2>/dev/null)
 
     # Only do backup for master branch or detached tag
     if [ "$CURRENT_BRANCH" = "$BRANCH" ] || [ "$CURRENT_BRANCH" = "HEAD" ]; then
@@ -107,28 +123,28 @@ if [ -d "$REPO_DIR" ]; then
 
         # Create required directories
         mkdir -p "$WORKING_COPY_DIR" "$UNTRACKED_DIR"
-        # Ensure backup directory is writable by pi
-        chown pi:pi "$BACKUP_DIR_BASE"
-        chown pi:pi "$BACKUP_DIR"
+        # Ensure backup directory is writable by install user
+        chown "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE"
+        chown "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR"
         echo "Creating backup in: $BACKUP_DIR"
 
         # === Save Git diff of local changes ===
         if [ -d "$REPO_DIR/.git" ]; then
             echo "Saving git diff..."
-            sudo -u pi git diff > "$BACKUP_DIR/local_changes.diff"
-            chown pi:pi "$BACKUP_DIR/local_changes.diff"
+            sudo -u "$INSTALL_USER" git diff > "$BACKUP_DIR/local_changes.diff"
+            chown "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR/local_changes.diff"
 
             # Save untracked files (excluding engines/)
             echo "Backing up untracked files..."
             rm -rf "$UNTRACKED_DIR"/*
-            sudo -u pi git ls-files --others --exclude-standard | while read -r file; do
+            sudo -u "$INSTALL_USER" git ls-files --others --exclude-standard | while read -r file; do
                 case "$file" in
                     engines/aarch64/*|engines/x86_64/*|engines/lc0_weights/*|engines/mame_emulation/*) continue ;;
                 esac
                 mkdir -p "$UNTRACKED_DIR/$(dirname "$file")"
                 cp -p "$file" "$UNTRACKED_DIR/$file"
             done
-            chown pi:pi "$UNTRACKED_DIR"
+            chown "$INSTALL_USER:$INSTALL_USER" "$UNTRACKED_DIR"
         else
             echo "No Git repository found to backup. Doing only rsync of working directory."
         fi
@@ -136,7 +152,7 @@ if [ -d "$REPO_DIR" ]; then
         # Sync working copy excluding .git, engines/, and mame_emulation/
         cd "$REPO_DIR" || exit 1
         echo "Syncing working directory..."
-        sudo -u pi rsync -a --delete --info=progress2 \
+        sudo -u "$INSTALL_USER" rsync -a --delete --info=progress2 \
             --exclude='.git/' \
             --exclude='engines/aarch64/' \
             --exclude='engines/x86_64/' \
@@ -160,37 +176,37 @@ fi
 echo " ------- "
 if [ -d "$REPO_DIR/.git" ]; then
     cd "$REPO_DIR" || exit 1
-    CURRENT_BRANCH=$(sudo -u pi git rev-parse --abbrev-ref HEAD)
-    DETACHED_TAG=$(sudo -u pi git describe --tags --exact-match 2>/dev/null)
+    CURRENT_BRANCH=$(sudo -u "$INSTALL_USER" git rev-parse --abbrev-ref HEAD)
+    DETACHED_TAG=$(sudo -u "$INSTALL_USER" git describe --tags --exact-match 2>/dev/null)
 
     if [ "$CURRENT_BRANCH" = "HEAD" ]; then
         if [ -n "$DETACHED_TAG" ]; then
             echo "Detached tag '$DETACHED_TAG' detected — forcing reset..."
-            sudo -u pi git fetch --tags origin
-            sudo -u pi git checkout "$DETACHED_TAG"
-            sudo -u pi git reset --hard "$DETACHED_TAG"
+            sudo -u "$INSTALL_USER" git fetch --tags origin
+            sudo -u "$INSTALL_USER" git checkout "$DETACHED_TAG"
+            sudo -u "$INSTALL_USER" git reset --hard "$DETACHED_TAG"
         else
             echo "Detached HEAD without tag — no forced update."
         fi
 
     elif [ "$CURRENT_BRANCH" = "$BRANCH" ]; then
         echo "On master branch — forcing update to latest official version..."
-        sudo -u pi git fetch origin
-        sudo -u pi git reset --hard "origin/$BRANCH"
+        sudo -u "$INSTALL_USER" git fetch origin
+        sudo -u "$INSTALL_USER" git reset --hard "origin/$BRANCH"
 
     else
         echo "On development branch '$CURRENT_BRANCH' — doing a safe pull..."
-        sudo -u pi git fetch origin
-        sudo -u pi git pull --no-rebase origin "$CURRENT_BRANCH" || {
+        sudo -u "$INSTALL_USER" git fetch origin
+        sudo -u "$INSTALL_USER" git pull --no-rebase origin "$CURRENT_BRANCH" || {
             echo "WARNING: Git pull failed on branch '$CURRENT_BRANCH'. Check your local changes."
         }
     fi
 
 else
-    echo "No git repo found — fetching picochess... cloning using pi user"
+    echo "No git repo found — fetching picochess... cloning using install user"
     mkdir -p "$(dirname "$REPO_DIR")"
-    chown pi:pi "$(dirname "$REPO_DIR")"
-    sudo -u pi git clone https://github.com/JohanSjoblom/picochess "$REPO_DIR"
+    chown "$INSTALL_USER:$INSTALL_USER" "$(dirname "$REPO_DIR")"
+    sudo -u "$INSTALL_USER" git clone https://github.com/JohanSjoblom/picochess "$REPO_DIR"
     cd "$REPO_DIR" || exit 1
 fi
 echo " ------- "
@@ -198,53 +214,53 @@ echo " ------- "
 
 # Upload directory
 if [ -d "$REPO_DIR/games/uploads" ]; then
-    echo "upload dir already exists - making sure pi is owner"
-    chown -R pi:pi "$REPO_DIR/games/uploads"
+    echo "upload dir already exists - making sure install user is owner"
+    chown -R "$INSTALL_USER:$INSTALL_USER" "$REPO_DIR/games/uploads"
 else
-    echo "creating uploads dir for pi user"
-    sudo -u pi mkdir "$REPO_DIR/games/uploads"
+    echo "creating uploads dir for install user"
+    sudo -u "$INSTALL_USER" mkdir "$REPO_DIR/games/uploads"
 fi
 
-# install engines as user pi if there is no engines architecture folder
+# install engines as install user if there is no engines architecture folder
 if [ "$SKIP_ENGINES" = true ]; then
     echo "Skipping engine installation (noengines flag set)."
 elif [ -f install-engines.sh ]; then
     cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
     echo "Installing engines variant: $ENGINE_VARIANT"
-    sudo -u pi ./install-engines.sh "$ENGINE_VARIANT"
+    sudo -u "$INSTALL_USER" ./install-engines.sh "$ENGINE_VARIANT"
 else
     echo "install-engines.sh missing — cannot install engines."
 fi
 
-# Ensure engines folder belongs to pi (in case user ran install-engines with sudo)
+# Ensure engines folder belongs to install user (in case user ran install-engines with sudo)
 if [ -d "$REPO_DIR/engines" ]; then
     echo "Fixing ownership for engines folder..."
-    chown -R pi:pi "$REPO_DIR/engines" 2>/dev/null || true
+    chown -R "$INSTALL_USER:$INSTALL_USER" "$REPO_DIR/engines" 2>/dev/null || true
 fi
 
 if [ -d "$REPO_DIR/logs" ]; then
-    echo "logs dir already exists - making sure pi is owner"
-    chown -R pi:pi "$REPO_DIR/logs"
+    echo "logs dir already exists - making sure install user is owner"
+    chown -R "$INSTALL_USER:$INSTALL_USER" "$REPO_DIR/logs"
 else
-    echo "creating logs dir for pi user"
-    sudo -u pi mkdir "$REPO_DIR/logs"
+    echo "creating logs dir for install user"
+    sudo -u "$INSTALL_USER" mkdir "$REPO_DIR/logs"
 fi
 
 echo " ------- "
 if [ -d "$REPO_DIR/venv" ]; then
-    echo "venv already exists - making sure pi is owner and group"
-    chown -R pi "$REPO_DIR/venv"
-    chgrp -R pi "$REPO_DIR/venv"
+    echo "venv already exists - making sure install user is owner and group"
+    chown -R "$INSTALL_USER" "$REPO_DIR/venv"
+    chgrp -R "$INSTALL_USER" "$REPO_DIR/venv"
 else
     echo "creating virtual Python env named venv"
-    sudo -u pi python3 -m venv "$REPO_DIR/venv"
+    sudo -u "$INSTALL_USER" python3 -m venv "$REPO_DIR/venv"
 fi
 VENV_PYTHON="$REPO_DIR/venv/bin/python"
 if [ -x "$VENV_PYTHON" ]; then
-    if ! sudo -u pi "$VENV_PYTHON" -m pip --version >/dev/null 2>&1; then
+    if ! sudo -u "$INSTALL_USER" "$VENV_PYTHON" -m pip --version >/dev/null 2>&1; then
         echo "pip missing in venv - bootstrapping with ensurepip"
-        sudo -u pi "$VENV_PYTHON" -m ensurepip --upgrade >/dev/null 2>&1 || true
+        sudo -u "$INSTALL_USER" "$VENV_PYTHON" -m ensurepip --upgrade >/dev/null 2>&1 || true
     fi
 fi
 
@@ -254,7 +270,7 @@ if [ -f "$REPO_DIR/picochess.ini" ]; then
 else
     cd "$REPO_DIR"
     cp picochess.ini.example-web-$(uname -m) picochess.ini
-    chown pi picochess.ini
+    chown "$INSTALL_USER" picochess.ini
 fi
 
 # no copying of example engines.ini - they are in resource files
@@ -266,19 +282,28 @@ if [ -f "$REPO_DIR/talker/voices/voices.ini" ]; then
 else
     cd "$REPO_DIR"
     cp voices-example.ini "$REPO_DIR/talker/voices/voices.ini"
-    chown pi "$REPO_DIR/talker/voices/voices.ini"
+    chown "$INSTALL_USER" "$REPO_DIR/talker/voices/voices.ini"
 fi
 
 # Python module check
 echo " ------- "
 echo "checking required python modules..."
 cd "$REPO_DIR"
-sudo -u pi "$REPO_DIR/venv/bin/python" -m pip install --upgrade pip
-sudo -u pi "$REPO_DIR/venv/bin/python" -m pip install --upgrade -r requirements.txt
+sudo -u "$INSTALL_USER" "$REPO_DIR/venv/bin/python" -m pip install --upgrade pip
+sudo -u "$INSTALL_USER" "$REPO_DIR/venv/bin/python" -m pip install --upgrade -r requirements.txt
 
 echo " ------- "
 echo "setting up picochess, obooksrv, gamesdb, and update services"
 cp etc/picochess.service /etc/systemd/system/
+INSTALL_USER_ID=$(id -u "$INSTALL_USER" 2>/dev/null || true)
+if [ -n "$INSTALL_USER_ID" ]; then
+    sed -i \
+        -e "s|^Environment=\"XAUTHORITY=.*\"|Environment=\"XAUTHORITY=$INSTALL_USER_HOME/.Xauthority\"|" \
+        -e "s|^Environment=\"XDG_RUNTIME_DIR=.*\"|Environment=\"XDG_RUNTIME_DIR=/run/user/$INSTALL_USER_ID\"|" \
+        -e "s|^User=.*|User=$INSTALL_USER|" \
+        -e "s|^Group=.*|Group=$INSTALL_USER|" \
+        /etc/systemd/system/picochess.service
+fi
 ln -sf "$REPO_DIR/obooksrv/$(uname -m)/obooksrv" "$REPO_DIR/obooksrv/obooksrv"
 cp etc/obooksrv.service /etc/systemd/system/
 ln -sf "$REPO_DIR/gamesdb/$(uname -m)/tcscid" "$REPO_DIR/gamesdb/tcscid"
@@ -335,7 +360,7 @@ echo " ------- setcap end ------- "
 
 # backup folder ownership fix
 echo "Fixing ownership for backup folders - in case user has run install-engines as sudo"
-chown -R pi:pi "$BACKUP_DIR_BASE" 2>/dev/null || true
+chown -R "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE" 2>/dev/null || true
 
 echo "Picochess installation complete. Please reboot"
 echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"

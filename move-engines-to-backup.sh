@@ -8,7 +8,7 @@
 # Used when preparing for a fresh engine installation.
 # Compatible with install-picochess.sh backup layout.
 ###############################################################################
-# Run this script as the 'pi' user (not as root).
+# Run this script as a normal user (not as root).
 # Use it to prepare for installing the latest engines:
 #
 # 1. Move your existing engines to the backup folder:
@@ -28,7 +28,23 @@ if [ ! -d "$REPO_DIR" ]; then
     exit 1
 fi
 
-BACKUP_DIR_BASE="/home/pi/pico_backups"
+INSTALL_USER="${SUDO_USER:-${USER:-}}"
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(logname 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(id -un 2>/dev/null || true)
+fi
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    echo "Error: could not determine non-root install user. Set INSTALL_USER and retry." >&2
+    exit 1
+fi
+INSTALL_USER_HOME=${HOME:-$(getent passwd "$INSTALL_USER" | cut -d: -f6)}
+if [ -z "$INSTALL_USER_HOME" ]; then
+    echo "Error: could not determine home directory for $INSTALL_USER." >&2
+    exit 1
+fi
+BACKUP_DIR_BASE="$INSTALL_USER_HOME/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current"
 ENGINES_BACKUP_DIR="$BACKUP_DIR/engines_backup"
 
@@ -112,7 +128,7 @@ else
 fi
 
 # Final ownership fix (optional but consistent)
-chown -R pi:pi "$ENGINES_BACKUP_DIR"
+chown -R "$INSTALL_USER:$INSTALL_USER" "$ENGINES_BACKUP_DIR"
 
 echo "---------------------------------------------"
 echo " Engine directories moved successfully."

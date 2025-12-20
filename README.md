@@ -86,7 +86,7 @@ Installation with more detailed info
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.
 2. Use Raspberry Pi Imager to create a PI operating system on your SD card as follows:
 3. Choose PI 4 and 64bit OS (I have not tested PI 3 yet, but feel free to test)
-4. Username is assumed to be pi which should be standard on the imager. You can make sure by editing options in the imager.
+4. Username is typically pi (default in Raspberry Pi Imager). The user you install with should be the same account that runs picochess as a service. Installing under a different user than you log in with may cause permission issues (for example, updates).
 5. If you don't not use a network cable on your PI remember to define your WiFi settings.
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.

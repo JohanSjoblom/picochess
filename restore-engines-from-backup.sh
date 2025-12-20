@@ -31,7 +31,7 @@ if [ ! -d "$REPO_DIR" ]; then
 fi
 
 usage() {
-    echo "Usage: $0 {arch [ARCH]|lc0|mame|rodent3|rodent4|all [ARCH]}" 1>&2
+    echo "Usage: $0 {arch [ARCH]|lc0|mame|rodent3|rodent4|script|pgn_audio|all [ARCH]}" 1>&2
     exit 1
 }
 
@@ -100,6 +100,30 @@ restore_rodent4() {
     fi
 }
 
+restore_script_engines() {
+    if [ -d "$BACKUP_ROOT/script_engines" ]; then
+        echo "Restoring engines/script_engines from backup..."
+        rm -rf "$REPO_DIR/engines/script_engines"
+        mkdir -p "$REPO_DIR/engines" || exit 1
+        cp -R "$BACKUP_ROOT/script_engines" "$REPO_DIR/engines/" || exit 1
+    else
+        echo "No backup available for engines/script_engines" 1>&2
+        return 1
+    fi
+}
+
+restore_pgn_audio() {
+    if [ -d "$BACKUP_ROOT/pgn_engine/pgn_audio" ]; then
+        echo "Restoring engines/pgn_engine/pgn_audio from backup..."
+        rm -rf "$REPO_DIR/engines/pgn_engine/pgn_audio"
+        mkdir -p "$REPO_DIR/engines/pgn_engine" || exit 1
+        cp -R "$BACKUP_ROOT/pgn_engine/pgn_audio" "$REPO_DIR/engines/pgn_engine/" || exit 1
+    else
+        echo "No backup available for engines/pgn_engine/pgn_audio" 1>&2
+        return 1
+    fi
+}
+
 if [ $# -eq 0 ]; then
     ACTION="all"
 else
@@ -124,6 +148,12 @@ case $ACTION in
     rodent4)
         restore_rodent4 || exit 1
         ;;
+    script)
+        restore_script_engines || exit 1
+        ;;
+    pgn_audio)
+        restore_pgn_audio || exit 1
+        ;;
     all)
         ARCH_VALUE=$1
         STATUS=0
@@ -132,6 +162,8 @@ case $ACTION in
         restore_mame || STATUS=1
         restore_rodent3 || STATUS=1
         restore_rodent4 || STATUS=1
+        restore_script_engines || STATUS=1
+        restore_pgn_audio || STATUS=1
         exit $STATUS
         ;;
     *)

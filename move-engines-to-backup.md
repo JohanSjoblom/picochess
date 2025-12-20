@@ -13,7 +13,7 @@ This ensures that the old versions are preserved, and that `install-picochess.sh
 
 ## ⚙️ Usage
 
-Run the script as the **`pi` user**, not as `root`.
+Run the script as a normal user (not `root`).
 
 ```bash
 # Step 1 — Move existing engines to backup
@@ -30,9 +30,14 @@ Run the script as the **`pi` user**, not as `root`.
 - Moves the following folders from `/opt/picochess/engines/` to the backup area:
   - `engines/<architecture>` (for example `aarch64` or `x86_64`)
   - `engines/lc0_weights`
+  - `engines/mame_emulation`
+  - `engines/rodent3`
+  - `engines/rodent4`
+  - `engines/script_engines`
+  - `engines/pgn_engine/pgn_audio`
 - Places the backups inside:
   ```
-  /home/pi/pico_backups/current/engines_backup/
+  /home/<user>/pico_backups/current/engines_backup/
   ```
 - Overwrites any previous backup of these folders.
 

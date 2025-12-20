@@ -254,6 +254,8 @@ class PicochessState:
         self.max_guess = 0
         self.max_guess_black = 0
         self.max_guess_white = 0
+        self.pgn_engine_games: list[dict[str, Any]] = []
+        self.pgn_engine_game_index = -1
         self.pgn_engine_total_halfmoves: int | None = None
         self.pgn_engine_result = "*"
         self.no_guess_black = 1
@@ -507,29 +509,16 @@ def log_pgn(state: PicochessState):
     logger.debug("molli pgn: no_guess_black: %s", state.no_guess_black)
 
 
-def read_pgn_info_from_file(pgn_info_path):
-    info = {}
-    try:
-        with open(pgn_info_path) as info_file:
-            for line in info_file:
-                name, value = line.partition("=")[::2]
-                info[name.strip()] = value.strip()
-        return (
-            info["PGN_GAME"],
-            info["PGN_PROBLEM"],
-            info["PGN_FEN"],
-            info["PGN_RESULT"],
-            info["PGN_White"],
-            info["PGN_Black"],
-        )
-    except (OSError, KeyError):
-        logger.error("Could not read pgn_game_info file")
-        return "Game Error", "", "", "*", "", ""
-
-
-def read_pgn_info():
-    arch = platform.machine()
-    return read_pgn_info_from_file("/opt/picochess/engines/" + arch + "/extra/pgn_game_info.txt")
+def read_pgn_info(headers: dict | None = None):
+    headers = headers or {}
+    return (
+        headers.get("Event", "?"),
+        headers.get("Problem", ""),
+        headers.get("FEN", ""),
+        headers.get("Result", "*"),
+        headers.get("White", ""),
+        headers.get("Black", ""),
+    )
 
 
 def read_online_result():
@@ -3490,6 +3479,45 @@ async def main() -> None:
             #  @todo2 should be more state variables to reset here?
             self.state.autoplay_pgn_file = False  # prevent autoplay starting for next pgn read
 
+        def _load_pgn_engine_games(self, pgn_file: str) -> None:
+            self.state.pgn_engine_games = []
+            self.state.pgn_engine_game_index = -1
+            self.state.pgn_engine_total_halfmoves = None
+            self.state.pgn_engine_result = "*"
+            if not pgn_file:
+                return
+            try:
+                with open(pgn_file) as f:
+                    while True:
+                        pgn_game = chess.pgn.read_game(f)
+                        if not pgn_game:
+                            break
+                        headers = dict(pgn_game.headers)
+                        self.state.pgn_engine_games.append(
+                            {
+                                "headers": headers,
+                                "total_halfmoves": sum(1 for _ in pgn_game.mainline_moves()),
+                                "result": headers.get("Result", "*"),
+                            }
+                        )
+            except (OSError, ValueError) as exc:
+                logger.debug("Could not read pgn_engine file %s: %s", pgn_file, exc)
+
+        def _apply_pgn_engine_game(self, game_info: dict[str, Any]) -> None:
+            headers = dict(game_info.get("headers", {}))
+            ensure_important_headers(headers)
+            self.shared["headers"] = headers
+            EventHandler.write_to_clients({"event": "Header", "headers": dict(headers)})
+            self.state.pgn_engine_total_halfmoves = game_info.get("total_halfmoves")
+            self.state.pgn_engine_result = game_info.get("result", "*")
+
+        def _advance_pgn_engine_game(self) -> None:
+            if not self.state.pgn_engine_games:
+                return
+            next_index = (self.state.pgn_engine_game_index + 1) % len(self.state.pgn_engine_games)
+            self.state.pgn_engine_game_index = next_index
+            self._apply_pgn_engine_game(self.state.pgn_engine_games[next_index])
+
         async def process_main_events(self, event):
             """Consume event from evt_queue"""
             if (
@@ -3661,9 +3689,10 @@ async def main() -> None:
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
                     self.state.play_mode = PlayMode.USER_WHITE
-                    # issue #61 - pgn_engine needs newgame at this point for pgn_game_info file
+                    if self.pgn_mode():
+                        self.engine.option("game_sequence", "forward")
+                        await self.engine.send()
                     await self.engine.newgame(self.state.game.copy())
-                    await asyncio.sleep(0.5)  # give pgn_engine time to write the pgn_game_info file
                     self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -3780,42 +3809,14 @@ async def main() -> None:
                     await self.set_emulation_tctrl()
 
                 if self.pgn_mode():
-                    # read metadata directly from the PGN engine file (for headers, move counts, end detection)
+                    # read metadata directly from the PGN engine file (headers, move counts, end detection)
                     pgn_options = self.engine.get_pgn_options() or {}
                     pgn_file = pgn_options.get("pgn_game_file")
-                    pgn_headers: dict[str, str] = {}
-                    self.state.pgn_engine_total_halfmoves = None
-                    self.state.pgn_engine_result = "*"
-                    pgn_problem = ""
-                    pgn_fen = ""
-                    if pgn_file:
-                        try:
-                            with open(pgn_file) as f:
-                                pgn_game = chess.pgn.read_game(f)
-                            if pgn_game:
-                                pgn_headers = dict(pgn_game.headers)
-                                self.state.pgn_engine_total_halfmoves = sum(1 for _ in pgn_game.mainline_moves())
-                                self.state.pgn_engine_result = pgn_headers.get("Result", "*")
-                                pgn_problem = pgn_headers.get("Problem", "") or ""
-                                pgn_fen = pgn_headers.get("FEN", "") or ""
-                        except (OSError, ValueError) as exc:
-                            logger.debug("Could not read pgn_engine file %s: %s", pgn_file, exc)
-                    # refresh shared headers for pgn_engine games so web/display show correct metadata
-                    headers = {
-                        "Event": pgn_headers.get("Event", "?") if pgn_headers else "?",
-                        "Site": pgn_headers.get("Site", "?") if pgn_headers else "?",
-                        "Date": pgn_headers.get("Date", "?") if pgn_headers else "?",
-                        "Round": pgn_headers.get("Round", "?") if pgn_headers else "?",
-                        "White": pgn_headers.get("White", "?") if pgn_headers else "?",
-                        "Black": pgn_headers.get("Black", "?") if pgn_headers else "?",
-                        "Result": pgn_headers.get("Result", "*") if pgn_headers else "*",
-                    }
-                    if pgn_headers.get("FEN"):
-                        headers["SetUp"] = pgn_headers.get("SetUp", "1")
-                        headers["FEN"] = pgn_headers["FEN"]
-                    ensure_important_headers(headers)
-                    self.shared["headers"] = headers
-                    EventHandler.write_to_clients({"event": "Header", "headers": dict(headers)})
+                    self._load_pgn_engine_games(pgn_file)
+                    self._advance_pgn_engine_game()
+                    headers = self.shared.get("headers", {}) or {}
+                    pgn_problem = headers.get("Problem", "")
+                    pgn_fen = headers.get("FEN", "")
 
                     if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                         await self.set_fen_from_pgn(pgn_fen)
@@ -3997,6 +3998,8 @@ async def main() -> None:
                     else:
                         ModeInfo.set_online_mode(mode=False)
 
+                    if self.pgn_mode():
+                        self._advance_pgn_engine_game()
                     await self.engine.newgame(self.state.game.copy())
 
                     self.state.best_sent_depth.reset()

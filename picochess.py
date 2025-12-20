@@ -3492,6 +3492,9 @@ async def main() -> None:
                         pgn_game = chess.pgn.read_game(f)
                         if not pgn_game:
                             break
+                        if getattr(pgn_game, "errors", []):
+                            logger.error("Skipping remaining PGN games after parse error: %s", pgn_game.errors)
+                            break
                         headers = dict(pgn_game.headers)
                         self.state.pgn_engine_games.append(
                             {

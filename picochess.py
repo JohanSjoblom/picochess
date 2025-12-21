@@ -1042,6 +1042,9 @@ async def main() -> None:
                 "user_name": user_name,
                 "user_elo": self.args.pgn_elo,
                 "rspeed": round(float(args.rspeed), 2),
+                "book_file": self.state.book_in_use,
+                # currently selected opening book for engine and web book tab
+                "book_file": self.state.book_in_use,
             }
 
             await DisplayMsg.show(Message.SYSTEM_INFO(info=sys_info))
@@ -5092,8 +5095,12 @@ async def main() -> None:
                 write_picochess_ini("book", event.book["file"])
                 logger.debug("changing opening book [%s]", event.book["file"])
                 self.bookreader = chess.polyglot.open_reader(event.book["file"])
-                await DisplayMsg.show(Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok))
+                await DisplayMsg.show(
+                    Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok)
+                )
+                # keep track of selected opening book for engine, PGN and web book explorer
                 self.state.book_in_use = event.book["file"]
+                await DisplayMsg.show(Message.SYSTEM_INFO(info={"book_file": self.state.book_in_use}))
                 self.state.stop_fen_timer()
 
             elif isinstance(event, Event.SHOW_ENGINENAME):

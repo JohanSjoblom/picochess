@@ -142,7 +142,8 @@ moveListEl = $('#moveList')
 
 var gameHistory, fenHash, currentPosition;
 const SERVER_NAME = location.hostname
-const OBOCK_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7777';
+// Opening book and games database servers
+const BOOK_SERVER_PREFIX = ''; // same origin
 const GAMES_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7778';
 
 fenHash = {};
@@ -157,6 +158,10 @@ gameHistory.variations = [];
 
 var setupBoardFen = START_FEN;
 var dataTableFen = START_FEN;
+
+// web-specific opening book selection (independent from engine)
+var webBookList = [];
+var currentWebBookIndex = 0;
 var chessGameType = 0; // 0=Standard ; 1=Chess960
 var computerside = ""; // color played by the computer
 
@@ -207,6 +212,59 @@ function isLightTheme() {
     return r > 127 && g > 127 && b > 127;
 }
 
+function updateBookHeader(book) {
+    if (!book) {
+        return;
+    }
+    var label = (book.label || '').trim();
+    var file = (book.file || '').trim();
+
+    if (!label && file) {
+        var parts = file.split(/[\\/]/);
+        label = parts[parts.length - 1].replace(/\.bin$/i, '');
+    }
+    if (!label) {
+        label = 'No book';
+    }
+
+    $('#currentBookName').text(label);
+    $('#currentBookContainer').removeClass('d-none');
+}
+
+function loadWebBookList() {
+    $.getJSON('/book', { action: 'get_book_list' }, function (data) {
+        if (data && data.books) {
+            webBookList = data.books;
+            if (typeof data.current_index === 'number') {
+                currentWebBookIndex = data.current_index;
+            } else {
+                currentWebBookIndex = 0;
+            }
+            if (webBookList.length) {
+                updateBookHeader(webBookList[currentWebBookIndex]);
+            }
+            bookDataTable.ajax.reload();
+        }
+    });
+}
+
+function changeWebBook(delta) {
+    if (!webBookList.length) { return; }
+    var nextIndex = (currentWebBookIndex + delta + webBookList.length) % webBookList.length;
+    currentWebBookIndex = nextIndex;
+    $.getJSON('/book',
+        { action: 'set_book_index', index: nextIndex },
+        function (data) {
+            if (data && data.book) {
+                updateBookHeader(data.book);
+            } else if (webBookList.length) {
+                updateBookHeader(webBookList[nextIndex]);
+            }
+            bookDataTable.ajax.reload();
+        }
+    );
+}
+
 var bookDataTable = $('#BookTable').DataTable({
     'processing': false,
     'paging': false,
@@ -223,12 +281,18 @@ var bookDataTable = $('#BookTable').DataTable({
         'targets': 1
     }],
     'ajax': {
-        'url': OBOCK_SERVER_PREFIX + '/query',
-        'dataSrc': 'data',
-        'data': function (d) {
-            d.action = 'get_book_moves';
-            d.fen = dataTableFen;
-        },
+        'url': BOOK_SERVER_PREFIX + '/book',
+          'dataSrc': function (json) {
+              if (json && json.book) {
+                  updateBookHeader(json.book);
+              }
+              return (json && json.data) ? json.data : [];
+          },
+          'data': function (d) {
+              d.action = 'get_book_moves';
+              d.fen = dataTableFen;
+              d.book_index = currentWebBookIndex;
+          },
         'error': function (xhr, error, thrown) {
             // Silenciar errores de conexión a servidor de libros
         }
@@ -1834,6 +1898,7 @@ $("#ClockLeverBtn").mouseup(function () {
 $(function () {
     loadSavedTheme();
     getAllInfo();
+    loadWebBookList();
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         updateStatus();
@@ -1938,6 +2003,9 @@ $(function () {
     }
 
     $.fn.dataTable.ext.errMode = 'throw';
+
+    $('#bookPrev').on('click', function () { changeWebBook(-1); });
+    $('#bookNext').on('click', function () { changeWebBook(1); });
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

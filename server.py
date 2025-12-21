@@ -18,6 +18,7 @@
 
 import datetime
 import logging
+import os
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -25,6 +26,7 @@ import platform
 
 import chess  # type: ignore
 import chess.pgn as pgn  # type: ignore
+import chess.polyglot  # type: ignore
 
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
@@ -37,6 +39,7 @@ from utilities import (
     AsyncRepeatingTimer,
     keep_essential_headers,
     ensure_important_headers,
+    get_opening_books,
 )
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
@@ -55,6 +58,27 @@ client_ips = []
 logger = logging.getLogger(__name__)
 
 
+def read_pgn_info():
+    info = {}
+    arch = platform.machine()
+    pgn_info_path = "/opt/picochess/engines/" + arch + "/extra/pgn_game_info.txt"
+    try:
+        with open(pgn_info_path) as info_file:
+            for line in info_file:
+                name, value = line.partition("=")[::2]
+                info[name.strip()] = value.strip()
+        return info
+    except (OSError, KeyError):
+        logger.error("Could not read pgn_game_info file")
+        info["PGN_GAME"] = "Game Error"
+        info["PGN_PROBLEM"] = ""
+        info["PGN_FEN"] = ""
+        info["PGN_RESULT"] = "*"
+        info["PGN_White"] = ""
+        info["PGN_Black"] = ""
+        info["PGN_White_ELO"] = ""
+        info["PGN_Black_ELO"] = ""
+        return info
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -246,15 +270,155 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_system_info":
             if "system_info" in self.shared:
                 self.write(self.shared["system_info"])
-        if action == "get_ip_info":
+        elif action == "get_ip_info":
             if "ip_info" in self.shared:
                 self.write(self.shared["ip_info"])
-        if action == "get_headers":
+        elif action == "get_headers":
             if "headers" in self.shared:
                 self.write(dict(self.shared["headers"]))
-        if action == "get_clock_text":
+        elif action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
+
+
+class BookHandler(ServerRequestHandler):
+
+    async def get(self, *args, **kwargs):
+        """Web-facing API for opening book explorer (independent from engine book)."""
+        action = self.get_argument("action", "get_book_moves")
+
+        # Build full opening book library from books.ini
+        library = get_opening_books()
+        books = []
+        for index, book in enumerate(library):
+            text_obj = book.get("text")
+            label = ""
+            if hasattr(text_obj, "web_text") and text_obj.web_text:
+                label = text_obj.web_text
+            elif hasattr(text_obj, "large_text") and text_obj.large_text:
+                label = text_obj.large_text
+            books.append({"index": index, "file": book.get("file"), "label": label})
+
+        if action == "get_book_list":
+            # initial selection: try to match engine/book header once, otherwise index 0
+            current_index = self.shared.get("web_book_index")
+            if current_index is None and books:
+                current_index = 0
+                system_info = self.shared.get("system_info") or {}
+                active_file = system_info.get("book_file")
+                if not active_file:
+                    headers = self.shared.get("headers") or {}
+                    active_file = headers.get("PicoOpeningBook")
+                if active_file:
+                    for entry in books:
+                        if entry["file"] == active_file:
+                            current_index = entry["index"]
+                            break
+                self.shared["web_book_index"] = current_index
+            elif current_index is None:
+                current_index = 0
+                self.shared["web_book_index"] = current_index
+
+            self.set_header("Content-Type", "application/json")
+            self.write({"current_index": current_index, "books": books})
+            return
+
+        if action == "set_book_index":
+            try:
+                index = int(self.get_argument("index"))
+            except (TypeError, ValueError):
+                index = 0
+            if not books:
+                current = {"file": "", "label": ""}
+            else:
+                index = max(0, min(index, len(books) - 1))
+                self.shared["web_book_index"] = index
+                current = books[index]
+
+            self.set_header("Content-Type", "application/json")
+            self.write({"book": current})
+            return
+
+        # Default: get_book_moves
+        fen = self.get_argument("fen", None)
+        if not fen:
+            last = self.shared.get("last_dgt_move_msg")
+            if last and "fen" in last:
+                fen = last["fen"]
+        if not fen:
+            fen = chess.STARTING_BOARD_FEN
+
+        if not books:
+            self.set_header("Content-Type", "application/json")
+            self.write({"book": {"file": "", "label": ""}, "data": []})
+            return
+
+        # Determine which book index to use for the web explorer
+        try:
+            param_index = int(self.get_argument("book_index", ""))
+        except (TypeError, ValueError):
+            param_index = None
+
+        if param_index is not None:
+            index = max(0, min(param_index, len(books) - 1))
+            self.shared["web_book_index"] = index
+        else:
+            index = self.shared.get("web_book_index")
+            if index is None:
+                index = 0
+                self.shared["web_book_index"] = index
+            index = max(0, min(index, len(books) - 1))
+
+        current_book = books[index]
+        book_file = current_book["file"]
+        book_label = current_book["label"] or os.path.basename(book_file)
+
+        moves_data = []
+        try:
+            reader = chess.polyglot.open_reader(book_file)
+            board = chess.Board(fen)
+
+            aggregated = {}
+            total_weight = 0
+
+            for entry in reader.find_all(board):
+                move_uci = entry.move.uci()
+                weight = getattr(entry, "weight", 1)
+                total_weight += weight
+                if move_uci not in aggregated:
+                    aggregated[move_uci] = {"move": move_uci, "count": 0}
+                aggregated[move_uci]["count"] += weight
+
+            reader.close()
+
+            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
+
+            for item in sorted_moves:
+                count = item["count"]
+                if total_weight > 0:
+                    white_pct = int(round(100.0 * count / total_weight))
+                else:
+                    white_pct = 0
+                draws_pct = 0
+                black_pct = max(0, 100 - white_pct - draws_pct)
+                moves_data.append(
+                    {
+                        "move": item["move"],
+                        "count": count,
+                        "whitewins": white_pct,
+                        "draws": draws_pct,
+                        "blackwins": black_pct,
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Error reading opening book '%s': %s", book_file, exc)
+
+        self.set_header("Content-Type", "application/json")
+        self.write({"book": {"file": book_file or "", "label": book_label or ""}, "data": moves_data})
+
+    async def post(self, *args, **kwargs):
+        """Allow POST calls (used by jQuery.post) by delegating to GET logic."""
+        await self.get(*args, **kwargs)
 
 
 class ChessBoardHandler(ServerRequestHandler):
@@ -303,6 +467,7 @@ class WebServer:
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),
                 (r"/info", InfoHandler, dict(shared=shared)),
+                (r"/book", BookHandler, dict(shared=shared)),
                 (r"/help", HelpHandler, dict(theme=theme)),
                 (r"/channel", ChannelHandler, dict(shared=shared)),
                 (r"/upload-pgn", UploadHandler),
@@ -535,9 +700,6 @@ class WebDisplay(DisplayMsg):
 
     def _build_game_header(self, pgn_game: chess.pgn.Game, keep_these_headers: dict = None):
         """Build the game headers for the current game"""
-        if ModeInfo.get_pgn_mode() and keep_these_headers:
-            pgn_game.headers.update(keep_these_headers)
-            return
         if WebDisplay.result_sav:
             pgn_game.headers["Result"] = WebDisplay.result_sav
         pgn_game.headers["Event"] = "PicoChess game"
@@ -599,8 +761,20 @@ class WebDisplay(DisplayMsg):
                     pgn_game.headers["WhiteElo"] = str(comp_elo)
                     pgn_game.headers["BlackElo"] = str(user_elo)
             if "PGN Replay" in WebDisplay.engine_name:
-                # keep headers from shared state; do not re-read transfer file
-                pass
+                info = {}
+                info = read_pgn_info()
+                pgn_game.headers["Event"] = WebDisplay.engine_name + engine_level
+                pgn_game.headers["Date"] = datetime.datetime.today().strftime("%Y.%m.%d")
+                pgn_game.headers["Site"] = "picochess.org"
+                pgn_game.headers["Round"] = ""
+                pgn_game.headers["White"] = info["PGN_White"]
+                pgn_game.headers["Black"] = info["PGN_Black"]
+                if "PGN_White_ELO" in info and "PGN_Black_ELO" in info:
+                    pgn_game.headers["WhiteElo"] = str(info["PGN_White_ELO"])
+                    pgn_game.headers["BlackElo"] = str(info["PGN_Black_ELO"])
+                else:
+                    pgn_game.headers["WhiteElo"] = "?"
+                    pgn_game.headers["BlackElo"] = "?"
 
         if "ip_info" in self.shared:
             if "location" in self.shared["ip_info"]:
@@ -657,8 +831,6 @@ class WebDisplay(DisplayMsg):
 
         def _build_headers():
             self._create_headers()
-            if ModeInfo.get_pgn_mode() and self.shared.get("headers"):
-                return
             pgn_game = pgn.Game()
             self._build_game_header(pgn_game)  # rebuilds game headers
             self.shared["headers"].update(pgn_game.headers)
@@ -687,9 +859,7 @@ class WebDisplay(DisplayMsg):
         if isinstance(message, Message.START_NEW_GAME):
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
-            if ModeInfo.get_pgn_mode():
-                keep_these_headers = self.shared["headers"]
-            elif message.newgame:
+            if message.newgame:
                 keep_these_headers = None
             else:
                 # #78 and #55 just a new position, keep headers
@@ -870,10 +1040,7 @@ class WebDisplay(DisplayMsg):
             if not message.is_user_move:
                 game_copy = message.game.copy()
                 game_copy.push(message.move)
-                if ModeInfo.get_pgn_mode():
-                    pgn_str = _transfer(game_copy, self.shared["headers"])
-                else:
-                    pgn_str = _transfer(game_copy)
+                pgn_str = _transfer(game_copy)
                 fen = _oldstyle_fen(game_copy)
                 mov = message.move.uci()
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}

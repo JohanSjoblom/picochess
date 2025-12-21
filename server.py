@@ -523,6 +523,9 @@ class WebDisplay(DisplayMsg):
 
     def _build_game_header(self, pgn_game: chess.pgn.Game, keep_these_headers: dict = None):
         """Build the game headers for the current game"""
+        if ModeInfo.get_pgn_mode() and keep_these_headers:
+            pgn_game.headers.update(keep_these_headers)
+            return
         if WebDisplay.result_sav:
             pgn_game.headers["Result"] = WebDisplay.result_sav
         pgn_game.headers["Event"] = "PicoChess game"
@@ -642,6 +645,8 @@ class WebDisplay(DisplayMsg):
 
         def _build_headers():
             self._create_headers()
+            if ModeInfo.get_pgn_mode() and self.shared.get("headers"):
+                return
             pgn_game = pgn.Game()
             self._build_game_header(pgn_game)  # rebuilds game headers
             self.shared["headers"].update(pgn_game.headers)
@@ -670,7 +675,9 @@ class WebDisplay(DisplayMsg):
         if isinstance(message, Message.START_NEW_GAME):
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
-            if message.newgame:
+            if ModeInfo.get_pgn_mode():
+                keep_these_headers = self.shared["headers"]
+            elif message.newgame:
                 keep_these_headers = None
             else:
                 # #78 and #55 just a new position, keep headers
@@ -851,7 +858,10 @@ class WebDisplay(DisplayMsg):
             if not message.is_user_move:
                 game_copy = message.game.copy()
                 game_copy.push(message.move)
-                pgn_str = _transfer(game_copy)
+                if ModeInfo.get_pgn_mode():
+                    pgn_str = _transfer(game_copy, self.shared["headers"])
+                else:
+                    pgn_str = _transfer(game_copy)
                 fen = _oldstyle_fen(game_copy)
                 mov = message.move.uci()
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}

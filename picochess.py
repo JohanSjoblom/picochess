@@ -770,6 +770,7 @@ async def main() -> None:
         args.user_voice,
         args.computer_voice,
         args.speed_voice,
+        args.audio_backend,
         args.enable_setpieces_voice,
         args.comment_factor,
         sample_beeper,

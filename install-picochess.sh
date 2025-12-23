@@ -83,7 +83,7 @@ apt -y install python3-venv
 apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
-apt -y install libsndfile1
+apt -y install libsndfile1 libportaudio2
 # for mame_emulation we need
 apt -y install xdotool
 # following lines are for running leela-chess-zero

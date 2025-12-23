@@ -29,11 +29,8 @@ try:
     import numpy as np  # type: ignore
     import sounddevice as sd  # type: ignore
     import soundfile as sf  # type: ignore
-
-    try:
-        from soundtouch import SoundTouch  # type: ignore
-    except Exception:  # pragma: no cover - alt package name
-        from pysoundtouch import SoundTouch  # type: ignore
+    from audiotsm import wsola  # type: ignore
+    from audiotsm.io.array import ArrayReader, ArrayWriter  # type: ignore
 
     NATIVE_AUDIO_AVAILABLE = True
     NATIVE_AUDIO_IMPORT_ERROR = None
@@ -253,61 +250,16 @@ class PicoTalkerDisplay(DisplayMsg):
         if len(self.sound_cache) > SOUND_CACHE_LIMIT:
             self.sound_cache.popitem(last=False)
 
-    def _init_soundtouch(self, samplerate: int, channels: int):
-        try:
-            st = SoundTouch(samplerate, channels)
-        except TypeError:
-            st = SoundTouch()
-            if hasattr(st, "set_sampling_rate"):
-                st.set_sampling_rate(samplerate)
-            if hasattr(st, "setSampleRate"):
-                st.setSampleRate(samplerate)
-            if hasattr(st, "set_channels"):
-                st.set_channels(channels)
-            if hasattr(st, "setChannels"):
-                st.setChannels(channels)
-        if hasattr(st, "set_tempo"):
-            st.set_tempo(self.speed_factor)
-        elif hasattr(st, "setTempo"):
-            st.setTempo(self.speed_factor)
-        else:
-            st.tempo = self.speed_factor
-        if hasattr(st, "set_pitch"):
-            st.set_pitch(1.0)
-        elif hasattr(st, "setPitch"):
-            st.setPitch(1.0)
-        return st
-
-    def _soundtouch_process(self, samples, samplerate: int):
+    def _audiotsm_process(self, samples):
         channels = samples.shape[1]
-        st = self._init_soundtouch(samplerate, channels)
-        data = np.ascontiguousarray(samples, dtype=np.float32)
-        put_samples = getattr(st, "put_samples", None) or getattr(st, "putSamples", None)
-        receive_samples = getattr(st, "receive_samples", None) or getattr(st, "receiveSamples", None)
-        flush = getattr(st, "flush", None)
-        if put_samples is None or receive_samples is None:
-            raise RuntimeError("soundtouch API not found")
-        try:
-            put_samples(data)
-        except Exception:
-            put_samples(data.reshape(-1))
-        if flush:
-            flush()
-        chunks = []
-        while True:
-            try:
-                chunk = receive_samples()
-            except TypeError:
-                chunk = receive_samples(4096)
-            if chunk is None or len(chunk) == 0:
-                break
-            chunk = np.asarray(chunk, dtype=np.float32)
-            if chunk.ndim == 1 and channels > 1:
-                chunk = chunk.reshape(-1, channels)
-            chunks.append(chunk)
-        if not chunks:
-            return data
-        return np.concatenate(chunks, axis=0)
+        if channels == 0:
+            return samples
+        data = np.ascontiguousarray(samples, dtype=np.float32).T
+        tsm = wsola(channels, speed=self.speed_factor)
+        reader = ArrayReader(data)
+        writer = ArrayWriter(channels)
+        tsm.run(reader, writer)
+        return writer.data.T
 
     def native_sound_player(self, voice_file) -> bool:
         """Speak out the sound part using native Python audio stack."""
@@ -319,7 +271,7 @@ class PicoTalkerDisplay(DisplayMsg):
             if cached is None:
                 samples, samplerate = sf.read(voice_file, dtype="float32", always_2d=True)
                 if self.speed_factor != 1.0:
-                    samples = self._soundtouch_process(samples, samplerate)
+                    samples = self._audiotsm_process(samples)
                 self._sound_cache_put(key, (samples, samplerate))
             else:
                 samples, samplerate = cached

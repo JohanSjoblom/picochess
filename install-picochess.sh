@@ -84,8 +84,8 @@ apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
 apt -y install libsndfile1 libportaudio2
-# for mame_emulation we need
-apt -y install xdotool
+# for mame_emulation we need xdotool (X11) and ydotool (Wayland-compatible key injection)
+apt -y install xdotool ydotool
 # following lines are for running leela-chess-zero
 apt -y install libopenblas-dev
 # following lines are for building leela-chess-zero

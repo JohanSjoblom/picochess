@@ -16,3 +16,7 @@ astral==3.2
 pygame==2.6.1
 pam==0.2.0
 six==1.17.0
+numpy==2.4.0
+sounddevice==0.5.3
+soundfile==0.13.1
+audiotsm==0.1.2

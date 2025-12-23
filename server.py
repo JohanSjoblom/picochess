@@ -18,6 +18,7 @@
 
 import datetime
 import logging
+import os
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -246,13 +247,13 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_system_info":
             if "system_info" in self.shared:
                 self.write(self.shared["system_info"])
-        if action == "get_ip_info":
+        elif action == "get_ip_info":
             if "ip_info" in self.shared:
                 self.write(self.shared["ip_info"])
-        if action == "get_headers":
+        elif action == "get_headers":
             if "headers" in self.shared:
                 self.write(dict(self.shared["headers"]))
-        if action == "get_clock_text":
+        elif action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
 
@@ -263,6 +264,7 @@ class BookHandler(ServerRequestHandler):
         """Web-facing API for opening book explorer (independent from engine book)."""
         action = self.get_argument("action", "get_book_moves")
 
+        # Build full opening book library from books.ini
         library = get_opening_books()
         books = []
         for index, book in enumerate(library):
@@ -275,8 +277,22 @@ class BookHandler(ServerRequestHandler):
             books.append({"index": index, "file": book.get("file"), "label": label})
 
         if action == "get_book_list":
+            # initial selection: try to match engine/book header once, otherwise index 0
             current_index = self.shared.get("web_book_index")
-            if current_index is None:
+            if current_index is None and books:
+                current_index = 0
+                system_info = self.shared.get("system_info") or {}
+                active_file = system_info.get("book_file")
+                if not active_file:
+                    headers = self.shared.get("headers") or {}
+                    active_file = headers.get("PicoOpeningBook")
+                if active_file:
+                    for entry in books:
+                        if entry["file"] == active_file:
+                            current_index = entry["index"]
+                            break
+                self.shared["web_book_index"] = current_index
+            elif current_index is None:
                 current_index = 0
                 self.shared["web_book_index"] = current_index
 
@@ -289,18 +305,50 @@ class BookHandler(ServerRequestHandler):
                 index = int(self.get_argument("index"))
             except (TypeError, ValueError):
                 index = 0
-
-            index = max(0, min(index, len(books) - 1))
-            self.shared["web_book_index"] = index
+            if not books:
+                current = {"file": "", "label": ""}
+            else:
+                index = max(0, min(index, len(books) - 1))
+                self.shared["web_book_index"] = index
+                current = books[index]
 
             self.set_header("Content-Type", "application/json")
-            self.write({"book": books[index]})
+            self.write({"book": current})
             return
 
-        fen = self.get_argument("fen", chess.STARTING_BOARD_FEN)
-        index = self.shared.get("web_book_index", 0)
-        index = max(0, min(index, len(books) - 1))
-        book_file = books[index]["file"]
+        # Default: get_book_moves
+        fen = self.get_argument("fen", None)
+        if not fen:
+            last = self.shared.get("last_dgt_move_msg")
+            if last and "fen" in last:
+                fen = last["fen"]
+        if not fen:
+            fen = chess.STARTING_BOARD_FEN
+
+        if not books:
+            self.set_header("Content-Type", "application/json")
+            self.write({"book": {"file": "", "label": ""}, "data": []})
+            return
+
+        # Determine which book index to use for the web explorer
+        try:
+            param_index = int(self.get_argument("book_index", ""))
+        except (TypeError, ValueError):
+            param_index = None
+
+        if param_index is not None:
+            index = max(0, min(param_index, len(books) - 1))
+            self.shared["web_book_index"] = index
+        else:
+            index = self.shared.get("web_book_index")
+            if index is None:
+                index = 0
+                self.shared["web_book_index"] = index
+            index = max(0, min(index, len(books) - 1))
+
+        current_book = books[index]
+        book_file = current_book["file"]
+        book_label = current_book["label"] or os.path.basename(book_file)
 
         moves_data = []
         try:
@@ -321,6 +369,7 @@ class BookHandler(ServerRequestHandler):
             reader.close()
 
             sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
+            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
 
             for item in sorted_moves:
                 count = item["count"]
@@ -339,13 +388,14 @@ class BookHandler(ServerRequestHandler):
                         "blackwins": black_pct,
                     }
                 )
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Error reading opening book '%s': %s", book_file, exc)
 
         self.set_header("Content-Type", "application/json")
-        self.write({"book": books[index], "data": moves_data})
+        self.write({"book": {"file": book_file or "", "label": book_label or ""}, "data": moves_data})
 
     async def post(self, *args, **kwargs):
+        """Allow POST calls (used by jQuery.post) by delegating to GET logic."""
         await self.get(*args, **kwargs)
 
 

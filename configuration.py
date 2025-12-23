@@ -168,6 +168,13 @@ class Configuration:
             choices=range(0, 10),
         )
         self.parser.add_argument(
+            "-ab",
+            "--audio-backend",
+            choices=["sox", "native"],
+            help="audio backend for voice playback",
+            default="sox",
+        )
+        self.parser.add_argument(
             "-vv",
             "--volume-voice",
             type=int,

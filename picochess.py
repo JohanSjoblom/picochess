@@ -69,6 +69,8 @@ from utilities import (
     evt_queue,
     write_picochess_ini,
     get_engine_mame_par,
+    get_window_command,
+    is_wayland_session,
 )
 from utilities import AsyncRepeatingTimer
 from pgn import Emailer, PgnDisplay, ModeInfo
@@ -1005,14 +1007,15 @@ async def main() -> None:
                 and not self.state.dgtmenu.get_engine_rwindow()
             ):
                 # switch to fullscreen
-                cmd = "xdotool keydown alt key F11; sleep 0.2; xdotool keyup alt"
-                subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                    shell=True,
-                )
+                cmd = get_window_command("toggle_fullscreen")
+                if cmd:
+                    subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        shell=True,
+                    )
 
             # Startup - external
             self.state.engine_level = self.args.engine_level
@@ -1408,7 +1411,14 @@ async def main() -> None:
                 await self.state.start_clock()
 
         def calc_engine_mame_par(self):
-            return get_engine_mame_par(self.state.dgtmenu.get_engine_rspeed(), self.state.dgtmenu.get_engine_rsound())
+            engine_rwindow = None
+            if is_wayland_session():
+                engine_rwindow = self.state.dgtmenu.get_engine_rwindow()
+            return get_engine_mame_par(
+                self.state.dgtmenu.get_engine_rspeed(),
+                self.state.dgtmenu.get_engine_rsound(),
+                engine_rwindow=engine_rwindow,
+            )
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -1726,14 +1736,15 @@ async def main() -> None:
                     await DisplayMsg.show(Message.EXIT_MENU())
                 elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                     # switch windows/tasks
-                    cmd = "xdotool keydown alt key Tab; sleep 0.2; xdotool keyup alt"
-                    subprocess.run(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True,
-                        shell=True,
-                    )
+                    cmd = get_window_command("switch_window")
+                    if cmd:
+                        subprocess.run(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            universal_newlines=True,
+                            shell=True,
+                        )
             # Check if we have to undo a previous move (sliding)
             elif fen in self.state.last_legal_fens:
                 logger.info("sliding move detected")
@@ -2915,14 +2926,15 @@ async def main() -> None:
                             and self.state.artwork_in_use
                         ):
                             # switch windows/tasks
-                            cmd = "xdotool keydown alt key Tab; sleep 0.2; xdotool keyup alt"
-                            subprocess.run(
-                                cmd,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                universal_newlines=True,
-                                shell=True,
-                            )
+                            cmd = get_window_command("switch_window")
+                            if cmd:
+                                subprocess.run(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True,
+                                    shell=True,
+                                )
                     if (not self.state.position_mode) and fen_res:
                         if fen_res[4] == "K" or fen_res[4] == "k":
                             self.state.coach_triggered = True
@@ -3645,15 +3657,18 @@ async def main() -> None:
                     and not self.state.dgtmenu.get_engine_rwindow()
                 ):
                     # switch to fullscreen
-                    cmd = "xdotool keydown alt key F11; sleep 0.2 xdotool keyup alt"
-                    process = await asyncio.create_subprocess_shell(
-                        cmd,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout, stderr = await process.communicate()
-                    if process.returncode != 0:
-                        logger.error("Command failed with return code %s: %s", process.returncode, stderr.decode())
+                    cmd = get_window_command("toggle_fullscreen")
+                    if cmd:
+                        process = await asyncio.create_subprocess_shell(
+                            cmd,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                        stdout, stderr = await process.communicate()
+                        if process.returncode != 0:
+                            logger.error(
+                                "Command failed with return code %s: %s", process.returncode, stderr.decode()
+                            )
 
                 startup_ok = await self.engine.startup(event.options, self.state.rating)
                 if not startup_ok:
@@ -3954,15 +3969,18 @@ async def main() -> None:
                 if self.emulation_mode():
                     if self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                         # switch windows/tasks
-                        cmd = "xdotool keydown alt key Tab; sleep 0.2; xdotool keyup alt"
-                        process = await asyncio.create_subprocess_shell(
-                            cmd,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                        stdout, stderr = await process.communicate()
-                        if process.returncode != 0:
-                            logger.error("Command failed with return code %s: %s", process.returncode, stderr.decode())
+                        cmd = get_window_command("switch_window")
+                        if cmd:
+                            process = await asyncio.create_subprocess_shell(
+                                cmd,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                            )
+                            stdout, stderr = await process.communicate()
+                            if process.returncode != 0:
+                                logger.error(
+                                    "Command failed with return code %s: %s", process.returncode, stderr.decode()
+                                )
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                     self.engine.is_ready()
                 self.state.position_mode = False
@@ -5216,15 +5234,18 @@ async def main() -> None:
                         and self.state.artwork_in_use
                     ):
                         # switch to fullscreen
-                        cmd = "xdotool keydown alt key F11; sleep 0.2 xdotool keyup alt"
-                        process = await asyncio.create_subprocess_shell(
-                            cmd,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                        stdout, stderr = await process.communicate()
-                        if process.returncode != 0:
-                            logger.error("Command failed with return code %s: %s", process.returncode, stderr.decode())
+                        cmd = get_window_command("toggle_fullscreen")
+                        if cmd:
+                            process = await asyncio.create_subprocess_shell(
+                                cmd,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                            )
+                            stdout, stderr = await process.communicate()
+                            if process.returncode != 0:
+                                logger.error(
+                                    "Command failed with return code %s: %s", process.returncode, stderr.decode()
+                                )
                     game_fen = self.state.game.board_fen()
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE

@@ -187,6 +187,8 @@ volume-voice = 14
 ## Each step is 5% starting from 90% towards 135%. Sets factor for both voices (user/computer)
 #speed-voice = 2
 speed-voice = 2
+## Select audio backend for voice playback: sox (default) or native
+#audio-backend = sox
 ## Speak last computer move again when 'set pieces' displayed
 #enable-setpieces-voice = True
 enable-setpieces-voice = True
@@ -397,4 +399,3 @@ rsound = True
 # Player rating deviation for automatic adjustment of Elo, starting value: 350
 #rating-deviation = 350
 rating-deviation = 350
-

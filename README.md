@@ -1,11 +1,11 @@
 PicoChess
 =========
-Picochess transforms your Raspberry Pi or any Debian-based computer into a chess computer. It is not a chess engine program, you can use many different chess engines with picochess. Picochess connects an electronic board with the chess engines you chose to play against.
-Installation includes Stockfish and Leela Chess Zero (LC0) as examples. If you want to add more engines you can have a look in the picochess google group. See the "How to add more engines" section below. Many retro and mame engines like Mephisto, TuroChamp etc work. The community is working hard to make it possible to run all old chess engines.
+Picochess transforms a Raspberry Pi or a Linux based computer into a chess computer. You can use many different chess engines with Picochess. Picochess connects an electronic chess board with the chess engines you chose to play against.
+Installation includes Stockfish and Leela Chess Zero (LC0) as examples. There are several LC0 personalities you can play against. If you want to add more engines you can have a look in the Picochess Google group. See the "How to add more engines" section below. Many retro and mame engines like Mephisto, TuroChamp etc work. The community is working hard to make it possible to run all old chess engines.
 
 Features
 ========
-- Play via Web Browser. Enjoy chess directly from your browser.
+- Play via Web Browser. Enjoy chess directly from your browser. You do need an electronic chess board.
 - Electronic Chess Board support for an authentic playing experience. Compatible with DGT e-board, Certabo, Chesslink, Chessnut, and Ichessone. Note that no guarantees can be given that it will work with all of these boards, but the community has worked hard to maintain this possibility. I currently use a DGT e-board and a DGT Pi 3000 myself.
 - DGT Clock Compatibility. Runs on the DGT Pi 3000 electronic clock which becomes an all-in one chess computer.
 
@@ -13,14 +13,15 @@ About This Fork
 ===============
 This fork of Picochess focuses on:
 - Upgrading dependencies – Uses the latest Python with the latest chess and Tornado libraries.
+- Ability to run both on Raspberry Pi and Linux computers.
 - Asynchronous Architecture – Replaces threads with an async-based architecture for improved performance and scalability.
-- Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picoTutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
+- Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
 
 Requirements
 ------------
 
-- Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Debian computer (x86_64)
-- RaspiOS Bookworm 64bit or the new Trixie (Debian 13, released in 2025). The goal is that you can always take the latest stock Pi image that is available. It should work out of the box as long as you remember to switch the audio to PulseAudio. You might also need to make sure that the PulseAudio packages are installed like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins.
+- Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
+- RaspiOS Bookworm 64bit or the new Trixie 13, released in 2025. The goal is that you can always take the latest stock Pi image that is available. It should work out of the box as long as you remember to switch the audio to PulseAudio. You might also need to make sure that the PulseAudio packages are installed like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins.
 
 Quick Installation
 ------------------
@@ -63,7 +64,7 @@ You can use the menu to go to Mode and switch to "Hint On", "Eval.Score", "Obser
 Additional scripts you might find useful:
 -----------------------------------------
 - `install-dgtpi-clock.sh`, run this on DGT3000 Dgt Pi clock hardware, it installs the dgtpi service
-- `connect-dgt-on-debian.sh`, needed on Debian laptops to connect to a Bluetooth DGT e-board
+- `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board
 
 How to add more engines?
 ------------------------
@@ -71,13 +72,13 @@ Picochess ships with engine resource packs. The installer runs install-engines.s
 
 To switch from small to the larger lite pack:
 1) Run `./move-engines-to-backup.sh` to move your current engines out of `/opt/picochess/engines`. This prepares a clean install.
-2) Run `./install-engines.sh lite`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Debian) and downloads the matching lite files.
+2) Run `./install-engines.sh lite`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Linux) and downloads the matching lite files.
 
 If you prefer, you can delete the architecture folder under `/opt/picochess/engines` instead of using the backup script, then run `./install-engines.sh lite`. The script requires an argument: `small` or `lite`.
 
 The lite download is larger and takes longer than small.
 To add more engine manually yourself you need:
-- locate the /opt/picochess/engines folder - Pi uses aarch64 and Debian laptops x86_64 folder
+- locate the /opt/picochess/engines folder - Pi uses aarch64 and Linux x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine
 - add an [engineX] section in engines.ini file
 

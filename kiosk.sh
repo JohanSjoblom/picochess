@@ -4,6 +4,9 @@ xset s noblank
 xset s off
 xset -dpms
 
+# Uncomment this t rotate the DSI display to portrait
+# xrandr --output DSI-1 --rotate right
+
 unclutter -idle 0.5 -root &
 
 if [ -d "/home/$USER/.config/chromium/Default" ] 

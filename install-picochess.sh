@@ -84,9 +84,10 @@ apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # for mame_emulation we need
 apt -y install xdotool
-# following lines are for (building) and running leela-chess-zero
-# apt -y install libopenblas-dev ninja-build meson
-# added more tools for building lc0 0.32
+# following lines are for running leela-chess-zero
+apt -y install libopenblas-dev
+# following lines are for building leela-chess-zero
+# apt -y install ninja-build meson
 # apt -y install build-essential cmake protobuf-compiler
 # following line are to run mame (missing on lite images)
 apt -y install libsdl2-2.0-0 libsdl2-ttf-2.0-0 qt5ct

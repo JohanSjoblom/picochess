@@ -1427,8 +1427,8 @@ class UciEngine(object):
         """Set engine ponder mode for a playing engine"""
         self.pondering = ponder  # True in BRAIN mode = Ponder On menu
 
-    async def startup(self, options: dict, rating: Optional[Rating] = None):
-        """Startup engine."""
+    async def startup(self, options: dict, rating: Optional[Rating] = None) -> bool:
+        """Startup engine. Returns True on success, False on invalid config."""
         parser = configparser.ConfigParser()
 
         if not options:
@@ -1442,7 +1442,12 @@ class UciEngine(object):
                 except FileNotFoundError:
                     success = False
             if success:
-                options = dict(parser[parser.sections().pop()])
+                sections = parser.sections()
+                if sections:
+                    options = dict(parser[sections.pop()])
+                else:
+                    logger.warning("uci file has no sections: %s.uci", self.get_file())
+                    return False
 
         self.level_support = bool(options)
 
@@ -1460,6 +1465,7 @@ class UciEngine(object):
 
         logger.debug("Loaded engine [%s]", self.get_name())
         logger.debug("Supported options [%s]", self.get_options())
+        return True
 
     @staticmethod
     def _parse_bool_flag(value) -> bool:

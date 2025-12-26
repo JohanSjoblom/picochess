@@ -3536,7 +3536,11 @@ async def main() -> None:
 
             elif isinstance(event, Event.LEVEL):
                 if event.options:
-                    await self.engine.startup(event.options, self.state.rating)
+                    startup_ok = await self.engine.startup(event.options, self.state.rating)
+                    if not startup_ok:
+                        logger.error("engine startup failed; invalid .uci options")
+                        await DisplayMsg.show(Message.ENGINE_FAIL())
+                        return
                 self.state.new_engine_level = event.level_name
                 await DisplayMsg.show(
                     Message.LEVEL(
@@ -3633,7 +3637,42 @@ async def main() -> None:
                     if process.returncode != 0:
                         logger.error("Command failed with return code %s: %s", process.returncode, stderr.decode())
 
-                await self.engine.startup(event.options, self.state.rating)
+                startup_ok = await self.engine.startup(event.options, self.state.rating)
+                if not startup_ok:
+                    logger.error("new engine options missing, reverting to %s", old_file)
+                    engine_fallback = True
+                    event.options = old_options
+                    self.state.engine_file = old_file
+                    self.state.artwork_in_use = False
+                    await self.engine.quit()
+                    if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
+                        old_file_art = old_file + "_art"
+                        my_file = Path(old_file_art)
+                        if my_file.is_file():
+                            self.state.artwork_in_use = True
+                            old_file = old_file_art
+
+                    uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
+
+                    self.engine = UciEngine(
+                        file=old_file,
+                        uci_shell=uci_shell,
+                        mame_par=self.calc_engine_mame_par(),
+                        loop=self.loop,
+                    )
+                    await self.engine.open_engine()
+                    if not self.engine.loaded_ok():
+                        # Help - old engine failed to restart. There is no engine
+                        logger.error("no engines started")
+                        await DisplayMsg.show(Message.ENGINE_FAIL())
+                        await asyncio.sleep(3)
+                        sys.exit(-1)
+                    startup_ok = await self.engine.startup(event.options, self.state.rating)
+                    if not startup_ok:
+                        logger.error("old engine options missing; no engines started")
+                        await DisplayMsg.show(Message.ENGINE_FAIL())
+                        await asyncio.sleep(3)
+                        sys.exit(-1)
 
                 if self.online_mode():
                     await self.state.stop_clock()
@@ -3672,7 +3711,12 @@ async def main() -> None:
                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(3)
                             sys.exit(-1)
-                        await self.engine.startup(event.options, self.state.rating)
+                        startup_ok = await self.engine.startup(event.options, self.state.rating)
+                        if not startup_ok:
+                            logger.error("engine options missing; no engines started")
+                            await DisplayMsg.show(Message.ENGINE_FAIL())
+                            await asyncio.sleep(3)
+                            sys.exit(-1)
                     else:
                         await asyncio.sleep(2)
                 elif self.emulation_mode() or self.pgn_mode():

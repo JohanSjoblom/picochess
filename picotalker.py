@@ -15,28 +15,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# Issue #60. This version uses pygame instead of sox
+# Native audio playback with optional SoX fallback.
 
 import logging
 from pathlib import Path
 from random import randint
 import os
 import asyncio
-
-# import sys  # type: ignore - needed for redirecting stdout/stderr
+from collections import OrderedDict
 import subprocess
 
-# from pydub import AudioSegment  # type: ignore
+try:
+    import numpy as np  # type: ignore
+    import sounddevice as sd  # type: ignore
+    import soundfile as sf  # type: ignore
+    from audiotsm import wsola  # type: ignore
+    from audiotsm.io.array import ArrayReader, ArrayWriter  # type: ignore
+
+    NATIVE_AUDIO_AVAILABLE = True
+    NATIVE_AUDIO_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - missing native deps
+    NATIVE_AUDIO_AVAILABLE = False
+    NATIVE_AUDIO_IMPORT_ERROR = exc
+
 import chess  # type: ignore
 from utilities import DisplayMsg
 from dgt.api import Message
 from dgt.util import GameResult, PlayMode, Voice, EBoard
 
 logger = logging.getLogger(__name__)
-# base directory for picochess - needed for pydub AudioSegment file loading
-# @todo: make one global constant for this basedir, its used in many places
-# here its used only when audio speed is not 1.0, so pydub can load the sound file
-BASE_DIR = "/opt/picochess/"
+SOUND_CACHE_LIMIT = 128
 
 
 class PicoTalker(object):
@@ -108,6 +116,7 @@ class PicoTalkerDisplay(DisplayMsg):
         user_voice: str,
         computer_voice: str,
         speed_factor: int,
+        audio_backend: str,
         setpieces_voice: bool,
         comment_factor: int,
         sample_beeper: bool,
@@ -122,8 +131,9 @@ class PicoTalkerDisplay(DisplayMsg):
         :param computer_voice: The voice to use for the computer (eg. en:christina).
         """
         super(PicoTalkerDisplay, self).__init__(loop)
-        # Avoid initializing pygame mixer when using SoX playback (V3 behavior).
-        self.sound_cache = {}  # cache for voice files
+        if not NATIVE_AUDIO_AVAILABLE:
+            logger.warning("native audio unavailable: %s", NATIVE_AUDIO_IMPORT_ERROR)
+        self.sound_cache = OrderedDict()  # cache for voice files
         self.common_queue = asyncio.Queue()  # queue for sound_player
         asyncio.create_task(self.sound_player())  # background sound player
 
@@ -174,6 +184,14 @@ class PicoTalkerDisplay(DisplayMsg):
         self.sample_beeper = sample_beeper
         self.sample_beeper_level = sample_beeper_level
 
+        self.audio_backend = (audio_backend or "sox").lower()
+        if self.audio_backend == "native" and NATIVE_AUDIO_AVAILABLE:
+            self.use_native_audio = True
+        else:
+            if self.audio_backend == "native" and not NATIVE_AUDIO_AVAILABLE:
+                logger.warning("native audio requested but unavailable, falling back to SoX")
+            self.use_native_audio = False
+
         if user_voice:
             logger.debug("creating user voice: [%s]", str(user_voice))
             self.set_user(PicoTalker(user_voice, self.speed_factor, self.common_queue))
@@ -200,8 +218,7 @@ class PicoTalkerDisplay(DisplayMsg):
         # cannot clear cache before it finds None in the sound queue
         await asyncio.sleep(0.1)  # give sound player time to process None
         self.sound_cache.clear()  # clear sound cache
-        self.sound_cache = {}
-        # No pygame cleanup needed when using SoX playback.
+        self.sound_cache = OrderedDict()
 
     async def sound_player(self):
         """Common sound player to play one sound at a time from the sound queue
@@ -213,14 +230,56 @@ class PicoTalkerDisplay(DisplayMsg):
                     # stop sound player
                     logger.debug("picotalker sound player stopping")
                     break  # exit the loop
-                # self.pico3_sound_player(voice_file)  # blocking play
-                await asyncio.to_thread(self.pico3_sound_player, voice_file)
-                # issue #77 tmp commenting out Pico4 sound playing
-                # sound = await self.get_or_load_sound(voice_file)
-                # sound.play()  # returns immediately
-                # await asyncio.sleep(sound.get_length() + 0.3)  # wait until it's done
+                played = False
+                if self.use_native_audio:
+                    played = await asyncio.to_thread(self.native_sound_player, voice_file)
+                if not played:
+                    await asyncio.to_thread(self.pico3_sound_player, voice_file)
         except asyncio.CancelledError:
             logger.debug("picotalker sound player cancelled")
+
+    def _sound_cache_get(self, key):
+        entry = self.sound_cache.get(key)
+        if entry is not None:
+            self.sound_cache.move_to_end(key)
+        return entry
+
+    def _sound_cache_put(self, key, value):
+        self.sound_cache[key] = value
+        self.sound_cache.move_to_end(key)
+        if len(self.sound_cache) > SOUND_CACHE_LIMIT:
+            self.sound_cache.popitem(last=False)
+
+    def _audiotsm_process(self, samples):
+        channels = samples.shape[1]
+        if channels == 0:
+            return samples
+        data = np.ascontiguousarray(samples, dtype=np.float32).T
+        tsm = wsola(channels, speed=self.speed_factor)
+        reader = ArrayReader(data)
+        writer = ArrayWriter(channels)
+        tsm.run(reader, writer)
+        return writer.data.T
+
+    def native_sound_player(self, voice_file) -> bool:
+        """Speak out the sound part using native Python audio stack."""
+        if not NATIVE_AUDIO_AVAILABLE:
+            return False
+        key = (voice_file, self.speed_factor)
+        try:
+            cached = self._sound_cache_get(key)
+            if cached is None:
+                samples, samplerate = sf.read(voice_file, dtype="float32", always_2d=True)
+                if self.speed_factor != 1.0:
+                    samples = self._audiotsm_process(samples)
+                self._sound_cache_put(key, (samples, samplerate))
+            else:
+                samples, samplerate = cached
+            sd.play(samples, samplerate, blocking=True)
+            return True
+        except Exception as exc:
+            logger.warning("native audio failed for %s: %s", voice_file, exc)
+            return False
 
     def pico3_sound_player(self, voice_file) -> bool:
         """Speak out the sound part by using sox play.

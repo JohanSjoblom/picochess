@@ -367,6 +367,13 @@ if [ "$ARCH" = "aarch64" ]; then
     fi
 elif [ "$ARCH" = "x86_64" ]; then
     # minimal capabilities for non-DGTPi installs (port 80)
+    # apply capabilities if the helper exists
+    if [ -f "$BLUEPY_HELPER" ]; then
+        setcap 'cap_net_raw,cap_net_admin+eip' "$BLUEPY_HELPER" || \
+            echo "Warning: setcap failed for $BLUEPY_HELPER" >&2
+    else
+        echo "Warning: $BLUEPY_HELPER not found, skipping setcap" >&2
+    fi
     if [ -x "$VENV_PYTHON" ]; then
         setcap 'cap_sys_boot,cap_net_bind_service,cap_sys_rawio,cap_dac_override-eip' "$VENV_PYTHON" || \
             echo "Warning: setcap failed for $VENV_PYTHON" >&2

@@ -33,6 +33,7 @@ class SimpleTestTranslator(BoardTranslator):
     def __init__(self):
         super().__init__()
         self.piece_recognition = False
+        self.has_rgb_leds = "not set"
         self.board = []
         self.occupied = []
 
@@ -44,6 +45,9 @@ class SimpleTestTranslator(BoardTranslator):
 
     def has_piece_recognition(self, value: bool):
         self.piece_recognition = value
+
+    def leds_detected(self, value: bool):
+        self.has_rgb_leds = value
 
     def calibration_complete_square(self, square: int):
         pass
@@ -209,6 +213,7 @@ class TestParser(unittest.TestCase):
         parser.parse(data2)
         # check last piece
         self.assertEqual(CertaboPiece(piece_id=bytearray(b"\x03\x00\x54\xfc\xaa")), callback.board[-1])
+        self.assertFalse(callback.has_rgb_leds)
 
     def test_parse_position_tabutronic_sentio(self, MockedParserCallback):
         data = bytearray(":255 255 0 0 0 0 255 255 \r\n", encoding="UTF-8")
@@ -225,72 +230,14 @@ class TestParser(unittest.TestCase):
         data = bytearray(":255 255 0 0 0 0 255 254\nL\r\n", encoding="UTF-8")
         callback = SimpleTestTranslator()
         Parser(callback).parse(data)
-        expected = [
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            1,
-            0,
-        ]
+        expected = [1, 1, 1, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 1, 1, 1, 1,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    1, 1, 1, 1, 1, 1, 1, 1,
+                    1, 1, 1, 1, 1, 1, 1, 0]
         self.assertEqual(expected, callback.occupied)
 
 

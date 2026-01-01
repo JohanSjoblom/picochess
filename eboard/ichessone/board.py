@@ -14,6 +14,7 @@
 import asyncio
 import logging
 import queue
+from typing import Dict, Optional
 
 from eboard.eboard import EBoard
 from utilities import DisplayMsg
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 class IChessOneBoard(EBoard):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.agent = None
-        self.appque = queue.Queue()
+        self.appque: queue.Queue[Dict[str, Optional[str]]] = queue.Queue()
         self.connected = False
         self.loop = loop
 

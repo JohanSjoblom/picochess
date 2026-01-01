@@ -76,23 +76,43 @@ class TestParser(unittest.TestCase):
         parser.parse(bytearray.fromhex("A6C99B6AFFFFFFFF"))
         MockedParserCallback.board_update.assert_called_once_with("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
 
-    def test_battery_charging(self, MockedParserCallback):
+    def test_battery_charging_regular_chessnut(self, MockedParserCallback):
         data = bytearray.fromhex("2a026401")
         Parser(MockedParserCallback).parse(data)
         MockedParserCallback.battery.assert_called_once_with(100, Battery.CHARGING)
 
-    def test_battery_discharging(self, MockedParserCallback):
+    def test_battery_discharging_regular_chessnut(self, MockedParserCallback):
         data = bytearray.fromhex("2a025800")
         Parser(MockedParserCallback).parse(data)
         MockedParserCallback.battery.assert_called_once_with(88, Battery.DISCHARGING)
 
-    def test_battery_low(self, MockedParserCallback):
+    def test_battery_low_regular_chessnut(self, MockedParserCallback):
         data = bytearray.fromhex("2a020900")
         Parser(MockedParserCallback).parse(data)
         MockedParserCallback.battery.assert_called_once_with(9, Battery.LOW)
 
-    def test_battery_exhausted(self, MockedParserCallback):
+    def test_battery_exhausted_regular_chessnut(self, MockedParserCallback):
         data = bytearray.fromhex("2a020400")
+        Parser(MockedParserCallback).parse(data)
+        MockedParserCallback.battery.assert_called_once_with(4, Battery.EXHAUSTED)
+
+    def test_battery_charging_chessnut_move(self, MockedParserCallback):
+        data = bytearray.fromhex("41030c0164")
+        Parser(MockedParserCallback).parse(data)
+        MockedParserCallback.battery.assert_called_once_with(100, Battery.CHARGING)
+
+    def test_battery_discharging_chessnut_move(self, MockedParserCallback):
+        data = bytearray.fromhex("41030c0058")
+        Parser(MockedParserCallback).parse(data)
+        MockedParserCallback.battery.assert_called_once_with(88, Battery.DISCHARGING)
+
+    def test_battery_low_chessnut_move(self, MockedParserCallback):
+        data = bytearray.fromhex("41030c0009")
+        Parser(MockedParserCallback).parse(data)
+        MockedParserCallback.battery.assert_called_once_with(9, Battery.LOW)
+
+    def test_battery_exhausted_chessnut_move(self, MockedParserCallback):
+        data = bytearray.fromhex("41030c0004")
         Parser(MockedParserCallback).parse(data)
         MockedParserCallback.battery.assert_called_once_with(4, Battery.EXHAUSTED)
 

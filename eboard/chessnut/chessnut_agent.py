@@ -61,6 +61,9 @@ class ChessnutAgent:
     def set_led(self, pos):
         self.brd.set_led(pos)
 
+    def auto_move(self, uci_move: str):
+        self.brd.auto_move(uci_move)
+
     def request_battery_status(self):
         self.brd.request_battery_status()
 

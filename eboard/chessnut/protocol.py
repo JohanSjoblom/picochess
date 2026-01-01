@@ -22,7 +22,7 @@ import json
 
 from eboard.move_debouncer import MoveDebouncer
 from eboard.ble_transport import Transport
-from eboard.chessnut.parser import Parser, ParserCallback, Battery
+from eboard.chessnut.parser import Parser, ParserCallback, Battery, BoardType
 from eboard.chessnut import command
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ class Protocol(ParserCallback):
         self.last_fen = None
         self.parser = Parser(self)
         self.brd_reversed = False
+        self.brd_type = None
         self.device_in_config = False
         self.debouncer = MoveDebouncer(
             350, lambda fen: self.appque.put({"cmd": "raw_board_position", "fen": fen, "actor": self.name})
@@ -77,7 +78,7 @@ class Protocol(ParserCallback):
             if not self.device_in_config:
                 self._search_board()
 
-            if self.config is None or self.trans is None:
+            if self.config is None or self.trans is None or "address" not in self.config:
                 logger.error("Cannot connect.")
                 if self.config is None:
                     self.config = {}
@@ -219,6 +220,10 @@ class Protocol(ParserCallback):
     def reversed(self, value: bool):
         self.brd_reversed = value
 
+    def board_type(self, btype: BoardType):
+        if self.brd_type is None:
+            self.brd_type = btype
+
     def set_led(self, pos):
         """
         Set LEDs according to `position`.
@@ -226,16 +231,26 @@ class Protocol(ParserCallback):
         :param pos: `position` array, field != 0 indicates a led that should be on
         """
         if self.connected:
-            cmd = command.set_led(pos, self.brd_reversed)
-            self.trans.write_mt(cmd)
+            if self.brd_type == BoardType.CHESSNUT_REGULAR:
+                cmd = command.set_led_regular_chessnut(pos, self.brd_reversed)
+                self.trans.write_mt(cmd)
+            elif self.brd_type == BoardType.CHESSNUT_MOVE:
+                cmd = command.set_led_chessnut_move(pos, self.brd_reversed)
+                self.trans.write_mt(cmd)
 
     def set_led_off(self):
         if self.connected:
-            self.trans.write_mt(command.set_led_off())
+            if self.brd_type == BoardType.CHESSNUT_REGULAR:
+                self.trans.write_mt(command.set_led_off_regular_chessnut())
+            elif self.brd_type == BoardType.CHESSNUT_MOVE:
+                self.trans.write_mt(command.set_led_off_chessnut_move())
 
     def request_battery_status(self):
         if self.connected:
-            self.trans.write_mt(command.request_battery_status())
+            if self.brd_type is None or self.brd_type == BoardType.CHESSNUT_REGULAR:
+                self.trans.write_mt(command.request_battery_status())
+            if self.brd_type is None or self.brd_type == BoardType.CHESSNUT_MOVE:
+                self.trans.write_mt(command.request_battery_status_chessnut_move())
 
     def realtime_mode(self):
         if self.connected:
@@ -248,3 +263,12 @@ class Protocol(ParserCallback):
         else:
             logger.warning("Bluetooth transport failed to initialize")
         return None
+
+    def auto_move(self, uci_move: str):
+        """
+        Send a command to the Chessnut Move to move the pieces to the given position.
+        """
+        with self.board_mutex:
+            fen = self.last_fen
+        if fen is not None and self.connected and self.brd_type == BoardType.CHESSNUT_MOVE:
+            self.trans.write_mt(command.send_auto_move_fen(fen, uci_move))

@@ -14,6 +14,7 @@
 import asyncio
 import logging
 import queue
+from typing import Dict, Optional
 
 from eboard.eboard import EBoard
 from utilities import DisplayMsg
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 class ChessnutBoard(EBoard):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.agent = None
-        self.appque = queue.Queue()
+        self.appque: queue.Queue[Dict[str, Optional[str]]] = queue.Queue()
         self.connected = False
         self.loop = loop
 
@@ -41,6 +42,7 @@ class ChessnutBoard(EBoard):
         dpos[int(uci_move[3]) - 1][ord(uci_move[2]) - ord("a")] = 1  # to
         if self.agent is not None:
             self.agent.set_led(dpos)
+            self.agent.auto_move(uci_move)
 
     def light_square_on_revelation(self, square: str):
         logger.debug("turn on LEDs - square: %s", square)
@@ -90,7 +92,7 @@ class ChessnutBoard(EBoard):
                 except queue.Empty:
                     pass
                 current_time = self.loop.time()
-                if current_time - last_battery_request > 30:  # request battery state every 30 seconds
+                if current_time - last_battery_request > 3:  # request battery status every 3 seconds
                     last_battery_request = current_time
                     self.agent.request_battery_status()
 

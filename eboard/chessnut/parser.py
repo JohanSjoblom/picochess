@@ -12,9 +12,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from typing import List
+from enum import Enum
 
 from eboard.eboard import to_short_fen, to_battery, get_upper_4_bits, get_lower_4_bits, check_reversed
 from eboard.eboard import Battery
+
+
+class BoardType(Enum):
+    CHESSNUT_REGULAR = 0
+    CHESSNUT_MOVE = 1
 
 
 class ParserCallback(object):
@@ -26,6 +32,9 @@ class ParserCallback(object):
         pass
 
     def reversed(self, value: bool):
+        pass
+
+    def board_type(self, btype: BoardType):
         pass
 
 
@@ -54,9 +63,19 @@ class Parser(object):
                                 board, self.reversed = check_reversed(board, self.reversed, self.callback)
                                 self.callback.board_update(to_short_fen(board))
                             i = new_pos
-                    elif (i + 3) < len(data) and data[i] == 0x2A and data[i + 1] == 0x02:  # battery
-                        self.callback.battery(*to_battery(data[i + 2], data[i + 3]))
+                    elif (i + 3) < len(data) and data[i] == 0x2A and data[i + 1] == 0x02:  # battery (regular Chessnut)
+                        value, battery = to_battery(data[i + 2], data[i + 3])
+                        # Ignore invalid battery status (regular result from Chessnut Move)
+                        if not (value == 0 and battery == Battery.EXHAUSTED):
+                            self.callback.board_type(BoardType.CHESSNUT_REGULAR)
+                            self.callback.battery(value, battery)
                         i += 3
+                    elif (i + 4) < len(data) and data[i] == 0x41 and data[i + 1] == 0x03 and data[i + 2] == 0x0C:
+                        self.callback.board_type(BoardType.CHESSNUT_MOVE)
+                        value, battery = to_battery(data[i + 4], data[i + 3])
+                        if not (value == 0 and battery == Battery.EXHAUSTED):
+                            self.callback.battery(value, battery)
+                        i += 4
                 i += 1
         else:
             self._add_to_buffer(msg)

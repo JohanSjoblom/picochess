@@ -4,6 +4,19 @@ import os
 from utilities import version
 
 
+def str_to_bool(value: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    normalized = value.strip().lower()
+    if normalized in ("1", "true", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "no", "off"):
+        return False
+    raise configargparse.ArgumentTypeError("Boolean value expected.")
+
+
 class Configuration:
     def __init__(self):
         # Command line argument parsing
@@ -117,6 +130,18 @@ class Configuration:
             type=int,
             metavar="PORT",
             help="launch web server",
+        )
+        self.parser.add_argument(
+            "--web-speech-local",
+            type=str_to_bool,
+            default=False,
+            help="enable speech in web client when accessed via localhost",
+        )
+        self.parser.add_argument(
+            "--web-speech-remote",
+            type=str_to_bool,
+            default=True,
+            help="enable speech in web client when accessed remotely",
         )
         self.parser.add_argument("-m", "--email", type=str, help="email used to send pgn/log files", default=None)
         self.parser.add_argument("-ms", "--smtp-server", type=str, help="address of email server", default=None)

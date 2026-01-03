@@ -964,7 +964,8 @@ class UciEngine(object):
         try:
             # issue 85 - remove options not allowed by engine before sending
             options = self.filter_options(self.options, self.engine.options)
-            await self.engine.configure(options)
+            async with self.engine_lock:
+                await self.engine.configure(options)
         except chess.engine.EngineError as e:
             logger.warning(e)
 

@@ -210,6 +210,10 @@ pgn-elo = 1500
 ## The port of the built-in web server
 #web-server = 8080
 web-server = 80
+## Enable speech synthesis in the web client when accessed from localhost
+web-speech-local = False
+## Enable speech synthesis in the web client when accessed remotely
+web-speech-remote = True
 
 ## When in ponder mode decides how long each info is displayed. Default is 3 secs.
 ## Must be between 1 to 8 secs.

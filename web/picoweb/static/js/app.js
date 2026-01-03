@@ -41,6 +41,9 @@ var simpleNags = {
 };
 // Speech toggle for the web client (set via setSpeechMuted)
 var speechMuted = false;
+if (typeof window !== "undefined" && window.picoWebConfig && window.picoWebConfig.webSpeech === false) {
+    speechMuted = true;
+}
 
 var speechAvailable = true
 if (typeof speechSynthesis === "undefined") {

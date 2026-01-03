@@ -537,6 +537,10 @@
                 </div>
             </div>
         </div>
+        <script>
+            window.picoWebConfig = window.picoWebConfig || {};
+            window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
+        </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {

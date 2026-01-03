@@ -258,11 +258,23 @@ class InfoHandler(ServerRequestHandler):
 
 
 class ChessBoardHandler(ServerRequestHandler):
-    def initialize(self, theme="dark"):
+    def initialize(self, theme="dark", shared=None):
         self.theme = theme
+        self.shared = shared
 
     def get(self):
-        self.render("web/picoweb/templates/clock.html", theme=self.theme)
+        web_speech = True
+        if self.shared is not None:
+            web_speech = self._get_web_speech_setting()
+        self.render("web/picoweb/templates/clock.html", theme=self.theme, web_speech=web_speech)
+
+    def _get_web_speech_setting(self) -> bool:
+        web_speech_local = self.shared.get("web_speech_local", True)
+        web_speech_remote = self.shared.get("web_speech_remote", False)
+        remote_ip = self.request.headers.get("X-Real-IP") or self.request.remote_ip
+        if remote_ip in ("127.0.0.1", "::1"):
+            return web_speech_local
+        return web_speech_remote
 
 
 class HelpHandler(ServerRequestHandler):
@@ -287,7 +299,7 @@ class WebServer:
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
         return tornado.web.Application(
             [
-                (r"/", ChessBoardHandler, dict(theme=theme)),
+                (r"/", ChessBoardHandler, dict(theme=theme, shared=shared)),
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),
                 (r"/info", InfoHandler, dict(shared=shared)),

@@ -785,6 +785,8 @@ async def main() -> None:
     if args.web_server_port:
         my_web_server = WebServer()
         shared: dict = {}
+        shared["web_speech_local"] = args.web_speech_local
+        shared["web_speech_remote"] = args.web_speech_remote
         # moved starting WebDisplayt and WebVr here so that they are in same main loop
         logger.info("initializing message queues")
         my_web_display = WebDisplay(shared, main_loop)

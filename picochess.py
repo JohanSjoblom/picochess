@@ -1809,11 +1809,14 @@ async def main() -> None:
                     logger.info("wrong color move -> sliding, reverting to: %s", self.state.game.fen())
                 legal_moves = list(self.state.game.legal_moves)
                 move = legal_moves[state.last_legal_fens.index(fen)]
-                await self.user_move(move, sliding=True)
-                if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                    self.state.legal_fens = []
+                ok = await self.user_move(move, sliding=True)
+                if ok:
+                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
+                        self.state.legal_fens = []
+                    else:
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                 else:
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    handled_fen = False
 
             # allow playing/correcting moves for pico's side in TRAINING mode:
             elif fen in legal_fens_pico and self.state.interaction_mode in (Mode.TRAINING, Mode.PGNREPLAY):
@@ -1843,12 +1846,15 @@ async def main() -> None:
                             await asyncio.sleep(2)
                 logger.debug("user move did a move for pico")
 
-                await self.user_move(move, sliding=False)
-                self.state.last_legal_fens = self.state.legal_fens
-                if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                    self.state.legal_fens = []
+                ok = await self.user_move(move, sliding=False)
+                if ok:
+                    self.state.last_legal_fens = self.state.legal_fens
+                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
+                        self.state.legal_fens = []
+                    else:
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                 else:
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    handled_fen = False
 
             # standard legal move
             elif fen in self.state.legal_fens:
@@ -1856,12 +1862,15 @@ async def main() -> None:
                 self.state.newgame_happened = False
                 legal_moves = list(self.state.game.legal_moves)
                 move = legal_moves[state.legal_fens.index(fen)]
-                await self.user_move(move, sliding=False)
-                self.state.last_legal_fens = self.state.legal_fens
-                if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
-                    self.state.legal_fens = []
+                ok = await self.user_move(move, sliding=False)
+                if ok:
+                    self.state.last_legal_fens = self.state.legal_fens
+                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
+                        self.state.legal_fens = []
+                    else:
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                 else:
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    handled_fen = False
 
             # molli: allow direct play of an alternative move for pico
             elif (
@@ -2088,13 +2097,16 @@ async def main() -> None:
                 # standard user move handling
                 legal_moves = list(self.state.game.legal_moves)
                 move = legal_moves[state.legal_fens.index(fen)]
-                await self.user_move(move, sliding=False)
-                self.state.last_legal_fens = self.state.legal_fens
-                self.state.newgame_happened = False
-                if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                    self.state.legal_fens = []
+                ok = await self.user_move(move, sliding=False)
+                if ok:
+                    self.state.last_legal_fens = self.state.legal_fens
+                    self.state.newgame_happened = False
+                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
+                        self.state.legal_fens = []
+                    else:
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
                 else:
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    handled_fen = False
 
             # Check if this is a previous legal position and allow user to restart from this position
             else:
@@ -2176,7 +2188,7 @@ async def main() -> None:
                     self.state.error_fen = fen
                     self.start_fen_timer()
 
-        async def user_move(self, move: chess.Move, sliding: bool):
+        async def user_move(self, move: chess.Move, sliding: bool) -> bool:
             """Handle an user move."""
 
             eval_str = ""
@@ -2187,6 +2199,7 @@ async def main() -> None:
             logger.info("user move [%s] sliding: %s", move, sliding)
             if move not in self.state.game.legal_moves:
                 logger.warning("illegal move [%s]", move)
+                return False
             else:
                 if self.state.interaction_mode == Mode.BRAIN:
                     ponder_hit = move == self.state.pb_move
@@ -2477,6 +2490,8 @@ async def main() -> None:
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string=game_comment))
                             await asyncio.sleep(0.7)
                 self.state.takeback_active = False
+
+                return True
 
         async def _deliver_picotutor_messages(self, pending_messages: list[tuple[Message, float | None]]) -> None:
             """Send queued picotutor messages after the move announcement."""

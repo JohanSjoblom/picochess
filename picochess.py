@@ -1944,7 +1944,11 @@ async def main() -> None:
                     if valid:
                         valid = await self.state.picotutor.push_move(self.state.done_move, self.state.game)
                     if valid and self.always_run_tutor:
-                        self.state.picotutor.get_user_move_eval()  # eval engine forced move
+                        eval_str, _ = self.state.picotutor.get_user_move_eval()  # eval engine forced move
+                        if eval_str:
+                            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str=eval_str))
+                            delay = 3.0 if "??" in eval_str else 1.0
+                            await asyncio.sleep(delay)
                     if not valid:
                         await self.set_picotutor_position()
                 self.state.done_computer_fen = None
@@ -4998,7 +5002,11 @@ async def main() -> None:
 
                                 valid = await self.state.picotutor.push_move(event.move, game_copy)
                                 if valid and self.always_run_tutor:
-                                    self.state.picotutor.get_user_move_eval()  # eval engine move
+                                    eval_str, _ = self.state.picotutor.get_user_move_eval()  # eval engine move
+                                    if eval_str:
+                                        await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str=eval_str))
+                                        delay = 3.0 if "??" in eval_str else 1.0
+                                        await asyncio.sleep(delay)
                                 if not valid:
                                     await self.set_picotutor_position()
                             self.state.done_computer_fen = game_copy.board_fen()

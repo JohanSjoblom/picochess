@@ -360,6 +360,8 @@ tutor-coach = off
 
 ## Engine used for PicoTutor analysis. Default is /opt/picochess/engines/aarch64/a-stockf.
 tutor-engine = /opt/picochess/engines/x86_64/a-stockf
+## Optional: use a tutor engine on a remote machine; falls back to tutor-engine if not found
+#tutor-remote-engine = remote_stockfish
 
 ## The coach-analyser setting will make tutor analyse also engine moves. It needs more CPU.
 ## Use tutor engine listed above for score-depth-hint when its the engines turn to move.

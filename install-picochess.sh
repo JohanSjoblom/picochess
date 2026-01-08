@@ -301,7 +301,7 @@ sudo -u "$INSTALL_USER" "$REPO_DIR/venv/bin/python" -m pip install --upgrade pip
 sudo -u "$INSTALL_USER" "$REPO_DIR/venv/bin/python" -m pip install --upgrade -r requirements.txt
 
 echo " ------- "
-echo "setting up picochess, obooksrv, gamesdb, and update services"
+echo "setting up picochess, gamesdb, and update services"
 cp etc/picochess.service /etc/systemd/system/
 INSTALL_USER_ID=$(id -u "$INSTALL_USER" 2>/dev/null || true)
 if [ -n "$INSTALL_USER_ID" ]; then
@@ -312,8 +312,6 @@ if [ -n "$INSTALL_USER_ID" ]; then
         -e "s|^Group=.*|Group=$INSTALL_USER|" \
         /etc/systemd/system/picochess.service
 fi
-ln -sf "$REPO_DIR/obooksrv/$(uname -m)/obooksrv" "$REPO_DIR/obooksrv/obooksrv"
-cp etc/obooksrv.service /etc/systemd/system/
 ln -sf "$REPO_DIR/gamesdb/$(uname -m)/tcscid" "$REPO_DIR/gamesdb/tcscid"
 cp etc/gamesdb.service /etc/systemd/system/
 cp etc/picochess-update.service /etc/systemd/system/
@@ -333,7 +331,6 @@ touch /var/log/picochess-update.log /var/log/picochess-last-update
 chown root:root /var/log/picochess-*
 systemctl daemon-reload
 systemctl enable picochess.service
-systemctl enable obooksrv.service
 systemctl enable gamesdb.service
 systemctl enable picochess-update.service
 

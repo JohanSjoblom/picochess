@@ -35,7 +35,6 @@ Get the installation script, give it execution rights, and run it as sudo. It wi
 The script installs the following services in `/etc/systemd/system/`:
 - picochess (main service)
 - picochess-update (stay updated)
-- obooksrv (opening books window on web page)
 - gamesdb (games window on web page)
 
 `install-picochess.sh` flags:

@@ -5096,9 +5096,8 @@ async def main() -> None:
                 await DisplayMsg.show(
                     Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok)
                 )
-                # keep track of selected opening book for engine, PGN and web book explorer
+                # keep track of selected opening book for engine and PGN
                 self.state.book_in_use = event.book["file"]
-                await DisplayMsg.show(Message.SYSTEM_INFO(info={"book_file": self.state.book_in_use}))
                 self.state.stop_fen_timer()
 
             elif isinstance(event, Event.SHOW_ENGINENAME):

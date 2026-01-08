@@ -280,11 +280,8 @@ class BookHandler(ServerRequestHandler):
             # initial selection: try to match engine/book header once, otherwise index 0
             current_index = 0
             if books:
-                system_info = self.shared.get("system_info") or {}
-                active_file = system_info.get("book_file")
-                if not active_file:
-                    headers = self.shared.get("headers") or {}
-                    active_file = headers.get("PicoOpeningBook")
+                headers = self.shared.get("headers") or {}
+                active_file = headers.get("PicoOpeningBook")
                 if active_file:
                     for entry in books:
                         if entry["file"] == active_file:
@@ -334,11 +331,8 @@ class BookHandler(ServerRequestHandler):
             index = max(0, min(param_index, len(books) - 1))
         else:
             index = 0
-            system_info = self.shared.get("system_info") or {}
-            active_file = system_info.get("book_file")
-            if not active_file:
-                headers = self.shared.get("headers") or {}
-                active_file = headers.get("PicoOpeningBook")
+            headers = self.shared.get("headers") or {}
+            active_file = headers.get("PicoOpeningBook")
             if active_file:
                 for entry in books:
                     if entry["file"] == active_file:

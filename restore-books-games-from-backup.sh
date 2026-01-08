@@ -7,7 +7,7 @@ REPO_DIR=${REPO_DIR:-/opt/picochess}
 BOOKS_DIR="$REPO_DIR/books"
 GAMES_DIR="$REPO_DIR/gamesdb"
 
-BACKUP_DIR_BASE="/home/pi/pico_backups"
+BACKUP_DIR_BASE="${HOME}/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current/books_games_backup"
 
 if [ ! -d "$REPO_DIR" ]; then

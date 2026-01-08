@@ -5,7 +5,7 @@
 #
 
 REPO_DIR=${REPO_DIR:-/opt/picochess}
-TMP_DIR="/home/pi/pico_backups/current/tmp"
+TMP_DIR="${HOME}/pico_backups/current/tmp"
 
 if [ ! -d "$REPO_DIR" ]; then
     echo "Repository directory $REPO_DIR not found. Aborting." >&2

@@ -5,7 +5,7 @@
 
 REPO_DIR=${REPO_DIR:-/opt/picochess}
 BOOKS_DIR="$REPO_DIR/books"
-GAMES_DIR="$REPO_DIR/games"
+GAMES_DIR="$REPO_DIR/gamesdb"
 
 BACKUP_DIR_BASE="/home/pi/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current/books_games_backup"
@@ -40,7 +40,7 @@ restore_dir() {
 }
 
 restore_dir "$BACKUP_DIR/books" "$BOOKS_DIR" "books" || exit 1
-restore_dir "$BACKUP_DIR/games" "$GAMES_DIR" "games" || exit 1
+restore_dir "$BACKUP_DIR/gamesdb" "$GAMES_DIR" "gamesdb" || exit 1
 
 echo "Books and games restored to $REPO_DIR."
 exit 0

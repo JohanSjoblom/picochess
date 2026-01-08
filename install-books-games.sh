@@ -15,7 +15,7 @@ fi
 mkdir -p "$TMP_DIR" || exit 1
 
 BOOKS_ARCHIVE="books.tar.gz"
-GAMES_ARCHIVE="games.tar.gz"
+GAMES_ARCHIVE="gamesdb.tar.gz"
 BOOKS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.7/${BOOKS_ARCHIVE}"
 GAMES_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.7/${GAMES_ARCHIVE}"
 BOOKS_TMP="$TMP_DIR/$BOOKS_ARCHIVE"
@@ -55,13 +55,13 @@ extract_asset "$BOOKS_TMP" "$REPO_DIR/books" || exit 1
 
 echo "Downloading games archive..."
 download_asset "$GAMES_URL" "$GAMES_TMP" || exit 1
-echo "Extracting games into $REPO_DIR/games..."
-mkdir -p "$REPO_DIR/games" || exit 1
-extract_asset "$GAMES_TMP" "$REPO_DIR/games" || exit 1
+echo "Extracting games into $REPO_DIR/gamesdb..."
+mkdir -p "$REPO_DIR/gamesdb" || exit 1
+extract_asset "$GAMES_TMP" "$REPO_DIR/gamesdb" || exit 1
 
 # Ensure resulting directories are owned by pi
 chown -R pi:pi "$REPO_DIR/books" 2>/dev/null || true
-chown -R pi:pi "$REPO_DIR/games" 2>/dev/null || true
+chown -R pi:pi "$REPO_DIR/gamesdb" 2>/dev/null || true
 
 echo "Book and game resources installed."
 exit 0

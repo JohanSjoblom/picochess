@@ -5,7 +5,7 @@
 
 REPO_DIR=${REPO_DIR:-/opt/picochess}
 BOOKS_DIR="$REPO_DIR/books"
-GAMES_DIR="$REPO_DIR/games"
+GAMES_DIR="$REPO_DIR/gamesdb"
 
 BACKUP_DIR_BASE="/home/pi/pico_backups"
 BACKUP_DIR="$BACKUP_DIR_BASE/current"
@@ -32,15 +32,15 @@ else
     echo "No books directory found – skipping."
 fi
 
-echo "Backing up game resources..."
+echo "Backing up games database resources..."
 if [ -d "$GAMES_DIR" ]; then
-    rm -rf "$BACKUP_TARGET/games"
-    mv "$GAMES_DIR" "$BACKUP_TARGET/games" || {
-        echo "Error: Failed to move games directory to backup." >&2
+    rm -rf "$BACKUP_TARGET/gamesdb"
+    mv "$GAMES_DIR" "$BACKUP_TARGET/gamesdb" || {
+        echo "Error: Failed to move gamesdb directory to backup." >&2
         exit 1
     }
 else
-    echo "No games directory found – skipping."
+    echo "No gamesdb directory found – skipping."
 fi
 
 chown -R pi:pi "$BACKUP_TARGET" 2>/dev/null || true

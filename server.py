@@ -247,13 +247,13 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_system_info":
             if "system_info" in self.shared:
                 self.write(self.shared["system_info"])
-        elif action == "get_ip_info":
+        if action == "get_ip_info":
             if "ip_info" in self.shared:
                 self.write(self.shared["ip_info"])
-        elif action == "get_headers":
+        if action == "get_headers":
             if "headers" in self.shared:
                 self.write(dict(self.shared["headers"]))
-        elif action == "get_clock_text":
+        if action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
 

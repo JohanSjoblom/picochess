@@ -35,7 +35,13 @@
             .scroll-portrait {
                 height: 98vh;
                 overflow-y: auto;
+                overflow-x: hidden;
                 -webkit-overflow-scrolling: touch;
+            }
+
+            html,
+            body {
+                overflow-x: hidden;
             }
         }
 
@@ -145,6 +151,30 @@
             flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
+        }
+
+        .book-header-row {
+            min-width: 0;
+        }
+
+        #currentBookName {
+            max-width: 40vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #book {
+            overflow-x: hidden;
+        }
+
+        .book-scroll,
+        .book-table-scroll {
+            overflow-x: hidden;
+        }
+
+        body {
+            overflow-x: hidden;
         }
     </style>
 
@@ -423,7 +453,7 @@
                                             <div class="scroll_obooklist book-scroll">
                                                 <div id="currentBookContainer" class="mb-2 d-none">
                                                     <div class="alert alert-secondary py-1 px-2 text-center mb-2">
-                                                        <div class="d-flex align-items-center justify-content-center gap-2">
+                                                        <div class="d-flex align-items-center justify-content-center gap-2 book-header-row">
                                                             <button type="button" id="bookPrev" class="btn btn-sm btn-primary book-switch-btn">
                                                                 <i class="fa fa-chevron-left"></i>
                                                             </button>

@@ -352,21 +352,18 @@ class BookHandler(ServerRequestHandler):
 
         moves_data = []
         try:
-            reader = chess.polyglot.open_reader(book_file)
             board = chess.Board(fen)
-
             aggregated = {}
             total_weight = 0
 
-            for entry in reader.find_all(board):
-                move_uci = entry.move.uci()
-                weight = getattr(entry, "weight", 1)
-                total_weight += weight
-                if move_uci not in aggregated:
-                    aggregated[move_uci] = {"move": move_uci, "count": 0}
-                aggregated[move_uci]["count"] += weight
-
-            reader.close()
+            with chess.polyglot.open_reader(book_file) as reader:
+                for entry in reader.find_all(board):
+                    move_uci = entry.move.uci()
+                    weight = getattr(entry, "weight", 1)
+                    total_weight += weight
+                    if move_uci not in aggregated:
+                        aggregated[move_uci] = {"move": move_uci, "count": 0}
+                    aggregated[move_uci]["count"] += weight
 
             sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
 

@@ -3,6 +3,7 @@
     .container-fluid>.row {
         display: flex;
         align-items: stretch;
+        flex-wrap: nowrap;
     }
 
     .scroll-portrait > .container-fluid > .row {
@@ -13,6 +14,7 @@
     .container-fluid>.row>.col {
         display: flex;
         flex-direction: column;
+        min-width: 0;
     }
 
     .container-fluid>.row>.col:last-child>.container {

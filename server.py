@@ -369,7 +369,6 @@ class BookHandler(ServerRequestHandler):
             reader.close()
 
             sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
-            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
 
             for item in sorted_moves:
                 count = item["count"]

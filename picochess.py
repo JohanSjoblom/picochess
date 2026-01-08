@@ -1043,8 +1043,6 @@ async def main() -> None:
                 "user_elo": self.args.pgn_elo,
                 "rspeed": round(float(args.rspeed), 2),
                 "book_file": self.state.book_in_use,
-                # currently selected opening book for engine and web book tab
-                "book_file": self.state.book_in_use,
             }
 
             await DisplayMsg.show(Message.SYSTEM_INFO(info=sys_info))

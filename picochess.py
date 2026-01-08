@@ -5092,10 +5092,7 @@ async def main() -> None:
                 write_picochess_ini("book", event.book["file"])
                 logger.debug("changing opening book [%s]", event.book["file"])
                 self.bookreader = chess.polyglot.open_reader(event.book["file"])
-                await DisplayMsg.show(
-                    Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok)
-                )
-                # keep track of selected opening book for engine and PGN
+                await DisplayMsg.show(Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok))
                 self.state.book_in_use = event.book["file"]
                 self.state.stop_fen_timer()
 

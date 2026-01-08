@@ -241,6 +241,16 @@ else
     echo "install-engines.sh missing — cannot install engines."
 fi
 
+# install books/games resources as install user (downloads if missing)
+if [ -f install-books-games.sh ]; then
+    cd "$REPO_DIR" || exit 1
+    chmod +x install-books-games.sh 2>/dev/null
+    echo "Installing books and games resources"
+    sudo -u "$INSTALL_USER" ./install-books-games.sh
+else
+    echo "install-books-games.sh missing — cannot install books/games resources."
+fi
+
 # Ensure engines folder belongs to install user (in case user ran install-engines with sudo)
 if [ -d "$REPO_DIR/engines" ]; then
     echo "Fixing ownership for engines folder..."

@@ -1,7 +1,7 @@
 #!/bin/sh
 # install-books-games.sh – Download and install opening books and game resources
 # POSIX-compliant; intended to run as user pi (no sudo).
-# Draft version with placeholder asset URLs for future release v4.1.7.
+# Draft version with placeholder asset URLs for future release v4.1.9.
 #
 
 REPO_DIR=${REPO_DIR:-/opt/picochess}
@@ -16,8 +16,8 @@ mkdir -p "$TMP_DIR" || exit 1
 
 BOOKS_ARCHIVE="books.tar.gz"
 GAMES_ARCHIVE="gamesdb.tar.gz"
-BOOKS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.7/${BOOKS_ARCHIVE}"
-GAMES_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.7/${GAMES_ARCHIVE}"
+BOOKS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/${BOOKS_ARCHIVE}"
+GAMES_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/${GAMES_ARCHIVE}"
 BOOKS_TMP="$TMP_DIR/$BOOKS_ARCHIVE"
 GAMES_TMP="$TMP_DIR/$GAMES_ARCHIVE"
 

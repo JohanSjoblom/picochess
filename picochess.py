@@ -1153,6 +1153,8 @@ async def main() -> None:
                     self.state.dgtmenu.get_picocomment(),
                 )
                 await self.state.picotutor.open_engine()
+            if self.shared is not None:
+                self.shared["picotutor"] = self.state.picotutor
             my_pgn_display.set_picotutor(self.state.picotutor)  # needed for comments in pgn
             # set_mode in picotutor init set to False
 

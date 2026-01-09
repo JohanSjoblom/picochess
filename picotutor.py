@@ -1258,6 +1258,36 @@ class PicoTutor:
         """return a dict of all evaluated moves"""
         return self.evaluated_moves
 
+    def get_eval_mistakes(self) -> list[dict]:
+        """return a list of mistakes with CPL in move order for UI display"""
+        mistakes: list[dict] = []
+        for (halfmove_nr, _user_move, known_turn), value in self.evaluated_moves.items():
+            cpl = value.get("CPL")
+            if cpl is None:
+                continue
+            try:
+                cpl_value = float(cpl)
+            except (TypeError, ValueError):
+                continue
+            if cpl_value <= 0:
+                continue
+            user_move = value.get("user_move")
+            best_move = value.get("best_move")
+            if not user_move or not best_move:
+                continue
+            mistakes.append(
+                {
+                    "halfmove": halfmove_nr,
+                    "move_no": PicoTutor.printable_move_filler(halfmove_nr, known_turn).strip(),
+                    "user_move": user_move,
+                    "best_move": best_move,
+                    "cpl": int(round(cpl_value)),
+                    "nag": PicoTutor.nag_to_symbol(value.get("nag")),
+                }
+            )
+        mistakes.sort(key=lambda item: item["halfmove"])
+        return mistakes
+
     def log_eval_moves(self):
         """debugging help to check list of evaluated moves"""
         logger.debug("picotutor evaluated moves:")

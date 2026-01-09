@@ -1749,14 +1749,33 @@ function updateTutorMistakes(mistakes) {
     });
 }
 
-function formatBackendAnalysisPv(pvMoves) {
+function getStartMoveNumFromFen(fen) {
+    if (!fen) {
+        return 1;
+    }
+    var parts = fen.split(' ');
+    if (parts.length < 6) {
+        return 1;
+    }
+    var turn = parts[1];
+    var fullmove = parseInt(parts[5], 10);
+    if (Number.isNaN(fullmove) || fullmove < 1) {
+        return 1;
+    }
+    return ((fullmove - 1) * 2) + (turn === 'w' ? 1 : 2);
+}
+
+function formatBackendAnalysisPv(pvMoves, baseFen) {
     if (!Array.isArray(pvMoves) || pvMoves.length === 0) {
         return null;
     }
 
     var analysis_game = new Chess();
     var start_move_num = 1;
-    if (currentPosition && currentPosition.fen) {
+    if (baseFen) {
+        analysis_game.load(baseFen, chessGameType);
+        start_move_num = getStartMoveNumFromFen(baseFen);
+    } else if (currentPosition && currentPosition.fen) {
         analysis_game.load(currentPosition.fen, chessGameType);
         start_move_num = getCountPrevMoves(currentPosition) + 1;
     }
@@ -1782,7 +1801,9 @@ function formatBackendAnalysisPv(pvMoves) {
     }
 
     var tempGame = new Chess();
-    if (currentPosition && currentPosition.fen) {
+    if (baseFen) {
+        tempGame.load(baseFen, chessGameType);
+    } else if (currentPosition && currentPosition.fen) {
         tempGame.load(currentPosition.fen, chessGameType);
     }
     var currentTurn = tempGame.turn();
@@ -1837,7 +1858,7 @@ function updateBackendAnalysis(analysis) {
         scoreClass += ' score-negative';
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv : [];
-    var pvFormatted = formatBackendAnalysisPv(pvMoves);
+    var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
     var output = '<div class="analysis-line-compact">';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     output += '<span class="depth-display">d' + analysis.depth + '</span>';

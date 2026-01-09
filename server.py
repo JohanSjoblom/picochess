@@ -695,6 +695,7 @@ class WebDisplay(DisplayMsg):
             "score": None,
             "mate": None,
             "pv": None,
+            "fen": None,
         }
 
     def _create_game_info(self):
@@ -862,11 +863,15 @@ class WebDisplay(DisplayMsg):
             if state.get("score") is None and not state.get("mate"):
                 return
             pv_moves = state.get("pv") or []
+            fen = None
+            if "last_dgt_move_msg" in self.shared:
+                fen = self.shared["last_dgt_move_msg"].get("fen")
             analysis_payload = {
                 "depth": state.get("depth"),
                 "score": state.get("score"),
                 "mate": state.get("mate"),
                 "pv": [move.uci() for move in pv_moves],
+                "fen": fen,
             }
             self.shared["analysis_state"] = analysis_payload
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})

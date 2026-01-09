@@ -241,6 +241,16 @@ else
     echo "install-engines.sh missing — cannot install engines."
 fi
 
+# Remove empty gamesdb placeholder (only tcscid symlink) to allow reinstall
+if [ -d "$REPO_DIR/gamesdb" ]; then
+    GAMESDB_ENTRY_COUNT=$(find "$REPO_DIR/gamesdb" -mindepth 1 -maxdepth 1 -print | wc -l)
+    if [ "$GAMESDB_ENTRY_COUNT" -eq 1 ] && [ -L "$REPO_DIR/gamesdb/tcscid" ]; then
+        echo "gamesdb contains only tcscid symlink - removing placeholder"
+        rm -f "$REPO_DIR/gamesdb/tcscid"
+        rmdir "$REPO_DIR/gamesdb" 2>/dev/null || true
+    fi
+fi
+
 # backup existing books/gamesdb before replacing with downloaded resources
 if [ -d "$REPO_DIR/books" ] || [ -d "$REPO_DIR/gamesdb" ]; then
     BACKUP_TARGET="$INSTALL_USER_HOME/pico_backups/current/books_games_backup"

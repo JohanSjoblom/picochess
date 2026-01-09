@@ -2785,9 +2785,16 @@ async def main() -> None:
                 await Observable.fire(Event.NEW_DEPTH(depth=depth))
             if send_pv:
                 pv_move_to_send = ponder_move if ponder_move and ponder_move != chess.Move.null() else move
-                if pv_move_to_send != chess.Move.null():
-                    self.state.pb_move = pv_move_to_send  # backward compatibility
-                    await Observable.fire(Event.NEW_PV(pv=[pv_move_to_send]))
+                pv_moves = list(info.get("pv") or [])
+                if pv_moves:
+                    if pv_move_to_send and pv_move_to_send != chess.Move.null():
+                        pv_moves[0] = pv_move_to_send
+                    pv_to_send = pv_moves
+                else:
+                    pv_to_send = [pv_move_to_send] if pv_move_to_send != chess.Move.null() else []
+                if pv_to_send:
+                    self.state.pb_move = pv_to_send[0]  # backward compatibility
+                    await Observable.fire(Event.NEW_PV(pv=pv_to_send))
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 

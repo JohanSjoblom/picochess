@@ -2793,6 +2793,7 @@ async def main() -> None:
             if next_move is None:
                 next_move = self._get_cached_pgn_next_move()
             moves_game = len(self.state.game.move_stack)  # half_move dont work in library
+            moves_pgn = -1
             if next_move:
                 await self.do_pgn_replay_move(next_move)
                 self.state.autoplay_half_moves = moves_game + 1  # remember last seen autoplay move
@@ -3286,6 +3287,8 @@ async def main() -> None:
                     # this PGN game was not loaded to the end (above) - remember it
                     self.state.picotutor.set_pgn_game_to_step(pgn_game_to_step)
                     self.state.autoplay_half_moves = 0  # remember last seen autoplay move
+                    if self.state.interaction_mode == Mode.PGNREPLAY:
+                        self._start_pgn_replay_autoplay()
 
         def emulation_mode(self):
             emulation = False
@@ -3494,6 +3497,11 @@ async def main() -> None:
                 # yes, the move has been done, we can do the next move
                 return True
             return False
+
+        def _start_pgn_replay_autoplay(self) -> None:
+            """Enable PGN replay autoplay without advancing immediately."""
+            if self.can_do_next_pgn_replay_move():
+                self.state.autoplay_pgn_file = True
 
         def _get_cached_pgn_next_move(self) -> chess.Move | None:
             """Return cached next PGN move for current FEN, computing when needed."""

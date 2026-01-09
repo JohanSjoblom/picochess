@@ -118,6 +118,9 @@ const NAG_QUIET_POSITION = 11;
 const NAG_ACTIVE_POSITION = 12;
 const NAG_UNCLEAR_POSITION = 13;
 const NAG_WHITE_SLIGHT_ADVANTAGE = 14;
+
+// Explicitly initialize engine analysis state to avoid accidental auto-start.
+window.analysis = false;
 const NAG_BLACK_SLIGHT_ADVANTAGE = 15;
 
 //# TODO: Add more constants for example from
@@ -770,7 +773,7 @@ var updateStatus = function () {
     }
 
     boardStatusEl.html(status);
-    if (window.analysis) {
+    if (window.analysis === true) {
         analyze(true);
     }
 
@@ -1623,6 +1626,7 @@ function stopAnalysis() {
     if (!window.StockfishModule) {
         if (window.stockfish) {
             window.stockfish.terminate();
+            window.stockfish = null;
         }
     } else {
         try {
@@ -1697,17 +1701,17 @@ function analyze(position_update) {
         moves = getPreviousMoves(currentPosition);
     }
     if (!window.StockfishModule) {
-        window.stockfish = new Worker('/static/js/stockfish.js');
-        window.stockfish.onmessage = function (event) {
-            if (event && event.data) {
-                handleMessage(event);
-            }
-        };
-    }
-    else {
         if (!window.stockfish) {
-            window.stockfish = StockfishModule;
+            window.stockfish = new Worker('/static/js/stockfish.js');
+            window.stockfish.onmessage = function (event) {
+                if (event && event.data) {
+                    handleMessage(event);
+                }
+            };
         }
+    }
+    else if (!window.stockfish) {
+        window.stockfish = StockfishModule;
     }
 
     var startpos = 'startpos';
@@ -2161,6 +2165,12 @@ $(function () {
         };
         ws.onclose = function () {
             dgtClockStatusEl.html('closed');
+            if (window.analysis || window.stockfish) {
+                window.analysis = false;
+                $('#AnalyzeText').text('Analyze');
+                stopAnalysis();
+                $('#engineStatus').html('');
+            }
         };
     }
 

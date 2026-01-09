@@ -1749,6 +1749,39 @@ function updateTutorMistakes(mistakes) {
     });
 }
 
+function updateBackendAnalysis(analysis) {
+    var lineEl = document.getElementById('analysisLine');
+    if (!lineEl) {
+        return;
+    }
+    if (!analysis || typeof analysis.depth !== 'number') {
+        lineEl.textContent = '';
+        return;
+    }
+    var scoreText = '?';
+    if (analysis.mate) {
+        scoreText = '#' + analysis.mate;
+    } else if (analysis.score !== null && analysis.score !== undefined) {
+        var numericScore = analysis.score / 100.0;
+        scoreText = (numericScore > 0 ? '+' : '') + numericScore.toFixed(2);
+    }
+    var scoreClass = 'score-display';
+    if (String(scoreText).includes('#')) {
+        scoreClass += ' score-mate';
+    } else if (scoreText !== '?' && parseFloat(scoreText) > 0) {
+        scoreClass += ' score-positive';
+    } else if (scoreText !== '?' && parseFloat(scoreText) < 0) {
+        scoreClass += ' score-negative';
+    }
+    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.join(' ') : '';
+    var output = '<span class="' + scoreClass + '">' + scoreText + '</span>';
+    output += '<span class="depth-display">d' + analysis.depth + '</span>';
+    if (pvMoves) {
+        output += '<span class="pv-display">' + pvMoves + '</span>';
+    }
+    lineEl.innerHTML = output;
+}
+
 function goToDGTFen() {
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data) {
@@ -1993,6 +2026,9 @@ $(function () {
                 case 'Game':
                     newBoard(data.fen);
                     updateTutorMistakes(data.mistakes);
+                    break;
+                case 'Analysis':
+                    updateBackendAnalysis(data.analysis);
                     break;
                 case 'Message':
                     boardStatusEl.html(data.msg);

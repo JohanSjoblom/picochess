@@ -246,6 +246,11 @@ class EventHandler(WebSocketHandler):
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
+        if self.shared and "analysis_state" in self.shared:
+            try:
+                self.write_message({"event": "Analysis", "analysis": self.shared["analysis_state"]})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync analysis to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -685,6 +690,12 @@ class WebDisplay(DisplayMsg):
         self.shared = shared
         self._task = None  # task for message consumer
         self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
+        self.analysis_state = {
+            "depth": None,
+            "score": None,
+            "mate": None,
+            "pv": None,
+        }
 
     def _create_game_info(self):
         if "game_info" not in self.shared:
@@ -843,6 +854,22 @@ class WebDisplay(DisplayMsg):
                 result["mistakes"] = picotutor.get_eval_mistakes()
             except Exception as exc:  # pragma: no cover - defensive for UI
                 logger.debug("failed to collect tutor mistakes: %s", exc)
+
+        def _maybe_send_analysis():
+            state = self.analysis_state
+            if state.get("pv") is None:
+                return
+            if state.get("score") is None and not state.get("mate"):
+                return
+            pv_moves = state.get("pv") or []
+            analysis_payload = {
+                "depth": state.get("depth"),
+                "score": state.get("score"),
+                "mate": state.get("mate"),
+                "pv": [move.uci() for move in pv_moves],
+            }
+            self.shared["analysis_state"] = analysis_payload
+            EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
             pgn_game = pgn.Game().from_board(game)
@@ -1027,6 +1054,19 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
+
+        elif isinstance(message, Message.NEW_PV):
+            self.analysis_state["pv"] = message.pv
+            _maybe_send_analysis()
+
+        elif isinstance(message, Message.NEW_SCORE):
+            self.analysis_state["score"] = message.score
+            self.analysis_state["mate"] = message.mate
+            _maybe_send_analysis()
+
+        elif isinstance(message, Message.NEW_DEPTH):
+            self.analysis_state["depth"] = message.depth
+            _maybe_send_analysis()
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             # result = {'event': 'Status', 'msg': 'Error clock'}

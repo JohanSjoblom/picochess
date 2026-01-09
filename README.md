@@ -8,6 +8,7 @@ Features
 - Play via Web Browser. Enjoy chess directly from your browser. You do need an electronic chess board.
 - Electronic Chess Board support for an authentic playing experience. Compatible with DGT e-board, Certabo, Chesslink, Chessnut, and Ichessone. Note that no guarantees can be given that it will work with all of these boards, but the community has worked hard to maintain this possibility. I currently use a DGT e-board and a DGT Pi 3000 myself.
 - DGT Clock Compatibility. Runs on the DGT Pi 3000 electronic clock which becomes an all-in one chess computer.
+- Responsive web layout scales well on large desktop screens.
 
 About This Fork
 ===============
@@ -21,7 +22,7 @@ Requirements
 ------------
 
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
-- RaspiOS Bookworm 64bit or the new Trixie 13, released in 2025. The goal is that you can always take the latest stock Pi image that is available. It should work out of the box as long as you remember to switch the audio to PulseAudio. You might also need to make sure that the PulseAudio packages are installed like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins.
+- RaspiOS Bookworm 64bit or the new Trixie 13, released in 2025. Wayland is supported. If you don't want to switch to PulseAudio, set `audio_backend = native` in `picochess.ini`. You might also need to make sure that the PulseAudio packages are installed like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins.
 
 Quick Installation
 ------------------
@@ -81,6 +82,10 @@ To add more engine manually yourself you need:
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine
 - add an [engineX] section in engines.ini file
 
+Books and games database resources
+----------------------------------
+Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.
+
 Installation with more detailed info
 ------------------------------------
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.
@@ -91,7 +96,7 @@ Installation with more detailed info
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.
 8. Boot your PI with the SD card inserted. A standard image will reboot after first start, and the second time it starts you should be able to login as user pi.
-9. Using sudo raspi-config make changes to advanced options: select PulseAudio and X11. Without PulseAudio there might be lags in the picochess spoken voice. A desktop stock image of Trixie will still have Pipewire as default,... change it to PulseAudio for better performance. X11 seems to be the default but check it anyway.
+9. Using sudo raspi-config make changes to advanced options: select PulseAudio if you want the PulseAudio backend. If you prefer to stay on Pipewire, set `audio_backend = native` in `picochess.ini`. Wayland is supported; X11 is optional.
 New Trixie might be missing audio libraries you need like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins
 10. Get this repo. First cd /opt then do sudo git clone. This should create your /opt/picochess folder. Alternative: Download the install-picochess.sh script and run it using sudo. See quick installation above.
 11. Run the install-picochess.sh script. The script will first do a system update which may run for a while depending on how old your installation is. Then it will do git clone if you dont have the repo, and git pull if you already have the repo in /opt/picochess.

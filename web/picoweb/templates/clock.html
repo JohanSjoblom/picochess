@@ -676,12 +676,13 @@
                                                     <div class="col-4">
                                                         <button type="button" id="replayBtn" class="btn menu-button">
                                                             <i class="fa fa-play"></i>
-                                                            <span>Replay</span>
+                                                            <span>Last Game</span>
                                                         </button>
                                                     </div>
                                                     <div class="col-4">
-                                                        <button type="button" class="btn menu-button">
-                                                            <span>6</span>
+                                                        <button type="button" id="saveGameBtn" class="btn menu-button">
+                                                            <i class="fa fa-save"></i>
+                                                            <span>Save Game</span>
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1037,6 +1038,22 @@
                             });
                         } catch (error) {
                             console.error('Error starting PGN replay:', error);
+                        }
+                    });
+                }
+
+                // Save Game button event handler
+                const saveGameBtn = document.getElementById('saveGameBtn');
+                if (saveGameBtn) {
+                    saveGameBtn.addEventListener('click', async function () {
+                        try {
+                            await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: 'action=save_game&slot=1'
+                            });
+                        } catch (error) {
+                            console.error('Error saving game:', error);
                         }
                     });
                 }

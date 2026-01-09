@@ -1749,6 +1749,69 @@ function updateTutorMistakes(mistakes) {
     });
 }
 
+function formatBackendAnalysisPv(pvMoves) {
+    if (!Array.isArray(pvMoves) || pvMoves.length === 0) {
+        return null;
+    }
+
+    var analysis_game = new Chess();
+    var start_move_num = 1;
+    if (currentPosition && currentPosition.fen) {
+        analysis_game.load(currentPosition.fen, chessGameType);
+        start_move_num = getCountPrevMoves(currentPosition) + 1;
+    }
+
+    for (var i = 0; i < pvMoves.length; i++) {
+        var from = pvMoves[i].slice(0, 2);
+        var to = pvMoves[i].slice(2, 4);
+        var promotion = '';
+        if (pvMoves[i].length === 5) {
+            promotion = pvMoves[i][4];
+        }
+        var mv = promotion
+            ? analysis_game.move(({ from: from, to: to, promotion: promotion }))
+            : analysis_game.move(({ from: from, to: to }));
+        if (!mv) {
+            break;
+        }
+    }
+
+    var history = analysis_game.history();
+    if (history.length === 0) {
+        return null;
+    }
+
+    var tempGame = new Chess();
+    if (currentPosition && currentPosition.fen) {
+        tempGame.load(currentPosition.fen, chessGameType);
+    }
+    var currentTurn = tempGame.turn();
+    var moveNumber = Math.floor((start_move_num + 1) / 2);
+
+    var firstMoveText = '';
+    if (currentTurn === 'w') {
+        firstMoveText += moveNumber + '. ';
+    } else {
+        firstMoveText += moveNumber + '... ';
+    }
+    firstMoveText += figurinizeMove(history[0]);
+
+    var continuationText = '';
+    var currentMoveNum = start_move_num;
+    for (i = 1; i < history.length; ++i) {
+        currentMoveNum++;
+        if (currentMoveNum % 2 === 1) {
+            continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+        }
+        continuationText += figurinizeMove(history[i]) + ' ';
+    }
+
+    return {
+        firstMove: firstMoveText,
+        continuation: continuationText.trim()
+    };
+}
+
 function updateBackendAnalysis(analysis) {
     var lineEl = document.getElementById('analysisLine');
     if (!lineEl) {
@@ -1773,12 +1836,20 @@ function updateBackendAnalysis(analysis) {
     } else if (scoreText !== '?' && parseFloat(scoreText) < 0) {
         scoreClass += ' score-negative';
     }
-    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.join(' ') : '';
-    var output = '<span class="' + scoreClass + '">' + scoreText + '</span>';
+    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv : [];
+    var pvFormatted = formatBackendAnalysisPv(pvMoves);
+    var output = '<div class="analysis-line-compact">';
+    output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     output += '<span class="depth-display">d' + analysis.depth + '</span>';
-    if (pvMoves) {
-        output += '<span class="pv-display">' + pvMoves + '</span>';
+    if (pvFormatted) {
+        output += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
+        if (pvFormatted.continuation) {
+            output += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+        }
+    } else if (pvMoves.length > 0) {
+        output += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
     }
+    output += '</div>';
     lineEl.innerHTML = output;
 }
 

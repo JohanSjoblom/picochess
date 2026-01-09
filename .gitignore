@@ -44,6 +44,9 @@ engines/mame_emulation/
 engines/rodent3/
 engines/rodent4/
 engines/descriptions.txt
+# ignore resource folders - let user manage them
+books/
+gamesdb/
 
 # Installer logs
 pip-log.txt

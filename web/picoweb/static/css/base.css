@@ -193,6 +193,7 @@ div.dataTables_wrapper div.dataTables_length select {
 .scroll_obooklist {
     height: 33vh;
     overflow-x: hidden;
+    overflow-y: auto;
 }
 
 #GameTable_wrapper {

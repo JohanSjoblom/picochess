@@ -264,7 +264,14 @@ class DGTHandler(ServerRequestHandler):
         action = self.get_argument("action")
         if action == "get_last_move":
             if "last_dgt_move_msg" in self.shared:
-                self.write(self.shared["last_dgt_move_msg"])
+                result = dict(self.shared["last_dgt_move_msg"])
+                picotutor = self.shared.get("picotutor")
+                if picotutor:
+                    try:
+                        result["mistakes"] = picotutor.get_eval_mistakes()
+                    except Exception as exc:  # pragma: no cover - defensive for UI
+                        logger.debug("failed to collect tutor mistakes: %s", exc)
+                self.write(result)
 
 
 class InfoHandler(ServerRequestHandler):
@@ -828,6 +835,15 @@ class WebDisplay(DisplayMsg):
             if "ip_info" in self.shared:
                 EventHandler.write_to_clients({"event": "Title", "ip_info": self.shared["ip_info"]})
 
+        def _attach_mistakes(result: dict) -> None:
+            picotutor = self.shared.get("picotutor")
+            if not picotutor:
+                return
+            try:
+                result["mistakes"] = picotutor.get_eval_mistakes()
+            except Exception as exc:  # pragma: no cover - defensive for UI
+                logger.debug("failed to collect tutor mistakes: %s", exc)
+
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
             pgn_game = pgn.Game().from_board(game)
             self._build_game_header(pgn_game, keep_these_headers)
@@ -861,6 +877,7 @@ class WebDisplay(DisplayMsg):
                 "move": "0000",
                 "play": "newgame",
             }
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
             if message.newgame:
@@ -1038,6 +1055,7 @@ class WebDisplay(DisplayMsg):
                 fen = _oldstyle_fen(game_copy)
                 mov = message.move.uci()
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}
+                _attach_mistakes(result)
                 self.shared["last_dgt_move_msg"] = result  # not send => keep it for COMPUTER_MOVE_DONE
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
@@ -1055,6 +1073,7 @@ class WebDisplay(DisplayMsg):
             fen = _oldstyle_fen(message.game)
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "user"}
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1063,6 +1082,7 @@ class WebDisplay(DisplayMsg):
             fen = _oldstyle_fen(message.game)
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "review"}
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1071,6 +1091,7 @@ class WebDisplay(DisplayMsg):
             fen = _oldstyle_fen(message.game)
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1079,6 +1100,7 @@ class WebDisplay(DisplayMsg):
             fen = _oldstyle_fen(message.game)
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1087,6 +1109,7 @@ class WebDisplay(DisplayMsg):
             fen = _oldstyle_fen(message.game)
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 

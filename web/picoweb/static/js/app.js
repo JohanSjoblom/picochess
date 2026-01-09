@@ -1726,18 +1726,43 @@ function updateDGTPosition(data) {
     }
 }
 
+function updateTutorMistakes(mistakes) {
+    var listEl = document.getElementById('tutorMistakeList');
+    if (!listEl) {
+        return;
+    }
+    listEl.innerHTML = '';
+    if (!Array.isArray(mistakes) || mistakes.length === 0) {
+        var emptyItem = document.createElement('li');
+        emptyItem.className = 'list-group-item text-muted';
+        emptyItem.textContent = 'No tutor mistakes yet';
+        listEl.appendChild(emptyItem);
+        return;
+    }
+    mistakes.forEach(function (item) {
+        var entry = document.createElement('li');
+        entry.className = 'list-group-item';
+        var nag = item.nag ? item.nag : '';
+        var moveText = (item.move_no ? item.move_no + ' ' : '') + (item.user_move || '') + nag;
+        entry.textContent = moveText + ' — CPL: ' + item.cpl + ', best: ' + item.best_move;
+        listEl.appendChild(entry);
+    });
+}
+
 function goToDGTFen() {
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data) {
             updateDGTPosition(data);
             highlightBoard(data.move, data.play);
             addArrow(data.move, data.play);
+            updateTutorMistakes(data.mistakes);
         }
         else {
             data.fen = START_FEN
             updateDGTPosition(data);
             highlightBoard(data.move, data.play);
             addArrow(data.move, data.play);
+            updateTutorMistakes([]);
         }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);
@@ -1954,6 +1979,7 @@ $(function () {
                 case 'Fen':
                     pickPromotion(null) // reset promotion dialog if still showing
                     updateDGTPosition(data);
+                    updateTutorMistakes(data.mistakes);
                     if (data.play === 'reload') {
                         removeHighlights();
                     }
@@ -1966,6 +1992,7 @@ $(function () {
                     break;
                 case 'Game':
                     newBoard(data.fen);
+                    updateTutorMistakes(data.mistakes);
                     break;
                 case 'Message':
                     boardStatusEl.html(data.msg);

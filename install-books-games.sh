@@ -47,26 +47,36 @@ extract_asset() {
     return 0
 }
 
-echo "Downloading opening books archive..."
-download_asset "$BOOKS_URL" "$BOOKS_TMP" || exit 1
-echo "Extracting opening books into $REPO_DIR/books..."
-mkdir -p "$REPO_DIR/books" || exit 1
-extract_asset "$BOOKS_TMP" "$REPO_DIR/books" || exit 1
+if [ -d "$REPO_DIR/books" ]; then
+    echo "Books directory already exists - skipping download."
+else
+    echo "Downloading opening books archive..."
+    download_asset "$BOOKS_URL" "$BOOKS_TMP" || exit 1
+    echo "Extracting opening books into $REPO_DIR/books..."
+    mkdir -p "$REPO_DIR/books" || exit 1
+    extract_asset "$BOOKS_TMP" "$REPO_DIR/books" || exit 1
+fi
 
-echo "Downloading games archive..."
-download_asset "$GAMES_URL" "$GAMES_TMP" || exit 1
-echo "Extracting games into $REPO_DIR/gamesdb..."
-mkdir -p "$REPO_DIR/gamesdb" || exit 1
-extract_asset "$GAMES_TMP" "$REPO_DIR/gamesdb" || exit 1
+if [ -d "$REPO_DIR/gamesdb" ]; then
+    echo "Gamesdb directory already exists - skipping download."
+else
+    echo "Downloading games archive..."
+    download_asset "$GAMES_URL" "$GAMES_TMP" || exit 1
+    echo "Extracting games into $REPO_DIR/gamesdb..."
+    mkdir -p "$REPO_DIR/gamesdb" || exit 1
+    extract_asset "$GAMES_TMP" "$REPO_DIR/gamesdb" || exit 1
+fi
 
 # Ensure correct tcscid binary is selected for this architecture
-ARCH=$(uname -m)
-TCSCID_SRC="$REPO_DIR/gamesdb/$ARCH/tcscid"
-TCSCID_LINK="$REPO_DIR/gamesdb/tcscid"
-if [ -f "$TCSCID_SRC" ]; then
-    ln -sf "$TCSCID_SRC" "$TCSCID_LINK"
-else
-    echo "Warning: tcscid binary for arch '$ARCH' not found in gamesdb." >&2
+if [ -d "$REPO_DIR/gamesdb" ]; then
+    ARCH=$(uname -m)
+    TCSCID_SRC="$REPO_DIR/gamesdb/$ARCH/tcscid"
+    TCSCID_LINK="$REPO_DIR/gamesdb/tcscid"
+    if [ -f "$TCSCID_SRC" ]; then
+        ln -sf "$TCSCID_SRC" "$TCSCID_LINK"
+    else
+        echo "Warning: tcscid binary for arch '$ARCH' not found in gamesdb." >&2
+    fi
 fi
 
 # Ensure resulting directories are owned by pi

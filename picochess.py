@@ -265,6 +265,9 @@ class PicochessState:
         self.online_decrement = 0
         self.pb_move = chess.Move.null()  # Best ponder move
         self.pgn_book_test = False
+        self.pgn_replay_next_move_fen = ""
+        self.pgn_replay_next_move = None
+        self.pgn_replay_book_cache = {}
         self.picotutor: PicoTutor | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
@@ -2736,14 +2739,15 @@ async def main() -> None:
             # autoplay is temporarily piggybacking on this once-a-second analyse call
             # @todo give it a separate timer task when this is stable
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
-                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+                next_move = self._get_cached_pgn_next_move()
                 if self._pgn_next_move_in_book(next_move):
                     await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
                 elif self.state.picotutor.can_use_coach_analyser():
-                    latest_depth = await self.state.picotutor.get_latest_seen_depth()
-                    min_depth = max(DEEP_DEPTH - 2, 1)
-                    if latest_depth >= min_depth and analysed_fen == self.state.game.fen():
-                        await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # tutor ready
+                    if analysed_fen == self.state.game.fen():
+                        latest_depth = await self.state.picotutor.get_latest_seen_depth()
+                        min_depth = max(DEEP_DEPTH - 2, 1)
+                        if latest_depth >= min_depth:
+                            await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # tutor ready
                 else:
                     if triggered_by_timer:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # timer triggered
@@ -2786,7 +2790,7 @@ async def main() -> None:
             """play the next PGN move if one found - return None if next move was found
             for future its allowed to return chess.Move.null() if move not found"""
             if next_move is None:
-                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+                next_move = self._get_cached_pgn_next_move()
             moves_game = len(self.state.game.move_stack)  # half_move dont work in library
             if next_move:
                 await self.do_pgn_replay_move(next_move)
@@ -3490,17 +3494,46 @@ async def main() -> None:
                 return True
             return False
 
-        def _pgn_next_move_in_book(self, next_move: chess.Move | None) -> bool:
-            """Check whether the next PGN move is present in the current opening book."""
-            if not next_move or not self.bookreader:
-                return False
+        def _get_cached_pgn_next_move(self) -> chess.Move | None:
+            """Return cached next PGN move for current FEN, computing when needed."""
+            if not self.state.picotutor:
+                return None
+            current_fen = self.state.game.fen()
+            if self.state.pgn_replay_next_move_fen == current_fen:
+                return self.state.pgn_replay_next_move
+            next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+            self.state.pgn_replay_next_move_fen = current_fen
+            self.state.pgn_replay_next_move = next_move
+            return next_move
+
+        def _get_cached_book_moves(self) -> set[chess.Move] | None:
+            """Return cached opening book moves for current FEN."""
+            if not self.bookreader:
+                return None
+            current_fen = self.state.game.fen()
+            cached_moves = self.state.pgn_replay_book_cache.get(current_fen)
+            if cached_moves is not None:
+                return cached_moves
+            moves = set()
             try:
                 for entry in self.bookreader.find_all(self.state.game):
-                    if entry.move == next_move:
-                        return True
+                    moves.add(entry.move)
             except Exception as exc:
                 logger.debug("opening book lookup failed: %s", exc)
-            return False
+                return moves
+            if len(self.state.pgn_replay_book_cache) >= 64:
+                self.state.pgn_replay_book_cache.pop(next(iter(self.state.pgn_replay_book_cache)))
+            self.state.pgn_replay_book_cache[current_fen] = moves
+            return moves
+
+        def _pgn_next_move_in_book(self, next_move: chess.Move | None) -> bool:
+            """Check whether the next PGN move is present in the current opening book."""
+            if not next_move:
+                return False
+            book_moves = self._get_cached_book_moves()
+            if not book_moves:
+                return False
+            return next_move in book_moves
 
         async def do_pgn_replay_move(self, next_move: chess.Move):
             """Used by autoplay to execute the next PGN replay move"""

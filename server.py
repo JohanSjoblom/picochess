@@ -891,7 +891,10 @@ class WebDisplay(DisplayMsg):
             # change book_index to book_text
             books = message.info["books"]
             book_index = message.info["book_index"]
-            self.shared["game_info"]["book_text"] = books[book_index]["text"]
+            if books and book_index is not None and 0 <= book_index < len(books):
+                self.shared["game_info"]["book_text"] = books[book_index]["text"]
+            else:
+                self.shared["game_info"]["book_text"] = ""
             self.shared["game_info"].pop("book_index", None)  # safer to pop not del, but never used
 
             # remove if no level_text or level_name exist, else set old/original value from start

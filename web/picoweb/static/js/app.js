@@ -1907,6 +1907,13 @@ $(function () {
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         updateStatus();
+        var target = $(e.target).attr('data-bs-target') || $(e.target).attr('href');
+        if (target === '#book') {
+            loadWebBookList();
+            bookDataTable.ajax.reload();
+        } else if (target === '#games') {
+            gameDataTable.ajax.reload();
+        }
     });
     window.engine_lines = {};
     window.multipv = 1;

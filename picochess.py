@@ -2736,14 +2736,17 @@ async def main() -> None:
             # autoplay is temporarily piggybacking on this once-a-second analyse call
             # @todo give it a separate timer task when this is stable
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
-                if self.state.picotutor.can_use_coach_analyser():
+                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+                if self._pgn_next_move_in_book(next_move):
+                    await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
+                elif self.state.picotutor.can_use_coach_analyser():
                     latest_depth = await self.state.picotutor.get_latest_seen_depth()
                     min_depth = max(DEEP_DEPTH - 2, 1)
                     if latest_depth >= min_depth and analysed_fen == self.state.game.fen():
-                        await self.autoplay_pgnreplay_move(allow_game_ends=True)  # tutor ready
+                        await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # tutor ready
                 else:
                     if triggered_by_timer:
-                        await self.autoplay_pgnreplay_move(allow_game_ends=True)  # timer triggered
+                        await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # timer triggered
             return info
 
         async def send_analyse(
@@ -2777,10 +2780,13 @@ async def main() -> None:
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 
-        async def autoplay_pgnreplay_move(self, allow_game_ends) -> chess.Move:
+        async def autoplay_pgnreplay_move(
+            self, allow_game_ends, next_move: chess.Move | None = None
+        ) -> chess.Move:
             """play the next PGN move if one found - return None if next move was found
             for future its allowed to return chess.Move.null() if move not found"""
-            next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
+            if next_move is None:
+                next_move = self.state.picotutor.get_next_pgn_move(self.state.game)
             moves_game = len(self.state.game.move_stack)  # half_move dont work in library
             if next_move:
                 await self.do_pgn_replay_move(next_move)
@@ -3482,6 +3488,18 @@ async def main() -> None:
             if self.state.game.board_fen() == self.state.done_computer_fen:
                 # yes, the move has been done, we can do the next move
                 return True
+            return False
+
+        def _pgn_next_move_in_book(self, next_move: chess.Move | None) -> bool:
+            """Check whether the next PGN move is present in the current opening book."""
+            if not next_move or not self.bookreader:
+                return False
+            try:
+                for entry in self.bookreader.find_all(self.state.game):
+                    if entry.move == next_move:
+                        return True
+            except Exception as exc:
+                logger.debug("opening book lookup failed: %s", exc)
             return False
 
         async def do_pgn_replay_move(self, next_move: chess.Move):

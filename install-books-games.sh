@@ -59,6 +59,16 @@ echo "Extracting games into $REPO_DIR/gamesdb..."
 mkdir -p "$REPO_DIR/gamesdb" || exit 1
 extract_asset "$GAMES_TMP" "$REPO_DIR/gamesdb" || exit 1
 
+# Ensure correct tcscid binary is selected for this architecture
+ARCH=$(uname -m)
+TCSCID_SRC="$REPO_DIR/gamesdb/$ARCH/tcscid"
+TCSCID_LINK="$REPO_DIR/gamesdb/tcscid"
+if [ -f "$TCSCID_SRC" ]; then
+    ln -sf "$TCSCID_SRC" "$TCSCID_LINK"
+else
+    echo "Warning: tcscid binary for arch '$ARCH' not found in gamesdb." >&2
+fi
+
 # Ensure resulting directories are owned by pi
 chown -R pi:pi "$REPO_DIR/books" 2>/dev/null || true
 chown -R pi:pi "$REPO_DIR/gamesdb" 2>/dev/null || true

@@ -241,6 +241,18 @@ else
     echo "install-engines.sh missing — cannot install engines."
 fi
 
+# backup existing books/gamesdb before replacing with downloaded resources
+if [ -d "$REPO_DIR/books" ] || [ -d "$REPO_DIR/gamesdb" ]; then
+    if [ -f move-books-games-to-backup.sh ]; then
+        cd "$REPO_DIR" || exit 1
+        chmod +x move-books-games-to-backup.sh 2>/dev/null
+        echo "Backing up existing books/gamesdb resources"
+        sudo -u "$INSTALL_USER" ./move-books-games-to-backup.sh
+    else
+        echo "move-books-games-to-backup.sh missing — cannot back up books/gamesdb."
+    fi
+fi
+
 # install books/games resources as install user (downloads if missing)
 if [ -f install-books-games.sh ]; then
     cd "$REPO_DIR" || exit 1

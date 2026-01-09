@@ -17,6 +17,10 @@ This fork of Picochess focuses on:
 - Ability to run both on Raspberry Pi and Linux computers.
 - Asynchronous Architecture – Replaces threads with an async-based architecture for improved performance and scalability.
 - Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
+- Wayland support with optional native audio backend (no X11/PulseAudio requirement).
+- Engines, books, and games database are distributed as external resource packs.
+- Built-in replay mode, while preserving the original PGN Replay engine.
+- Refreshed web client experience.
 
 Requirements
 ------------
@@ -85,6 +89,7 @@ To add more engine manually yourself you need:
 Books and games database resources
 ----------------------------------
 Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.
+The book selector in the web client is independent from the engine opening book; the engine uses the book configured in `picochess.ini`.
 
 Installation with more detailed info
 ------------------------------------

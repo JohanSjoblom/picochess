@@ -105,6 +105,242 @@
             width: 100%;
         }
 
+        /* Universal button styles for all tabs - 3D effect */
+        .btn, .menu-button {
+            position: relative;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            background: linear-gradient(145deg, #6bb6ff, #4a9eff);
+            color: white;
+            box-shadow: 
+                0 4px 8px rgba(0, 0, 0, 0.25),
+                0 2px 4px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:hover, .menu-button:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(145deg, #7bc5ff, #5aadff);
+            box-shadow: 
+                0 6px 12px rgba(0, 0, 0, 0.3),
+                0 3px 6px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            color: white;
+        }
+
+        .btn:active, .menu-button:active {
+            transform: translateY(1px);
+            box-shadow: 
+                0 2px 4px rgba(0, 0, 0, 0.25),
+                0 1px 2px rgba(0, 0, 0, 0.15),
+                inset 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Special colors for specific button types */
+        .btn-success {
+            background: linear-gradient(145deg, #6bb6ff, #4a9eff) !important;
+        }
+        .btn-success:hover {
+            background: linear-gradient(145deg, #7bc5ff, #5aadff) !important;
+        }
+        .btn-success.active,
+        .btn-success:active {
+            background: linear-gradient(145deg, #5cb85c, #449d44) !important;
+        }
+
+        .btn-danger {
+            background: linear-gradient(145deg, #d9534f, #c9302c) !important;
+        }
+        .btn-danger:hover {
+            background: linear-gradient(145deg, #e9635f, #d9403c) !important;
+        }
+
+        .btn-warning {
+            background: linear-gradient(145deg, #f0ad4e, #ec971f) !important;
+        }
+        .btn-warning:hover {
+            background: linear-gradient(145deg, #ffbd5e, #fca72f) !important;
+        }
+
+        .btn-info {
+            background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
+        }
+        .btn-info:hover {
+            background: linear-gradient(145deg, #6bd0ee, #41c0e5) !important;
+        }
+
+        .btn-light {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef) !important;
+            color: #495057 !important;
+            text-shadow: none !important;
+        }
+        .btn-light:hover {
+            background: linear-gradient(145deg, #ffffff, #f8f9fa) !important;
+            color: #495057 !important;
+        }
+
+        /* Universal active state - all buttons turn green when active */
+        .btn.active,
+        .btn:active,
+        .menu-button.active {
+            background: linear-gradient(145deg, #5cb85c, #449d44) !important;
+            color: white !important;
+            transform: translateY(-1px);
+            box-shadow: 
+                0 4px 8px rgba(92, 184, 92, 0.4),
+                0 2px 4px rgba(92, 184, 92, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+        }
+
+        /* Menu button specific styles */
+        .menu-button {
+            width: 60%;
+            aspect-ratio: 1.5;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            font-size: clamp(0.7rem, 2vw, 0.9rem);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 8px;
+            min-height: 60px;
+        }
+
+        .menu-button i {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 1.2em;
+            opacity: 0.95;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+        }
+
+        .menu-button span {
+            font-size: 0.8em;
+            line-height: 1.1;
+            text-align: center;
+            word-wrap: break-word;
+            max-width: 100%;
+            font-weight: 600;
+        }
+
+        /* Active state for menu buttons */
+        .menu-button.active {
+            background: linear-gradient(145deg, #5cb85c, #449d44);
+            transform: translateY(-1px);
+            box-shadow: 
+                0 4px 8px rgba(92, 184, 92, 0.4),
+                0 2px 4px rgba(92, 184, 92, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        /* Games table styling */
+        #GameTable {
+            table-layout: fixed;
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #GameTable th,
+        #GameTable td {
+            padding: 8px 6px;
+            text-align: left;
+            vertical-align: middle;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 0;
+            height: 40px;
+            line-height: 1.2;
+        }
+
+        #GameTable th {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            font-weight: 600;
+            color: #495057;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        #GameTable tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        #GameTable tbody tr:nth-child(even) {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        #GameTable tbody tr:hover {
+            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Column width distribution */
+        #GameTable th:nth-child(1),
+        #GameTable td:nth-child(1) {
+            width: 28%;
+        }
+
+        #GameTable th:nth-child(2),
+        #GameTable td:nth-child(2) {
+            width: 28%;
+        }
+
+        #GameTable th:nth-child(3),
+        #GameTable td:nth-child(3) {
+            width: 15%;
+            text-align: center;
+        }
+
+        #GameTable th:nth-child(4),
+        #GameTable td:nth-child(4) {
+            width: 29%;
+        }
+
+        /* Responsive adjustments for games table */
+        @media (max-width: 768px) {
+            #GameTable {
+                font-size: 0.8rem;
+            }
+            
+            #GameTable th,
+            #GameTable td {
+                padding: 6px 4px;
+                height: 35px;
+            }
+            
+            .menu-button {
+                font-size: 0.75rem;
+                min-height: 50px;
+                padding: 6px;
+                border-radius: 8px;
+            }
+            
+            .btn {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .menu-button {
+                font-size: 0.95rem;
+                min-height: 70px;
+                border-radius: 14px;
+            }
+            
+            .btn {
+                font-size: 0.9rem;
+            }
+        }
+
         #BookTable th:nth-child(1),
         #BookTable td:nth-child(1) {
             width: 30%;
@@ -382,12 +618,17 @@
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <ul class="nav nav-pills mb-0" id="pills-tab" role="tablist">
                                             <li class="nav-item" role="presentation">
+                                                <button class="nav-link active" id="pills-menu-tab" data-bs-toggle="pill"
+                                                    data-bs-target="#menu" type="button" role="tab">Menu
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
                                                 <button class="nav-link" id="pills-home-tab" data-bs-toggle="pill"
                                                     data-bs-target="#engine" type="button" role="tab">Engine
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
-                                                <button class="nav-link active" id="pills-profile-tab"
+                                                <button class="nav-link" id="pills-profile-tab"
                                                     data-bs-toggle="pill" data-bs-target="#book" type="button"
                                                     role="tab">Book
                                                 </button>
@@ -397,11 +638,7 @@
                                                     data-bs-target="#games" type="button" role="tab">Games
                                                 </button>
                                             </li>
-                                            <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="pills-scan-tab" data-bs-toggle="pill"
-                                                    data-bs-target="#scan" type="button" role="tab">Scan
-                                                </button>
-                                            </li>
+
                                         </ul>
                                         <span id="engine-version-text"
                                             style="display: none; font-weight: bold; color: #666;">Stockfish 17.1</span>
@@ -409,110 +646,56 @@
                                 </div>
                                 <div class="card-body">
                                     <div class="tab-content" id="pills-tabContent">
-                                        <div class="tab-pane fade" id="engine" role="tabpanel">
-                                            <div class="scroll_engine">
-                                                <div class="row">
+                                        <div class="tab-pane fade show active" id="menu" role="tabpanel">
+                                            <div id="menuButtons" style="padding: 5px;">
+                                                <div class="row g-1">
                                                     <div class="col-4">
-                                                        <span id="engineMultiPVStatus" class="btn-group"></span>
+                                                        <button type="button" id="newGameBtn" class="btn menu-button">
+                                                            <i class="fa fa-plus"></i>
+                                                            <span>New Game</span>
+                                                        </button>
                                                     </div>
-                                                    <div class="col-8">
-                                                        <div class="btn-group btn-group-xs pull-right" role="group">
-                                                            <button id="analyzeBtn" class="btn btn-success"
-                                                                data-placement="auto">
-                                                                <i class='fa fa-cog'></i>
-                                                                <span id="AnalyzeText">Analyze</span>
-                                                            </button>
-                                                        </div>
-                                                        <div class="btn-group btn-group-xs pull-right" role="group">
-                                                            <button id="analyzeMinus" class="btn btn-light"
-                                                                data-placement="auto">
-                                                                <span id="analyzeMinusText">
-                                                                    <i class='fa fa-minus'></i>
-                                                                </span>
-                                                            </button>
-                                                            <button id="analyzePlus" class="btn btn-light"
-                                                                data-placement="auto">
-                                                                <span id="analyzePlusText"><i
-                                                                        class='fa fa-plus'></i></span>
-                                                            </button>
-                                                        </div>
+                                                    <div class="col-4">
+                                                        <button type="button" id="tutorWatchBtn" class="btn menu-button">
+                                                            <i class="fa fa-eye-slash"></i>
+                                                            <span>Tutor<br>Watch</span>
+                                                        </button>
                                                     </div>
-
-                                                    <div id="listener">
-                                                        <embed name="nacl_module" id='stockfish_module' width="0"
-                                                            height="0" src='/static/stockfish/stockfish.nmf'
-                                                            type='application/x-pnacl' />
+                                                    <div class="col-4">
+                                                        <button type="button" id="scanBtn" class="btn menu-button">
+                                                            <i class="fa fa-delicious"></i>
+                                                            <span>Scan</span>
+                                                        </button>
                                                     </div>
-                                                    <div id="engineStatus"></div>
-                                                </div>
-                                                <div class="row">
-                                                    <div id="pv_output" class="gameMoves list-group">
-                                                        <div id="pv_1" class="pv-container">
-                                                        </div>
+                                                    <div class="col-4">
+                                                        <button type="button" id="resignBtn" class="btn menu-button">
+                                                            <i class="fa fa-flag"></i>
+                                                            <span>Resign</span>
+                                                        </button>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <button type="button" class="btn menu-button">
+                                                            <span>5</span>
+                                                        </button>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <button type="button" class="btn menu-button">
+                                                            <span>6</span>
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div class="tab-pane fade show active" id="book" role="tabpanel"
-                                              style="padding-left: 10px;">
-                                            <div class="scroll_obooklist book-scroll">
-                                                <div id="currentBookContainer" class="mb-2 d-none">
-                                                    <div class="alert alert-secondary py-1 px-2 text-center mb-2">
-                                                        <div class="book-header-row">
-                                                            <button type="button" id="bookPrev" class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-left"></i>
-                                                            </button>
-                                                            <span class="book-title">
-                                                                <span class="fw-bold">Book:&nbsp;</span>
-                                                                <span id="currentBookName">No book</span>
-                                                            </span>
-                                                            <button type="button" id="bookNext" class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-right"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
+                                            <div id="scanContainer" class="scroll_obooklist" style="display: none;">
+                                                <div class="d-flex justify-content-between align-items-center mb-3" style="padding: 0 15px;">
+                                                    <button type="button" id="scanActiveBtn" class="btn btn-danger" style="width: 70%; height: 40px;">
+                                                        <i class="fa fa-delicious"></i>
+                                                        <span>Sync Board</span>
+                                                    </button>
+                                                    <button type="button" id="backToMenuBtn" class="btn btn-secondary" style="width: 25%; height: 40px;">
+                                                        <i class="fa fa-arrow-left"></i>
+                                                    </button>
                                                 </div>
-                                                <div class="book-table-scroll">
-                                                    <table id="BookTable" class="table compact table-bordered row-border"
-                                                          style="font-size: 1.6vw; text-align: center; width: 100%;">
-                                                          <thead>
-                                                              <tr>
-                                                                  <th data-priority="1">Move</th>
-                                                                  <th data-priority="2">Games</th>
-                                                                  <th>Results</th>
-                                                              </tr>
-                                                          </thead>
-                                                      </table>
-                                                </div>
-                                              </div>
-                                          </div>
-                                        <div class="tab-pane fade" id="games" role="tabpanel">
-                                            <table id="GameTable"
-                                                class="table table-hover compact table-bordered row-border"
-                                                style="font-size: 1.3vw; width: 100%;">
-                                                <thead>
-                                                    <tr>
-                                                        <th data-priority="1">White</th>
-                                                        <th data-priority="2">Black</th>
-                                                        <th data-priority="3">Result</th>
-                                                        <th data-priority="4">Event</th>
-                                                    </tr>
-                                                </thead>
-                                            </table>
-                                        </div>
-                                        <div class="tab-pane fade" id="scan" role="tabpanel">
-                                            <div class="scroll_obooklist">
                                                 <div class="scan-controls" style="padding: 15px;">
-                                                    <div class="row mb-3">
-                                                        <div class="col-12 text-center">
-                                                            <button type="button" id="scanBoardBtn"
-                                                                class="btn btn-danger btn-lg" style="width: 100%;">
-                                                                <i class="fa fa-delicious"></i> <span
-                                                                    class="d-none d-sm-inline">Sync Board</span><span
-                                                                    class="d-inline d-sm-none">Sync</span>
-                                                            </button>
-                                                        </div>
-                                                    </div>
                                                     <div class="row mb-3 align-items-center">
                                                         <div class="col-4">
                                                             <div class="d-flex align-items-center gap-2">
@@ -636,6 +819,98 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <div class="tab-pane fade" id="engine" role="tabpanel">
+                                            <div class="scroll_engine">
+                                                <div class="row">
+                                                    <div class="col-4">
+                                                        <span id="engineMultiPVStatus" class="btn-group"></span>
+                                                    </div>
+                                                    <div class="col-8">
+                                                        <div class="btn-group btn-group-xs pull-right" role="group">
+                                                            <button id="analyzeBtn" class="btn btn-success"
+                                                                data-placement="auto">
+                                                                <i class='fa fa-cog'></i>
+                                                                <span id="AnalyzeText">Analyze</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="btn-group btn-group-xs pull-right" role="group">
+                                                            <button id="analyzeMinus" class="btn btn-light"
+                                                                data-placement="auto">
+                                                                <span id="analyzeMinusText">
+                                                                    <i class='fa fa-minus'></i>
+                                                                </span>
+                                                            </button>
+                                                            <button id="analyzePlus" class="btn btn-light"
+                                                                data-placement="auto">
+                                                                <span id="analyzePlusText"><i
+                                                                        class='fa fa-plus'></i></span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div id="listener">
+                                                        <embed name="nacl_module" id='stockfish_module' width="0"
+                                                            height="0" src='/static/stockfish/stockfish.nmf'
+                                                            type='application/x-pnacl' />
+                                                    </div>
+                                                    <div id="engineStatus"></div>
+                                                </div>
+                                                <div class="row">
+                                                    <div id="pv_output" class="gameMoves list-group">
+                                                        <div id="pv_1" class="pv-container">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="tab-pane fade" id="book" role="tabpanel"
+                                              style="padding-left: 10px;">
+                                            <div class="scroll_obooklist book-scroll">
+                                                <div id="currentBookContainer" class="mb-2 d-none">
+                                                    <div class="alert alert-secondary py-1 px-2 text-center mb-2">
+                                                        <div class="book-header-row">
+                                                            <button type="button" id="bookPrev" class="btn btn-sm btn-primary book-switch-btn">
+                                                                <i class="fa fa-chevron-left"></i>
+                                                            </button>
+                                                            <span class="book-title">
+                                                                <span class="fw-bold">Book:&nbsp;</span>
+                                                                <span id="currentBookName">No book</span>
+                                                            </span>
+                                                            <button type="button" id="bookNext" class="btn btn-sm btn-primary book-switch-btn">
+                                                                <i class="fa fa-chevron-right"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="book-table-scroll">
+                                                    <table id="BookTable" class="table compact table-bordered row-border"
+                                                          style="font-size: 1.6vw; text-align: center; width: 100%;">
+                                                          <thead>
+                                                              <tr>
+                                                                  <th data-priority="1">Move</th>
+                                                                  <th data-priority="2">Games</th>
+                                                                  <th>Results</th>
+                                                              </tr>
+                                                          </thead>
+                                                      </table>
+                                                </div>
+                                              </div>
+                                          </div>
+                                        <div class="tab-pane fade" id="games" role="tabpanel">
+                                            <table id="GameTable"
+                                                class="table table-hover compact table-bordered row-border"
+                                                style="font-size: 1.3vw; width: 100%;">
+                                                <thead>
+                                                    <tr>
+                                                        <th data-priority="1">White</th>
+                                                        <th data-priority="2">Black</th>
+                                                        <th data-priority="3">Result</th>
+                                                        <th data-priority="4">Event</th>
+                                                    </tr>
+                                                </thead>
+                                            </table>
+                                        </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -676,6 +951,155 @@
                         }
                     });
                 }
+
+                // New Game button event handler
+                const newGameBtn = document.getElementById('newGameBtn');
+                if (newGameBtn) {
+                    newGameBtn.addEventListener('click', async function () {
+                        if (confirm('New Game ??')) {
+                            try {
+                                await fetch('/channel', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                    body: 'action=new_game'
+                                });
+                            } catch (error) {
+                                console.error('Error starting new game:', error);
+                            }
+                        }
+                    });
+                }
+
+                // Tutor+Watch combined button event handler
+                const tutorWatchBtn = document.getElementById('tutorWatchBtn');
+                if (tutorWatchBtn) {
+                    let tutorWatchActive = false;
+                    const tutorWatchSpan = tutorWatchBtn.querySelector('span');
+                    const tutorWatchIcon = tutorWatchBtn.querySelector('i');
+                    
+                    tutorWatchBtn.addEventListener('click', async function () {
+                        try {
+                            // Actualizar visualización
+                            if (tutorWatchActive) {
+                                // Desactivar ambos
+                                this.classList.remove('active');
+                                tutorWatchSpan.innerHTML = 'Tutor<br>Watch';
+                                tutorWatchIcon.className = 'fa fa-eye-slash';
+                            } else {
+                                // Activar ambos
+                                this.classList.add('active');
+                                tutorWatchSpan.innerHTML = 'Tutor<br>Watch';
+                                tutorWatchIcon.className = 'fa fa-eye';
+                            }
+                            
+                            // Enviar ambas acciones al servidor
+                            await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: `action=picowatcher&active=${!tutorWatchActive}`
+                            });
+                            
+                            await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: `action=watch_mode&active=${!tutorWatchActive}`
+                            });
+                            
+                            tutorWatchActive = !tutorWatchActive;
+                        } catch (error) {
+                            console.error('Error toggling tutor+watch:', error);
+                        }
+                    });
+                }
+
+                // Resign button event handler
+                const resignBtn = document.getElementById('resignBtn');
+                if (resignBtn) {
+                    resignBtn.addEventListener('click', async function () {
+                        if (confirm('Resign Game ??')) {
+                            try {
+                                await fetch('/channel', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                    body: 'action=resign_game'
+                                });
+                            } catch (error) {
+                                console.error('Error resigning game:', error);
+                            }
+                        }
+                    });
+                }
+
+                // Scan button event handler
+                const scanBtn = document.getElementById('scanBtn');
+                const backToMenuBtn = document.getElementById('backToMenuBtn');
+                const scanActiveBtn = document.getElementById('scanActiveBtn');
+                const menuButtons = document.getElementById('menuButtons');
+                const scanContainer = document.getElementById('scanContainer');
+                
+                if (scanBtn && menuButtons && scanContainer) {
+                    scanBtn.addEventListener('click', function () {
+                        menuButtons.style.display = 'none';
+                        scanContainer.style.display = 'block';
+                    });
+                }
+                
+                if (backToMenuBtn && menuButtons && scanContainer) {
+                    backToMenuBtn.addEventListener('click', function () {
+                        scanContainer.style.display = 'none';
+                        menuButtons.style.display = 'block';
+                    });
+                }
+                
+                // Scan active button functionality
+                if (scanActiveBtn) {
+                    scanActiveBtn.addEventListener('click', async function () {
+                        const sideToPlaySwitch = document.getElementById('sideToPlaySwitch');
+                        const boardSideSwitch = document.getElementById('boardSideSwitch');
+                        const uci960Switch = document.getElementById('uci960Switch');
+                        
+                        const sideToPlay = sideToPlaySwitch.checked ? 'false' : 'true';
+                        const boardSide = boardSideSwitch.checked ? 'true' : 'false';
+                        const whiteCastleKing = document.getElementById('whiteCastleKingSwitch').checked;
+                        const whiteCastleQueen = document.getElementById('whiteCastleQueenSwitch').checked;
+                        const blackCastleKing = document.getElementById('blackCastleKingSwitch').checked;
+                        const blackCastleQueen = document.getElementById('blackCastleQueenSwitch').checked;
+                        const uci960 = uci960Switch.checked ? 'true' : 'false';
+
+                        try {
+                            const currentFen = window.chessground1 ? window.chessground1.getFen() : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+
+                            const response = await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: new URLSearchParams({
+                                    action: 'scan_board',
+                                    currentFen: currentFen,
+                                    sideToPlay: sideToPlay,
+                                    boardSide: boardSide,
+                                    whiteCastleKing: whiteCastleKing,
+                                    whiteCastleQueen: whiteCastleQueen,
+                                    blackCastleKing: blackCastleKing,
+                                    blackCastleQueen: blackCastleQueen,
+                                    uci960: uci960
+                                })
+                            });
+
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result.success && result.fen) {
+                                    console.log('Escaneo completado. FEN:', result.fen);
+                                } else {
+                                    console.error('Error: Posición inválida');
+                                }
+                            } else {
+                                console.error('Error en el escaneo del tablero');
+                            }
+                        } catch (error) {
+                            console.error('Error de conexión:', error);
+                        }
+                    });
+                }
             });
         </script>
 
@@ -692,11 +1116,7 @@
                 function updateEngineVersionVisibility() {
                     const engineTab = document.getElementById('pills-home-tab');
                     if (engineTab && engineVersionText) {
-                        if (engineTab.classList.contains('active')) {
-                            engineVersionText.style.display = 'inline';
-                        } else {
-                            engineVersionText.style.display = 'none';
-                        }
+                        engineVersionText.style.display = 'none';
                     }
                 }
 
@@ -820,53 +1240,7 @@
                     }
                 });
 
-                // Botón de escanear tablero
-                scanBoardBtn.addEventListener('click', async function () {
-                    // Obtener valores de los controles
-                    const sideToPlay = sideToPlaySwitch.checked ? 'false' : 'true';
-                    const boardSide = boardSideSwitch.checked ? 'true' : 'false';
-                    const whiteCastleKing = document.getElementById('whiteCastleKingSwitch').checked;
-                    const whiteCastleQueen = document.getElementById('whiteCastleQueenSwitch').checked;
-                    const blackCastleKing = document.getElementById('blackCastleKingSwitch').checked;
-                    const blackCastleQueen = document.getElementById('blackCastleQueenSwitch').checked;
-                    const uci960 = uci960Switch.checked ? 'true' : 'false';
 
-                    try {
-                        // Obtener FEN actual del tablero
-                        const currentFen = window.chessground1 ? window.chessground1.getFen() : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
-
-                        // Enviar solicitud de escaneo al servidor
-                        const response = await fetch('/channel', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams({
-                                action: 'scan_board',
-                                currentFen: currentFen,
-                                sideToPlay: sideToPlay,
-                                boardSide: boardSide,
-                                whiteCastleKing: whiteCastleKing,
-                                whiteCastleQueen: whiteCastleQueen,
-                                blackCastleKing: blackCastleKing,
-                                blackCastleQueen: blackCastleQueen,
-                                uci960: uci960
-                            })
-                        });
-
-                        if (response.ok) {
-                            const result = await response.json();
-                            if (result.success && result.fen) {
-                                console.log('Escaneo completado. FEN:', result.fen);
-                                // El FEN se actualiza automáticamente via WebSocket
-                            } else {
-                                console.error('Error: Posición inválida');
-                            }
-                        } else {
-                            console.error('Error en el escaneo del tablero');
-                        }
-                    } catch (error) {
-                        console.error('Error de conexión:', error);
-                    }
-                });
             });
         </script>
 </body>

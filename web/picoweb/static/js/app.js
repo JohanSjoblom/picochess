@@ -161,7 +161,7 @@ var dataTableFen = START_FEN;
 
 // web-specific opening book selection (independent from engine)
 var webBookList = [];
-var currentWebBookIndex = parseInt(localStorage.getItem('webBookIndex')) || 0;
+var currentWebBookIndex = 0;
 var chessGameType = 0; // 0=Standard ; 1=Chess960
 var computerside = ""; // color played by the computer
 
@@ -235,15 +235,11 @@ function loadWebBookList() {
     $.getJSON('/book', { action: 'get_book_list' }, function (data) {
         if (data && data.books) {
             webBookList = data.books;
-            var storedIndex = parseInt(localStorage.getItem('webBookIndex'));
-            if (Number.isFinite(storedIndex) && storedIndex >= 0 && storedIndex < webBookList.length) {
-                currentWebBookIndex = storedIndex;
-            } else if (typeof data.current_index === 'number') {
+            if (typeof data.current_index === 'number') {
                 currentWebBookIndex = data.current_index;
             } else {
                 currentWebBookIndex = 0;
             }
-            localStorage.setItem('webBookIndex', currentWebBookIndex);
             if (webBookList.length) {
                 updateBookHeader(webBookList[currentWebBookIndex]);
             }
@@ -256,7 +252,6 @@ function changeWebBook(delta) {
     if (!webBookList.length) { return; }
     var nextIndex = (currentWebBookIndex + delta + webBookList.length) % webBookList.length;
     currentWebBookIndex = nextIndex;
-    localStorage.setItem('webBookIndex', currentWebBookIndex);
     $.getJSON('/book',
         { action: 'set_book_index', index: nextIndex },
         function (data) {

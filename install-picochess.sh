@@ -243,7 +243,10 @@ fi
 
 # backup existing books/gamesdb before replacing with downloaded resources
 if [ -d "$REPO_DIR/books" ] || [ -d "$REPO_DIR/gamesdb" ]; then
-    if [ -f move-books-games-to-backup.sh ]; then
+    BACKUP_TARGET="$INSTALL_USER_HOME/pico_backups/current/books_games_backup"
+    if [ -d "$BACKUP_TARGET" ]; then
+        echo "books/gamesdb backup already exists - skipping backup"
+    elif [ -f move-books-games-to-backup.sh ]; then
         cd "$REPO_DIR" || exit 1
         chmod +x move-books-games-to-backup.sh 2>/dev/null
         echo "Backing up existing books/gamesdb resources"

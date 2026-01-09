@@ -55,7 +55,7 @@ These instructions were tested using a Pi5 connected to an HDMI monitor. The web
 [Unit]
 Description=PicoChess Chess Program
 After=multi-user.target
-Wants=obooksrv.service gamesdb.service
+Wants=gamesdb.service
 
 [Service]
 Environment="DISPLAY=:0"
@@ -72,25 +72,7 @@ WorkingDirectory=/opt/picochess/
 [Install]
 WantedBy=multi-user.target
 
-8. Edit obooksrv.service:
-     nano /opt/picochess/etc/obooksrv.service
-   so it looks like this:
-
-[Unit]
-Description=Opening Book Server
-After=multi-user.target
-BindsTo=picochess.service
-
-[Service]
-Type=simple
-ExecStart=/opt/picochess/obooksrv/obooksrv
-ExecStop=/usr/bin/pkill -f obooksrv
-WorkingDirectory=/opt/picochess/obooksrv/
-
-[Install]
-WantedBy=multi-user.target
-
-9. Edit obooksrv.service:
+8. Edit gamesdb.service:
      nano /opt/picochess/etc/gamesdb.service
    so it looks like this:
 
@@ -108,24 +90,22 @@ WorkingDirectory=/opt/picochess/gamesdb
 [Install]
 WantedBy=multi-user.target
 
-10. Copy services to system:
+9. Copy services to system:
 
       sudo cp /opt/picochess/etc/picochess.service /etc/systemd/system/
-      sudo cp /opt/picochess/etc/obooksrv.service /etc/systemd/system/
       sudo cp /opt/picochess/etc/gamesdb.service /etc/systemd/system/
 
-11. Enable services:
+10. Enable services:
 
       sudo systemctl daemon-reload
       sudo systemctl enable picochess.service
-      sudo systemctl enable obooksrv.service
       sudo systemctl enable gamesdb.service
 
-12. Create picochess.ini:
+11. Create picochess.ini:
 
       cp /opt/picochess/picochess.ini.example /opt/picochess/picochess.ini
 
-13. Edit picochess.ini and set preferences:
+12. Edit picochess.ini and set preferences:
 
       nano /opt/picochess/picochess.ini
 
@@ -137,15 +117,15 @@ engine-level = Level@03
 web-server = 80
 board-type = <your board type>
 
-14. (Optional) Download syzygy 3-4-5 piece tablebases and place all .rtbw and .rtbz files in /opt/picochess/tablebases/syzygy. One source is here:
+13. (Optional) Download syzygy 3-4-5 piece tablebases and place all .rtbw and .rtbz files in /opt/picochess/tablebases/syzygy. One source is here:
 
 https://chess.massimilianogoi.com/download/tablebases/
 
-15. Enable user access to BLE boards:
+14. Enable user access to BLE boards:
 
      sudo setcap 'cap_net_raw,cap_net_admin+eip' /home/pi/picochess_venv/lib/python3.11/site-packages/bluepy/bluepy-helper
 
-16. (Optional) If you want to use the opening book and games database servers in the web browser interface, replace /opt/picochess/obooksrv/obooksrv and /opt/picochess/gamesdb/tcscid with a 64-bit aarch64 versions or add support for 32-bit armhf programs by running the following commands:
+15. (Optional) If you want to use the games database server in the web browser interface, replace /opt/picochess/gamesdb/tcscid with a 64-bit aarch64 version or add support for 32-bit armhf programs by running the following commands:
 
      sudo dpkg --add-architecture armhf
      sudo apt update
@@ -160,16 +140,15 @@ https://chess.massimilianogoi.com/download/tablebases/
 
   Reboot.
 
-17. NOTE: to use the web interface, point your browser to the ip address of your Pi, using http and port 80:
+16. NOTE: to use the web interface, point your browser to the ip address of your Pi, using http and port 80:
 
      http://<ip address of pi>:80
 
-18. (Optional) If you want to use the default port 80 for the web server, edit picochess.ini (see above) and change the web-server port to 80. The execute the command:
+17. (Optional) If you want to use the default port 80 for the web server, edit picochess.ini (see above) and change the web-server port to 80. The execute the command:
 
      sudo setcap CAP_NET_BIND_SERVICE+eip /usr/bin/python3.11
 
   Then access the web interface omitting the port reference:
 
      http://<ip address of pi>
-
 

@@ -5188,6 +5188,9 @@ async def main() -> None:
                 await DisplayMsg.show(Message.ALTMOVES(altmoves=event.altmoves))
 
             elif isinstance(event, Event.PICOWATCHER):
+                self.state.dgtmenu.menu_picotutor_picowatcher = event.picowatcher
+                self.state.dgtmenu.res_picotutor_picowatcher = event.picowatcher
+                write_picochess_ini("tutor-watcher", event.picowatcher)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -5211,6 +5214,14 @@ async def main() -> None:
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
+                if event.picocoach == 0:
+                    self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
+                    self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
+                    write_picochess_ini("tutor-coach", "off")
+                elif event.picocoach == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
+                    self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
+                    self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
+                    write_picochess_ini("tutor-coach", "on")
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),

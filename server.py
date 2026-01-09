@@ -186,6 +186,23 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.REMOTE_ROOM(inside=inside))
         elif action == "command":
             await self.process_console_command(self.get_argument("command"))
+        elif action == "new_game":
+            try:
+                pos960 = int(self.get_argument("pos960", "518"))
+            except (TypeError, ValueError):
+                pos960 = 518
+            await Observable.fire(Event.NEW_GAME(pos960=pos960))
+        elif action == "tutor_watch":
+            active = self.get_argument("active", "false").lower() == "true"
+            await Observable.fire(Event.PICOWATCHER(picowatcher=active))
+            await Observable.fire(Event.PICOCOACH(picocoach=1 if active else 0))
+        elif action == "resign_game":
+            play_mode = (self.shared.get("game_info") or {}).get("play_mode")
+            if play_mode == PlayMode.USER_BLACK:
+                result = GameResult.WIN_WHITE
+            else:
+                result = GameResult.WIN_BLACK
+            await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})

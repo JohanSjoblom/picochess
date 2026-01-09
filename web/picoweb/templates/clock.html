@@ -992,17 +992,11 @@
                                 tutorWatchIcon.className = 'fa fa-eye';
                             }
                             
-                            // Enviar ambas acciones al servidor
+                            // Enviar acción combinada al servidor
                             await fetch('/channel', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `action=picowatcher&active=${!tutorWatchActive}`
-                            });
-                            
-                            await fetch('/channel', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `action=watch_mode&active=${!tutorWatchActive}`
+                                body: `action=tutor_watch&active=${!tutorWatchActive}`
                             });
                             
                             tutorWatchActive = !tutorWatchActive;

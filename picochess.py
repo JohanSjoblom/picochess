@@ -2754,6 +2754,10 @@ async def main() -> None:
                 else:
                     if triggered_by_timer:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # timer triggered
+            elif self.state.interaction_mode == Mode.PGNREPLAY and self.state.game.is_game_over():
+                if self.state.autoplay_pgn_file:
+                    self.state.autoplay_pgn_file = False
+                    logger.debug("PGN replay ended; autoplay stopped")
             return info
 
         async def send_analyse(

@@ -203,6 +203,8 @@ class ChannelHandler(ServerRequestHandler):
             else:
                 result = GameResult.WIN_BLACK
             await Observable.fire(Event.DRAWRESIGN(result=result))
+        elif action == "pgn_replay":
+            await Observable.fire(Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})

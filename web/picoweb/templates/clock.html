@@ -674,8 +674,9 @@
                                                         </button>
                                                     </div>
                                                     <div class="col-4">
-                                                        <button type="button" class="btn menu-button">
-                                                            <span>5</span>
+                                                        <button type="button" id="replayBtn" class="btn menu-button">
+                                                            <i class="fa fa-play"></i>
+                                                            <span>Replay</span>
                                                         </button>
                                                     </div>
                                                     <div class="col-4">
@@ -1020,6 +1021,22 @@
                             } catch (error) {
                                 console.error('Error resigning game:', error);
                             }
+                        }
+                    });
+                }
+
+                // Replay button event handler
+                const replayBtn = document.getElementById('replayBtn');
+                if (replayBtn) {
+                    replayBtn.addEventListener('click', async function () {
+                        try {
+                            await fetch('/channel', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: 'action=pgn_replay'
+                            });
+                        } catch (error) {
+                            console.error('Error starting PGN replay:', error);
                         }
                     });
                 }

@@ -927,13 +927,23 @@ async def main() -> None:
 
             self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()
-            try:
-                self.book_index = [book["file"] for book in self.all_books].index(args.book)
-            except ValueError:
-                logger.warning("selected book not present, defaulting to %s", self.all_books[7]["file"])
-                self.book_index = 7
-            self.state.book_in_use = self.args.book
-            self.bookreader = chess.polyglot.open_reader(self.all_books[self.book_index]["file"])
+            if not self.all_books:
+                logger.warning("no opening books available; continuing without book support")
+                self.book_index = None
+                self.state.book_in_use = ""
+                self.bookreader = None
+            else:
+                try:
+                    self.book_index = [book["file"] for book in self.all_books].index(args.book)
+                except ValueError:
+                    logger.warning("selected book not present, defaulting to %s", self.all_books[0]["file"])
+                    self.book_index = 0
+                self.state.book_in_use = self.all_books[self.book_index]["file"]
+                try:
+                    self.bookreader = chess.polyglot.open_reader(self.all_books[self.book_index]["file"])
+                except OSError as exc:
+                    logger.warning("failed to open book '%s': %s", self.all_books[self.book_index]["file"], exc)
+                    self.bookreader = None
             self.state.searchmoves = AlternativeMover()
             self.state.artwork_in_use = False
             self.always_run_tutor = self.args.coach_analyser if self.args.coach_analyser else False

@@ -2741,6 +2741,7 @@ async def main() -> None:
             if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 next_move = self._get_cached_pgn_next_move()
                 if self._pgn_next_move_in_book(next_move):
+                    await asyncio.sleep(0.5)
                     await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
                 elif self.state.picotutor.can_use_coach_analyser():
                     if analysed_fen == self.state.game.fen():

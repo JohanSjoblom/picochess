@@ -164,7 +164,7 @@ class DgtTranslate(object):
                 small_text="P.Ende",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Party Einde",
+                web_text="Partij afgelopen",
                 large_text="Party Einde",
                 medium_text="Par.Eind",
                 small_text="P.Eind",
@@ -197,8 +197,8 @@ class DgtTranslate(object):
                     small_text="Z.Kont",
                 )
                 nltxt = Dgt.DISPLAY_TEXT(
-                    web_text="Tydcontrole",
-                    large_text="Tydcontrol.",
+                    web_text="Tijdcontrole",
+                    large_text="Tydcontrole",
                     medium_text="Tydcontr.",
                     small_text="T.Cont",
                 )
@@ -444,7 +444,7 @@ class DgtTranslate(object):
                 small_text="c ein ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Coach aan",
                 large_text="Coach aan ",
                 medium_text="Coach aan",
                 small_text="c aan ",
@@ -476,7 +476,7 @@ class DgtTranslate(object):
                 small_text="c ein ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Coach aan",
+                web_text="Coach aan (stuk optillen)",
                 large_text="Coach aan ",
                 medium_text="Coach aan",
                 small_text="c aan ",
@@ -710,7 +710,7 @@ class DgtTranslate(object):
                         piece_it = "n C"
                     elif piece == "p":
                         piece_de = "s B"
-                        piece_nl = "z B"
+                        piece_nl = "z p"
                         piece_it = "n P"
                     elif piece == "k":
                         piece_de = "s K"
@@ -740,7 +740,7 @@ class DgtTranslate(object):
                         piece_it = "b C"
                     elif piece == "P":
                         piece_de = "w B"
-                        piece_nl = "w B"
+                        piece_nl = "w p"
                         piece_it = "b P"
                     elif piece == "K":
                         piece_de = "w K"
@@ -829,7 +829,7 @@ class DgtTranslate(object):
                     small_text="tut.an",
                 )
                 nltxt = Dgt.DISPLAY_TEXT(
-                    web_text="PicTutor aan",
+                    web_text="PicoTutor aan",
                     large_text="PicTut. aan",
                     medium_text="Tut. aan",
                     small_text="tut.an",
@@ -1470,7 +1470,7 @@ class DgtTranslate(object):
                 small_text="k.Gegn",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Geen tegenstander",
                 large_text="Geen tegens",
                 medium_text="geen teg",
                 small_text="g.tege",
@@ -1502,7 +1502,7 @@ class DgtTranslate(object):
                 small_text="neuStl",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Nwe stelling",
+                web_text="Nieuwe stelling",
                 large_text="nwe stell.",
                 medium_text="nweStell",
                 small_text="nweStl",
@@ -1546,7 +1546,7 @@ class DgtTranslate(object):
                 small_text="lSpiel",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Laatste partij",
                 large_text="Laatste par",
                 medium_text="laaParty",
                 small_text="lParty",
@@ -1578,7 +1578,12 @@ class DgtTranslate(object):
                 small_text="Cerco ",
             )
             detxt = entxt
-            nltxt = entxt
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Zoeken...  ",
+                medium_text="Zoeken  ",
+                small_text="Zoek..",
+            )
             frtxt = entxt
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Buscando oponente...",
@@ -1628,12 +1633,12 @@ class DgtTranslate(object):
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="",
-                large_text="foute zet",
-                medium_text="zet fout",
-                small_text="fout",
+                large_text="herhaal zet",
+                medium_text="herh.zet",
+                small_text="herh.",
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Ripetere Mosssa ",
+                web_text="Ripetere Mossa ",
                 large_text="Rifai Mossa",
                 medium_text="RifaiMos",
                 small_text="RipMos",
@@ -1986,7 +1991,7 @@ class DgtTranslate(object):
                 small_text="kn fkt",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Geen functie",
                 large_text="Geen funct.",
                 medium_text="Geen fnc",
                 small_text="gn fnc",
@@ -2171,8 +2176,8 @@ class DgtTranslate(object):
                 small_text="kn ip ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Geen IP adres",
-                large_text="Geen IPadr",
+                web_text="Geen IP-adres",
+                large_text="Geen IP-adr",
                 medium_text="Geen IP",
                 small_text="gn ip ",
             )
@@ -2299,7 +2304,7 @@ class DgtTranslate(object):
                 small_text=" s zug",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="zwart aan zet",
                 large_text="zw aan zet ",
                 medium_text="zw zet  ",
                 small_text=" z zet",
@@ -2373,7 +2378,7 @@ class DgtTranslate(object):
                 small_text="errpos",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="ongeldige stelling",
                 large_text="ongeldig   ",
                 medium_text="ongeldig",
                 small_text="ongeld",
@@ -2447,9 +2452,9 @@ class DgtTranslate(object):
                 small_text="okzeit",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
-                large_text="ok tyd     ",
-                medium_text="ok tyd  ",
+                web_text="ok tijd",
+                large_text="ok tyd    ",
+                medium_text="ok tyd ",
                 small_text="ok tyd",
             )
             frtxt = Dgt.DISPLAY_TEXT(
@@ -2604,7 +2609,7 @@ class DgtTranslate(object):
                 small_text="altmov",
             )
             detxt = Dgt.DISPLAY_TEXT(
-                web_text="altnativer Zug",
+                web_text="alternativer Zug",
                 large_text="altn. Zug",
                 medium_text="alt Zug ",
                 small_text="altzug",
@@ -2648,7 +2653,7 @@ class DgtTranslate(object):
                 small_text="neuspl",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="nieuwe partij",
                 large_text="nieuw party",
                 medium_text="nw party",
                 small_text="nwpart",
@@ -2687,7 +2692,7 @@ class DgtTranslate(object):
                 small_text="spl" + msg,
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="nieuwe partij" + msg,
                 large_text="nw party" + msg,
                 medium_text="party" + msg,
                 small_text="par" + msg,
@@ -3035,7 +3040,15 @@ class DgtTranslate(object):
                 medium_text=text_m,
                 small_text=text_s,
             )
-            nltxt = entxt
+            text_s = "no scr" if msg is None else str(msg).rjust(6)
+            text_m = "geen scr" if msg is None else str(msg).rjust(8)
+            text_l = "geen score" if msg is None else str(msg).rjust(11)
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text=text_l,
+                medium_text=text_m,
+                small_text=text_s,
+            )
             frtxt = entxt
             estxt = entxt
         if text_id == "top_mode_menu":
@@ -3126,7 +3139,7 @@ class DgtTranslate(object):
                 small_text="zeit  ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Tijd",
                 large_text="Tyd        ",
                 medium_text="Tyd     ",
                 small_text="tyd   ",
@@ -3243,7 +3256,7 @@ class DgtTranslate(object):
                 small_text="Modern",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Moderne Engines",
+                web_text="Moderne engines",
                 large_text="Moderne Eng",
                 medium_text="Modern  ",
                 small_text="modern",
@@ -3297,7 +3310,7 @@ class DgtTranslate(object):
                 small_text="Spec. ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Favorieten",
+                web_text="Speciale en historische engines",
                 large_text="Favorieten",
                 medium_text="Favor.",
                 small_text="Favor.",
@@ -3428,7 +3441,7 @@ class DgtTranslate(object):
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="Retro Artwork uit",
-                large_text="RetroArtuit",
+                large_text="RetrArt uit",
                 medium_text="RArt uit",
                 small_text="ratuit",
             )
@@ -3838,7 +3851,7 @@ class DgtTranslate(object):
                 small_text="restrt",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Opnieuw opstarten",
                 large_text="Reboot",
                 medium_text="Reboot",
                 small_text="reboot",
@@ -3891,7 +3904,7 @@ class DgtTranslate(object):
                 small_text="partie",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij",
                 large_text="Party ",
                 medium_text="Party   ",
                 small_text="party ",
@@ -3929,7 +3942,7 @@ class DgtTranslate(object):
                 small_text="ende",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Einde party",
+                web_text="Partij afgelopen",
                 large_text="Partyeinde",
                 medium_text="ParEind",
                 small_text="eind",
@@ -4051,7 +4064,7 @@ class DgtTranslate(object):
                 small_text="okend",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="ok Partyeinde",
+                web_text="ok einde partij",
                 large_text="ok einde",
                 medium_text="ok eind",
                 small_text="okein",
@@ -4088,7 +4101,12 @@ class DgtTranslate(object):
                 medium_text="Sichern ",
                 small_text="sicher",
             )
-            nltxt = entxt
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Partij opslaan",
+                large_text="Party opsln",
+                medium_text="Opslaan",
+                small_text="sla op",
+            )
             frtxt = entxt
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Guardar partida actual",
@@ -4110,7 +4128,7 @@ class DgtTranslate(object):
                 small_text="spiel1",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 1",
                 large_text="Party 1    ",
                 medium_text="Party 1 ",
                 small_text="party1",
@@ -4142,7 +4160,7 @@ class DgtTranslate(object):
                 small_text="spiel2",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 2",
                 large_text="Party 2    ",
                 medium_text="Party 2 ",
                 small_text="party2",
@@ -4174,7 +4192,7 @@ class DgtTranslate(object):
                 small_text="spiel3",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 3",
                 large_text="Party 3    ",
                 medium_text="Party 3 ",
                 small_text="party3",
@@ -4211,7 +4229,12 @@ class DgtTranslate(object):
                 medium_text="ok salva",
                 small_text="oksalv",
             )
-            nltxt = entxt
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="ok opslaan",
+                large_text="ok opslaan ",
+                medium_text="ok opsln",
+                small_text="oksave",
+            )
             frtxt = entxt
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Partida guardada",
@@ -4233,7 +4256,7 @@ class DgtTranslate(object):
                 small_text="lesen ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Laad partij",
                 large_text="Laad party ",
                 medium_text="LaadPart",
                 small_text="laden ",
@@ -4271,7 +4294,7 @@ class DgtTranslate(object):
                 small_text="letzt",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Laatste partij",
                 large_text="LaatstePart",
                 medium_text="laatsPart",
                 small_text="laats",
@@ -4297,7 +4320,7 @@ class DgtTranslate(object):
                 small_text="spiel1",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 1",
                 large_text="Party 1    ",
                 medium_text="Party 1 ",
                 small_text="party1",
@@ -4329,7 +4352,7 @@ class DgtTranslate(object):
                 small_text="spiel2",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 2",
                 large_text="Party 2    ",
                 medium_text="Party 2 ",
                 small_text="party2",
@@ -4361,7 +4384,7 @@ class DgtTranslate(object):
                 small_text="spiel3",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Partij 3",
                 large_text="Party 3    ",
                 medium_text="Party 3 ",
                 small_text="party3",
@@ -4495,7 +4518,7 @@ class DgtTranslate(object):
                 small_text="np ja",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Start nieuwe party: ja",
+                web_text="Start nieuwe partij: ja",
                 large_text="NweParty ja",
                 medium_text="NweP ja",
                 small_text="np ja",
@@ -4527,7 +4550,7 @@ class DgtTranslate(object):
                 small_text="npnein",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Start nieuwe party: nee",
+                web_text="Start nieuwe partij: nee",
                 large_text="NwePart nee",
                 medium_text="Nwe P nee",
                 small_text="npnee",
@@ -4576,7 +4599,7 @@ class DgtTranslate(object):
                 small_text="altzug",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Alternatieve Zet",
+                web_text="Alternatieve zet",
                 large_text="Altern Zet ",
                 medium_text="Alt. Zet",
                 small_text="altzet",
@@ -4608,7 +4631,7 @@ class DgtTranslate(object):
                 small_text="azugan",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Alternatieve Zet ja",
+                web_text="Alternatieve zet ja",
                 large_text="Alt Zet ja",
                 medium_text="a.Zet ja",
                 small_text="azetja",
@@ -4640,7 +4663,7 @@ class DgtTranslate(object):
                 small_text="azgaus",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Alternatieve Zet nee",
+                web_text="Alternatieve zet nee",
                 large_text="Alt Zet nee",
                 medium_text="a.Zetnee",
                 small_text="aztnee",
@@ -4672,7 +4695,7 @@ class DgtTranslate(object):
                 small_text="azg ok",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="ok Alternatieve zet",
                 large_text="Alt.zet  ok",
                 medium_text="a.Zet ok",
                 small_text="azt ok",
@@ -4704,7 +4727,7 @@ class DgtTranslate(object):
                 small_text="fortse",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Party voortzetten",
+                web_text="Partij voortzetten",
                 large_text="Doorgaan ",
                 medium_text="doorgaan",
                 small_text="verder",
@@ -5408,7 +5431,7 @@ class DgtTranslate(object):
                 small_text="zug z ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Tijd per zet",
                 large_text="Zet tyd    ",
                 medium_text="Zet tyd ",
                 small_text="zet   ",
@@ -5445,9 +5468,9 @@ class DgtTranslate(object):
                 small_text="spielz",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
-                large_text="Spel tyd   ",
-                medium_text="Spel tyd",
+                web_text="Tijd voor de partij",
+                large_text="Party tyd  ",
+                medium_text="PartyTyd",
                 small_text="spel  ",
             )
             frtxt = Dgt.DISPLAY_TEXT(
@@ -5536,8 +5559,8 @@ class DgtTranslate(object):
                 small_text="Knoten",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Plydiepte",
-                large_text="Plydiepte",
+                web_text="Zoekdiepte",
+                large_text="Zoekdiepte",
                 medium_text="Ply     ",
                 small_text="Ply",
             )
@@ -5568,8 +5591,8 @@ class DgtTranslate(object):
                 small_text="tiefe ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
-                large_text="Plydiepte  ",
+                web_text="Zoekdiepte",
+                large_text="Zoekdiepte  ",
                 medium_text="Ply ",
                 small_text="Ply ",
             )
@@ -5654,7 +5677,7 @@ class DgtTranslate(object):
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="",
-                large_text="IP adres   ",
+                large_text="IP-adres   ",
                 medium_text="IP adr  ",
                 small_text="ip adr",
             )
@@ -6252,7 +6275,7 @@ class DgtTranslate(object):
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="",
-                large_text="patstelling",
+                large_text="pat        ",
                 medium_text="pat     ",
                 small_text="pat   ",
             )
@@ -6289,7 +6312,7 @@ class DgtTranslate(object):
                 small_text="zeit  ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="tijd is om",
                 large_text="tyd        ",
                 medium_text="tyd     ",
                 small_text="tyd   ",
@@ -6593,7 +6616,7 @@ class DgtTranslate(object):
                 small_text="kein E",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="geen uitslag",
                 large_text="geen result",
                 medium_text="geen res",
                 small_text="geen r",
@@ -6997,7 +7020,7 @@ class DgtTranslate(object):
                 small_text="immer ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Altijd",
                 large_text="Altyd      ",
                 medium_text="Altyd   ",
                 small_text="altyd ",
@@ -7643,7 +7666,7 @@ class DgtTranslate(object):
                 small_text="uhrpos",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Klokpositie",
+                web_text="Positie van de klok",
                 large_text="Klok kant",
                 medium_text="Klokkant",
                 small_text="klkknt",
@@ -7861,7 +7884,7 @@ class DgtTranslate(object):
                 small_text="ok bes",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="ok zetbevestiging",
                 large_text="ok bevest.",
                 medium_text="okBevest",
                 small_text="ok bev",
@@ -7978,7 +8001,7 @@ class DgtTranslate(object):
             )
         if text_id == "okenginename":
             entxt = Dgt.DISPLAY_TEXT(
-                web_text="ok enginge name",
+                web_text="ok engine name",
                 large_text="ok eng name",
                 medium_text="okEngnam",
                 small_text="okengn",
@@ -8214,7 +8237,7 @@ class DgtTranslate(object):
                 small_text="ntkurz",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Notatie kort",
+                web_text="Korte notatie",
                 large_text="Nota kort",
                 medium_text="Not kort",
                 small_text="ntkort",
@@ -8246,7 +8269,7 @@ class DgtTranslate(object):
                 small_text="ntlang",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Lange notatie",
                 large_text="Notat lang",
                 medium_text="Not lang",
                 small_text="ntlang",
@@ -8278,7 +8301,7 @@ class DgtTranslate(object):
                 small_text="zug " + msg,
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Tijd per zet " + msg,
                 large_text="Zet tyd  " + msg,
                 medium_text="Zet t " + msg,
                 small_text="zet " + msg,
@@ -8315,8 +8338,8 @@ class DgtTranslate(object):
                 small_text="spl " + msg,
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
-                large_text="Spel tyd " + msg,
+                web_text="Tijd voor de partij " + msg,
+                large_text="Tyd party" + msg,
                 medium_text="Spel t" + msg,
                 small_text="spel" + msg,
             )
@@ -8595,7 +8618,7 @@ class DgtTranslate(object):
                 small_text="bat" + msg,
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Batterijpercentage " + msg,
                 large_text="accu" + msg,
                 medium_text="accu" + msg,
                 small_text="accu" + msg,

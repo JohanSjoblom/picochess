@@ -1060,16 +1060,30 @@ class WebDisplay(DisplayMsg):
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
 
+        elif isinstance(message, Message.WEB_ANALYSIS):
+            analysis_payload = message.analysis or {}
+            if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
+                analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
+            self.shared["analysis_state"] = analysis_payload
+            self.shared["analysis_web_enabled"] = True
+            EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
+
         elif isinstance(message, Message.NEW_PV):
+            if self.shared.get("analysis_web_enabled"):
+                return
             self.analysis_state["pv"] = message.pv
             _maybe_send_analysis()
 
         elif isinstance(message, Message.NEW_SCORE):
+            if self.shared.get("analysis_web_enabled"):
+                return
             self.analysis_state["score"] = message.score
             self.analysis_state["mate"] = message.mate
             _maybe_send_analysis()
 
         elif isinstance(message, Message.NEW_DEPTH):
+            if self.shared.get("analysis_web_enabled"):
+                return
             self.analysis_state["depth"] = message.depth
             _maybe_send_analysis()
 

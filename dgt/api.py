@@ -107,6 +107,7 @@ class MessageApi:
     COMPUTER_MOVE = "MSG_COMPUTER_MOVE"  # Show computer move
     BOOK_MOVE = "MSG_BOOK_MOVE"  # Show book move
     NEW_PV = "MSG_NEW_PV"  # Show the new Principal Variation
+    WEB_ANALYSIS = "MSG_WEB_ANALYSIS"  # Web-only analysis payload
     REVIEW_MOVE_DONE = "MSG_REVIEW_MOVE_DONE"  # Player is reviewing a game (analysis, kibitz or observe modes)
     ENGINE_READY = "MSG_ENGINE_READY"
     ENGINE_STARTUP = "MSG_ENGINE_STARTUP"  # first time a new engine is ready
@@ -238,6 +239,7 @@ class Message:
     COMPUTER_MOVE = ClassFactory(MessageApi.COMPUTER_MOVE, ["move", "ponder", "game", "wait", "is_user_move"])
     BOOK_MOVE = ClassFactory(MessageApi.BOOK_MOVE, [])
     NEW_PV = ClassFactory(MessageApi.NEW_PV, ["pv", "mode", "game"])
+    WEB_ANALYSIS = ClassFactory(MessageApi.WEB_ANALYSIS, ["analysis"])
     REVIEW_MOVE_DONE = ClassFactory(MessageApi.REVIEW_MOVE_DONE, ["move", "fen", "turn", "game"])
     ENGINE_READY = ClassFactory(
         MessageApi.ENGINE_READY, ["eng", "eng_text", "engine_name", "has_levels", "has_960", "has_ponder", "show_ok"]

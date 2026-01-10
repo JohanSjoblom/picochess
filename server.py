@@ -17,8 +17,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import json
 import logging
 import os
+import urllib.parse
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -30,6 +32,7 @@ import chess.polyglot  # type: ignore
 
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
+import tornado.httpclient  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
 from utilities import (
@@ -56,6 +59,8 @@ client_ips = []
 
 
 logger = logging.getLogger(__name__)
+OBOOKSRV_URL = "http://localhost:7777/query"
+OBOOKSRV_TIMEOUT = 1.0
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -296,6 +301,83 @@ class InfoHandler(ServerRequestHandler):
 
 class BookHandler(ServerRequestHandler):
 
+    async def _get_obooksrv_moves(self, fen: str):
+        params = urllib.parse.urlencode({"action": "get_book_moves", "fen": fen})
+        url = f"{OBOOKSRV_URL}?{params}"
+        client = tornado.httpclient.AsyncHTTPClient()
+        try:
+            response = await client.fetch(url, request_timeout=OBOOKSRV_TIMEOUT)
+        except tornado.httpclient.HTTPError as exc:
+            logger.debug("obooksrv request failed: %s", exc)
+            return None
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("obooksrv request failed: %s", exc)
+            return None
+        try:
+            payload = json.loads(response.body.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            logger.debug("obooksrv returned invalid JSON: %s", exc)
+            return None
+        data = payload.get("data", [])
+        if not isinstance(data, list):
+            return None
+        moves_data = []
+        for row in data:
+            if not isinstance(row, dict):
+                continue
+            move = row.get("move")
+            if not move:
+                continue
+            moves_data.append(
+                {
+                    "move": move,
+                    "count": int(row.get("count", 0) or 0),
+                    "whitewins": int(row.get("whitewins", 0) or 0),
+                    "draws": int(row.get("draws", 0) or 0),
+                    "blackwins": int(row.get("blackwins", 0) or 0),
+                }
+            )
+        return moves_data
+
+    def _get_polyglot_moves(self, book_file: str, fen: str):
+        moves_data = []
+        try:
+            board = chess.Board(fen)
+            aggregated = {}
+            total_weight = 0
+
+            with chess.polyglot.open_reader(book_file) as reader:
+                for entry in reader.find_all(board):
+                    move_uci = entry.move.uci()
+                    weight = getattr(entry, "weight", 1)
+                    total_weight += weight
+                    if move_uci not in aggregated:
+                        aggregated[move_uci] = {"move": move_uci, "count": 0}
+                    aggregated[move_uci]["count"] += weight
+
+            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
+
+            for item in sorted_moves:
+                count = item["count"]
+                if total_weight > 0:
+                    white_pct = int(round(100.0 * count / total_weight))
+                else:
+                    white_pct = 0
+                draws_pct = 0
+                black_pct = max(0, 100 - white_pct - draws_pct)
+                moves_data.append(
+                    {
+                        "move": item["move"],
+                        "count": count,
+                        "whitewins": white_pct,
+                        "draws": draws_pct,
+                        "blackwins": black_pct,
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Error reading opening book '%s': %s", book_file, exc)
+        return moves_data
+
     async def get(self, *args, **kwargs):
         """Web-facing API for opening book explorer (independent from engine book)."""
         action = self.get_argument("action", "get_book_moves")
@@ -379,42 +461,9 @@ class BookHandler(ServerRequestHandler):
         book_file = current_book["file"]
         book_label = current_book["label"] or os.path.basename(book_file)
 
-        moves_data = []
-        try:
-            board = chess.Board(fen)
-            aggregated = {}
-            total_weight = 0
-
-            with chess.polyglot.open_reader(book_file) as reader:
-                for entry in reader.find_all(board):
-                    move_uci = entry.move.uci()
-                    weight = getattr(entry, "weight", 1)
-                    total_weight += weight
-                    if move_uci not in aggregated:
-                        aggregated[move_uci] = {"move": move_uci, "count": 0}
-                    aggregated[move_uci]["count"] += weight
-
-            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
-
-            for item in sorted_moves:
-                count = item["count"]
-                if total_weight > 0:
-                    white_pct = int(round(100.0 * count / total_weight))
-                else:
-                    white_pct = 0
-                draws_pct = 0
-                black_pct = max(0, 100 - white_pct - draws_pct)
-                moves_data.append(
-                    {
-                        "move": item["move"],
-                        "count": count,
-                        "whitewins": white_pct,
-                        "draws": draws_pct,
-                        "blackwins": black_pct,
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Error reading opening book '%s': %s", book_file, exc)
+        moves_data = await self._get_obooksrv_moves(fen)
+        if moves_data is None:
+            moves_data = self._get_polyglot_moves(book_file, fen)
 
         self.set_header("Content-Type", "application/json")
         self.write({"book": {"file": book_file or "", "label": book_label or ""}, "data": moves_data})

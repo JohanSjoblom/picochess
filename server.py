@@ -206,12 +206,7 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "pgn_replay":
             await Observable.fire(Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False))
         elif action == "save_game":
-            try:
-                slot = int(self.get_argument("slot", "1"))
-            except (TypeError, ValueError):
-                slot = 1
-            slot = max(1, min(slot, 3))
-            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"picochess_game_{slot}.pgn"))
+            await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})

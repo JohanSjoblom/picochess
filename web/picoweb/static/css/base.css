@@ -599,6 +599,13 @@ td.result {
     flex-shrink: 0;
 }
 
+.analysis-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 8px 0;
+}
+
 /* Números de jugada */
 .move-number {
     color: #6c757d;

@@ -1529,7 +1529,10 @@ function multiPvIncrease() {
     }
 
     // Actualizar el estado visual
-    $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+    var multiPvStatusEl = $('#engineMultiPVStatus');
+    if (multiPvStatusEl.length) {
+        multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+    }
 }
 
 function multiPvDecrease() {
@@ -1551,7 +1554,10 @@ function multiPvDecrease() {
         }
 
         // Actualizar el estado visual
-        $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+        var multiPvStatusEl = $('#engineMultiPVStatus');
+        if (multiPvStatusEl.length) {
+            multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+        }
     }
 }
 
@@ -1576,7 +1582,7 @@ function importPv(multipv) {
 }
 
 function analyzePressed() {
-    if ($('#AnalyzeText').text() === 'Analyze') {
+    if (!window.analysis) {
         $('#evaluationBar').css('visibility', 'visible');
     } else {
         $('#evaluationBar').css('visibility', 'hidden');
@@ -1608,7 +1614,10 @@ function handleMessage(event) {
     if (output && output.pv_index && output.pv_index > 0) {
         $('#pv_' + output.pv_index).html(output.line);
     }
-    $('#engineMultiPVStatus').html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+        var multiPvStatusEl = $('#engineMultiPVStatus');
+        if (multiPvStatusEl.length) {
+            multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+        }
 }
 
 function loadNaclStockfish() {
@@ -1680,12 +1689,12 @@ function getPreviousMoves(node, format) {
 
 function analyze(position_update) {
     if (!position_update) {
-        if ($('#AnalyzeText').text() === 'Analyze') {
+        if (!window.analysis) {
             window.analysis = true;
-            $('#AnalyzeText').text('Stop');
+            $('#AnalyzeText').text('Stop Web');
         }
         else {
-            $('#AnalyzeText').text('Analyze');
+            $('#AnalyzeText').text('Start Web');
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
@@ -1885,7 +1894,7 @@ function updateBackendAnalysis(analysis) {
     var lineEl = source === 'tutor'
         ? document.getElementById('analysisLineTutor')
         : document.getElementById('analysisLineEngine');
-    var labelText = source === 'tutor' ? 'T:' : 'E:';
+    var labelText = source === 'tutor' ? 'Tut:' : 'Eng:';
     updateBackendAnalysisLine(lineEl, analysis, labelText);
 }
 
@@ -2178,7 +2187,7 @@ $(function () {
             dgtClockStatusEl.html('closed');
             if (window.analysis || window.stockfish) {
                 window.analysis = false;
-                $('#AnalyzeText').text('Analyze');
+                $('#AnalyzeText').text('Web Analysis');
                 stopAnalysis();
                 $('#engineStatus').html('');
             }
@@ -2194,6 +2203,17 @@ $(function () {
 
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
+
+    $('#toggleBackendAnalysis').on('click', function () {
+        var sourceBlock = $('.analysis-sources');
+        if (sourceBlock.hasClass('d-none')) {
+            sourceBlock.removeClass('d-none');
+            $('#toggleBackendAnalysisText').text('Hide Server');
+        } else {
+            sourceBlock.addClass('d-none');
+            $('#toggleBackendAnalysisText').text('Show Server');
+        }
+    });
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

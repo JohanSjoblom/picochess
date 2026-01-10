@@ -1837,12 +1837,11 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
     };
 }
 
-function updateBackendAnalysis(analysis) {
-    var lineEl = document.getElementById('analysisLine');
+function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     if (!lineEl) {
         return;
     }
-    if (!analysis || typeof analysis.depth !== 'number') {
+    if (!analysis) {
         lineEl.textContent = '';
         return;
     }
@@ -1864,8 +1863,11 @@ function updateBackendAnalysis(analysis) {
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
     var output = '<div class="analysis-line-compact">';
+    output += '<span class="analysis-source">' + labelText + '</span>';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
-    output += '<span class="depth-display">d' + analysis.depth + '</span>';
+    if (typeof analysis.depth === 'number') {
+        output += '<span class="depth-display">d' + analysis.depth + '</span>';
+    }
     if (pvFormatted) {
         output += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
         if (pvFormatted.continuation) {
@@ -1876,6 +1878,15 @@ function updateBackendAnalysis(analysis) {
     }
     output += '</div>';
     lineEl.innerHTML = output;
+}
+
+function updateBackendAnalysis(analysis) {
+    var source = analysis && analysis.source ? analysis.source : 'engine';
+    var lineEl = source === 'tutor'
+        ? document.getElementById('analysisLineTutor')
+        : document.getElementById('analysisLineEngine');
+    var labelText = source === 'tutor' ? 'T:' : 'E:';
+    updateBackendAnalysisLine(lineEl, analysis, labelText);
 }
 
 function goToDGTFen() {

@@ -2694,16 +2694,18 @@ async def main() -> None:
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
-            info_for_web: InfoDict | None = None
+            info_for_web_engine: InfoDict | None = None
+            info_for_web_tutor: InfoDict | None = None
             analysed_fen = ""  # analysis is only valid for this fen
-            analysed_fen_for_web = ""
+            analysed_fen_for_web_engine = ""
+            analysed_fen_for_web_tutor = ""
             if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser():
                 # here picotutor engine replaces playing engine analysis to save cpu
                 result = await self.state.picotutor.get_analysis()
                 info_list: list[InfoDict] = result.get("info")
                 analysed_fen = result.get("fen", "")
-                info_for_web = info_list[0] if info_list else None
-                analysed_fen_for_web = analysed_fen
+                info_for_web_tutor = info_list[0] if info_list else None
+                analysed_fen_for_web_tutor = analysed_fen
                 if self.state.picotutor.get_board().fen() != self.state.game.fen():
                     logger.warning("picotutor board out of sync with game")
                 info_candidate = info_list[0] if info_list else None
@@ -2714,8 +2716,8 @@ async def main() -> None:
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
                 analysed_fen = result.get("fen", "")
-                info_for_web = info_list[0] if info_list else None
-                analysed_fen_for_web = analysed_fen
+                info_for_web_engine = info_list[0] if info_list else None
+                analysed_fen_for_web_engine = analysed_fen
                 info_candidate = info_list[0] if info_list else None
                 if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
                     info_list = None  # optimised - prevent this info from being sent
@@ -2728,14 +2730,14 @@ async def main() -> None:
                         result = await self.engine.get_thinking_analysis(self.state.game)
                         info_list: list[InfoDict] = result.get("info")
                         analysed_fen = result.get("fen", "")
-                        info_for_web = info_list[0] if info_list else None
-                        analysed_fen_for_web = analysed_fen
+                        info_for_web_engine = info_list[0] if info_list else None
+                        analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
-                            info_for_web = info_candidate_list[0] if info_candidate_list else None
-                            analysed_fen_for_web = result.get("fen", "")
+                            info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
+                            analysed_fen_for_web_tutor = result.get("fen", "")
                         else:
                             # is_coach_analyser() must be False here; otherwise the first branch above
                             # would already have routed analysis through picotutor. Only fall back to
@@ -2744,14 +2746,16 @@ async def main() -> None:
                             result = await self.engine.get_analysis(self.state.game)
                             info_list: list[InfoDict] = result.get("info")
                             analysed_fen = result.get("fen", "")
-                            info_for_web = info_list[0] if info_list else None
-                            analysed_fen_for_web = analysed_fen
+                            info_for_web_engine = info_list[0] if info_list else None
+                            analysed_fen_for_web_engine = analysed_fen
                             info_candidate = info_list[0] if info_list else None
                             if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
                                 info_list = None  # optimised else: prevent this info from being sent
                     await self._start_or_stop_analysis_as_needed()
-            if info_for_web:
-                await self.send_web_analysis(info_for_web, analysed_fen_for_web)
+            if info_for_web_engine:
+                await self.send_web_analysis(info_for_web_engine, analysed_fen_for_web_engine, "engine")
+            if info_for_web_tutor:
+                await self.send_web_analysis(info_for_web_tutor, analysed_fen_for_web_tutor, "tutor")
             if info_list:
                 info = info_list[0]  # pv first
                 await self.send_analyse(info, analysed_fen)
@@ -2815,7 +2819,7 @@ async def main() -> None:
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 
-        async def send_web_analysis(self, info: InfoDict, analysed_fen: str):
+        async def send_web_analysis(self, info: InfoDict, analysed_fen: str, source: str):
             """Send full analysis info to the web client without depth gating."""
             if not info:
                 return
@@ -2835,6 +2839,7 @@ async def main() -> None:
                 "mate": mate,
                 "pv": pv_to_send,
                 "fen": analysed_fen,
+                "source": source,
             }
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=analysis_payload))
 

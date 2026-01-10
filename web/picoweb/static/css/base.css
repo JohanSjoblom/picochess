@@ -591,6 +591,14 @@ td.result {
     flex-shrink: 0;
 }
 
+/* Source label for backend analysis lines */
+.analysis-source {
+    font-weight: bold;
+    color: #495057;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
 /* Números de jugada */
 .move-number {
     color: #6c757d;

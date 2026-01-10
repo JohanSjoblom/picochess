@@ -204,7 +204,9 @@ class ChannelHandler(ServerRequestHandler):
                 result = GameResult.WIN_BLACK
             await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "pgn_replay":
-            await Observable.fire(Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False))
+            await Observable.fire(
+                Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False)
+            )
         elif action == "save_game":
             await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
         elif action == "scan_board":

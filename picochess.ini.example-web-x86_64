@@ -363,6 +363,11 @@ tutor-engine = /opt/picochess/engines/x86_64/a-stockf
 ## Optional: use a tutor engine on a remote machine; falls back to tutor-engine if not found
 #tutor-remote-engine = remote_stockfish
 
+## The coach-analyser setting will make tutor analyse also engine moves, and not as usual only user moves.
+## It will therefore use more CPU as the tutor will be running when the chosen engine is thinking about a move.
+## Default is False. Might be interesting to check mame engine blunders by setting this to True.
+# coach-analyser = True
+
 
 ## Type of e-Board. Supported values: 'certabo', 'chesslink', 'chessnut', 'dgt' (default), 'ichessone', 'noeboard' (play against
 ## engine using web server interface).

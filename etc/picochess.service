@@ -1,7 +1,7 @@
 [Unit]
 Description=PicoChess Chess Program
 After=multi-user.target
-Wants=gamesdb.service
+Wants=obooksrv.service gamesdb.service
 Wants=picochess-update.service
 After=picochess-update.service
 

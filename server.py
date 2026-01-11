@@ -61,6 +61,8 @@ client_ips = []
 logger = logging.getLogger(__name__)
 OBOOKSRV_URL = "http://localhost:7777/query"
 OBOOKSRV_TIMEOUT = 1.0
+OBOOKSRV_BOOK_FILE = "obooksrv"
+OBOOKSRV_BOOK_LABEL = "ObookSrv"
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -384,15 +386,15 @@ class BookHandler(ServerRequestHandler):
 
         # Build full opening book library from books.ini
         library = get_opening_books()
-        books = []
-        for index, book in enumerate(library):
+        books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL}]
+        for offset, book in enumerate(library, start=1):
             text_obj = book.get("text")
             label = ""
             if hasattr(text_obj, "web_text") and text_obj.web_text:
                 label = text_obj.web_text
             elif hasattr(text_obj, "large_text") and text_obj.large_text:
                 label = text_obj.large_text
-            books.append({"index": index, "file": book.get("file"), "label": label})
+            books.append({"index": offset, "file": book.get("file"), "label": label})
 
         if action == "get_book_list":
             # initial selection: try to match engine/book header once, otherwise index 0
@@ -461,8 +463,11 @@ class BookHandler(ServerRequestHandler):
         book_file = current_book["file"]
         book_label = current_book["label"] or os.path.basename(book_file)
 
-        moves_data = await self._get_obooksrv_moves(fen)
-        if moves_data is None:
+        if book_file == OBOOKSRV_BOOK_FILE:
+            moves_data = await self._get_obooksrv_moves(fen)
+            if moves_data is None:
+                moves_data = []
+        else:
             moves_data = self._get_polyglot_moves(book_file, fen)
 
         self.set_header("Content-Type", "application/json")

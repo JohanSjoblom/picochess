@@ -218,6 +218,27 @@ div.dataTables_wrapper div.dataTables_length select {
     padding: 14px;
 }
 
+.nav-link.engine-mode-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--bs-secondary-bg, #d0d4d9);
+    color: var(--mdb-body-color, var(--bs-body-color, #212529));
+    border: 1px solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.18);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    text-shadow: none;
+}
+
+.nav-link.engine-mode-button:hover,
+.nav-link.engine-mode-button:focus,
+.nav-link.engine-mode-button.active {
+    background: var(--bs-secondary-bg, #c1c5ca);
+    color: var(--mdb-body-color, var(--bs-body-color, #212529));
+    border-color: rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.28);
+    filter: brightness(1.05);
+}
+
 #data {
     margin-top: 10px;
 }
@@ -594,7 +615,7 @@ td.result {
 /* Source label for backend analysis lines */
 .analysis-source {
     font-weight: bold;
-    color: #495057;
+    color: inherit;
     margin-right: 4px;
     flex-shrink: 0;
 }
@@ -604,6 +625,7 @@ td.result {
     flex-direction: column;
     gap: 6px;
     margin: 4px 0 8px 0;
+    color: var(--mdb-body-color, var(--bs-body-color, #212529));
 }
 
 /* Números de jugada */
@@ -675,22 +697,40 @@ td.result {
 
 /* Botones más/menos */
 #analyzePlus, #analyzeMinus {
-    background: #6c757d;
+    background: var(--bs-primary, #0d6efd);
     border: none;
-    color: white;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
+    color: #ffffff;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.35rem;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0 2px;
-    transition: all 0.3s ease;
+    margin: 0 0.125rem;
+    transition: all 0.2s ease;
 }
 
 #analyzePlus:hover, #analyzeMinus:hover {
-    background: #5a6268;
-    transform: scale(1.1);
+    background: var(--bs-primary, #0d6efd);
+    filter: brightness(0.95);
+}
+
+.engine-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.engine-version-label {
+    background: var(--bs-secondary-bg, #d0d4d9);
+    border: 0.0625rem solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.2);
+    border-radius: 999rem;
+    color: var(--mdb-body-color, var(--bs-body-color, #212529));
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    white-space: nowrap;
 }
 
 /* Estilos adicionales para la nueva estructura */

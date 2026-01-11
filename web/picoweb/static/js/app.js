@@ -1595,6 +1595,9 @@ function analyzePressed() {
         }
     }
     analyze(false);
+    if (window.updateEngineNavLabels) {
+        window.updateEngineNavLabels();
+    }
 }
 
 function stockfishPNACLModuleDidLoad() {
@@ -1779,6 +1782,8 @@ function getStartMoveNumFromFen(fen) {
     return ((fullmove - 1) * 2) + (turn === 'w' ? 1 : 2);
 }
 
+var MAX_BACKEND_PV_MOVES = 8;
+
 function formatBackendAnalysisPv(pvMoves, baseFen) {
     if (!Array.isArray(pvMoves) || pvMoves.length === 0) {
         return null;
@@ -1870,7 +1875,7 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     } else if (scoreText !== '?' && parseFloat(scoreText) < 0) {
         scoreClass += ' score-negative';
     }
-    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv : [];
+    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
     var output = '<div class="analysis-line-compact">';
     output += '<span class="analysis-source">' + labelText + '</span>';
@@ -2205,16 +2210,182 @@ $(function () {
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
 
-    $('#toggleBackendAnalysis').on('click', function () {
+    function toggleAnalysisSources() {
         var sourceBlock = $('.analysis-sources');
         if (sourceBlock.hasClass('d-none')) {
             sourceBlock.removeClass('d-none');
-            $('#toggleBackendAnalysisText').text('Hide Server');
         } else {
             sourceBlock.addClass('d-none');
-            $('#toggleBackendAnalysisText').text('Show Server');
         }
-    });
+        if (sourceBlock.hasClass('d-none')) {
+            $('#toggleBackendAnalysisText').text('Show Server');
+        } else {
+            $('#toggleBackendAnalysisText').text('Hide Server');
+        }
+        if (window.updateEngineNavLabels) {
+            window.updateEngineNavLabels();
+        }
+    }
+
+    $('#toggleBackendAnalysis').on('click', toggleAnalysisSources);
+
+    var engineModeActive = false;
+    var engineTab = document.getElementById('pills-home-tab');
+    var menuTab = document.getElementById('pills-menu-tab');
+    var tutorTab = document.getElementById('pills-tutor-tab');
+    var bookTab = document.getElementById('pills-profile-tab');
+    var gamesTab = document.getElementById('pills-contact-tab');
+    var toggleBackendAnalysisBtn = document.getElementById('toggleBackendAnalysis');
+    var analyzeBtn = document.getElementById('analyzeBtn');
+
+    if (engineTab && tutorTab && bookTab && gamesTab) {
+        var defaultTutorText = tutorTab.textContent.trim();
+        var defaultBookText = bookTab.textContent.trim();
+        var defaultGamesText = gamesTab.textContent.trim();
+        var tutorTabToggle = tutorTab.getAttribute('data-bs-toggle');
+        var tutorTabTarget = tutorTab.getAttribute('data-bs-target');
+        var bookTabToggle = bookTab.getAttribute('data-bs-toggle');
+        var bookTabTarget = bookTab.getAttribute('data-bs-target');
+        var gamesTabToggle = gamesTab.getAttribute('data-bs-toggle');
+        var gamesTabTarget = gamesTab.getAttribute('data-bs-target');
+
+        function restoreNavAttr(element, attrName, value) {
+            if (!element) {
+                return;
+            }
+            if (value == null) {
+                element.removeAttribute(attrName);
+            } else {
+                element.setAttribute(attrName, value);
+            }
+        }
+
+        function getToggleLabel() {
+            var sourceBlock = document.querySelector('.analysis-sources');
+            if (sourceBlock && sourceBlock.classList.contains('d-none')) {
+                return 'Show Server';
+            }
+            return 'Hide Server';
+        }
+
+        function getAnalyzeLabel() {
+            return window.analysis ? 'Stop Web' : 'Start Web';
+        }
+
+        function updateEngineLabels() {
+            if (!engineModeActive) {
+                return;
+            }
+            tutorTab.textContent = getToggleLabel();
+            bookTab.textContent = getAnalyzeLabel();
+        }
+
+        function setEngineModeButtons(active) {
+            var buttons = [tutorTab, bookTab, gamesTab];
+            buttons.forEach(function (btn) {
+                if (!btn) {
+                    return;
+                }
+                if (active) {
+                    btn.classList.add('engine-mode-button');
+                } else {
+                    btn.classList.remove('engine-mode-button');
+                }
+            });
+        }
+
+        function setBackLabel() {
+            if (!gamesTab) {
+                return;
+            }
+            gamesTab.innerHTML = '<i class="fa fa-arrow-left"></i><span>Back</span>';
+        }
+
+        function enterEngineMode() {
+            engineModeActive = true;
+            tutorTab.removeAttribute('data-bs-toggle');
+            tutorTab.removeAttribute('data-bs-target');
+            bookTab.removeAttribute('data-bs-toggle');
+            bookTab.removeAttribute('data-bs-target');
+            gamesTab.removeAttribute('data-bs-toggle');
+            gamesTab.removeAttribute('data-bs-target');
+            setEngineModeButtons(true);
+            updateEngineLabels();
+            setBackLabel();
+        }
+
+        function exitEngineMode() {
+            engineModeActive = false;
+            restoreNavAttr(tutorTab, 'data-bs-toggle', tutorTabToggle);
+            restoreNavAttr(tutorTab, 'data-bs-target', tutorTabTarget);
+            restoreNavAttr(bookTab, 'data-bs-toggle', bookTabToggle);
+            restoreNavAttr(bookTab, 'data-bs-target', bookTabTarget);
+            restoreNavAttr(gamesTab, 'data-bs-toggle', gamesTabToggle);
+            restoreNavAttr(gamesTab, 'data-bs-target', gamesTabTarget);
+            setEngineModeButtons(false);
+            tutorTab.textContent = defaultTutorText;
+            bookTab.textContent = defaultBookText;
+            gamesTab.textContent = defaultGamesText;
+        }
+
+        engineTab.addEventListener('click', function () {
+            enterEngineMode();
+        });
+
+        if (engineTab.classList.contains('active')) {
+            enterEngineMode();
+        }
+
+        tutorTab.addEventListener('click', function (e) {
+            if (!engineModeActive) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            toggleAnalysisSources();
+            updateEngineLabels();
+        });
+
+        bookTab.addEventListener('click', function (e) {
+            if (!engineModeActive) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof analyzePressed === 'function') {
+                analyzePressed();
+            } else if (analyzeBtn) {
+                analyzeBtn.click();
+            }
+            updateEngineLabels();
+        });
+
+        gamesTab.addEventListener('click', function (e) {
+            if (!engineModeActive) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            exitEngineMode();
+            if (menuTab) {
+                menuTab.click();
+            }
+        });
+
+        if (toggleBackendAnalysisBtn) {
+            toggleBackendAnalysisBtn.addEventListener('click', function () {
+                updateEngineLabels();
+            });
+        }
+
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', function () {
+                updateEngineLabels();
+            });
+        }
+
+        window.updateEngineNavLabels = updateEngineLabels;
+    }
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

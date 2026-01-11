@@ -1600,10 +1600,39 @@ function analyzePressed() {
     }
 }
 
+function updateEngineControlsVisibility() {
+    var showControls = !!window.analysis;
+    var analyzeBtn = document.getElementById('analyzeBtn');
+    if (analyzeBtn && analyzeBtn.disabled) {
+        showControls = false;
+    }
+    var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+    var showMultiPv = showControls && allowMultiPvControls;
+
+    var plusBtn = document.getElementById('analyzePlus');
+    var minusBtn = document.getElementById('analyzeMinus');
+    var multiPvGroup = document.querySelector('.engine-controls .btn-group');
+    var engineLabel = document.querySelector('.engine-controls .engine-version-label');
+
+    if (plusBtn) {
+        plusBtn.style.display = showMultiPv ? '' : 'none';
+    }
+    if (minusBtn) {
+        minusBtn.style.display = showMultiPv ? '' : 'none';
+    }
+    if (multiPvGroup) {
+        multiPvGroup.style.display = showMultiPv ? '' : 'none';
+    }
+    if (engineLabel) {
+        engineLabel.style.display = showControls ? '' : 'none';
+    }
+}
+
 function stockfishPNACLModuleDidLoad() {
     window.StockfishModule = document.getElementById('stockfish_module');
     window.StockfishModule.postMessage('uci');
     $('#analyzeBtn').prop('disabled', false);
+    updateEngineControlsVisibility();
 }
 
 function handleCrash(event) {
@@ -1696,6 +1725,7 @@ function analyze(position_update) {
         if (!window.analysis) {
             window.analysis = true;
             $('#AnalyzeText').text('Stop Web');
+            updateEngineControlsVisibility();
         }
         else {
             $('#AnalyzeText').text('Start Web');
@@ -1703,6 +1733,7 @@ function analyze(position_update) {
             window.analysis = false;
             $('#engineStatus').html('');
             $('#evaluationBar').css('visibility', 'hidden');
+            updateEngineControlsVisibility();
             return;
         }
     }
@@ -1791,24 +1822,32 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
 
     var analysis_game = new Chess();
     var start_move_num = 1;
-    if (baseFen) {
-        analysis_game.load(baseFen, chessGameType);
+    var baseFenToUse = null;
+    if (baseFen && analysis_game.load(baseFen, chessGameType)) {
+        baseFenToUse = baseFen;
         start_move_num = getStartMoveNumFromFen(baseFen);
-    } else if (currentPosition && currentPosition.fen) {
-        analysis_game.load(currentPosition.fen, chessGameType);
+    } else if (currentPosition && currentPosition.fen && analysis_game.load(currentPosition.fen, chessGameType)) {
+        baseFenToUse = currentPosition.fen;
         start_move_num = getCountPrevMoves(currentPosition) + 1;
     }
 
-    for (var i = 0; i < pvMoves.length; i++) {
-        var from = pvMoves[i].slice(0, 2);
-        var to = pvMoves[i].slice(2, 4);
-        var promotion = '';
-        if (pvMoves[i].length === 5) {
-            promotion = pvMoves[i][4];
+    function applyBackendMove(moveText) {
+        if (!moveText) {
+            return null;
         }
-        var mv = promotion
-            ? analysis_game.move(({ from: from, to: to, promotion: promotion }))
-            : analysis_game.move(({ from: from, to: to }));
+        if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveText)) {
+            var from = moveText.slice(0, 2);
+            var to = moveText.slice(2, 4);
+            var promotion = moveText.length === 5 ? moveText[4] : '';
+            return promotion
+                ? analysis_game.move(({ from: from, to: to, promotion: promotion }))
+                : analysis_game.move(({ from: from, to: to }));
+        }
+        return analysis_game.move(moveText, { sloppy: true });
+    }
+
+    for (var i = 0; i < pvMoves.length; i++) {
+        var mv = applyBackendMove(pvMoves[i]);
         if (!mv) {
             break;
         }
@@ -1820,8 +1859,8 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
     }
 
     var tempGame = new Chess();
-    if (baseFen) {
-        tempGame.load(baseFen, chessGameType);
+    if (baseFenToUse) {
+        tempGame.load(baseFenToUse, chessGameType);
     } else if (currentPosition && currentPosition.fen) {
         tempGame.load(currentPosition.fen, chessGameType);
     }
@@ -2047,6 +2086,7 @@ if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
     $('#analyzePlus').on('click', multiPvIncrease);
     $('#analyzeMinus').on('click', multiPvDecrease);
 }
+updateEngineControlsVisibility();
 
 $('#ClockBtn0').on('click', clockButton0);
 $('#ClockBtn1').on('click', clockButton1);
@@ -2196,6 +2236,7 @@ $(function () {
                 $('#AnalyzeText').text('Web Analysis');
                 stopAnalysis();
                 $('#engineStatus').html('');
+                updateEngineControlsVisibility();
             }
         };
     }

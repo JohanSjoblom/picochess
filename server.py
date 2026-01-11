@@ -17,10 +17,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-import json
 import logging
 import os
-import urllib.parse
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -32,7 +30,6 @@ import chess.polyglot  # type: ignore
 
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
-import tornado.httpclient  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
 from utilities import (
@@ -59,10 +56,6 @@ client_ips = []
 
 
 logger = logging.getLogger(__name__)
-OBOOKSRV_URL = "http://localhost:7777/query"
-OBOOKSRV_TIMEOUT = 1.0
-OBOOKSRV_BOOK_FILE = "obooksrv"
-OBOOKSRV_BOOK_LABEL = "ObookSrv"
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -211,11 +204,14 @@ class ChannelHandler(ServerRequestHandler):
                 result = GameResult.WIN_BLACK
             await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "pgn_replay":
-            await Observable.fire(
-                Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False)
-            )
+            await Observable.fire(Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False))
         elif action == "save_game":
-            await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
+            try:
+                slot = int(self.get_argument("slot", "1"))
+            except (TypeError, ValueError):
+                slot = 1
+            slot = max(1, min(slot, 3))
+            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"picochess_game_{slot}.pgn"))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
@@ -250,12 +246,11 @@ class EventHandler(WebSocketHandler):
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
-        for key in ("analysis_state_engine", "analysis_state_tutor", "analysis_state"):
-            if self.shared and key in self.shared:
-                try:
-                    self.write_message({"event": "Analysis", "analysis": self.shared[key]})
-                except Exception as exc:  # pragma: no cover - websocket errors
-                    logger.warning("failed to sync analysis to client: %s", exc)
+        if self.shared and "analysis_state" in self.shared:
+            try:
+                self.write_message({"event": "Analysis", "analysis": self.shared["analysis_state"]})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync analysis to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -303,98 +298,25 @@ class InfoHandler(ServerRequestHandler):
 
 class BookHandler(ServerRequestHandler):
 
-    async def _get_obooksrv_moves(self, fen: str):
-        params = urllib.parse.urlencode({"action": "get_book_moves", "fen": fen})
-        url = f"{OBOOKSRV_URL}?{params}"
-        client = tornado.httpclient.AsyncHTTPClient()
-        try:
-            response = await client.fetch(url, request_timeout=OBOOKSRV_TIMEOUT)
-        except tornado.httpclient.HTTPError as exc:
-            logger.debug("obooksrv request failed: %s", exc)
-            return None
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("obooksrv request failed: %s", exc)
-            return None
-        try:
-            payload = json.loads(response.body.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError) as exc:
-            logger.debug("obooksrv returned invalid JSON: %s", exc)
-            return None
-        data = payload.get("data", [])
-        if not isinstance(data, list):
-            return None
-        moves_data = []
-        for row in data:
-            if not isinstance(row, dict):
-                continue
-            move = row.get("move")
-            if not move:
-                continue
-            moves_data.append(
-                {
-                    "move": move,
-                    "count": int(row.get("count", 0) or 0),
-                    "whitewins": int(row.get("whitewins", 0) or 0),
-                    "draws": int(row.get("draws", 0) or 0),
-                    "blackwins": int(row.get("blackwins", 0) or 0),
-                }
-            )
-        return moves_data
-
-    def _get_polyglot_moves(self, book_file: str, fen: str):
-        moves_data = []
-        try:
-            board = chess.Board(fen)
-            aggregated = {}
-            total_weight = 0
-
-            with chess.polyglot.open_reader(book_file) as reader:
-                for entry in reader.find_all(board):
-                    move_uci = entry.move.uci()
-                    weight = getattr(entry, "weight", 1)
-                    total_weight += weight
-                    if move_uci not in aggregated:
-                        aggregated[move_uci] = {"move": move_uci, "count": 0}
-                    aggregated[move_uci]["count"] += weight
-
-            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
-
-            for item in sorted_moves:
-                count = item["count"]
-                if total_weight > 0:
-                    white_pct = int(round(100.0 * count / total_weight))
-                else:
-                    white_pct = 0
-                draws_pct = 0
-                black_pct = max(0, 100 - white_pct - draws_pct)
-                moves_data.append(
-                    {
-                        "move": item["move"],
-                        "count": count,
-                        "whitewins": white_pct,
-                        "draws": draws_pct,
-                        "blackwins": black_pct,
-                    }
-                )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Error reading opening book '%s': %s", book_file, exc)
-        return moves_data
-
     async def get(self, *args, **kwargs):
         """Web-facing API for opening book explorer (independent from engine book)."""
         action = self.get_argument("action", "get_book_moves")
 
         # Build full opening book library from books.ini
         library = get_opening_books()
-        books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL}]
-        for offset, book in enumerate(library, start=1):
+        books = []
+        for book in library:
             text_obj = book.get("text")
             label = ""
             if hasattr(text_obj, "web_text") and text_obj.web_text:
                 label = text_obj.web_text
             elif hasattr(text_obj, "large_text") and text_obj.large_text:
                 label = text_obj.large_text
-            books.append({"index": offset, "file": book.get("file"), "label": label})
+            books.append({"index": len(books), "file": book.get("file"), "label": label})
+
+        obooksrv_path = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
+        if os.path.exists(obooksrv_path) and not any(entry["file"] == obooksrv_path for entry in books):
+            books.append({"index": len(books), "file": obooksrv_path, "label": "OBookSrv"})
 
         if action == "get_book_list":
             # initial selection: try to match engine/book header once, otherwise index 0
@@ -463,12 +385,42 @@ class BookHandler(ServerRequestHandler):
         book_file = current_book["file"]
         book_label = current_book["label"] or os.path.basename(book_file)
 
-        if book_file == OBOOKSRV_BOOK_FILE:
-            moves_data = await self._get_obooksrv_moves(fen)
-            if moves_data is None:
-                moves_data = []
-        else:
-            moves_data = self._get_polyglot_moves(book_file, fen)
+        moves_data = []
+        try:
+            board = chess.Board(fen)
+            aggregated = {}
+            total_weight = 0
+
+            with chess.polyglot.open_reader(book_file) as reader:
+                for entry in reader.find_all(board):
+                    move_uci = entry.move.uci()
+                    weight = getattr(entry, "weight", 1)
+                    total_weight += weight
+                    if move_uci not in aggregated:
+                        aggregated[move_uci] = {"move": move_uci, "count": 0}
+                    aggregated[move_uci]["count"] += weight
+
+            sorted_moves = sorted(aggregated.values(), key=lambda item: item["count"], reverse=True)
+
+            for item in sorted_moves:
+                count = item["count"]
+                if total_weight > 0:
+                    white_pct = int(round(100.0 * count / total_weight))
+                else:
+                    white_pct = 0
+                draws_pct = 0
+                black_pct = max(0, 100 - white_pct - draws_pct)
+                moves_data.append(
+                    {
+                        "move": item["move"],
+                        "count": count,
+                        "whitewins": white_pct,
+                        "draws": draws_pct,
+                        "blackwins": black_pct,
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Error reading opening book '%s': %s", book_file, exc)
 
         self.set_header("Content-Type", "application/json")
         self.write({"book": {"file": book_file or "", "label": book_label or ""}, "data": moves_data})
@@ -924,10 +876,8 @@ class WebDisplay(DisplayMsg):
                 "mate": state.get("mate"),
                 "pv": [move.uci() for move in pv_moves],
                 "fen": fen,
-                "source": "engine",
             }
             self.shared["analysis_state"] = analysis_payload
-            self.shared["analysis_state_engine"] = analysis_payload
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
@@ -1113,18 +1063,6 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
-
-        elif isinstance(message, Message.WEB_ANALYSIS):
-            analysis_payload = message.analysis or {}
-            source = analysis_payload.get("source", "engine")
-            if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
-                analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
-            if source == "tutor":
-                self.shared["analysis_state_tutor"] = analysis_payload
-            else:
-                self.shared["analysis_state_engine"] = analysis_payload
-            self.shared["analysis_web_enabled"] = True
-            EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         elif isinstance(message, Message.NEW_PV):
             self.analysis_state["pv"] = message.pv

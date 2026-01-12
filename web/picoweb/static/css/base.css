@@ -629,7 +629,6 @@ td.result {
     gap: 0;
     margin: 5px 0 0 0;
     color: inherit;
-    padding: 6px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -749,10 +748,9 @@ td.result {
 .engine-version-label {
     margin-left: auto;
     text-align: right;
-    border: 0.0625rem solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.35);
+    border: 0.0625rem solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.2);
     border-radius: 999rem;
-    color: var(--bs-body-color, #212529);
-    background-color: rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.08);
+    color: var(--mdb-body-color, var(--bs-body-color, #757575));
     font-size: 0.95rem;
     font-weight: 600;
     padding: 0.125rem 0.5rem;

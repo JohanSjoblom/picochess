@@ -931,7 +931,7 @@ async def main() -> None:
             self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()
             if not self.all_books:
-                logger.warning("no opening books available; continuing without book support")
+                logger.error("no opening books available; continuing without book support")
                 self.book_index = None
                 self.state.book_in_use = ""
                 self.bookreader = None
@@ -939,14 +939,16 @@ async def main() -> None:
                 try:
                     self.book_index = [book["file"] for book in self.all_books].index(args.book)
                 except ValueError:
-                    logger.warning("selected book not present, defaulting to %s", self.all_books[0]["file"])
+                    logger.error("selected book not present, defaulting to %s", self.all_books[0]["file"])
                     self.book_index = 0
                 self.state.book_in_use = self.all_books[self.book_index]["file"]
                 try:
                     self.bookreader = chess.polyglot.open_reader(self.all_books[self.book_index]["file"])
                 except OSError as exc:
-                    logger.warning("failed to open book '%s': %s", self.all_books[self.book_index]["file"], exc)
+                    book_file = self.all_books[self.book_index]["file"]
+                    logger.warning("failed to open book '%s': %s", book_file, exc)
                     self.bookreader = None
+                    self.state.book_in_use = ""
             self.state.searchmoves = AlternativeMover()
             self.state.artwork_in_use = False
             self.always_run_tutor = self.args.coach_analyser if self.args.coach_analyser else False
@@ -1241,7 +1243,9 @@ async def main() -> None:
             await DisplayMsg.show(msg)
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
-            book_res = self.state.searchmoves.book(self.bookreader, self.state.game.copy())
+            book_res = None
+            if self.bookreader:
+                book_res = self.state.searchmoves.book(self.bookreader, self.state.game.copy())
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
             ):
@@ -4857,7 +4861,9 @@ async def main() -> None:
                                     elif self.state.pgn_book_test:
                                         l_game_copy = self.state.game.copy()
                                         l_game_copy.pop()
-                                        l_found = self.state.searchmoves.check_book(self.bookreader, l_game_copy)
+                                        l_found = False
+                                        if self.bookreader:
+                                            l_found = self.state.searchmoves.check_book(self.bookreader, l_game_copy)
 
                                         if not l_found:
                                             await DisplayMsg.show(Message.PGN_GAME_END(result="*"))
@@ -5218,11 +5224,17 @@ async def main() -> None:
                         await self.set_wait_state(msg)  # dont clear searchmoves here
 
             elif isinstance(event, Event.SET_OPENING_BOOK):
-                write_picochess_ini("book", event.book["file"])
-                logger.debug("changing opening book [%s]", event.book["file"])
-                self.bookreader = chess.polyglot.open_reader(event.book["file"])
+                book_file = event.book["file"]
+                logger.debug("changing opening book [%s]", book_file)
+                try:
+                    bookreader = chess.polyglot.open_reader(book_file)
+                except OSError as exc:
+                    logger.warning("failed to open book '%s': %s", book_file, exc)
+                    return
+                write_picochess_ini("book", book_file)
+                self.bookreader = bookreader
                 await DisplayMsg.show(Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok))
-                self.state.book_in_use = event.book["file"]
+                self.state.book_in_use = book_file
                 self.state.stop_fen_timer()
 
             elif isinstance(event, Event.SHOW_ENGINENAME):

@@ -1916,7 +1916,8 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
-    var output = '<div class="analysis-line-compact">';
+    var output = '<div class="list-group-item">';
+    output += '<div class="analysis-line-compact">';
     output += '<span class="analysis-source">' + labelText + '</span>';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     if (typeof analysis.depth === 'number') {
@@ -1930,7 +1931,7 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     } else if (pvMoves.length > 0) {
         output += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
     }
-    output += '</div>';
+    output += '</div></div>';
     lineEl.innerHTML = output;
 }
 
@@ -1939,7 +1940,7 @@ function updateBackendAnalysis(analysis) {
     var lineEl = source === 'tutor'
         ? document.getElementById('analysisLineTutor')
         : document.getElementById('analysisLineEngine');
-    var labelText = source === 'tutor' ? 'Tut:' : 'Eng:';
+    var labelText = source === 'tutor' ? 'Tutor :' : 'Engine:';
     updateBackendAnalysisLine(lineEl, analysis, labelText);
 }
 

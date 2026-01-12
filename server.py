@@ -246,11 +246,12 @@ class EventHandler(WebSocketHandler):
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
-        if self.shared and "analysis_state" in self.shared:
-            try:
-                self.write_message({"event": "Analysis", "analysis": self.shared["analysis_state"]})
-            except Exception as exc:  # pragma: no cover - websocket errors
-                logger.warning("failed to sync analysis to client: %s", exc)
+        for key in ("analysis_state_engine", "analysis_state_tutor", "analysis_state"):
+            if self.shared and key in self.shared:
+                try:
+                    self.write_message({"event": "Analysis", "analysis": self.shared[key]})
+                except Exception as exc:  # pragma: no cover - websocket errors
+                    logger.warning("failed to sync analysis to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -876,8 +877,10 @@ class WebDisplay(DisplayMsg):
                 "mate": state.get("mate"),
                 "pv": [move.uci() for move in pv_moves],
                 "fen": fen,
+                "source": "engine",
             }
             self.shared["analysis_state"] = analysis_payload
+            self.shared["analysis_state_engine"] = analysis_payload
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
@@ -1063,6 +1066,18 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
+
+        elif isinstance(message, Message.WEB_ANALYSIS):
+            analysis_payload = message.analysis or {}
+            source = analysis_payload.get("source", "engine")
+            if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
+                analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
+            if source == "tutor":
+                self.shared["analysis_state_tutor"] = analysis_payload
+            else:
+                self.shared["analysis_state_engine"] = analysis_payload
+            self.shared["analysis_web_enabled"] = True
+            EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         elif isinstance(message, Message.NEW_PV):
             self.analysis_state["pv"] = message.pv

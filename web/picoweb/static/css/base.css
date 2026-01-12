@@ -482,17 +482,11 @@ td.result {
 }
 
 /* Asegurar que hereda del contenedor padre */
-#pv_output .list-group-item {
+#pv_output .list-group-item,
+.analysis-sources .list-group-item {
     background-color: transparent !important;
     color: inherit !important;
-    border: 1px solid rgba(var(--bs-border-color-rgb, 233, 236, 239), 0.5) !important;
-}
-
-/* Cada línea de análisis - MÁS COMPACTA */
-#pv_output .list-group-item {
-    background-color: transparent !important;
-    color: inherit !important;
-    border: 1px solid rgba(128, 128, 128, 0.3);
+    border: 1px solid rgba(var(--bs-border-color-rgb, 128, 128, 128), 0.45) !important;
     border-radius: 4px;
     margin: 0 0 3px 0;
     padding: 6px 8px;
@@ -503,7 +497,8 @@ td.result {
     box-sizing: border-box;
 }
 
-#pv_output .list-group-item:hover {
+#pv_output .list-group-item:hover,
+.analysis-sources .list-group-item:hover {
     background-color: rgba(0, 123, 255, 0.1) !important;
     border-color: #007bff;
     transform: translateY(-1px);
@@ -620,19 +615,21 @@ td.result {
 
 /* Source label for backend analysis lines */
 .analysis-source {
-    font-weight: bold;
-    color: inherit;
-    margin-right: 4px;
+    font-weight: normal;
+    color: currentColor;
+    margin-right: 0.25em;
     flex-shrink: 0;
+    font-size: 1em;
+    line-height: inherit;
 }
 
 .analysis-sources {
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
-    margin: 0.125rem 0 0.25rem 0;
-    color: var(--mdb-body-color, var(--bs-body-color, #212529));
-    padding: 0 0.75rem;
+    gap: 0;
+    margin: 5px 0 0 0;
+    color: inherit;
+    padding: 6px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -649,29 +646,11 @@ td.result {
 
 /* Match backend analysis lines with web engine styling */
 .analysis-sources .analysis-line-compact {
-    background-color: transparent;
-    color: inherit;
-    border: 0;
-    border-radius: 0;
-    margin: 0 0 0.125rem 0;
-    padding: 0.125rem 0.25rem;
-    box-shadow: none;
-    transition: all 0.2s ease;
-    min-height: auto;
-    width: 99%;
+    margin: 0;
+    padding: 0;
+    width: 100%;
     box-sizing: border-box;
-    font-size: 0.8rem;
-    line-height: 1.1;
-    gap: 0.35rem;
-    max-width: 100%;
     min-width: 0;
-}
-
-.analysis-sources .analysis-line-compact:hover {
-    background-color: rgba(0, 123, 255, 0.1);
-    border-color: #007bff;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
 /* Números de jugada */
@@ -770,9 +749,10 @@ td.result {
 .engine-version-label {
     margin-left: auto;
     text-align: right;
-    border: 0.0625rem solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.2);
+    border: 0.0625rem solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.35);
     border-radius: 999rem;
-    color: var(--mdb-body-color, var(--bs-body-color, #757575));
+    color: var(--bs-body-color, #212529);
+    background-color: rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.08);
     font-size: 0.95rem;
     font-weight: 600;
     padding: 0.125rem 0.5rem;

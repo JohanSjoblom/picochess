@@ -2765,7 +2765,7 @@ async def main() -> None:
                 await self.send_web_analysis(info_for_web_engine, analysed_fen_for_web_engine, "engine")
             if info_for_web_tutor:
                 await self.send_web_analysis(info_for_web_tutor, analysed_fen_for_web_tutor, "tutor")
-            if info_list and info_list_source != "tutor":
+            if info_list and (info_list_source != "tutor" or not self.eng_plays()):
                 info = info_list[0]  # pv first
                 await self.send_analyse(info, analysed_fen)
             # autoplay is temporarily piggybacking on this once-a-second analyse call

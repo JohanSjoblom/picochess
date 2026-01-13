@@ -1817,78 +1817,126 @@ var MAX_BACKEND_PV_MOVES = 8;
 
 function formatBackendAnalysisPv(pvMoves, baseFen) {
     if (!Array.isArray(pvMoves) || pvMoves.length === 0) {
+        if (typeof pvMoves === 'string') {
+            pvMoves = pvMoves.trim().split(/\s+/);
+        } else {
+            return null;
+        }
+    }
+
+    var normalizedMoves = [];
+    for (var i = 0; i < pvMoves.length; i++) {
+        var rawMove = pvMoves[i];
+        if (!rawMove) {
+            continue;
+        }
+        if (typeof rawMove === 'string') {
+            var cleaned = rawMove.trim();
+            if (!cleaned) {
+                continue;
+            }
+            var parts = cleaned.split(/\s+/);
+            for (var j = 0; j < parts.length; j++) {
+                if (parts[j]) {
+                    normalizedMoves.push(parts[j]);
+                }
+            }
+            continue;
+        }
+        if (rawMove.from && rawMove.to) {
+            var promotion = rawMove.promotion ? String(rawMove.promotion) : '';
+            normalizedMoves.push(rawMove.from + rawMove.to + promotion);
+        }
+    }
+    if (normalizedMoves.length === 0) {
         return null;
     }
 
-    var analysis_game = new Chess();
-    var start_move_num = 1;
-    var baseFenToUse = null;
-    if (baseFen && analysis_game.load(baseFen, chessGameType)) {
-        baseFenToUse = baseFen;
-        start_move_num = getStartMoveNumFromFen(baseFen);
-    } else if (currentPosition && currentPosition.fen && analysis_game.load(currentPosition.fen, chessGameType)) {
-        baseFenToUse = currentPosition.fen;
-        start_move_num = getCountPrevMoves(currentPosition) + 1;
-    }
-
-    function applyBackendMove(moveText) {
+    function applyBackendMove(game, moveText) {
         if (!moveText) {
             return null;
         }
-        if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(moveText)) {
-            var from = moveText.slice(0, 2);
-            var to = moveText.slice(2, 4);
-            var promotion = moveText.length === 5 ? moveText[4] : '';
+        if (typeof moveText !== 'string') {
+            return null;
+        }
+        var cleaned = moveText.trim();
+        if (!cleaned) {
+            return null;
+        }
+        var uciMatch = cleaned.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+        if (uciMatch) {
+            var from = uciMatch[1];
+            var to = uciMatch[2];
+            var promotion = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
             return promotion
-                ? analysis_game.move(({ from: from, to: to, promotion: promotion }))
-                : analysis_game.move(({ from: from, to: to }));
+                ? game.move(({ from: from, to: to, promotion: promotion }))
+                : game.move(({ from: from, to: to }));
         }
-        return analysis_game.move(moveText, { sloppy: true });
+        return game.move(cleaned, { sloppy: true });
     }
 
-    for (var i = 0; i < pvMoves.length; i++) {
-        var mv = applyBackendMove(pvMoves[i]);
-        if (!mv) {
-            break;
+    function buildFormattedPv(fen, allowCurrentFallback) {
+        var analysis_game = new Chess();
+        var start_move_num = 1;
+        if (fen) {
+            if (analysis_game.load(fen, chessGameType)) {
+                start_move_num = getStartMoveNumFromFen(fen);
+            } else if (allowCurrentFallback && currentPosition && currentPosition.fen
+                && analysis_game.load(currentPosition.fen, chessGameType)) {
+                start_move_num = getCountPrevMoves(currentPosition) + 1;
+            } else {
+                return null;
+            }
+        } else if (allowCurrentFallback && currentPosition && currentPosition.fen
+            && analysis_game.load(currentPosition.fen, chessGameType)) {
+            start_move_num = getCountPrevMoves(currentPosition) + 1;
         }
-    }
 
-    var history = analysis_game.history();
-    if (history.length === 0) {
-        return null;
-    }
-
-    var tempGame = new Chess();
-    if (baseFenToUse) {
-        tempGame.load(baseFenToUse, chessGameType);
-    } else if (currentPosition && currentPosition.fen) {
-        tempGame.load(currentPosition.fen, chessGameType);
-    }
-    var currentTurn = tempGame.turn();
-    var moveNumber = Math.floor((start_move_num + 1) / 2);
-
-    var firstMoveText = '';
-    if (currentTurn === 'w') {
-        firstMoveText += moveNumber + '. ';
-    } else {
-        firstMoveText += moveNumber + '... ';
-    }
-    firstMoveText += figurinizeMove(history[0]);
-
-    var continuationText = '';
-    var currentMoveNum = start_move_num;
-    for (i = 1; i < history.length; ++i) {
-        currentMoveNum++;
-        if (currentMoveNum % 2 === 1) {
-            continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+        var baseTurn = analysis_game.turn();
+        for (var i = 0; i < normalizedMoves.length; i++) {
+            var mv = applyBackendMove(analysis_game, normalizedMoves[i]);
+            if (!mv) {
+                break;
+            }
         }
-        continuationText += figurinizeMove(history[i]) + ' ';
+
+        var history = analysis_game.history();
+        if (history.length === 0) {
+            return null;
+        }
+
+        var moveNumber = Math.floor((start_move_num + 1) / 2);
+        var firstMoveText = '';
+        if (baseTurn === 'w') {
+            firstMoveText += moveNumber + '. ';
+        } else {
+            firstMoveText += moveNumber + '... ';
+        }
+        firstMoveText += figurinizeMove(history[0]);
+
+        var continuationText = '';
+        var currentMoveNum = start_move_num;
+        for (i = 1; i < history.length; ++i) {
+            currentMoveNum++;
+            if (currentMoveNum % 2 === 1) {
+                continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+            }
+            continuationText += figurinizeMove(history[i]) + ' ';
+        }
+
+        return {
+            firstMove: firstMoveText,
+            continuation: continuationText.trim()
+        };
     }
 
-    return {
-        firstMove: firstMoveText,
-        continuation: continuationText.trim()
-    };
+    var formatted = buildFormattedPv(baseFen, true);
+    if (!formatted && baseFen && currentPosition && currentPosition.fen
+        && currentPosition.fen !== baseFen) {
+        formatted = buildFormattedPv(currentPosition.fen, false);
+    }
+
+    return formatted;
 }
 
 function updateBackendAnalysisLine(lineEl, analysis, labelText) {

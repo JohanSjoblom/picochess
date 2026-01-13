@@ -74,6 +74,8 @@ How to add more engines?
 ------------------------
 Picochess ships with engine resource packs. The installer runs install-engines.sh once after cloning and installs the default small pack (includes Stockfish and LC0). You can re-run install-engines.sh anytime; it only downloads folders that are missing.
 
+Please note that you should chose either small or lite package, not both of them. To move from the small to the lite the command nr 1 below cleans up your small package first by moving it to backup. The install command nr 2 will then download the lite package.
+
 To switch from small to the larger lite pack:
 1) Run `./move-engines-to-backup.sh` to move your current engines out of `/opt/picochess/engines`. This prepares a clean install.
 2) Run `./install-engines.sh lite`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Linux) and downloads the matching lite files.

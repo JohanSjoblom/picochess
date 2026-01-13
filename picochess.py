@@ -2698,6 +2698,7 @@ async def main() -> None:
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
+            info_list_source: str | None = None
             info_for_web_engine: InfoDict | None = None
             info_for_web_tutor: InfoDict | None = None
             analysed_fen = ""  # analysis is only valid for this fen
@@ -2707,6 +2708,7 @@ async def main() -> None:
                 # here picotutor engine replaces playing engine analysis to save cpu
                 result = await self.state.picotutor.get_analysis()
                 info_list: list[InfoDict] = result.get("info")
+                info_list_source = "tutor"
                 analysed_fen = result.get("fen", "")
                 info_for_web_tutor = info_list[0] if info_list else None
                 analysed_fen_for_web_tutor = analysed_fen
@@ -2719,6 +2721,7 @@ async def main() -> None:
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)
                 info_list: list[InfoDict] = result.get("info")
+                info_list_source = "engine"
                 analysed_fen = result.get("fen", "")
                 info_for_web_engine = info_list[0] if info_list else None
                 analysed_fen_for_web_engine = analysed_fen
@@ -2733,6 +2736,7 @@ async def main() -> None:
                     if not self.state.is_user_turn() and engine_thinking:
                         result = await self.engine.get_thinking_analysis(self.state.game)
                         info_list: list[InfoDict] = result.get("info")
+                        info_list_source = "engine-thinking"
                         analysed_fen = result.get("fen", "")
                         info_for_web_engine = info_list[0] if info_list else None
                         analysed_fen_for_web_engine = analysed_fen
@@ -2749,6 +2753,7 @@ async def main() -> None:
                             # save cpu - only run engine analysis on user turn if coach/watcher off
                             result = await self.engine.get_analysis(self.state.game)
                             info_list: list[InfoDict] = result.get("info")
+                            info_list_source = "engine"
                             analysed_fen = result.get("fen", "")
                             info_for_web_engine = info_list[0] if info_list else None
                             analysed_fen_for_web_engine = analysed_fen
@@ -2760,7 +2765,7 @@ async def main() -> None:
                 await self.send_web_analysis(info_for_web_engine, analysed_fen_for_web_engine, "engine")
             if info_for_web_tutor:
                 await self.send_web_analysis(info_for_web_tutor, analysed_fen_for_web_tutor, "tutor")
-            if info_list:
+            if info_list and info_list_source != "tutor":
                 info = info_list[0]  # pv first
                 await self.send_analyse(info, analysed_fen)
             # autoplay is temporarily piggybacking on this once-a-second analyse call

@@ -1298,6 +1298,7 @@ async def main() -> None:
                             if info:
                                 # send pv, score, not sendpv as it's sent by BEST_MOVE below
                                 ponder_cache = ponder_move if ponder_move else chess.Move.null()
+                                # Fast clock feedback only; not a full analysis update.
                                 await self.send_analyse(
                                     info,
                                     analysed_fen,
@@ -2270,6 +2271,7 @@ async def main() -> None:
                                 # ponder hit! user chose the best ponder move
                                 ponder_reply = pv_moves[1] if pv_moves and len(pv_moves) > 1 else chess.Move.null()
                                 send_pv = pv_moves and len(pv_moves) > 1
+                                # Fast clock feedback only; not a full analysis update.
                                 await self.send_analyse(
                                     info, analysed_fen, send_pv=bool(send_pv), ponder_move=ponder_reply
                                 )

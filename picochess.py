@@ -2762,9 +2762,19 @@ async def main() -> None:
                                 info_list = None  # optimised else: prevent this info from being sent
                     await self._start_or_stop_analysis_as_needed()
             if info_for_web_engine:
-                await self.send_web_analysis(info_for_web_engine, analysed_fen_for_web_engine, "engine")
+                await self.send_web_analysis(
+                    info_for_web_engine,
+                    analysed_fen_for_web_engine,
+                    "engine",
+                    suppress_engine_line=False,
+                )
             if info_for_web_tutor:
-                await self.send_web_analysis(info_for_web_tutor, analysed_fen_for_web_tutor, "tutor")
+                await self.send_web_analysis(
+                    info_for_web_tutor,
+                    analysed_fen_for_web_tutor,
+                    "tutor",
+                    suppress_engine_line=not self.eng_plays(),
+                )
             if info_list and (info_list_source != "tutor" or not self.eng_plays()):
                 info = info_list[0]  # pv first
                 await self.send_analyse(info, analysed_fen)
@@ -2828,7 +2838,13 @@ async def main() -> None:
             if score is not None:
                 await Observable.fire(Event.NEW_SCORE(score=score, mate=mate))
 
-        async def send_web_analysis(self, info: InfoDict, analysed_fen: str, source: str):
+        async def send_web_analysis(
+            self,
+            info: InfoDict,
+            analysed_fen: str,
+            source: str,
+            suppress_engine_line: bool = False,
+        ):
             """Send full analysis info to the web client without depth gating."""
             if not info:
                 return
@@ -2849,6 +2865,7 @@ async def main() -> None:
                 "pv": pv_to_send,
                 "fen": analysed_fen,
                 "source": source,
+                "suppress_engine_line": suppress_engine_line,
             }
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=analysis_payload))
 

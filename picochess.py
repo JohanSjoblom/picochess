@@ -791,6 +791,11 @@ async def main() -> None:
         shared: dict = {}
         shared["web_speech_local"] = args.web_speech_local
         shared["web_speech_remote"] = args.web_speech_remote
+        shared["tutor_watch_active"] = bool(
+            state.dgtmenu.get_picowatcher() or state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
+        )
+        shared["tutor_watch_watcher"] = bool(state.dgtmenu.get_picowatcher())
+        shared["tutor_watch_coach"] = bool(state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
         # moved starting WebDisplayt and WebVr here so that they are in same main loop
         logger.info("initializing message queues")
         my_web_display = WebDisplay(shared, main_loop)

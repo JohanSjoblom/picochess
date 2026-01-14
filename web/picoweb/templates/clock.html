@@ -978,6 +978,7 @@
         <script>
             window.picoWebConfig = window.picoWebConfig || {};
             window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
+            window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
         </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
         <script>
@@ -1029,33 +1030,36 @@
                 // Tutor+Watch combined button event handler
                 const tutorWatchBtn = document.getElementById('tutorWatchBtn');
                 if (tutorWatchBtn) {
-                    let tutorWatchActive = false;
+                    let tutorWatchActive = Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive);
                     const tutorWatchSpan = tutorWatchBtn.querySelector('span');
                     const tutorWatchIcon = tutorWatchBtn.querySelector('i');
+
+                    function setTutorWatchState(active) {
+                        tutorWatchActive = Boolean(active);
+                        if (tutorWatchActive) {
+                            tutorWatchBtn.classList.add('active');
+                            tutorWatchSpan.innerHTML = 'Tutor';
+                            tutorWatchIcon.className = 'fa fa-eye';
+                        } else {
+                            tutorWatchBtn.classList.remove('active');
+                            tutorWatchSpan.innerHTML = 'Tutor';
+                            tutorWatchIcon.className = 'fa fa-eye-slash';
+                        }
+                    }
+
+                    window.setTutorWatchState = setTutorWatchState;
+                    setTutorWatchState(tutorWatchActive);
                     
                     tutorWatchBtn.addEventListener('click', async function () {
                         try {
-                            // Actualizar visualización
-                            if (tutorWatchActive) {
-                                // Desactivar ambos
-                                this.classList.remove('active');
-                                tutorWatchSpan.innerHTML = 'Tutor';
-                                tutorWatchIcon.className = 'fa fa-eye-slash';
-                            } else {
-                                // Activar ambos
-                                this.classList.add('active');
-                                tutorWatchSpan.innerHTML = 'Tutor';
-                                tutorWatchIcon.className = 'fa fa-eye';
-                            }
-                            
+                            const nextActive = !tutorWatchActive;
                             // Enviar acción combinada al servidor
                             await fetch('/channel', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `action=tutor_watch&active=${!tutorWatchActive}`
+                                body: `action=tutor_watch&active=${nextActive}`
                             });
-                            
-                            tutorWatchActive = !tutorWatchActive;
+                            setTutorWatchState(nextActive);
                         } catch (error) {
                             console.error('Error toggling tutor+watch:', error);
                         }

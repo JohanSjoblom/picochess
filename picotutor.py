@@ -1123,6 +1123,10 @@ class PicoTutor:
             if before_score is not None:  # not approximated, need both current_pv AND history
                 e_value["score_hist_diff"] = score_hist_diff
             self.evaluated_moves[e_key] = e_value
+        elif eval_string:
+            # approximated move: still store minimum CPL for the UI list
+            e_value["CPL"] = best_deep_diff
+            self.evaluated_moves[e_key] = e_value
 
         self.log_sync_info()  # debug only
 

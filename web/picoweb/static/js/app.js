@@ -1789,12 +1789,54 @@ function updateTutorMistakes(mistakes) {
     }
     mistakes.forEach(function (item) {
         var entry = document.createElement('li');
-        entry.className = 'list-group-item';
+        entry.className = 'list-group-item tutor-mistake-item';
         var nag = item.nag ? item.nag : '';
         var moveText = (item.move_no ? item.move_no + ' ' : '') + (item.user_move || '') + nag;
         entry.textContent = moveText + ' — CPL: ' + item.cpl + ', best: ' + item.best_move;
+        if (item.halfmove) {
+            entry.dataset.halfmove = item.halfmove;
+            entry.addEventListener('click', function () {
+                goToHalfmove(entry.dataset.halfmove);
+            });
+        }
         listEl.appendChild(entry);
     });
+}
+
+function findFenByHalfmove(halfmove) {
+    if (!fenHash || !halfmove) {
+        return null;
+    }
+    var target = parseInt(halfmove, 10);
+    if (Number.isNaN(target) || target < 1) {
+        return null;
+    }
+    for (var key in fenHash) {
+        if (!Object.prototype.hasOwnProperty.call(fenHash, key)) {
+            continue;
+        }
+        if (key === 'first' || key === 'last') {
+            continue;
+        }
+        var node = fenHash[key];
+        if (!node || typeof node !== 'object') {
+            continue;
+        }
+        if (node.half_move_num === target) {
+            return node.fen;
+        }
+    }
+    return null;
+}
+
+function goToHalfmove(halfmove) {
+    var fen = findFenByHalfmove(halfmove);
+    if (!fen) {
+        return false;
+    }
+    goToPosition(fen);
+    removeHighlights();
+    return true;
 }
 
 function getStartMoveNumFromFen(fen) {

@@ -485,9 +485,16 @@ class ChessBoardHandler(ServerRequestHandler):
 
     def get(self):
         web_speech = True
+        tutor_watch_active = False
         if self.shared is not None:
             web_speech = self._get_web_speech_setting()
-        self.render("web/picoweb/templates/clock.html", theme=self.theme, web_speech=web_speech)
+            tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
+        self.render(
+            "web/picoweb/templates/clock.html",
+            theme=self.theme,
+            web_speech=web_speech,
+            tutor_watch_active=tutor_watch_active,
+        )
 
     def _get_web_speech_setting(self) -> bool:
         web_speech_local = self.shared.get("web_speech_local", True)
@@ -1115,6 +1122,24 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
+
+        elif isinstance(message, Message.PICOWATCHER):
+            self.shared["tutor_watch_watcher"] = bool(message.picowatcher)
+            self.shared["tutor_watch_active"] = bool(
+                self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
+            )
+            EventHandler.write_to_clients(
+                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"]}
+            )
+
+        elif isinstance(message, Message.PICOCOACH):
+            self.shared["tutor_watch_coach"] = bool(message.picocoach)
+            self.shared["tutor_watch_active"] = bool(
+                self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
+            )
+            EventHandler.write_to_clients(
+                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"]}
+            )
 
         elif isinstance(message, Message.WEB_ANALYSIS):
             analysis_payload = message.analysis or {}

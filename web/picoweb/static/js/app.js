@@ -2250,6 +2250,11 @@ $(function () {
                 case 'Status':
                     // dgtClockStatusEl.html(data.msg);
                     break;
+                case 'TutorWatch':
+                    if (window.setTutorWatchState) {
+                        window.setTutorWatchState(Boolean(data.active));
+                    }
+                    break;
                 case 'Light':
                     var tmp_board = new Chess(currentPosition.fen, chessGameType);
                     var tmp_move = tmp_board.move(data.move, { sloppy: true });

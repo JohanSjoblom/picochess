@@ -910,6 +910,8 @@ class WebDisplay(DisplayMsg):
 
         def _maybe_send_analysis():
             state = self.analysis_state
+            if self.shared.get("suppress_engine_analysis"):
+                return
             if state.get("pv") is None:
                 return
             if state.get("score") is None and not state.get("mate"):
@@ -1117,6 +1119,7 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.WEB_ANALYSIS):
             analysis_payload = message.analysis or {}
             source = analysis_payload.get("source", "engine")
+            self.shared["suppress_engine_analysis"] = bool(analysis_payload.get("suppress_engine_line"))
             if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
                 analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
             if source == "tutor":

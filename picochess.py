@@ -98,7 +98,6 @@ FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
 FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 50  # max limit for any analysis
-FLOAT_TUTOR_MAX_ANALYSIS_DEPTH = 22  # higher than DEEP_DEPTH, lower than above
 # since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING
 # Dont make the following large as it will block engine play go
@@ -2590,18 +2589,6 @@ async def main() -> None:
             # @ todo - check how to do this in new chess library
             # self.engine.position(copy.deepcopy(game))
 
-        def tutor_depth(self) -> bool:
-            """return depth to override in tutor set_mode if coach-analyser is True else None"""
-            # important that we use same bool function as in analyse()
-            # if analyse is going to use tutor, use more depth
-            if self.state.interaction_mode == Mode.PGNREPLAY:
-                return None  # PGN Replay does not need any deeper than DEEP_DEPTH
-            return (
-                FLOAT_TUTOR_MAX_ANALYSIS_DEPTH
-                # minor cpu bug fix in #128 - dont give larger depth if tutor cannot be used
-                if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser()
-                else None
-            )
 
         # There are four case in the boolean table for is_coach_analyser and need_engine_analyser
         # This logic is used by analyse to get the correct get_analysis
@@ -3266,7 +3253,7 @@ async def main() -> None:
             self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
                 self.state.picotutor.stop()  # stop possible old tutor analysers
-            await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+            await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
 
             await self.stop_search_and_clock()
             await self.engine_mode()
@@ -3501,7 +3488,7 @@ async def main() -> None:
                 )
             if self.state.flag_picotutor:
                 # always fix the picotutor if-to-analyse both sides and depth
-                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
             await self._start_or_stop_analysis_as_needed()  # engine mode changed
 
         def remote_engine_mode(self):
@@ -4079,8 +4066,8 @@ async def main() -> None:
 
                 await self.update_elo_display()
 
-                # new engine might change result of tutor_depth() to use - inform tutor
-                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+                # new engine might change tutor usage - inform tutor
+                await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 # also state of main analyser might have changed
                 await self._start_or_stop_analysis_as_needed()
                 # end of NEW_ENGINE
@@ -5312,7 +5299,7 @@ async def main() -> None:
                     self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
@@ -5344,7 +5331,7 @@ async def main() -> None:
                     self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
                     await DisplayMsg.show(Message.PICOCOACH(picocoach=False))
                 elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON and event.picocoach != 2:
@@ -5375,7 +5362,7 @@ async def main() -> None:
                         self.state.flag_picotutor = False
 
                 if self.state.flag_picotutor:
-                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays(), self.tutor_depth())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 await DisplayMsg.show(Message.PICOEXPLORER(picoexplorer=event.picoexplorer))
 
             elif isinstance(event, Event.RSPEED):

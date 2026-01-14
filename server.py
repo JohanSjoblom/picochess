@@ -48,7 +48,7 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
 from pgn import ModeInfo
@@ -202,7 +202,13 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "tutor_watch":
             active = self.get_argument("active", "false").lower() == "true"
             await Observable.fire(Event.PICOWATCHER(picowatcher=active))
-            await Observable.fire(Event.PICOCOACH(picocoach=1 if active else 0))
+            if active:
+                coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
+                if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                    coach_pref = PicoCoach.COACH_ON
+                await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
+            else:
+                await Observable.fire(Event.PICOCOACH(picocoach=0))
         elif action == "resign_game":
             play_mode = (self.shared.get("game_info") or {}).get("play_mode")
             if play_mode == PlayMode.USER_BLACK:
@@ -1133,7 +1139,17 @@ class WebDisplay(DisplayMsg):
             )
 
         elif isinstance(message, Message.PICOCOACH):
-            self.shared["tutor_watch_coach"] = bool(message.picocoach)
+            coach_value = message.picocoach
+            coach_is_off = coach_value == 0 or coach_value == PicoCoach.COACH_OFF or coach_value is False
+            coach_is_lift = coach_value == 2 or coach_value == PicoCoach.COACH_LIFT
+            coach_is_on = coach_value == 1 or coach_value == PicoCoach.COACH_ON or (
+                coach_value and not coach_is_lift and not coach_is_off
+            )
+            self.shared["tutor_watch_coach"] = bool(coach_is_on or coach_is_lift)
+            if coach_is_lift:
+                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_LIFT
+            elif coach_is_on:
+                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_ON
             self.shared["tutor_watch_active"] = bool(
                 self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
             )

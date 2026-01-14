@@ -796,6 +796,11 @@ async def main() -> None:
         )
         shared["tutor_watch_watcher"] = bool(state.dgtmenu.get_picowatcher())
         shared["tutor_watch_coach"] = bool(state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
+        shared["tutor_watch_coach_pref"] = (
+            state.dgtmenu.get_picocoach()
+            if state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
+            else PicoCoach.COACH_ON
+        )
         # moved starting WebDisplayt and WebVr here so that they are in same main loop
         logger.info("initializing message queues")
         my_web_display = WebDisplay(shared, main_loop)
@@ -5308,11 +5313,25 @@ async def main() -> None:
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
-                if event.picocoach == 0:
+                coach_request = event.picocoach
+                if coach_request in (PicoCoach.COACH_OFF, PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                    if coach_request == PicoCoach.COACH_OFF:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
+                        write_picochess_ini("tutor-coach", "off")
+                    elif coach_request == PicoCoach.COACH_ON:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
+                        write_picochess_ini("tutor-coach", "on")
+                    else:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_LIFT
+                        write_picochess_ini("tutor-coach", "lift")
+                elif coach_request == 0:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
                     write_picochess_ini("tutor-coach", "off")
-                elif event.picocoach == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
+                elif coach_request == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
                     write_picochess_ini("tutor-coach", "on")
@@ -5337,14 +5356,23 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
-                if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
-                    await DisplayMsg.show(Message.PICOCOACH(picocoach=False))
-                elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON and event.picocoach != 2:
-                    await DisplayMsg.show(Message.PICOCOACH(picocoach=True))
-                elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT and event.picocoach != 2:
-                    await DisplayMsg.show(Message.PICOCOACH(picocoach=True))
+                if coach_request != 2:
+                    coach_mode = self.state.dgtmenu.get_picocoach()
+                    coach_msg = 0
+                    if coach_mode == PicoCoach.COACH_ON:
+                        coach_msg = 1
+                    elif coach_mode == PicoCoach.COACH_LIFT:
+                        coach_msg = 2
+                    await DisplayMsg.show(Message.PICOCOACH(picocoach=coach_msg))
+                    if self.shared is not None:
+                        if coach_mode != PicoCoach.COACH_OFF:
+                            self.shared["tutor_watch_coach_pref"] = coach_mode
+                        self.shared["tutor_watch_coach"] = coach_mode != PicoCoach.COACH_OFF
+                        self.shared["tutor_watch_active"] = bool(
+                            self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
+                        )
 
-                if self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF and event.picocoach == 2:
+                if self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF and coach_request == 2:
                     # call pico coach in case it was already set to on
                     await self.call_pico_coach()
 

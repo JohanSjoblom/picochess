@@ -1305,6 +1305,7 @@ class WebDisplay(DisplayMsg):
                     and not isinstance(message, Message.NEW_DEPTH)
                     and not isinstance(message, Message.NEW_SCORE)
                     and not isinstance(message, Message.NEW_PV)
+                    and not isinstance(message, Message.WEB_ANALYSIS)
                 ):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task

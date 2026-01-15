@@ -871,8 +871,6 @@ class PicoTutor:
                 score = score_val.pov(turn).score(mate_score=99999)
             else:
                 score = score_val.pov(turn).score()
-        else:
-            logger.debug("no score in tutor info dict")
         return (move, score, mate)
 
     # @todo re-design this method?

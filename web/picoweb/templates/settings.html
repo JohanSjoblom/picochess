@@ -80,11 +80,20 @@
             if (normalized === "tutor-coach") {
                 return ["off", "on", "lift"];
             }
+            if (normalized === "tutor-comment") {
+                return ["single", "all", "off"];
+            }
             if (normalized === "board-type") {
                 return ["dgt", "certabo", "chesslink", "chessnut", "ichessone", "noeboard"];
             }
             if (normalized === "clockside") {
                 return ["left", "right"];
+            }
+            if (normalized === "language") {
+                return ["en", "de", "nl", "fr", "es", "it"];
+            }
+            if (normalized === "audio-backend") {
+                return ["sox", "native"];
             }
             return null;
         }

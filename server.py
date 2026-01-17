@@ -67,6 +67,7 @@ OBOOKSRV_TIMEOUT = 1.0
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
+INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
 
 
 def _get_ini_path() -> str:
@@ -108,19 +109,36 @@ def _require_auth_if_remote(handler, realm: str) -> bool:
 
 def _parse_ini_entries(lines):
     entries = {}
+    pending_help = []
     for idx, line in enumerate(lines):
+        if not line.strip():
+            pending_help = []
+            continue
         match = INI_LINE_RE.match(line)
         if not match:
+            comment_match = INI_COMMENT_RE.match(line)
+            if comment_match:
+                pending_help.append(comment_match.group(1).strip())
+            else:
+                pending_help = []
             continue
         enabled = match.group(1) is None
         key = match.group(2)
         value = match.group(3).strip()
-        data = {"key": key, "value": value, "enabled": enabled, "line_index": idx}
+        help_text = " ".join(pending_help).strip() if pending_help else ""
+        data = {
+            "key": key,
+            "value": value,
+            "enabled": enabled,
+            "line_index": idx,
+            "help": help_text,
+        }
         if key not in entries:
             entries[key] = data
         else:
             if enabled or not entries[key]["enabled"]:
                 entries[key] = data
+        pending_help = []
     return entries
 
 
@@ -604,7 +622,15 @@ class SettingsDataHandler(ServerRequestHandler):
         if not _require_auth_if_remote(self, "Settings"):
             return
         _, _, entries, _ = _load_ini_entries()
-        payload = [{"key": item["key"], "value": item["value"], "enabled": item["enabled"]} for item in entries]
+        payload = [
+            {
+                "key": item["key"],
+                "value": item["value"],
+                "enabled": item["enabled"],
+                "help": item.get("help", ""),
+            }
+            for item in entries
+        ]
         self.set_header("Content-Type", "application/json")
         self.write({"entries": payload})
 

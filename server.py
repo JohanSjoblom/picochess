@@ -20,6 +20,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import urllib.parse
 from collections import OrderedDict
 from typing import Set
@@ -63,6 +64,38 @@ OBOOKSRV_URL = "http://localhost:7777/query"
 OBOOKSRV_TIMEOUT = 1.0
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
+INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
+
+
+def _get_ini_path() -> str:
+    return os.path.join(os.path.dirname(__file__), "picochess.ini")
+
+
+def _parse_ini_entries(lines):
+    entries = {}
+    for idx, line in enumerate(lines):
+        match = INI_LINE_RE.match(line)
+        if not match:
+            continue
+        enabled = match.group(1) is None
+        key = match.group(2)
+        value = match.group(3).strip()
+        data = {"key": key, "value": value, "enabled": enabled, "line_index": idx}
+        if key not in entries:
+            entries[key] = data
+        else:
+            if enabled or not entries[key]["enabled"]:
+                entries[key] = data
+    return entries
+
+
+def _load_ini_entries():
+    ini_path = _get_ini_path()
+    with open(ini_path, "r", encoding="utf-8") as ini_file:
+        lines = ini_file.readlines()
+    entries_map = _parse_ini_entries(lines)
+    entries = sorted(entries_map.values(), key=lambda entry: entry["line_index"])
+    return ini_path, lines, entries, entries_map
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -524,6 +557,95 @@ class UploadPageHandler(tornado.web.RequestHandler):
         self.render("web/picoweb/templates/upload.html")
 
 
+class SettingsPageHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("web/picoweb/templates/settings.html")
+
+
+class SettingsDataHandler(ServerRequestHandler):
+    def get(self):
+        _, _, entries, _ = _load_ini_entries()
+        payload = [{"key": item["key"], "value": item["value"], "enabled": item["enabled"]} for item in entries]
+        self.set_header("Content-Type", "application/json")
+        self.write({"entries": payload})
+
+
+class SettingsSaveHandler(ServerRequestHandler):
+    def post(self):
+        try:
+            payload = json.loads(self.request.body.decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            self.set_status(400)
+            self.write({"error": "Invalid JSON payload"})
+            return
+        entries = payload.get("entries")
+        if not isinstance(entries, list):
+            self.set_status(400)
+            self.write({"error": "Invalid entries payload"})
+            return
+
+        ini_path, lines, _, _ = _load_ini_entries()
+        entries_by_key = {}
+        keys_in_order = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            key = str(entry.get("key", "")).strip()
+            if not key:
+                continue
+            if key not in entries_by_key:
+                keys_in_order.append(key)
+            entries_by_key[key] = {
+                "value": str(entry.get("value", "")),
+                "enabled": bool(entry.get("enabled", False)),
+            }
+
+        def _line_for_entry(entry_key, entry_value, enabled):
+            prefix = "" if enabled else "#"
+            return f"{prefix}{entry_key} = {entry_value}\n"
+
+        new_lines = []
+        written_keys = set()
+        for line in lines:
+            match = INI_LINE_RE.match(line)
+            if not match:
+                new_lines.append(line)
+                continue
+            key = match.group(2)
+            entry = entries_by_key.get(key)
+            if not entry:
+                new_lines.append(line)
+                continue
+            if key in written_keys:
+                continue
+            current_value = match.group(3).strip()
+            is_commented = match.group(1) is not None
+            if entry["enabled"]:
+                if is_commented and current_value == entry["value"]:
+                    new_lines.append(_line_for_entry(key, current_value, True))
+                else:
+                    new_lines.append(_line_for_entry(key, entry["value"], True))
+            else:
+                if is_commented and current_value == entry["value"]:
+                    new_lines.append(line)
+                else:
+                    new_lines.append(_line_for_entry(key, entry["value"], False))
+            written_keys.add(key)
+
+        for key in keys_in_order:
+            entry = entries_by_key[key]
+            if not entry["enabled"] or key in written_keys:
+                continue
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines[-1] += "\n"
+            new_lines.append(_line_for_entry(key, entry["value"], True))
+
+        with open(ini_path, "w", encoding="utf-8") as ini_file:
+            ini_file.writelines(new_lines)
+        self.set_header("Content-Type", "application/json")
+        self.write({"status": "ok"})
+
+
 class WebServer:
     def __init__(self):
         pass
@@ -542,6 +664,9 @@ class WebServer:
                 (r"/channel", ChannelHandler, dict(shared=shared)),
                 (r"/upload-pgn", UploadHandler),
                 (r"/upload", UploadPageHandler),
+                (r"/settings", SettingsPageHandler),
+                (r"/settings/data", SettingsDataHandler),
+                (r"/settings/save", SettingsSaveHandler),
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
             ]
         )

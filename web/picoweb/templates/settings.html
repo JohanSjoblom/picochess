@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Picochess Settings</title>
+</head>
+
+<body>
+    <h1>Picochess Settings</h1>
+    <p>Changes take effect after the next restart.</p>
+
+    <div id="status"></div>
+
+    <table border="1" cellpadding="4" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Enabled</th>
+                <th>Key</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody id="settings-body"></tbody>
+    </table>
+
+    <div style="margin-top: 10px;">
+        <button type="button" id="saveBtn">Save</button>
+        <a href="/">Back</a>
+    </div>
+
+    <script>
+        function isBooleanValue(value) {
+            return value.trim().toLowerCase() === "true" || value.trim().toLowerCase() === "false";
+        }
+
+        function setStatus(message, isError) {
+            var status = document.getElementById("status");
+            status.textContent = message;
+            status.style.color = isError ? "red" : "green";
+        }
+
+        function renderEntry(entry) {
+            var row = document.createElement("tr");
+
+            var enabledCell = document.createElement("td");
+            var enabledInput = document.createElement("input");
+            enabledInput.type = "checkbox";
+            enabledInput.checked = Boolean(entry.enabled);
+            enabledInput.className = "setting-enabled";
+            enabledCell.appendChild(enabledInput);
+
+            var keyCell = document.createElement("td");
+            keyCell.textContent = entry.key;
+
+            var valueCell = document.createElement("td");
+            var valueInput;
+            if (isBooleanValue(entry.value)) {
+                valueInput = document.createElement("select");
+                ["true", "false"].forEach(function (optionValue) {
+                    var option = document.createElement("option");
+                    option.value = optionValue;
+                    option.textContent = optionValue;
+                    valueInput.appendChild(option);
+                });
+                valueInput.value = entry.value.trim().toLowerCase();
+            } else {
+                valueInput = document.createElement("input");
+                valueInput.type = "text";
+                valueInput.value = entry.value || "";
+                valueInput.size = 40;
+            }
+            valueInput.className = "setting-value";
+            valueCell.appendChild(valueInput);
+
+            row.appendChild(enabledCell);
+            row.appendChild(keyCell);
+            row.appendChild(valueCell);
+            row.dataset.key = entry.key;
+
+            return row;
+        }
+
+        function collectEntries() {
+            var rows = document.querySelectorAll("#settings-body tr");
+            var entries = [];
+            rows.forEach(function (row) {
+                var key = row.dataset.key;
+                var enabled = row.querySelector(".setting-enabled").checked;
+                var valueInput = row.querySelector(".setting-value");
+                entries.push({
+                    key: key,
+                    value: valueInput.value,
+                    enabled: enabled
+                });
+            });
+            return entries;
+        }
+
+        function loadSettings() {
+            fetch("/settings/data")
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("Failed to load settings");
+                    }
+                    return response.json();
+                })
+                .then(function (data) {
+                    var body = document.getElementById("settings-body");
+                    body.innerHTML = "";
+                    (data.entries || []).forEach(function (entry) {
+                        body.appendChild(renderEntry(entry));
+                    });
+                    if (!data.entries || data.entries.length === 0) {
+                        setStatus("No settings found in picochess.ini", true);
+                    } else {
+                        setStatus("", false);
+                    }
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
+        }
+
+        document.getElementById("saveBtn").addEventListener("click", function () {
+            var entries = collectEntries();
+            fetch("/settings/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entries: entries })
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("Failed to save settings");
+                    }
+                    return response.json();
+                })
+                .then(function () {
+                    setStatus("Settings saved.", false);
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
+        });
+
+        loadSettings();
+    </script>
+</body>
+
+</html>

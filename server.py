@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 import datetime
 import json
 import logging
@@ -31,6 +32,7 @@ import chess  # type: ignore
 import chess.pgn as pgn  # type: ignore
 import chess.polyglot  # type: ignore
 
+import pam
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 import tornado.httpclient  # type: ignore
@@ -69,6 +71,39 @@ INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
 
 def _get_ini_path() -> str:
     return os.path.join(os.path.dirname(__file__), "picochess.ini")
+
+def _get_remote_ip(request) -> str:
+    return request.headers.get("X-Real-IP") or request.remote_ip or ""
+
+
+def _is_local_request(request) -> bool:
+    return _get_remote_ip(request) in ("127.0.0.1", "::1")
+
+
+def _require_auth_if_remote(handler, realm: str) -> bool:
+    if _is_local_request(handler.request):
+        return True
+    auth_header = handler.request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Basic "):
+        handler.set_status(401)
+        handler.set_header("WWW-Authenticate", f'Basic realm="{realm}"')
+        handler.finish("Authentication required")
+        return False
+    try:
+        auth_decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+        username, password = auth_decoded.split(":", 1)
+    except Exception:
+        handler.set_status(401)
+        handler.set_header("WWW-Authenticate", f'Basic realm="{realm}"')
+        handler.finish("Authentication required")
+        return False
+    if not pam.pam().authenticate(username, password):
+        handler.set_status(401)
+        handler.set_header("WWW-Authenticate", f'Basic realm="{realm}"')
+        handler.finish("Authentication required")
+        return False
+    handler.current_user = username
+    return True
 
 
 def _parse_ini_entries(lines):
@@ -559,11 +594,15 @@ class UploadPageHandler(tornado.web.RequestHandler):
 
 class SettingsPageHandler(tornado.web.RequestHandler):
     def get(self):
+        if not _require_auth_if_remote(self, "Settings"):
+            return
         self.render("web/picoweb/templates/settings.html")
 
 
 class SettingsDataHandler(ServerRequestHandler):
     def get(self):
+        if not _require_auth_if_remote(self, "Settings"):
+            return
         _, _, entries, _ = _load_ini_entries()
         payload = [{"key": item["key"], "value": item["value"], "enabled": item["enabled"]} for item in entries]
         self.set_header("Content-Type", "application/json")
@@ -572,6 +611,8 @@ class SettingsDataHandler(ServerRequestHandler):
 
 class SettingsSaveHandler(ServerRequestHandler):
     def post(self):
+        if not _require_auth_if_remote(self, "Settings"):
+            return
         try:
             payload = json.loads(self.request.body.decode("utf-8") or "{}")
         except (ValueError, UnicodeDecodeError):

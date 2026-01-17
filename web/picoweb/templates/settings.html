@@ -34,6 +34,23 @@
             return value.trim().toLowerCase() === "true" || value.trim().toLowerCase() === "false";
         }
 
+        function selectOptionsForKey(key) {
+            var normalized = (key || "").trim().toLowerCase();
+            if (normalized === "log-level") {
+                return ["debug", "info", "warning", "error"];
+            }
+            if (normalized === "tutor-coach") {
+                return ["off", "on", "lift"];
+            }
+            if (normalized === "board-type") {
+                return ["dgt", "certabo", "chesslink", "chessnut", "ichessone", "noeboard"];
+            }
+            if (normalized === "clockside") {
+                return ["left", "right"];
+            }
+            return null;
+        }
+
         function setStatus(message, isError) {
             var status = document.getElementById("status");
             status.textContent = message;
@@ -55,7 +72,17 @@
 
             var valueCell = document.createElement("td");
             var valueInput;
-            if (isBooleanValue(entry.value)) {
+            var options = selectOptionsForKey(entry.key);
+            if (options) {
+                valueInput = document.createElement("select");
+                options.forEach(function (optionValue) {
+                    var option = document.createElement("option");
+                    option.value = optionValue;
+                    option.textContent = optionValue;
+                    valueInput.appendChild(option);
+                });
+                valueInput.value = (entry.value || "").trim().toLowerCase();
+            } else if (isBooleanValue(entry.value)) {
                 valueInput = document.createElement("select");
                 ["true", "false"].forEach(function (optionValue) {
                     var option = document.createElement("option");

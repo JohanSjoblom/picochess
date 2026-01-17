@@ -95,6 +95,12 @@
             if (normalized === "audio-backend") {
                 return ["sox", "native"];
             }
+            if (normalized === "beep-config") {
+                return ["none", "Never", "Sometimes", "Always", "Sample"];
+            }
+            if (normalized === "theme") {
+                return ["", "auto", "light", "dark", "time"];
+            }
             return null;
         }
 

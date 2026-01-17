@@ -5,6 +5,39 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Picochess Settings</title>
+    <style>
+        .touch-only {
+            display: none;
+        }
+        .touch-device .touch-only {
+            display: inline-block;
+        }
+        .help-icon {
+            margin-left: 6px;
+            padding: 0 6px;
+            border: 1px solid #666;
+            border-radius: 10px;
+            font-size: 0.9em;
+            line-height: 1.2em;
+            cursor: pointer;
+            user-select: none;
+        }
+        .help-row td {
+            font-size: 0.95em;
+            color: #333;
+            background: #f4f4f4;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 600px) {
+            table {
+                font-size: 0.95em;
+            }
+            .help-row td {
+                font-size: 0.9em;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -13,7 +46,7 @@
 
     <div id="status"></div>
 
-    <table border="1" cellpadding="4" cellspacing="0">
+    <table border="1" cellpadding="4" cellspacing="0" style="width:100%; table-layout:fixed;">
         <thead>
             <tr>
                 <th>Enabled</th>
@@ -30,6 +63,11 @@
     </div>
 
     <script>
+        var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+        if (isTouchDevice) {
+            document.documentElement.classList.add("touch-device");
+        }
+
         function isBooleanValue(value) {
             return value.trim().toLowerCase() === "true" || value.trim().toLowerCase() === "false";
         }
@@ -69,6 +107,31 @@
 
             var keyCell = document.createElement("td");
             keyCell.textContent = entry.key;
+            if (entry.help) {
+                row.title = entry.help;
+                keyCell.title = entry.help;
+            }
+            if (entry.help && isTouchDevice) {
+                var helpIcon = document.createElement("span");
+                helpIcon.textContent = "?";
+                helpIcon.className = "help-icon touch-only";
+                helpIcon.title = "Show help";
+                helpIcon.addEventListener("click", function () {
+                    var next = row.nextSibling;
+                    if (next && next.classList && next.classList.contains("help-row")) {
+                        next.parentNode.removeChild(next);
+                        return;
+                    }
+                    var helpRow = document.createElement("tr");
+                    helpRow.className = "help-row";
+                    var helpCell = document.createElement("td");
+                    helpCell.colSpan = 3;
+                    helpCell.textContent = entry.help;
+                    helpRow.appendChild(helpCell);
+                    row.parentNode.insertBefore(helpRow, row.nextSibling);
+                });
+                keyCell.appendChild(helpIcon);
+            }
 
             var valueCell = document.createElement("td");
             var valueInput;

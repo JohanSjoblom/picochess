@@ -74,7 +74,7 @@ def _get_ini_path() -> str:
     return os.path.join(os.path.dirname(__file__), "picochess.ini")
 
 def _get_remote_ip(request) -> str:
-    return request.headers.get("X-Real-IP") or request.remote_ip or ""
+    return request.remote_ip or ""
 
 
 def _is_local_request(request) -> bool:

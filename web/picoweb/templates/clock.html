@@ -139,6 +139,32 @@
                 inset 0 2px 4px rgba(0, 0, 0, 0.15);
         }
 
+        .menu-col {
+            flex: 0 0 33.3333%;
+            max-width: 33.3333%;
+            width: 33.3333%;
+        }
+
+        @media (orientation: landscape) and (min-width: 850px) {
+            .menu-col {
+                flex: 0 0 25%;
+                max-width: 25%;
+                width: 25%;
+            }
+        }
+
+        @media (orientation: landscape) and (max-width: 850px) {
+            #menu {
+                overflow: hidden;
+            }
+            #menuButtons {
+                max-height: 24vh;
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding-right: 4px;
+            }
+        }
+
         /* Special colors for specific button types */
         .btn-success {
             background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
@@ -224,6 +250,19 @@
             text-overflow: ellipsis;
             margin-bottom: 8px;
             min-height: 60px;
+        }
+
+        .menu-button-compact {
+            width: 60%;
+            aspect-ratio: 2.4;
+            min-height: 36px;
+            padding: 4px;
+            margin-bottom: 6px;
+        }
+
+        .menu-button-compact i {
+            margin-bottom: 0;
+            font-size: 1.1em;
         }
 
         .menu-button i {
@@ -695,46 +734,45 @@
                                         <div class="tab-pane fade show active" id="menu" role="tabpanel">
                                             <div id="menuButtons" style="padding: 5px;">
                                                 <div class="row g-1">
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="newGameBtn" class="btn menu-button">
                                                             <i class="fa fa-plus"></i>
                                                             <span>New Game</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="resignBtn" class="btn menu-button">
                                                             <i class="fa fa-flag"></i>
                                                             <span>Resign</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="scanBtn" class="btn menu-button">
                                                             <i class="fa fa-delicious"></i>
                                                             <span>Scan</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="tutorWatchBtn" class="btn menu-button">
                                                             <i class="fa fa-eye-slash"></i>
                                                             <span>Tutor</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="replayBtn" class="btn menu-button">
                                                             <i class="fa fa-play"></i>
                                                             <span>Open Game</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
+                                                    <div class="col-4 menu-col">
                                                         <button type="button" id="saveGameBtn" class="btn menu-button">
                                                             <i class="fa fa-save"></i>
                                                             <span>Save Game</span>
                                                         </button>
                                                     </div>
-                                                    <div class="col-3">
-                                                        <a href="/settings" class="btn menu-button">
+                                                    <div class="col-4 menu-col">
+                                                        <a href="/settings" class="btn menu-button menu-button-compact">
                                                             <i class="fa fa-cog"></i>
-                                                            <span>Settings</span>
                                                         </a>
                                                     </div>
                                                 </div>

@@ -660,10 +660,15 @@ class SettingsSaveHandler(ServerRequestHandler):
             key = str(entry.get("key", "")).strip()
             if not key:
                 continue
+            if not INI_LINE_RE.match(f"{key} = "):
+                continue
             if key not in entries_by_key:
                 keys_in_order.append(key)
+            value = str(entry.get("value", ""))
+            if "\n" in value or "\r" in value:
+                continue
             entries_by_key[key] = {
-                "value": str(entry.get("value", "")),
+                "value": value,
                 "enabled": bool(entry.get("enabled", False)),
             }
 

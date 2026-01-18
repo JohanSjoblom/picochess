@@ -58,6 +58,7 @@
     </table>
 
     <div style="margin-top: 10px;">
+        <button type="button" id="addRowBtn">Add setting</button>
         <button type="button" id="saveBtn">Save</button>
         <a href="/">Back</a>
     </div>
@@ -121,7 +122,16 @@
             enabledCell.appendChild(enabledInput);
 
             var keyCell = document.createElement("td");
-            keyCell.textContent = entry.key;
+            if (entry.editableKey) {
+                var keyInput = document.createElement("input");
+                keyInput.type = "text";
+                keyInput.value = entry.key || "";
+                keyInput.size = 20;
+                keyInput.className = "setting-key";
+                keyCell.appendChild(keyInput);
+            } else {
+                keyCell.textContent = entry.key;
+            }
             if (entry.help) {
                 row.title = entry.help;
                 keyCell.title = entry.help;
@@ -182,6 +192,9 @@
             row.appendChild(keyCell);
             row.appendChild(valueCell);
             row.dataset.key = entry.key;
+            if (entry.editableKey) {
+                row.dataset.editableKey = "1";
+            }
 
             return row;
         }
@@ -190,9 +203,13 @@
             var rows = document.querySelectorAll("#settings-body tr");
             var entries = [];
             rows.forEach(function (row) {
-                var key = row.dataset.key;
+                var keyInput = row.querySelector(".setting-key");
+                var key = keyInput ? keyInput.value.trim() : row.dataset.key;
                 var enabled = row.querySelector(".setting-enabled").checked;
                 var valueInput = row.querySelector(".setting-value");
+                if (!key) {
+                    return;
+                }
                 entries.push({
                     key: key,
                     value: valueInput.value,
@@ -200,6 +217,13 @@
                 });
             });
             return entries;
+        }
+
+        function addEmptyRow() {
+            var body = document.getElementById("settings-body");
+            var entry = { key: "", value: "", enabled: true, editableKey: true, help: "" };
+            var row = renderEntry(entry);
+            body.appendChild(row);
         }
 
         function loadSettings() {
@@ -246,6 +270,10 @@
                 .catch(function (error) {
                     setStatus(error.message, true);
                 });
+        });
+
+        document.getElementById("addRowBtn").addEventListener("click", function () {
+            addEmptyRow();
         });
 
         loadSettings();

@@ -22,7 +22,6 @@ import json
 import logging
 import os
 import re
-import urllib.parse
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -35,7 +34,6 @@ import chess.polyglot  # type: ignore
 import pam
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
-import tornado.httpclient  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
 from utilities import (
@@ -62,10 +60,9 @@ client_ips = []
 
 
 logger = logging.getLogger(__name__)
-OBOOKSRV_URL = "http://localhost:7777/query"
-OBOOKSRV_TIMEOUT = 1.0
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
+OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
 INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
 INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
 
@@ -396,41 +393,31 @@ class InfoHandler(ServerRequestHandler):
 class BookHandler(ServerRequestHandler):
 
     async def _get_obooksrv_moves(self, fen: str):
-        params = urllib.parse.urlencode({"action": "get_book_moves", "fen": fen})
-        url = f"{OBOOKSRV_URL}?{params}"
-        client = tornado.httpclient.AsyncHTTPClient()
-        try:
-            response = await client.fetch(url, request_timeout=OBOOKSRV_TIMEOUT)
-        except tornado.httpclient.HTTPError as exc:
-            logger.debug("obooksrv request failed: %s", exc)
-            return None
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("obooksrv request failed: %s", exc)
-            return None
-        try:
-            payload = json.loads(response.body.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError) as exc:
-            logger.debug("obooksrv returned invalid JSON: %s", exc)
-            return None
-        data = payload.get("data", [])
-        if not isinstance(data, list):
-            return None
         moves_data = []
-        for row in data:
-            if not isinstance(row, dict):
-                continue
-            move = row.get("move")
-            if not move:
-                continue
-            moves_data.append(
-                {
-                    "move": move,
-                    "count": int(row.get("count", 0) or 0),
-                    "whitewins": int(row.get("whitewins", 0) or 0),
-                    "draws": int(row.get("draws", 0) or 0),
-                    "blackwins": int(row.get("blackwins", 0) or 0),
-                }
-            )
+        try:
+            board = chess.Board(fen)
+            with chess.polyglot.open_reader(OBOOKSRV_DATA_FILE) as reader:
+                for entry in reader.find_all(board):
+                    move_uci = entry.move.uci()
+                    weight = entry.weight  # uint16
+                    learn = entry.learn  # uint32
+                    whitewins = (weight >> 8) & 0xFF
+                    draws = weight & 0xFF
+                    n_games = learn
+                    blackwins = max(0, 100 - whitewins - draws)
+                    moves_data.append(
+                        {
+                            "move": move_uci,
+                            "count": n_games,
+                            "whitewins": whitewins,
+                            "draws": draws,
+                            "blackwins": blackwins,
+                        }
+                    )
+            moves_data.sort(key=lambda m: m["count"], reverse=True)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("obooksrv read failed: %s", exc)
+            return None
         return moves_data
 
     def _get_polyglot_moves(self, book_file: str, fen: str):

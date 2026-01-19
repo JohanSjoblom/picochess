@@ -39,6 +39,7 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   small/lite -> choose engine pack (default: small)
 #   noengines  -> skip engine installation
 #   dgt3000    -> install DGTPi clock support
+#   DGT3000    -> install DGTPi clock support
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
@@ -59,7 +60,7 @@ for arg in "$@"; do
         noengines)
             SKIP_ENGINES=true
             ;;
-        dgt3000)
+        dgt3000|DGT3000)
             INSTALL_DGTPI=true
             ;;
     esac

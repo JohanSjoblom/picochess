@@ -38,9 +38,11 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   pico       -> skip system update
 #   small/lite -> choose engine pack (default: small)
 #   noengines  -> skip engine installation
+#   dgt3000    -> install DGTPi clock support
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
+INSTALL_DGTPI=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -56,6 +58,9 @@ for arg in "$@"; do
             ;;
         noengines)
             SKIP_ENGINES=true
+            ;;
+        dgt3000)
+            INSTALL_DGTPI=true
             ;;
     esac
 done
@@ -331,6 +336,20 @@ else
     cd "$REPO_DIR"
     cp voices-example.ini "$REPO_DIR/talker/voices/voices.ini"
     chown "$INSTALL_USER" "$REPO_DIR/talker/voices/voices.ini"
+fi
+
+# Install DGTPi clock support on request.
+if [ "$INSTALL_DGTPI" = true ]; then
+    echo "DGT3000 flag set - installing DGTPi clock support"
+    if [ -f "$REPO_DIR/install-dgtpi-clock.sh" ]; then
+        cd "$REPO_DIR" || exit 1
+        chmod +x install-dgtpi-clock.sh 2>/dev/null
+        ./install-dgtpi-clock.sh
+    else
+        echo "Warning: install-dgtpi-clock.sh not found; skipping DGTPi clock install" >&2
+    fi
+else
+    echo "DGT3000 flag not set - skipping DGTPi clock install"
 fi
 
 # Python module check

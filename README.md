@@ -92,7 +92,7 @@ Books and games database resources
 ----------------------------------
 Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.
 The book selector in the web client is independent from the engine opening book; the engine uses the book configured in `picochess.ini`.
-The web book tab also includes an `obooksrv` entry; selecting it shows statistics from the obooksrv dataset (if running), while other entries use the selected polyglot `.bin` book.
+The web book tab also includes an `obooksrv` entry; selecting it shows statistics from the local `opening.data` dataset, while other entries use the selected polyglot `.bin` book.
 To add a custom book, place the `.bin` file in `books/` and add a matching entry in `books/books.ini`.
 
 Installation with more detailed info

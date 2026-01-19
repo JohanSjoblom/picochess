@@ -37,7 +37,14 @@ require_cmd systemctl
 require_cmd usermod
 
 PICOCHESS_VENV="/opt/picochess/venv"
-BLUEPY_HELPER="$PICOCHESS_VENV/lib/python3.13/site-packages/bluepy/bluepy-helper"
+VENV_PYTHON="$PICOCHESS_VENV/bin/python"
+VENV_PYTHON=$(readlink -f "$VENV_PYTHON" 2>/dev/null || true)
+if [[ -x "$VENV_PYTHON" ]]; then
+  PYVER=$("$VENV_PYTHON" -c 'import sys; print("python%d.%d" % sys.version_info[:2])')
+  BLUEPY_HELPER="$PICOCHESS_VENV/lib/$PYVER/site-packages/bluepy/bluepy-helper"
+else
+  BLUEPY_HELPER=""
+fi
 
 step "Desbloqueando Bluetooth (rfkill)..." "Unblocking Bluetooth (rfkill)..."
 rfkill unblock bluetooth || true
@@ -46,7 +53,7 @@ step "Subiendo interfaz Bluetooth hci0..." "Bringing up Bluetooth interface hci0
 hciconfig hci0 up || true
 
 step "Aplicando capacidades a bluepy-helper..." "Applying capabilities to bluepy-helper..."
-if [[ -f "$BLUEPY_HELPER" ]]; then
+if [[ -n "$BLUEPY_HELPER" && -f "$BLUEPY_HELPER" ]]; then
   setcap 'cap_net_raw,cap_net_admin+eip' "$BLUEPY_HELPER"
 else
   echo ""

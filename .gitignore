@@ -46,6 +46,7 @@ engines/rodent4/
 engines/descriptions.txt
 # obooksrv symlink (created by install-picochess.sh)
 obooksrv/obooksrv
+obooksrv/opening.data
 # ignore resource folders - let user manage them
 books/
 gamesdb/

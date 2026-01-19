@@ -16,10 +16,13 @@ mkdir -p "$TMP_DIR" || exit 1
 
 BOOKS_ARCHIVE="books.tar.gz"
 GAMES_ARCHIVE="gamesdb.tar.gz"
+OPENINGDATA_ARCHIVE="openingdata.tar.gz"
 BOOKS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/${BOOKS_ARCHIVE}"
 GAMES_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/${GAMES_ARCHIVE}"
+OPENINGDATA_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/${OPENINGDATA_ARCHIVE}"
 BOOKS_TMP="$TMP_DIR/$BOOKS_ARCHIVE"
 GAMES_TMP="$TMP_DIR/$GAMES_ARCHIVE"
+OPENINGDATA_TMP="$TMP_DIR/$OPENINGDATA_ARCHIVE"
 
 download_asset() {
     URL=$1
@@ -67,6 +70,17 @@ else
     extract_asset "$GAMES_TMP" "$REPO_DIR/gamesdb" || exit 1
 fi
 
+OPENINGDATA_FILE="$REPO_DIR/obooksrv/opening.data"
+if [ -f "$OPENINGDATA_FILE" ]; then
+    echo "Opening data already exists - skipping download."
+else
+    echo "Downloading opening data archive..."
+    download_asset "$OPENINGDATA_URL" "$OPENINGDATA_TMP" || exit 1
+    echo "Extracting opening data into $REPO_DIR/obooksrv..."
+    mkdir -p "$REPO_DIR/obooksrv" || exit 1
+    extract_asset "$OPENINGDATA_TMP" "$REPO_DIR/obooksrv" || exit 1
+fi
+
 # Ensure correct tcscid binary is selected for this architecture
 if [ -d "$REPO_DIR/gamesdb" ]; then
     ARCH=$(uname -m)
@@ -82,6 +96,7 @@ fi
 # Ensure resulting directories are owned by pi
 chown -R pi:pi "$REPO_DIR/books" 2>/dev/null || true
 chown -R pi:pi "$REPO_DIR/gamesdb" 2>/dev/null || true
+chown -R pi:pi "$REPO_DIR/obooksrv" 2>/dev/null || true
 
 echo "Book and game resources installed."
 exit 0

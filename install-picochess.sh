@@ -79,7 +79,7 @@ fi
 #
 echo " ------------------------- "
 echo "installing needed libraries"
-apt -y install git sox unzip wget libtcl8.6 telnet libglib2.0-dev
+apt -y install git sox unzip wget libtcl8.6 telnet libglib2.0-dev i2c-tools
 apt -y install avahi-daemon avahi-discover libnss-mdns
 apt -y install vorbis-tools
 apt -y install python3 python3-pip

@@ -106,7 +106,8 @@
         }
 
         /* Universal button styles for all tabs - 3D effect */
-        .btn, .menu-button {
+        .btn,
+        .menu-button {
             position: relative;
             border: none;
             border-radius: 8px;
@@ -114,26 +115,28 @@
             transition: all 0.2s ease;
             background: linear-gradient(145deg, #5bc0de, #31b0d5);
             color: white;
-            box-shadow: 
+            box-shadow:
                 0 4px 8px rgba(0, 0, 0, 0.25),
                 0 2px 4px rgba(0, 0, 0, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.3);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
-        .btn:hover, .menu-button:hover {
+        .btn:hover,
+        .menu-button:hover {
             transform: translateY(-1px);
             background: linear-gradient(145deg, #6bd0ee, #41c0e5);
-            box-shadow: 
+            box-shadow:
                 0 6px 12px rgba(0, 0, 0, 0.3),
                 0 3px 6px rgba(0, 0, 0, 0.2),
                 inset 0 1px 0 rgba(255, 255, 255, 0.4);
             color: white;
         }
 
-        .btn:active, .menu-button:active {
+        .btn:active,
+        .menu-button:active {
             transform: translateY(1px);
-            box-shadow: 
+            box-shadow:
                 0 2px 4px rgba(0, 0, 0, 0.25),
                 0 1px 2px rgba(0, 0, 0, 0.15),
                 inset 0 2px 4px rgba(0, 0, 0, 0.15);
@@ -154,18 +157,22 @@
         }
 
         @media (orientation: landscape) and (max-width: 850px) {
+
             html,
             body {
                 height: 100%;
                 overflow: hidden !important;
             }
+
             #xboardsection {
                 max-height: 100vh;
                 overflow: hidden;
             }
+
             #menu {
                 overflow: hidden;
             }
+
             #menuButtons {
                 max-height: 24vh;
                 overflow-y: auto;
@@ -178,9 +185,11 @@
         .btn-success {
             background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
         }
+
         .btn-success:hover {
             background: linear-gradient(145deg, #6bd0ee, #41c0e5) !important;
         }
+
         .btn-success.active,
         .btn-success:active {
             background: linear-gradient(145deg, #5cb85c, #449d44) !important;
@@ -189,6 +198,7 @@
         .btn-danger {
             background: linear-gradient(145deg, #d9534f, #c9302c) !important;
         }
+
         .btn-danger:hover {
             background: linear-gradient(145deg, #e9635f, #d9403c) !important;
         }
@@ -196,6 +206,7 @@
         .btn-warning {
             background: linear-gradient(145deg, #f0ad4e, #ec971f) !important;
         }
+
         .btn-warning:hover {
             background: linear-gradient(145deg, #ffbd5e, #fca72f) !important;
         }
@@ -203,6 +214,7 @@
         .btn-info {
             background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
         }
+
         .btn-info:hover {
             background: linear-gradient(145deg, #6bd0ee, #41c0e5) !important;
         }
@@ -212,12 +224,14 @@
             color: #495057 !important;
             text-shadow: none !important;
         }
+
         .btn-light:hover {
             background: linear-gradient(145deg, #ffffff, #f8f9fa) !important;
             color: #495057 !important;
         }
 
         @media (max-width: 768px) and (orientation: portrait) {
+
             #uploadBtn,
             #downloadBtn {
                 background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
@@ -238,7 +252,7 @@
             background: linear-gradient(145deg, #5cb85c, #449d44) !important;
             color: white !important;
             transform: translateY(-1px);
-            box-shadow: 
+            box-shadow:
                 0 4px 8px rgba(92, 184, 92, 0.4),
                 0 2px 4px rgba(92, 184, 92, 0.3),
                 inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
@@ -293,7 +307,7 @@
         .menu-button.active {
             background: linear-gradient(145deg, #5cb85c, #449d44);
             transform: translateY(-1px);
-            box-shadow: 
+            box-shadow:
                 0 4px 8px rgba(92, 184, 92, 0.4),
                 0 2px 4px rgba(92, 184, 92, 0.3),
                 inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -369,20 +383,20 @@
             #GameTable {
                 font-size: 0.8rem;
             }
-            
+
             #GameTable th,
             #GameTable td {
                 padding: 6px 4px;
                 height: 35px;
             }
-            
+
             .menu-button {
                 font-size: 0.75rem;
                 min-height: 50px;
                 padding: 6px;
                 border-radius: 8px;
             }
-            
+
             .btn {
                 font-size: 0.8rem;
                 padding: 6px 12px;
@@ -395,7 +409,7 @@
                 min-height: 70px;
                 border-radius: 14px;
             }
-            
+
             .btn {
                 font-size: 0.9rem;
             }
@@ -633,7 +647,7 @@
                             <div class="card">
                                 <div class="card-header"
                                     style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center;">
-                                    <span>PicoChess Version 4.1.9</span>
+                                    <span>PicoChess Version 4.2.0</span>
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <form id="moveForm" autocomplete="off" style="margin: 0;">
                                             <input id="moveInput" type="text" inputmode="none" value="" style="
@@ -703,8 +717,9 @@
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <ul class="nav nav-pills mb-0" id="pills-tab" role="tablist">
                                             <li class="nav-item" role="presentation">
-                                                <button class="nav-link active" id="pills-menu-tab" data-bs-toggle="pill"
-                                                    data-bs-target="#menu" type="button" role="tab">Menu
+                                                <button class="nav-link active" id="pills-menu-tab"
+                                                    data-bs-toggle="pill" data-bs-target="#menu" type="button"
+                                                    role="tab">Menu
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
@@ -720,9 +735,8 @@
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="pills-profile-tab"
-                                                    data-bs-toggle="pill" data-bs-target="#book" type="button"
-                                                    role="tab">Book
+                                                <button class="nav-link" id="pills-profile-tab" data-bs-toggle="pill"
+                                                    data-bs-target="#book" type="button" role="tab">Book
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
@@ -760,7 +774,8 @@
                                                         </button>
                                                     </div>
                                                     <div class="col-4 menu-col">
-                                                        <button type="button" id="tutorWatchBtn" class="btn menu-button">
+                                                        <button type="button" id="tutorWatchBtn"
+                                                            class="btn menu-button">
                                                             <i class="fa fa-eye-slash"></i>
                                                             <span>Tutor</span>
                                                         </button>
@@ -785,12 +800,15 @@
                                                 </div>
                                             </div>
                                             <div id="scanContainer" class="scroll_obooklist" style="display: none;">
-                                                <div class="d-flex justify-content-between align-items-center mb-3" style="padding: 0 15px;">
-                                                    <button type="button" id="scanActiveBtn" class="btn btn-danger" style="width: 70%; height: 40px;">
+                                                <div class="d-flex justify-content-between align-items-center mb-3"
+                                                    style="padding: 0 15px;">
+                                                    <button type="button" id="scanActiveBtn" class="btn btn-danger"
+                                                        style="width: 70%; height: 40px;">
                                                         <i class="fa fa-delicious"></i>
                                                         <span>Sync Board</span>
                                                     </button>
-                                                    <button type="button" id="backToMenuBtn" class="btn btn-secondary" style="width: 25%; height: 40px;">
+                                                    <button type="button" id="backToMenuBtn" class="btn btn-secondary"
+                                                        style="width: 25%; height: 40px;">
                                                         <i class="fa fa-arrow-left"></i>
                                                     </button>
                                                 </div>
@@ -941,17 +959,19 @@
                                                     <div class="col-12">
                                                         <div class="engine-controls">
                                                             <div class="btn-group btn-group-xs" role="group">
-                                                            <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn"
-                                                                data-placement="auto">
-                                                                <span id="analyzeMinusText">
-                                                                    <i class='fa fa-minus'></i>
-                                                                </span>
-                                                            </button>
-                                                            <button id="analyzePlus" class="btn btn-sm btn-primary book-switch-btn"
-                                                                data-placement="auto">
-                                                                <span id="analyzePlusText"><i
-                                                                        class='fa fa-plus'></i></span>
-                                                            </button>
+                                                                <button id="analyzeMinus"
+                                                                    class="btn btn-sm btn-primary book-switch-btn"
+                                                                    data-placement="auto">
+                                                                    <span id="analyzeMinusText">
+                                                                        <i class='fa fa-minus'></i>
+                                                                    </span>
+                                                                </button>
+                                                                <button id="analyzePlus"
+                                                                    class="btn btn-sm btn-primary book-switch-btn"
+                                                                    data-placement="auto">
+                                                                    <span id="analyzePlusText"><i
+                                                                            class='fa fa-plus'></i></span>
+                                                                </button>
                                                             </div>
                                                             <span class="engine-version-label">Stockfish 17.1 js</span>
                                                         </div>
@@ -971,38 +991,41 @@
                                             </div>
                                         </div>
                                         <div class="tab-pane fade" id="book" role="tabpanel"
-                                              style="padding-left: 10px;">
+                                            style="padding-left: 10px;">
                                             <div class="scroll_obooklist book-scroll">
                                                 <div id="currentBookContainer" class="mb-2 d-none">
                                                     <div class="alert alert-secondary py-1 px-2 text-center mb-2">
                                                         <div class="book-header-row">
-                                                            <button type="button" id="bookPrev" class="btn btn-sm btn-primary book-switch-btn">
+                                                            <button type="button" id="bookPrev"
+                                                                class="btn btn-sm btn-primary book-switch-btn">
                                                                 <i class="fa fa-chevron-left"></i>
                                                             </button>
                                                             <span class="book-title">
                                                                 <span class="fw-bold">Book:&nbsp;</span>
                                                                 <span id="currentBookName">No book</span>
                                                             </span>
-                                                            <button type="button" id="bookNext" class="btn btn-sm btn-primary book-switch-btn">
+                                                            <button type="button" id="bookNext"
+                                                                class="btn btn-sm btn-primary book-switch-btn">
                                                                 <i class="fa fa-chevron-right"></i>
                                                             </button>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div class="book-table-scroll">
-                                                    <table id="BookTable" class="table compact table-bordered row-border"
-                                                          style="font-size: 1.6vw; text-align: center; width: 100%;">
-                                                          <thead>
-                                                              <tr>
-                                                                  <th data-priority="1">Move</th>
-                                                                  <th data-priority="2">Games</th>
-                                                                  <th>Results</th>
-                                                              </tr>
-                                                          </thead>
-                                                      </table>
+                                                    <table id="BookTable"
+                                                        class="table compact table-bordered row-border"
+                                                        style="font-size: 1.6vw; text-align: center; width: 100%;">
+                                                        <thead>
+                                                            <tr>
+                                                                <th data-priority="1">Move</th>
+                                                                <th data-priority="2">Games</th>
+                                                                <th>Results</th>
+                                                            </tr>
+                                                        </thead>
+                                                    </table>
                                                 </div>
-                                              </div>
-                                          </div>
+                                            </div>
+                                        </div>
                                         <div class="tab-pane fade" id="games" role="tabpanel">
                                             <table id="GameTable"
                                                 class="table table-hover compact table-bordered row-border"
@@ -1100,7 +1123,7 @@
 
                     window.setTutorWatchState = setTutorWatchState;
                     setTutorWatchState(tutorWatchActive);
-                    
+
                     tutorWatchBtn.addEventListener('click', async function () {
                         try {
                             const nextActive = !tutorWatchActive;
@@ -1173,28 +1196,28 @@
                 const scanActiveBtn = document.getElementById('scanActiveBtn');
                 const menuButtons = document.getElementById('menuButtons');
                 const scanContainer = document.getElementById('scanContainer');
-                
+
                 if (scanBtn && menuButtons && scanContainer) {
                     scanBtn.addEventListener('click', function () {
                         menuButtons.style.display = 'none';
                         scanContainer.style.display = 'block';
                     });
                 }
-                
+
                 if (backToMenuBtn && menuButtons && scanContainer) {
                     backToMenuBtn.addEventListener('click', function () {
                         scanContainer.style.display = 'none';
                         menuButtons.style.display = 'block';
                     });
                 }
-                
+
                 // Scan active button functionality
                 if (scanActiveBtn) {
                     scanActiveBtn.addEventListener('click', async function () {
                         const sideToPlaySwitch = document.getElementById('sideToPlaySwitch');
                         const boardSideSwitch = document.getElementById('boardSideSwitch');
                         const uci960Switch = document.getElementById('uci960Switch');
-                        
+
                         const sideToPlay = sideToPlaySwitch.checked ? 'false' : 'true';
                         const boardSide = boardSideSwitch.checked ? 'true' : 'false';
                         const whiteCastleKing = document.getElementById('whiteCastleKingSwitch').checked;

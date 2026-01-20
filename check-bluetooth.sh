@@ -2,11 +2,29 @@
 set -eu
 
 OUT_FILE="bluetooth.txt"
+FULL=0
+NO_MASK=0
+
+if [ "${1:-}" = "--full" ]; then
+    FULL=1
+elif [ "${1:-}" = "--no-mask" ]; then
+    NO_MASK=1
+fi
+
+mask_macs() {
+    if [ "$NO_MASK" -eq 1 ]; then
+        cat
+        return
+    fi
+    sed -E 's/([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}/XX:XX:XX:XX:XX:XX/g'
+}
 
 echo "Writing Bluetooth diagnostics to $OUT_FILE"
 
 {
     echo "=== Picochess Bluetooth diagnostics ==="
+    echo "Note: MAC addresses are masked. Use --no-mask to disable masking."
+    echo "Note: Use --full to include bluetooth journal logs."
     echo "Timestamp: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo ""
 
@@ -42,13 +60,15 @@ echo "Writing Bluetooth diagnostics to $OUT_FILE"
     fi
     echo ""
 
-    echo "-- Bluetooth service logs (tail) --"
-    if command -v journalctl >/dev/null 2>&1; then
-        journalctl -u bluetooth -b --no-pager | tail -n 200 || true
-    else
-        echo "journalctl not found"
+    if [ "$FULL" -eq 1 ]; then
+        echo "-- Bluetooth service logs (tail) --"
+        if command -v journalctl >/dev/null 2>&1; then
+            journalctl -u bluetooth -b --no-pager | tail -n 200 | mask_macs || true
+        else
+            echo "journalctl not found"
+        fi
+        echo ""
     fi
-    echo ""
 
     echo "-- rfkill --"
     if command -v rfkill >/dev/null 2>&1; then
@@ -60,7 +80,7 @@ echo "Writing Bluetooth diagnostics to $OUT_FILE"
 
     echo "-- hciconfig --"
     if command -v hciconfig >/dev/null 2>&1; then
-        hciconfig -a || true
+        hciconfig -a | mask_macs || true
     else
         echo "hciconfig not found"
     fi
@@ -68,7 +88,7 @@ echo "Writing Bluetooth diagnostics to $OUT_FILE"
 
     echo "-- btmgmt info --"
     if command -v btmgmt >/dev/null 2>&1; then
-        btmgmt info || true
+        btmgmt info | mask_macs || true
     else
         echo "btmgmt not found"
     fi

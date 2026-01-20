@@ -19,6 +19,7 @@ This fork of Picochess focuses on:
 - Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
 - Wayland support with optional native audio backend (no X11/PulseAudio requirement).
 - Engines, books, and games database are distributed as external resource packs.
+- The obooksrv dataset is now read directly in `server.py` without an external service.
 - Built-in replay mode, while preserving the original PGN Replay engine.
 - Refreshed web client experience.
 
@@ -46,6 +47,7 @@ The script installs the following services in `/etc/systemd/system/`:
 - `pico` skips system update (useful on existing systems).
 - `small` (default) or `lite` selects the engine pack to install.
 - `noengines` skips installing engines (used internally during code-only updates).
+- `dgt3000` installs the DGT Pi 3000 clock service; do not run `install-dgtpi-clock.sh` separately.
 
 How to stay updated
 -------------------
@@ -67,7 +69,6 @@ You can use the menu to go to Mode and switch to "Hint On", "Eval.Score", "Obser
 
 Additional scripts you might find useful:
 -----------------------------------------
-- `install-dgtpi-clock.sh`, run this on DGT3000 Dgt Pi clock hardware, it installs the dgtpi service
 - `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board
 
 How to add more engines?
@@ -91,6 +92,7 @@ To add more engine manually yourself you need:
 Books and games database resources
 ----------------------------------
 Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.
+The `obooksrv/opening.data` file is also user-managed; if it is missing, `install-books-games.sh` will download it.
 The book selector in the web client is independent from the engine opening book; the engine uses the book configured in `picochess.ini`.
 The web book tab also includes an `obooksrv` entry; selecting it shows statistics from the local `opening.data` dataset, while other entries use the selected polyglot `.bin` book.
 To add a custom book, place the `.bin` file in `books/` and add a matching entry in `books/books.ini`.

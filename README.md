@@ -71,6 +71,7 @@ Additional scripts you might find useful:
 -----------------------------------------
 - `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board (edit the script to add your eboard MAC address).
 - `Fix_bluetooth.sh`, BLE reset and compatibility setup for Raspberry Pi OS Trixie (run with sudo).
+- `check-bluetooth.sh`, collect Bluetooth diagnostics into `bluetooth.txt` for troubleshooting.
 
 How to add more engines?
 ------------------------

@@ -69,7 +69,8 @@ You can use the menu to go to Mode and switch to "Hint On", "Eval.Score", "Obser
 
 Additional scripts you might find useful:
 -----------------------------------------
-- `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board
+- `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board (edit the script to add your eboard MAC address).
+- `Fix_bluetooth.sh`, BLE reset and compatibility setup for Raspberry Pi OS Trixie (run with sudo).
 
 How to add more engines?
 ------------------------

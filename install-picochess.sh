@@ -347,8 +347,12 @@ if [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "picochess.ini already existed - no changes done"
 else
     cd "$REPO_DIR"
-    cp picochess.ini.example-web-$(uname -m) picochess.ini
-    chown "$INSTALL_USER" picochess.ini
+    if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini.example-dgtpi-clock" ]; then
+        cp "$REPO_DIR/picochess.ini.example-dgtpi-clock" "$REPO_DIR/picochess.ini"
+    else
+        cp "$REPO_DIR/picochess.ini.example-web-$(uname -m)" "$REPO_DIR/picochess.ini"
+    fi
+    chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
 
 # no copying of example engines.ini - they are in resource files

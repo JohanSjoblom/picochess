@@ -46,6 +46,11 @@ else
   BLUEPY_HELPER=""
 fi
 
+step "Limpiando estado rfkill persistente..." "Clearing persistent rfkill state..."
+if [[ -d /var/lib/rfkill ]]; then
+  rm -f /var/lib/rfkill/* || true
+fi
+
 step "Desbloqueando Bluetooth (rfkill)..." "Unblocking Bluetooth (rfkill)..."
 rfkill unblock bluetooth || true
 

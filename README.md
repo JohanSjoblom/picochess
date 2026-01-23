@@ -45,9 +45,9 @@ The script installs the following services in `/etc/systemd/system/`:
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).
-- `small` (default) or `lite` selects the engine pack to install.
+- `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
-- `dgt3000` installs the DGT Pi 3000 clock service; do not run `install-dgtpi-clock.sh` separately.
+- `dgt3000` or `DGT3000` installs the DGT Pi 3000 clock service; do not run `install-dgtpi-clock.sh` separately.
 
 How to stay updated
 -------------------
@@ -77,7 +77,7 @@ How to add more engines?
 ------------------------
 Picochess ships with engine resource packs. The installer runs install-engines.sh once after cloning and installs the default small pack (includes Stockfish and LC0). You can re-run install-engines.sh anytime; it only downloads folders that are missing.
 
-Please note that you should chose either small or lite package, not both of them. To move from the small to the lite the command nr 1 below cleans up your small package first by moving it to backup. The install command nr 2 will then download the lite package.
+Please note that you should chose either small or lite package, not both of them. To move from the small to the lite the command nr 1 below cleans up your small package first by moving it to backup. The install command nr 2 will then download the lite package. Alternatively, you can re-run `install-picochess.sh lite` and it will perform the backup and reinstall automatically for the current architecture.
 
 To switch from small to the larger lite pack:
 1) Run `./move-engines-to-backup.sh` to move your current engines out of `/opt/picochess/engines`. This prepares a clean install.

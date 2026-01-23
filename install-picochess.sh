@@ -44,6 +44,7 @@ SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
 INSTALL_DGTPI=false
+EXPLICIT_ENGINE_VARIANT=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -56,6 +57,7 @@ for arg in "$@"; do
     case "$arg" in
         small|lite)
             ENGINE_VARIANT="$arg"
+            EXPLICIT_ENGINE_VARIANT=true
             ;;
         noengines)
             SKIP_ENGINES=true
@@ -240,14 +242,36 @@ else
     sudo -u "$INSTALL_USER" mkdir "$REPO_DIR/games/uploads"
 fi
 
-# install engines as install user if there is no engines architecture folder
+# install engines as install user if needed
 if [ "$SKIP_ENGINES" = true ]; then
     echo "Skipping engine installation (noengines flag set)."
 elif [ -f install-engines.sh ]; then
     cd "$REPO_DIR" || exit 1
     chmod +x install-engines.sh 2>/dev/null
-    echo "Installing engines variant: $ENGINE_VARIANT"
-    sudo -u "$INSTALL_USER" ./install-engines.sh "$ENGINE_VARIANT"
+    ARCH_DIR="$REPO_DIR/engines/$(uname -m)"
+    ENGINES_PRESENT=false
+    if [ -d "$ARCH_DIR" ] && find "$ARCH_DIR" -mindepth 1 -type f -print -quit | grep -q .; then
+        ENGINES_PRESENT=true
+    fi
+    if [ "$ENGINES_PRESENT" = true ]; then
+        if [ "$EXPLICIT_ENGINE_VARIANT" = true ]; then
+            echo "Engines present for $(uname -m) and variant explicitly requested ($ENGINE_VARIANT)"
+            if [ -f move-engines-to-backup.sh ]; then
+                chmod +x move-engines-to-backup.sh 2>/dev/null
+                echo "Backing up existing engines"
+                sudo -u "$INSTALL_USER" ./move-engines-to-backup.sh
+            else
+                echo "move-engines-to-backup.sh missing — proceeding without backup." >&2
+            fi
+            echo "Installing engines variant: $ENGINE_VARIANT"
+            sudo -u "$INSTALL_USER" ./install-engines.sh "$ENGINE_VARIANT"
+        else
+            echo "Engines already installed for $(uname -m); no variant specified - skipping engine install"
+        fi
+    else
+        echo "No engines detected for $(uname -m) - installing variant: $ENGINE_VARIANT"
+        sudo -u "$INSTALL_USER" ./install-engines.sh "$ENGINE_VARIANT"
+    fi
 else
     echo "install-engines.sh missing — cannot install engines."
 fi

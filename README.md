@@ -36,6 +36,8 @@ Get the installation script, give it execution rights, and run it as sudo. It wi
 - `wget -L https://raw.github.com/JohanSjoblom/Picochess/master/install-picochess.sh`
 - `chmod +x install-picochess.sh`
 - `sudo ./install-picochess.sh`
+- Default engine pack is `small`. If you want more engines and are OK with a longer download, use `sudo ./install-picochess.sh lite`.
+- If you install on a DGT3000 clock, run: `sudo ./install-picochess.sh dgt3000`
 - Reboot; Picochess should start as a service.
 
 The script installs the following services in `/etc/systemd/system/`:

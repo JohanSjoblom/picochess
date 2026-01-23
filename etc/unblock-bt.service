@@ -1,0 +1,11 @@
+[Unit]
+Description=Unblock Bluetooth on boot (DGTPi)
+Before=bluetooth.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/rfkill unblock bluetooth
+
+[Install]
+WantedBy=multi-user.target

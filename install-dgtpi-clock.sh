@@ -28,8 +28,10 @@ fi
 ln -sf "$REPO_DIR/etc/$(uname -m)/dgtpicom" "$REPO_DIR/etc/dgtpicom"
 ln -sf "$REPO_DIR/etc/$(uname -m)/dgtpicom.so" "$REPO_DIR/etc/dgtpicom.so"
 cp etc/dgtpi.service /etc/systemd/system/
+cp etc/unblock-bt.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable dgtpi.service
+systemctl enable unblock-bt.service
 
 echo "no setcap rights used in this script, they are all in install-picochess.sh"
 echo "setcap not needed as no system update done here"

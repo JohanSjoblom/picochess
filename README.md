@@ -44,6 +44,7 @@ The script installs the following services in `/etc/systemd/system/`:
 - picochess (main service)
 - picochess-update (stay updated)
 - gamesdb (games window on web page)
+- unblock-bt (only installed when using the `dgt3000` parameter; unblocks Bluetooth on boot for DGTPi)
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).

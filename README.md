@@ -1,7 +1,7 @@
 PicoChess
 =========
-Picochess transforms a Raspberry Pi or a Linux based computer into a chess computer. You can use many different chess engines with Picochess. Picochess connects an electronic chess board with the chess engines you chose to play against.
-Installation includes Stockfish and Leela Chess Zero (LC0) as examples. There are several LC0 personalities you can play against. If you want to add more engines you can have a look in the Picochess Google group. See the "How to add more engines" section below. Many retro and mame engines like Mephisto, TuroChamp etc work. The community is working hard to make it possible to run all old chess engines.
+Picochess transforms a Raspberry Pi or Linux computer into a flexible chess computer. It is not a single chess engine; it is a platform that lets you choose and run the engines you want. You can play from any web browser (phone, tablet, or desktop) without an electronic board, or connect an e-board for a traditional over-the-board feel.
+Installation includes Stockfish and Leela Chess Zero (LC0) as examples. You can add modern or retro engines, including classics like Mephisto and TuroChamp. See the "How to add more engines" section below for details.
 
 Features
 ========
@@ -91,6 +91,7 @@ To switch from small to the larger lite pack:
 If you prefer, you can delete the architecture folder under `/opt/picochess/engines` instead of using the backup script, then run `./install-engines.sh lite`. The script requires an argument: `small` or `lite`.
 
 The lite download is larger and takes longer than small.
+If you choose the lite package, it also downloads the LC0 personality weights into `/opt/picochess/engines/lc0_weights`, which can take a while, but gives you a wider set of LC0 personalities to choose from, including many Maia strengths.
 To add more engine manually yourself you need:
 - locate the /opt/picochess/engines folder - Pi uses aarch64 and Linux x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine

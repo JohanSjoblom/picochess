@@ -125,3 +125,6 @@ lc0-weights-small.tar.gz
 pylint_errors.txt
 pylint_diff.txt
 pylint_raw_output.txt
+
+# Local release helper scripts
+scripts/release-assets-v4.2.0.sh

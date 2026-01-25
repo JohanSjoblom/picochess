@@ -100,11 +100,11 @@ if [ "$ARCH" = "aarch64" ]; then
         mkdir -p "$ENGINES_DIR/aarch64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_engines_lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_engines_lite.tar.gz"
             TMPFILE="$TMP_DIR/aarch64_engines_lite.tar.gz"
             ENGINE_DESC="aarch64 lite engine package"
         else
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-aarch64-small.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/engines-aarch64-small.tar.gz"
             TMPFILE="$TMP_DIR/engines-aarch64-small.tar.gz"
             ENGINE_DESC="aarch64 small engine package"
         fi
@@ -138,7 +138,7 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_mame_lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_mame_lite.tar.gz"
             MAME_TMP="$TMP_DIR/aarch64_mame_lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
@@ -172,7 +172,7 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
-            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent3_lite.tar.gz"
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_rodent3_lite.tar.gz"
             RODENT3_TMP="$TMP_DIR/aarch64_rodent3_lite.tar.gz"
 
             echo "Downloading Rodent III package..."
@@ -202,7 +202,7 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No Rodent IV files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
-            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/aarch64_rodent4_lite.tar.gz"
+            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_rodent4_lite.tar.gz"
             RODENT4_TMP="$TMP_DIR/aarch64_rodent4_lite.tar.gz"
 
             echo "Downloading Rodent IV package..."
@@ -241,11 +241,11 @@ if [ "$ARCH" = "x86_64" ]; then
         mkdir -p "$ENGINES_DIR/x86_64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_engines_lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_engines_lite.tar.gz"
             TMPFILE="$TMP_DIR/x86_64_engines_lite.tar.gz"
             ENGINE_DESC="x86_64 lite engine package"
         else
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/engines-x86_64-small.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/engines-x86_64-small.tar.gz"
             TMPFILE="$TMP_DIR/engines-x86_64-small.tar.gz"
             ENGINE_DESC="x86_64 small engine package"
         fi
@@ -279,7 +279,7 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_mame_lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_mame_lite.tar.gz"
             MAME_TMP="$TMP_DIR/x86_64_mame_lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
@@ -313,7 +313,7 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
-            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent3_lite.tar.gz"
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_rodent3_lite.tar.gz"
             RODENT3_TMP="$TMP_DIR/x86_64_rodent3_lite.tar.gz"
 
             echo "Downloading Rodent III package..."
@@ -343,7 +343,7 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No Rodent IV files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
-            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.9/x86_64_rodent4_lite.tar.gz"
+            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_rodent4_lite.tar.gz"
             RODENT4_TMP="$TMP_DIR/x86_64_rodent4_lite.tar.gz"
 
             echo "Downloading Rodent IV package..."
@@ -378,7 +378,7 @@ if [ ! -d "$ENGINES_DIR/lc0_weights" ]; then
     echo "Installing LC0 weights..."
     mkdir -p "$ENGINES_DIR/lc0_weights" || exit 1
 
-    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/lc0_weights.tar.gz"
+    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/lc0_weights.tar.gz"
     TMPFILE="$TMP_DIR/lc0_weights.tar.gz"
 
     echo "Downloading LC0 weights..."
@@ -410,7 +410,7 @@ if [ ! -d "$ENGINES_DIR/script_engines" ]; then
     echo "Installing script engines..."
     mkdir -p "$ENGINES_DIR/script_engines" || exit 1
 
-    SCRIPTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.6/script_engines.tar.gz"
+    SCRIPTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/script_engines.tar.gz"
     TMPFILE="$TMP_DIR/script_engines.tar.gz"
 
     echo "Downloading script engines..."
@@ -442,7 +442,7 @@ if [ "$ENGINE_VARIANT" = "lite" ]; then
         echo "Installing pgn_audio files..."
         mkdir -p "$ENGINES_DIR/pgn_engine/pgn_audio" || exit 1
 
-        AUDIO_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.1.5/pgn_audio.tar.gz"
+        AUDIO_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/pgn_audio.tar.gz"
         TMPFILE="$TMP_DIR/pgn_audio.tar.gz"
 
         echo "Downloading pgn_audio files..."

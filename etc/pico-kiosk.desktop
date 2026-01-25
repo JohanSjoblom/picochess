@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=PicoChess Kiosk
+Exec=/home/pi/kiosk.sh
+X-GNOME-Autostart-enabled=true

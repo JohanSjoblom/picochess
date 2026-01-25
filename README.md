@@ -62,6 +62,16 @@ How to open the web page and play?
 ----------------------------------
 Use `localhost` in your browser to open the web page. If you are running on another machine replace `localhost` with the IP address of your Pi. If you use a firewall, ensure the Picochess web port is allowed.
 
+Kiosk mode (auto-launch on boot)
+--------------------------------
+If you want Picochess to start automatically on a touchscreen, you can run Chromium in kiosk mode after the desktop loads.
+
+Recommended approach:
+1. Copy `/opt/picochess/kiosk.sh` to your home folder (e.g. `/home/pi/kiosk.sh`). Most users want to tailor it for their display, so a local copy is easiest to edit.
+2. Create an autostart entry:
+   - Copy `etc/pico-kiosk.desktop` to `~/.config/autostart/`.
+   - If your username is not `pi`, edit the `Exec=` path in that file.
+
 How to analyse a PGN game using Picotutor?
 ------------------------------------------
 You can upload a PGN game. Go to `localhost/upload` and choose a PGN file to upload to Picochess. It will ask you for your pi user password. It will load the PGN game into the starting position. Now you can step through the PGN game in Picochess by using the play-pause button. Finally save the game from the menu if you want to store the evaluations. Uploads are written to `/opt/picochess/games/upload`. Games are saved in `/opt/picochess/games`.

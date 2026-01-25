@@ -92,6 +92,8 @@ apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
 apt -y install libsndfile1 libportaudio2
+# hide mouse cursor for kiosk mode
+apt -y install unclutter
 # for mame_emulation we need xdotool (X11) and ydotool (Wayland-compatible key injection)
 apt -y install xdotool
 if apt-cache show ydotool >/dev/null 2>&1; then

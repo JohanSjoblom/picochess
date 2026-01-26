@@ -153,13 +153,15 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
     async def test_eval_syntax_error(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()
-        await eng.startup({UCI_ELO: "max(auto,"}, Rating(450.5, 123.0))
+        with self.assertLogs("uci.engine", level="ERROR"):
+            await eng.startup({UCI_ELO: "max(auto,"}, Rating(450.5, 123.0))
         self.assertEqual(-1, eng.engine_rating)
 
     async def test_eval_error(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()
-        await eng.startup({UCI_ELO: 'max(auto, "abc")'}, Rating(450.5, 123.0))
+        with self.assertLogs("uci.engine", level="ERROR"):
+            await eng.startup({UCI_ELO: 'max(auto, "abc")'}, Rating(450.5, 123.0))
         self.assertEqual(-1, eng.engine_rating)
 
     @patch("uci.engine.write_picochess_ini")

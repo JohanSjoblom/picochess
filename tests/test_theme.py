@@ -1,8 +1,27 @@
+import datetime
 import unittest
-from freezegun import freeze_time
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import theme
+
+
+@contextmanager
+def freeze_time(value):
+    if isinstance(value, str):
+        value = datetime.datetime.fromisoformat(value)
+
+    class FixedDatetime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return value
+            if value.tzinfo is None:
+                return value.replace(tzinfo=tz)
+            return value.astimezone(tz)
+
+    with patch("theme.datetime.datetime", FixedDatetime):
+        yield
 
 
 @patch("utilities.get_location")
@@ -19,8 +38,16 @@ class TestTheme(unittest.TestCase):
         with freeze_time("2022-12-21 13:00:00"):
             self.assertEqual("light", theme.calc_theme("auto", "Vienna"))
 
-    def test_calc_theme_for_unknown_astral_but_known_geolocation(self, mocked_get_location):
+    @patch("theme._location_info_from_location")
+    def test_calc_theme_for_unknown_astral_but_known_geolocation(self, mocked_location_info, mocked_get_location):
         mocked_get_location.return_value = ("Woerdern, Austria AT", "127.0.0.1", "127.0.0.1")
+        mocked_location_info.return_value = theme.LocationInfo(
+            "Woerdern",
+            "AT",
+            "Europe/Vienna",
+            48.3345,
+            16.2374,
+        )
         with freeze_time("2022-12-21 22:00:00"):
             self.assertEqual("dark", theme.calc_theme("auto", "auto"))
         with freeze_time("2022-12-21 13:00:00"):

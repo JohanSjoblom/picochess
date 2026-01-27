@@ -65,6 +65,7 @@ Use `localhost` in your browser to open the web page. If you are running on anot
 Kiosk mode (auto-launch on boot)
 --------------------------------
 If you want Picochess to start automatically on a touchscreen, you can run Chromium in kiosk mode after the desktop loads.
+Note: On RaspiOS Bookworm, kiosk mode is more reliable under X11 than Wayland. If you hit Chromium window sizing issues with Wayland, switch to X11 for kiosk use.
 
 Recommended approach:
 1. Copy `/opt/picochess/kiosk.sh` to your home folder (e.g. `/home/pi/kiosk.sh`). Most users want to tailor it for their display, so a local copy is easiest to edit.

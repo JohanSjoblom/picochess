@@ -70,7 +70,7 @@ Note: On RaspiOS Bookworm, kiosk mode is more reliable under X11 than Wayland. I
 Recommended approach:
 1. Copy `/opt/picochess/kiosk.sh` to your home folder (e.g. `/home/pi/kiosk.sh`). Most users want to tailor it for their display, so a local copy is easiest to edit.
 2. Create an autostart entry:
-   - Copy `etc/pico-kiosk.desktop` to `~/.config/autostart/`.
+   - Copy `/opt/picochess/etc/pico-kiosk.desktop` to `~/.config/autostart/` (create the directory if needed: `mkdir -p ~/.config/autostart`).
    - If your username is not `pi`, edit the `Exec=` path in that file.
 
 How to analyse a PGN game using Picotutor?

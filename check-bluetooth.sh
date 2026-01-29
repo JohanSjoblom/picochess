@@ -60,6 +60,16 @@ echo "Writing Bluetooth diagnostics to $OUT_FILE"
     fi
     echo ""
 
+    echo "-- Bluetooth service logs (errors/warnings) --"
+    if command -v journalctl >/dev/null 2>&1; then
+        journalctl -u bluetooth -b --no-pager \
+            | grep -Ei 'error|failed|failure|unable|cannot|denied|timeout|timed out|refused|not found|no such file|invalid|not supported' \
+            | mask_macs || true
+    else
+        echo "journalctl not found"
+    fi
+    echo ""
+
     if [ "$FULL" -eq 1 ]; then
         echo "-- Bluetooth service logs (tail) --"
         if command -v journalctl >/dev/null 2>&1; then

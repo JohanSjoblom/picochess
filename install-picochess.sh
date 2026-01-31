@@ -487,6 +487,16 @@ else
 fi
 echo " ------- setcap end ------- "
 
+# Capture baseline Bluetooth diagnostics on aarch64 if missing.
+if [ "$(uname -m)" = "aarch64" ]; then
+    if [ ! -f "$REPO_DIR/bluetooth.txt" ] && [ -x "$REPO_DIR/check-bluetooth.sh" ]; then
+        echo "Collecting Bluetooth diagnostics to $REPO_DIR/bluetooth.txt"
+        cd "$REPO_DIR" || exit 1
+        "$REPO_DIR/check-bluetooth.sh" >/dev/null 2>&1 || true
+        chown "$INSTALL_USER:$INSTALL_USER" "$REPO_DIR/bluetooth.txt" 2>/dev/null || true
+    fi
+fi
+
 # backup folder ownership fix
 echo "Fixing ownership for backup folders - in case user has run install-engines as sudo"
 chown -R "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE" 2>/dev/null || true

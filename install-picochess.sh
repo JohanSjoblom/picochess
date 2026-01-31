@@ -40,11 +40,13 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   noengines  -> skip engine installation
 #   dgt3000    -> install DGTPi clock support
 #   DGT3000    -> install DGTPi clock support
+#   kiosk      -> enable autologin and kiosk autostart
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
 INSTALL_DGTPI=false
 EXPLICIT_ENGINE_VARIANT=false
+INSTALL_KIOSK=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -64,6 +66,9 @@ for arg in "$@"; do
             ;;
         dgt3000|DGT3000)
             INSTALL_DGTPI=true
+            ;;
+        kiosk|KIOSK)
+            INSTALL_KIOSK=true
             ;;
     esac
 done
@@ -381,6 +386,20 @@ if [ "$INSTALL_DGTPI" = true ]; then
     fi
 else
     echo "DGT3000 flag not set - skipping DGTPi clock install"
+fi
+
+# Install kiosk autologin and autostart on request.
+if [ "$INSTALL_KIOSK" = true ]; then
+    echo "Kiosk flag set - installing kiosk autologin/autostart"
+    if [ -f "$REPO_DIR/install-kiosk.sh" ]; then
+        cd "$REPO_DIR" || exit 1
+        chmod +x install-kiosk.sh 2>/dev/null
+        ./install-kiosk.sh
+    else
+        echo "Warning: install-kiosk.sh not found; skipping kiosk install" >&2
+    fi
+else
+    echo "Kiosk flag not set - skipping kiosk install"
 fi
 
 # Python module check

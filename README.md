@@ -51,6 +51,7 @@ The script installs the following services in `/etc/systemd/system/`:
 - `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
 - `dgt3000` or `DGT3000` installs the DGT Pi 3000 clock service; do not run `install-dgtpi-clock.sh` separately.
+- `kiosk` installs autologin + kiosk autostart using `etc/pico-kiosk.desktop`.
 
 You can safely rerun `install-picochess.sh` any time. It can fix permissions, refresh services, and is a good first troubleshooting step if something isn’t working.
 
@@ -87,7 +88,8 @@ Additional scripts you might find useful:
 -----------------------------------------
 - `connect-dgt-on-debian.sh`, use this on Linux laptops to be able to connect to a Bluetooth DGT e-board (edit the script to add your eboard MAC address).
 - `Fix_bluetooth.sh`, BLE reset and compatibility setup for Raspberry Pi OS Trixie (run with sudo).
-- `check-bluetooth.sh`, collect Bluetooth diagnostics into `bluetooth.txt` for troubleshooting.
+- `check-bluetooth.sh`, collect Bluetooth diagnostics into `bluetooth.txt` for troubleshooting (run with sudo).
+- `install-kiosk.sh`, enable autologin and kiosk autostart (run with sudo).
 
 How to add more engines?
 ------------------------

@@ -45,6 +45,24 @@ if (typeof window !== "undefined" && window.picoWebConfig && window.picoWebConfi
     speechMuted = true;
 }
 
+// 3check variant support
+var currentVariant = "chess";
+
+function updateCheckCounters(variant, checks) {
+    var checkCounters = document.getElementById('checkCounters');
+    if (!checkCounters) return;
+
+    if (variant === '3check' && checks) {
+        currentVariant = '3check';
+        document.getElementById('whiteChecks').textContent = checks.white;
+        document.getElementById('blackChecks').textContent = checks.black;
+        checkCounters.style.display = 'inline';
+    } else {
+        currentVariant = 'chess';
+        checkCounters.style.display = 'none';
+    }
+}
+
 var speechAvailable = true
 if (typeof speechSynthesis === "undefined") {
     speechAvailable = false
@@ -2266,6 +2284,7 @@ $(function () {
                     pickPromotion(null) // reset promotion dialog if still showing
                     updateDGTPosition(data);
                     updateTutorMistakes(data.mistakes);
+                    updateCheckCounters(data.variant, data.checks);
                     if (data.play === 'reload') {
                         removeHighlights();
                     }
@@ -2279,6 +2298,7 @@ $(function () {
                 case 'Game':
                     newBoard(data.fen);
                     updateTutorMistakes(data.mistakes);
+                    updateCheckCounters(data.variant, data.checks);
                     break;
                 case 'Analysis':
                     updateBackendAnalysis(data.analysis);

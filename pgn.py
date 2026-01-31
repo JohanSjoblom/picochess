@@ -502,6 +502,10 @@ class PgnDisplay(DisplayMsg):
             pgn_game.headers["Opening"] = ModeInfo.opening_name
             pgn_game.headers["ECO"] = ModeInfo.opening_eco
 
+        # Variant tag for 3check games
+        if self.shared and self.shared.get("variant") == "3check":
+            pgn_game.headers["Variant"] = "3check"
+
         return pgn_game
 
     def get_node_at_halfmove_nr(self, game: chess.Board, halfmove_nr: int) -> Optional[chess.pgn.GameNode]:

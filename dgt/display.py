@@ -1269,6 +1269,10 @@ class DgtDisplay(DisplayMsg):
                     ModeInfo.set_game_ending(result="1-0")
                 elif message.result == GameResult.WIN_BLACK:
                     ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.THREE_CHECK_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.THREE_CHECK_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
                 elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                     # last moved has won
                     if message.game.turn == chess.WHITE:

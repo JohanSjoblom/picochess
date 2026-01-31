@@ -6634,6 +6634,82 @@ class DgtTranslate(object):
                 medium_text="sinres",
                 small_text="sres ",
             )
+        if text_id == "gameresult_3check_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="3x check. 1-0",
+                large_text="3 check 1-0",
+                medium_text="3chk 1-0",
+                small_text="3x 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="3x Schach. 1-0",
+                large_text="3 Schach1-0",
+                medium_text="3Sch 1-0",
+                small_text="3x 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="3x schaak. 1-0",
+                large_text="3schaak 1-0",
+                medium_text="3sch 1-0",
+                small_text="3x 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="3x echec. 1-0",
+                large_text="3-echec 1-0",
+                medium_text="3ech 1-0",
+                small_text="3x 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="3x jaque. 1-0",
+                large_text="3-jaque 1-0",
+                medium_text="3jaq 1-0",
+                small_text="3j 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="3 scacchi. 1-0",
+                large_text="3scacch 1-0",
+                medium_text="3sca 1-0",
+                small_text="3s 1-0"
+            )
+        if text_id == "gameresult_3check_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="3x check. 0-1",
+                large_text="3 check 0-1",
+                medium_text="3chk 0-1",
+                small_text="3x 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="3x Schach. 0-1",
+                large_text="3 Schach0-1",
+                medium_text="3Sch 0-1",
+                small_text="3x 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="3x schaak. 0-1",
+                large_text="3schaak 0-1",
+                medium_text="3sch 0-1",
+                small_text="3x 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="3x echec. 0-1",
+                large_text="3-echec 0-1",
+                medium_text="3ech 0-1",
+                small_text="3x 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="3x jaque. 0-1",
+                large_text="3-jaque 0-1",
+                medium_text="3jaq 0-1",
+                small_text="3j 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="3 scacchi. 0-1",
+                large_text="3scacch 0-1",
+                medium_text="3sca 0-1",
+                small_text="3s 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

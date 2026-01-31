@@ -54,8 +54,8 @@ function updateCheckCounters(variant, checks) {
 
     if (variant === '3check' && checks) {
         currentVariant = '3check';
-        document.getElementById('whiteChecks').textContent = checks.white;
-        document.getElementById('blackChecks').textContent = checks.black;
+        document.getElementById('whiteChecks').textContent = (3 - checks.black); // checks given by White to Black
+        document.getElementById('blackChecks').textContent = (3 - checks.white); // checks given by Black to White
         checkCounters.style.display = 'inline';
     } else {
         currentVariant = 'chess';

@@ -30,6 +30,25 @@
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
+        /* 3check variant: check counter styles */
+        .check-counter {
+            font-size: 1.1em;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin: 0 3px;
+        }
+        .check-counter.white-checks {
+            background: #fff;
+            color: #000;
+            border: 1px solid #000;
+        }
+        .check-counter.black-checks {
+            background: #333;
+            color: #fff;
+            border: 1px solid #fff;
+        }
+
         /* Enable vertical scrolling for mobile portrait mode */
         @media (max-width: 768px) {
             .scroll-portrait {
@@ -609,6 +628,11 @@
                                             <div class="pull-left">
                                                 <div class="boardinfo">
                                                     <span id="sidetomove"></span>&nbsp;<span id="BoardStatus"></span>
+                                                    <!-- 3check variant: check counters -->
+                                                    <span id="checkCounters" style="display: none; margin-left: 10px;">
+                                                        <span class="check-counter white-checks" title="White checks remaining">&#9812; <span id="whiteChecks">3</span></span>
+                                                        <span class="check-counter black-checks" title="Black checks remaining">&#9818; <span id="blackChecks">3</span></span>
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>

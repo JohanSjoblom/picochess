@@ -2534,7 +2534,7 @@ class DgtMenu(object):
                     "flipping the board - %s infront now",
                     "B" if self.menu_position_reverse else "W",
                 )
-                fen = fen[::-1]
+                fen = dgt.util.flip_board_fen(fen)
             fen += " {0} KQkq - 0 1".format("w" if self.menu_position_whitetomove else "b")
             # ask python-chess to correct the castling string
             bit_board = chess.Board(fen)

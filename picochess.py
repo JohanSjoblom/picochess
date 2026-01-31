@@ -291,6 +291,15 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
+        # Chess variant support (e.g., "3check")
+        self.variant = "chess"
+        self._threecheck_board = None  # ThreeCheckBoard instance when variant == "3check"
+
+    def push_move(self, move: chess.Move) -> None:
+        """Push a move to the game board and sync variant board if active."""
+        self.game.push(move)
+        if self.variant == "3check" and self._threecheck_board is not None:
+            self._threecheck_board.push(move)
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -405,6 +414,23 @@ class PicochessState:
         :param play_mode:
         :return: False is the game continues, Game_Ends() Message if it has ended
         """
+        # Check 3check variant win condition first
+        if self.variant == "3check" and self._threecheck_board is not None:
+            if self._threecheck_board.is_variant_end():
+                winner = self._threecheck_board.variant_winner()
+                if winner == chess.WHITE:
+                    result = GameResult.THREE_CHECK_WHITE
+                else:
+                    result = GameResult.THREE_CHECK_BLACK
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=result,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+
+        # Standard game end conditions
         if self.game.is_stalemate():
             result = GameResult.STALEMATE
         elif self.game.is_insufficient_material():
@@ -1024,6 +1050,9 @@ async def main() -> None:
             engine_opt, level_index = await self.get_engine_level_dict(args.engine_level)
             await self.engine.startup(engine_opt, self.state.rating)
 
+            # Initialize variant support from engine settings
+            self._init_variant_from_engine()
+
             if (
                 self.emulation_mode()
                 and self.state.dgtmenu.get_engine_rdisplay()
@@ -1254,7 +1283,12 @@ async def main() -> None:
                 await self.state.start_clock()
             book_res = None
             if self.bookreader:
-                book_res = self.state.searchmoves.book(self.bookreader, self.state.game.copy())
+                # For 3check variant, use standard FEN for book lookup
+                if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                    book_lookup_board = chess.Board(self.state._threecheck_board.standard_fen())
+                else:
+                    book_lookup_board = self.state.game.copy()
+                book_res = self.state.searchmoves.book(self.bookreader, book_lookup_board)
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
             ):
@@ -1507,6 +1541,10 @@ async def main() -> None:
         def picotutor_mode(self):
             enabled = False
 
+            # Disable PicoTutor for chess variants (3check, etc.)
+            if self.state.variant != "chess":
+                return False
+
             # issue #61 - pgn_mode shall not prevent picotutor
             if (
                 self.state.flag_picotutor
@@ -1532,6 +1570,43 @@ async def main() -> None:
                 else:
                     online = False
             return online
+
+        def _init_variant_from_engine(self):
+            """Initialize variant state from engine settings."""
+            if self.engine and hasattr(self.engine, 'variant'):
+                self.state.variant = self.engine.variant
+                if self.state.variant == "3check":
+                    from threecheck import ThreeCheckBoard
+                    self.state._threecheck_board = ThreeCheckBoard()
+                    # Sync with existing move_stack from game (for engine switch mid-game)
+                    if self.state.game.move_stack:
+                        logger.info("3check: syncing with existing %d moves", len(self.state.game.move_stack))
+                        # Replay all moves to reconstruct check history
+                        temp_board = chess.Board()
+                        for move in self.state.game.move_stack:
+                            temp_board.push(move)
+                            self.state._threecheck_board.push(move)
+                    logger.info("3check variant initialized")
+                else:
+                    self.state._threecheck_board = None
+            else:
+                self.state.variant = "chess"
+                self.state._threecheck_board = None
+
+            # Update shared dict for web interface
+            self._update_variant_shared()
+
+        def _update_variant_shared(self):
+            """Update shared dict with variant info for web interface."""
+            if self.shared is not None:
+                self.shared["variant"] = self.state.variant
+                if self.state.variant == "3check" and self.state._threecheck_board:
+                    self.shared["checks_remaining"] = {
+                        "white": self.state._threecheck_board.checks_remaining[chess.WHITE],
+                        "black": self.state._threecheck_board.checks_remaining[chess.BLACK],
+                    }
+                else:
+                    self.shared.pop("checks_remaining", None)
 
         async def set_wait_state(self, msg: Message, start_search=True):
             """Enter engine waiting (normal mode) and maybe (by parameter) start pondering."""
@@ -1600,11 +1675,18 @@ async def main() -> None:
             l_error = False
             try:
                 self.state.game.pop()
+                # Sync 3check variant board (restores check counts automatically)
+                if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                    try:
+                        self.state._threecheck_board.pop()
+                    except IndexError:
+                        logger.debug("3check board pop failed - history empty")
                 l_error = False
             except Exception:
                 l_error = True
                 logger.debug("takeback not possible!")
             if not l_error:
+                self._update_variant_shared()  # Update check counts after takeback
                 if self.picotutor_mode():
                     if self.state.best_move_posted:
                         await self.state.picotutor.pop_last_move(self.state.game)
@@ -1953,7 +2035,8 @@ async def main() -> None:
                 # now proceed and push the forced direct alt move to both
                 self.state.best_move_posted = False
                 self.state.best_move_displayed = None
-                self.state.game.push(self.state.done_move)
+                self.state.push_move(self.state.done_move)
+                self._update_variant_shared()
                 if self.picotutor_mode():
                     if valid:
                         valid = await self.state.picotutor.push_move(self.state.done_move, self.state.game)
@@ -2014,7 +2097,8 @@ async def main() -> None:
                 await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
 
                 self.state.best_move_posted = False
-                self.state.game.push(self.state.done_move)
+                self.state.push_move(self.state.done_move)
+                self._update_variant_shared()
                 self.state.done_computer_fen = None
                 self.state.done_move = chess.Move.null()
 
@@ -2106,7 +2190,8 @@ async def main() -> None:
             ):  # and self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 logger.info("standard move after computer move detected")
                 # molli: execute computer move first
-                self.state.game.push(self.state.done_move)
+                self.state.push_move(self.state.done_move)
+                self._update_variant_shared()
                 self.state.done_computer_fen = None
                 self.state.done_move = chess.Move.null()
                 self.state.best_move_posted = False
@@ -2324,7 +2409,8 @@ async def main() -> None:
                 # And for sending USER_MOVE_DONE below
                 #
                 game_before = self.state.game.copy()
-                self.state.game.push(move)  # this is where user move is made
+                self.state.push_move(move)  # this is where user move is made
+                self._update_variant_shared()
                 logger.debug("user did a move for user")
                 #
                 # Set and reset information after user move
@@ -3210,10 +3296,11 @@ async def main() -> None:
 
             if not fen_header and l_stop_at_halfmove != 0:
                 for l_move in l_game_pgn.mainline_moves():
-                    self.state.game.push(l_move)
+                    self.state.push_move(l_move)
                     if l_stop_at_halfmove and len(self.state.game.move_stack) >= l_stop_at_halfmove:
                         # stop loading pgn game moves... Store them so user can step through them
                         break
+                self._update_variant_shared()
 
             # take back last move in order to send it with user_move for web publishing
             # @ todo Pico V3 made user + engine move here = unnecessary waiting for engine move
@@ -3825,6 +3912,9 @@ async def main() -> None:
                             )
 
                 startup_ok = await self.engine.startup(event.options, self.state.rating)
+                if startup_ok:
+                    # Initialize variant support from new engine settings
+                    self._init_variant_from_engine()
                 if not startup_ok:
                     logger.error("new engine options missing, reverting to %s", old_file)
                     engine_fallback = True
@@ -4101,6 +4191,12 @@ async def main() -> None:
                             )
                         )
                 self.state.game = chess.Board(event.fen)  # check what uci960 should do here
+
+                # Reset 3check variant board if active (new position = new check counts)
+                if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                    self.state._threecheck_board.set_fen(event.fen)
+                    self._update_variant_shared()
+
                 # see new_game
                 await self.stop_search_and_clock()
                 if self.engine.has_chess960():
@@ -4198,6 +4294,11 @@ async def main() -> None:
 
                     if uci960:
                         self.state.game.set_chess960_pos(event.pos960)
+
+                    # Reset 3check variant board if active
+                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                        self.state._threecheck_board.reset()
+                        self._update_variant_shared()
 
                     if self.state.play_mode != PlayMode.USER_WHITE:
                         self.state.play_mode = PlayMode.USER_WHITE
@@ -5059,7 +5160,8 @@ async def main() -> None:
                                 await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
 
                                 self.state.best_move_posted = False
-                                self.state.game.push(self.state.done_move)  # computer move without human assistance
+                                self.state.push_move(self.state.done_move)  # computer move without human assistance
+                                self._update_variant_shared()
                                 self.state.done_computer_fen = None
                                 self.state.done_move = chess.Move.null()
 

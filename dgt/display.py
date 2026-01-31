@@ -25,7 +25,7 @@ from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
-from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top
+from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top, flip_board_fen
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
@@ -528,13 +528,13 @@ class DgtDisplay(DisplayMsg):
         if bit_board.chess960_pos(ignore_castling=True):
             logger.debug("flipping the board - W infront")
             self.dgtmenu.set_position_reverse_flipboard(False, self.play_mode)
-        bit_board = chess.Board(fen[::-1] + " w - - 0 1")  # try a revered board and check for any starting pos
+        bit_board = chess.Board(flip_board_fen(fen) + " w - - 0 1")  # try a reversed board and check for any starting pos
         if bit_board.chess960_pos(ignore_castling=True):
             logger.debug("flipping the board - B infront")
             self.dgtmenu.set_position_reverse_flipboard(True, self.play_mode)
 
         if self.dgtmenu.get_flip_board() and raw:  # Flip the board if needed
-            fen = fen[::-1]
+            fen = flip_board_fen(fen)
 
         logger.debug("DGT-Fen [%s]", fen)
         if fen == self.dgtmenu.get_dgt_fen():

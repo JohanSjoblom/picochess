@@ -767,6 +767,25 @@ class DisplayLoop(object):
         return prev_item(Display.items(), item, "errDispPrev")
 
 
+def flip_board_fen(fen: str) -> str:
+    """
+    Flip a board FEN (piece placement only) 180 degrees.
+
+    This reverses each rank and reverses the order of ranks.
+    For example: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
+    becomes: "RNBKQBNR/PPPPPPPP/8/8/8/8/pppppppp/rnbkqbnr"
+
+    Args:
+        fen: Board FEN string (piece placement field only, no spaces)
+
+    Returns:
+        Flipped board FEN string
+    """
+    ranks = fen.split("/")
+    flipped_ranks = [rank[::-1] for rank in reversed(ranks)]
+    return "/".join(flipped_ranks)
+
+
 @enum.unique
 class GameResult(MyEnum):
     """Game end result."""
@@ -781,6 +800,9 @@ class GameResult(MyEnum):
     WIN_WHITE = "B00_gameresult_white"
     WIN_BLACK = "B00_gameresult_black"
     DRAW = "B00_gameresult_draw"
+    # 3check variant results
+    THREE_CHECK_WHITE = "B00_gameresult_3check_white"  # White gave 3 checks
+    THREE_CHECK_BLACK = "B00_gameresult_3check_black"  # Black gave 3 checks
 
 
 def game_result_from_header(result_str: str) -> GameResult:

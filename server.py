@@ -49,7 +49,7 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, flip_board_fen
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
 from pgn import ModeInfo
@@ -69,6 +69,7 @@ INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
 
 def _get_ini_path() -> str:
     return os.path.join(os.path.dirname(__file__), "picochess.ini")
+
 
 def _get_remote_ip(request) -> str:
     return request.remote_ip or ""
@@ -193,7 +194,7 @@ class ChannelHandler(ServerRequestHandler):
 
             # Check if board needs flipping.
             if board_reversed:
-                fen = fen[::-1]
+                fen = flip_board_fen(fen)
 
             # Build complete FEN with position settings.
             fen += " {0} {1} - 0 1".format("w" if side_to_play else "b", castling)
@@ -420,9 +421,19 @@ class BookHandler(ServerRequestHandler):
             return None
         return moves_data
 
+    @staticmethod
+    def _strip_3check_fen(fen: str) -> str:
+        """Strip check counting field from 3check FEN for standard book lookup."""
+        parts = fen.split()
+        if len(parts) == 7:  # 3check extended format
+            return f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}"
+        return fen
+
     def _get_polyglot_moves(self, book_file: str, fen: str):
         moves_data = []
         try:
+            # Strip 3check extension if present for standard book lookup
+            fen = self._strip_3check_fen(fen)
             board = chess.Board(fen)
             aggregated = {}
             total_weight = 0
@@ -1105,6 +1116,14 @@ class WebDisplay(DisplayMsg):
             except Exception as exc:  # pragma: no cover - defensive for UI
                 logger.debug("failed to collect tutor mistakes: %s", exc)
 
+        def _attach_variant_info(result: dict) -> None:
+            """Attach 3check variant info to result dict for web clients."""
+            variant = self.shared.get("variant", "chess")
+            if variant != "chess":
+                result["variant"] = variant
+            if variant == "3check":
+                result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
+
         def _maybe_send_analysis():
             state = self.analysis_state
             if self.shared.get("suppress_engine_analysis"):
@@ -1162,6 +1181,12 @@ class WebDisplay(DisplayMsg):
                 "move": "0000",
                 "play": "newgame",
             }
+            # Add variant info for 3check
+            variant = self.shared.get("variant", "chess")
+            if variant != "chess":
+                result["variant"] = variant
+            if variant == "3check":
+                result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
             _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
@@ -1395,6 +1420,7 @@ class WebDisplay(DisplayMsg):
                 mov = message.move.uci()
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}
                 _attach_mistakes(result)
+                _attach_variant_info(result)
                 self.shared["last_dgt_move_msg"] = result  # not send => keep it for COMPUTER_MOVE_DONE
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
@@ -1413,6 +1439,7 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "user"}
             _attach_mistakes(result)
+            _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1422,6 +1449,7 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "review"}
             _attach_mistakes(result)
+            _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1431,6 +1459,7 @@ class WebDisplay(DisplayMsg):
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
+            _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1440,6 +1469,7 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
+            _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -1449,6 +1479,7 @@ class WebDisplay(DisplayMsg):
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
+            _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 

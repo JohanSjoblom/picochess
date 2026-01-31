@@ -728,6 +728,7 @@ class UciEngine(object):
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
         self.game_id = 1
+        self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
         # Whether to suppress early/verbose info lines (used for remote main engine, not for tutor).
         self.suppress_info = suppress_info
         # Remote engine settings (asyncssh)
@@ -1453,6 +1454,16 @@ class UciEngine(object):
         self.level_support = bool(options)
 
         self.options = options.copy()
+
+        # Extract PicoChess-specific Variant option (not sent to engine)
+        # This allows .uci files to specify a chess variant like "3check"
+        if "Variant" in self.options:
+            self.variant = self.options["Variant"]
+            del self.options["Variant"]
+            logger.info("Engine variant set to: %s", self.variant)
+        else:
+            self.variant = "chess"
+
         analysis_option = None
         if "Analysis" in self.options:
             analysis_option = self.options["Analysis"]

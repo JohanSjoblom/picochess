@@ -1257,9 +1257,12 @@ class UciEngine(object):
         result_queue: asyncio.Queue,
         root_moves: Optional[Iterable[chess.Move]],
         expected_turn: chess.Color | None = None,
+        variant_board=None,
     ) -> None:
         """Go engine.
-        parameter game will not change, it is deep copied"""
+        parameter game will not change, it is deep copied
+        parameter variant_board: optional variant board (e.g., ThreeCheckBoard) that provides
+                                 extended FEN for variant-aware engines like Fairy-Stockfish"""
         if not self.engine:
             logger.error("go called but no engine loaded")
             return
@@ -1278,8 +1281,10 @@ class UciEngine(object):
                 )
             limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
             self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
+            # Use variant_board for FEN if provided, otherwise use standard game board
+            board_for_engine = variant_board if variant_board is not None else game
             await self.playing.play_move(
-                game, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
+                board_for_engine, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
             )
 
     async def start_analysis(self, game: chess.Board, limit: Limit | None = None, multipv: int | None = None) -> bool:

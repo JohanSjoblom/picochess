@@ -301,6 +301,16 @@ class PicochessState:
         if self.variant == "3check" and self._threecheck_board is not None:
             self._threecheck_board.push(move)
 
+    def pop_move(self) -> chess.Move:
+        """Pop a move from the game board and sync variant board if active."""
+        move = self.game.pop()
+        if self.variant == "3check" and self._threecheck_board is not None:
+            try:
+                self._threecheck_board.pop()
+            except IndexError:
+                pass  # History already empty
+        return move
+
     async def start_clock(self) -> None:
         """Start the clock."""
         if self.interaction_mode in (
@@ -1308,12 +1318,17 @@ async def main() -> None:
                     # webplay: Event.BEST_MOVE pushes the move on display
                     # dgt board: BEST_MOVE 1) informs 2) user moves, 3) dgt event to process_fen() push
                     result_queue = asyncio.Queue()  # engines move result
+                    # For 3check variant, pass the ThreeCheckBoard to engine for extended FEN
+                    variant_board = None
+                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                        variant_board = self.state._threecheck_board.copy()
                     await self.engine.go(
                         time_dict=uci_dict,
                         game=self.state.game,
                         result_queue=result_queue,
                         root_moves=root_moves,
                         expected_turn=self.state.game.turn,
+                        variant_board=variant_board,
                     )
                     engine_res: PlayResult = await result_queue.get()  # on engine error its None
                     if engine_res:
@@ -1674,13 +1689,7 @@ async def main() -> None:
             await self.stop_search_and_clock()
             l_error = False
             try:
-                self.state.game.pop()
-                # Sync 3check variant board (restores check counts automatically)
-                if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                    try:
-                        self.state._threecheck_board.pop()
-                    except IndexError:
-                        logger.debug("3check board pop failed - history empty")
+                self.state.pop_move()
                 l_error = False
             except Exception:
                 l_error = True
@@ -1862,7 +1871,7 @@ async def main() -> None:
                 if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     if self.state.is_not_user_turn():
                         await self.stop_search()
-                        self.state.game.pop()
+                        self.state.pop_move()
                         if self.picotutor_mode():
                             if self.state.best_move_posted:
                                 await self.state.picotutor.pop_last_move(
@@ -1874,7 +1883,7 @@ async def main() -> None:
                     elif self.state.done_computer_fen:
                         self.state.done_computer_fen = None
                         self.state.done_move = chess.Move.null()
-                        self.state.game.pop()
+                        self.state.pop_move()
                         if self.picotutor_mode():
                             if self.state.best_move_posted:
                                 await self.state.picotutor.pop_last_move(
@@ -1891,7 +1900,7 @@ async def main() -> None:
                         logger.error("last_legal_fens not cleared: %s", self.state.game.fen())
                 elif self.state.interaction_mode == Mode.REMOTE:
                     if self.state.is_not_user_turn():
-                        self.state.game.pop()
+                        self.state.pop_move()
                         if self.picotutor_mode():
                             if self.state.best_move_posted:
                                 await self.state.picotutor.pop_last_move(
@@ -1903,7 +1912,7 @@ async def main() -> None:
                     elif self.state.done_computer_fen:
                         self.state.done_computer_fen = None
                         self.state.done_move = chess.Move.null()
-                        self.state.game.pop()
+                        self.state.pop_move()
                         if self.picotutor_mode():
                             if self.state.best_move_posted:
                                 await self.state.picotutor.pop_last_move(
@@ -1919,7 +1928,7 @@ async def main() -> None:
                         handled_fen = False
                         logger.error("last_legal_fens not cleared: %s", self.state.game.fen())
                 else:
-                    self.state.game.pop()
+                    self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
                             await self.state.picotutor.pop_last_move(self.state.game)  # bestmove already sent to tutor
@@ -2252,7 +2261,7 @@ async def main() -> None:
                             logger.info("undoing game until fen: %s", fen)
                             await self.stop_search_and_clock()
                             while len(game_copy.move_stack) < len(self.state.game.move_stack):
-                                self.state.game.pop()
+                                self.state.pop_move()
 
                                 if self.picotutor_mode():
                                     if self.state.best_move_posted:  # molli computer move already sent to tutor!
@@ -3307,7 +3316,7 @@ async def main() -> None:
             # Pico V4 only makes an engine move... just to update the web screen and main states?
             # maybe there is a smarter way to do this?
             if not fen_header and l_move and l_stop_at_halfmove != 0:
-                self.state.game.pop()
+                self.state.pop_move()
 
             # issue #72 - newgame sends a ucinewgame unless stopped
             await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
@@ -4770,6 +4779,10 @@ async def main() -> None:
                         l_result = "1/2-1/2"
                     elif event.result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):
                         l_result = "1-0" if event.result == GameResult.WIN_WHITE else "0-1"
+                    elif event.result == GameResult.THREE_CHECK_WHITE:
+                        l_result = "1-0"
+                    elif event.result == GameResult.THREE_CHECK_BLACK:
+                        l_result = "0-1"
                     ModeInfo.set_game_ending(result=l_result)
                     self.game_end_event()
                     await DisplayMsg.show(

@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import re
+import selectors
+import socket
+import subprocess
+import sys
+import time
+
+SOCKET_DEFAULT = "/tmp/picochess-pairing.sock"
+INI_DEFAULT = "/opt/picochess/picochess.ini"
+
+MAC_RE = re.compile(r"Device\s+([0-9A-F:]{17})", re.IGNORECASE)
+PASSKEY_RE = re.compile(r"Confirm passkey\s+(\d+)")
+
+
+def read_ini(path: str) -> tuple[str | None, int | None]:
+    pin = None
+    timeout = None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, value = [part.strip() for part in line.split("=", 1)]
+                if key == "bt-pair-pin" and value:
+                    pin = value
+                if key == "bt-pair-timeout" and value.isdigit():
+                    timeout = int(value)
+    except OSError:
+        pass
+    return pin, timeout
+
+
+def ipc_send(sock: socket.socket, payload: dict) -> None:
+    data = json.dumps(payload, separators=(",", ":")) + "\n"
+    sock.sendall(data.encode("utf-8"))
+
+
+def show_text(sock: socket.socket, text: str) -> None:
+    ipc_send(sock, {"action": "show_text", "text": text})
+
+
+def send_bt(proc: subprocess.Popen, command: str) -> None:
+    if proc.stdin is None:
+        return
+    proc.stdin.write(command + "\n")
+    proc.stdin.flush()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Pair an Android phone via bluetoothctl and show prompts on Picochess.")
+    parser.add_argument("--timeout", type=int, default=None, help="Pairing timeout in seconds")
+    parser.add_argument("--pin", type=str, default=None, help="Default PIN code if requested")
+    parser.add_argument("--socket", type=str, default=SOCKET_DEFAULT, help="Pairing IPC socket path")
+    parser.add_argument("--ini", type=str, default=INI_DEFAULT, help="Path to picochess.ini")
+    args = parser.parse_args()
+
+    ini_pin, ini_timeout = read_ini(args.ini)
+    pin = args.pin if args.pin is not None else (ini_pin or "0000")
+    timeout = args.timeout if args.timeout is not None else (ini_timeout or 40)
+    timeout = max(5, min(timeout, 300))
+
+    btctl_path = "/usr/bin/bluetoothctl"
+    if not os.path.exists(btctl_path):
+        print("bluetoothctl not found", file=sys.stderr)
+        return 2
+
+    ipc_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        ipc_sock.connect(args.socket)
+    except OSError as exc:
+        print(f"failed to connect to pairing IPC ({args.socket}): {exc}", file=sys.stderr)
+        return 2
+
+    ipc_send(ipc_sock, {"action": "start", "timeout": timeout})
+    show_text(ipc_sock, "BT PAIR: OPEN PHONE")
+
+    proc = subprocess.Popen(
+        [btctl_path],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=0,
+    )
+
+    if proc.stdout is None:
+        print("failed to start bluetoothctl", file=sys.stderr)
+        return 2
+
+    os.set_blocking(proc.stdout.fileno(), False)
+
+    send_bt(proc, "power on")
+    send_bt(proc, f"discoverable-timeout {timeout}")
+    send_bt(proc, "discoverable on")
+    send_bt(proc, f"pairable-timeout {timeout}")
+    send_bt(proc, "pairable on")
+    send_bt(proc, "agent DisplayYesNo")
+    send_bt(proc, "default-agent")
+
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ, "bt")
+    selector.register(ipc_sock, selectors.EVENT_READ, "ipc")
+
+    bt_buffer = ""
+    ipc_buffer = ""
+    deadline = time.time() + timeout
+    current_device = None
+    awaiting_confirm = False
+    confirmed_passkey = None
+    success = False
+    failed = False
+    stop_reason = None
+
+    def handle_bt_line(line: str) -> None:
+        nonlocal current_device, awaiting_confirm, confirmed_passkey, success, failed
+        if not line:
+            return
+        match = MAC_RE.search(line)
+        if match:
+            current_device = match.group(1)
+        if "Enter PIN code" in line:
+            show_text(ipc_sock, f"PIN {pin}")
+            send_bt(proc, pin)
+        if "Confirm passkey" in line:
+            passkey_match = PASSKEY_RE.search(line)
+            confirmed_passkey = passkey_match.group(1) if passkey_match else None
+            awaiting_confirm = True
+            if confirmed_passkey:
+                show_text(ipc_sock, f"PAIR {confirmed_passkey}")
+            show_text(ipc_sock, "BTN4 YES BTN0 NO")
+        if "Pairing successful" in line or "Paired: yes" in line:
+            success = True
+        if "Failed to pair" in line or "AuthenticationFailed" in line or "AuthenticationCanceled" in line:
+            failed = True
+
+    def handle_ipc_line(line: str) -> None:
+        nonlocal awaiting_confirm, success, failed, stop_reason
+        if not line:
+            return
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            return
+        if msg.get("event") == "button":
+            button = int(msg.get("button", -1))
+            if awaiting_confirm:
+                if button == 4:
+                    send_bt(proc, "yes")
+                    awaiting_confirm = False
+                    show_text(ipc_sock, "CONFIRM YES")
+                elif button == 0:
+                    send_bt(proc, "no")
+                    awaiting_confirm = False
+                    failed = True
+                    stop_reason = "stopped"
+            elif button == 0:
+                failed = True
+                stop_reason = "stopped"
+        elif msg.get("event") == "cancel":
+            show_text(ipc_sock, "PAIR STOPPED")
+            failed = True
+            stop_reason = "stopped"
+        elif msg.get("event") == "timeout":
+            failed = True
+            stop_reason = "timeout"
+
+    while time.time() < deadline and not success and not failed:
+        for key, _ in selector.select(timeout=0.5):
+            if key.data == "bt":
+                try:
+                    data = os.read(proc.stdout.fileno(), 4096)
+                except BlockingIOError:
+                    data = b""
+                if not data:
+                    continue
+                bt_buffer += data.decode("utf-8", errors="ignore")
+                while "\n" in bt_buffer:
+                    line, bt_buffer = bt_buffer.split("\n", 1)
+                    handle_bt_line(line.strip())
+            elif key.data == "ipc":
+                try:
+                    data = ipc_sock.recv(4096)
+                except OSError:
+                    data = b""
+                if not data:
+                    failed = True
+                    if stop_reason is None:
+                        stop_reason = "ipc_lost"
+                    break
+                ipc_buffer += data.decode("utf-8", errors="ignore")
+                while "\n" in ipc_buffer:
+                    line, ipc_buffer = ipc_buffer.split("\n", 1)
+                    handle_ipc_line(line.strip())
+        if proc.poll() is not None:
+            failed = True
+            if stop_reason is None:
+                stop_reason = "btctl_exit"
+            break
+
+    if success:
+        if current_device:
+            send_bt(proc, f"trust {current_device}")
+        show_text(ipc_sock, "PAIRED OK")
+        ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
+        send_bt(proc, "quit")
+        ipc_sock.close()
+        print("pair-phone: paired successfully")
+        return 0
+
+    if stop_reason == "stopped":
+        show_text(ipc_sock, "PAIR STOPPED")
+        exit_code = 3
+        summary = "stopped by user"
+    elif time.time() >= deadline or stop_reason == "timeout":
+        show_text(ipc_sock, "PAIR TIMEOUT")
+        exit_code = 2
+        summary = "timed out"
+    elif stop_reason == "ipc_lost":
+        exit_code = 4
+        summary = "IPC lost"
+    elif stop_reason == "btctl_exit":
+        show_text(ipc_sock, "PAIR FAILED")
+        exit_code = 5
+        summary = "bluetoothctl exited"
+    else:
+        show_text(ipc_sock, "PAIR FAILED")
+        exit_code = 1
+        summary = "pairing failed"
+    ipc_send(ipc_sock, {"action": "stop", "reason": "failed"})
+    send_bt(proc, "quit")
+    ipc_sock.close()
+    print(f"pair-phone: {summary}")
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

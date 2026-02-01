@@ -29,6 +29,7 @@ from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMod
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
+import pairing_ipc
 
 logger = logging.getLogger(__name__)
 
@@ -426,6 +427,9 @@ class DgtDisplay(DisplayMsg):
     async def _process_button(self, message):
         button = int(message.button)
         logger.debug("DGT button: %d processed", button)
+        if pairing_ipc.is_active():
+            await pairing_ipc.forward_button(button, message.dev)
+            return
         if not self.dgtmenu.get_engine_restart():
             if button == 0:
                 await self._process_button0(message.dev)

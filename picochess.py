@@ -93,6 +93,7 @@ from eboard.ichessone.board import IChessOneBoard
 from eboard.certabo.board import CertaboBoard
 from picotutor import PicoTutor
 from picotutor_constants import DEEP_DEPTH
+import pairing_ipc
 
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
@@ -748,6 +749,19 @@ async def main() -> None:
     non_main_tasks.add(asyncio.create_task(my_dgt_display.message_consumer()))
     my_dgt_display.start_once_per_second_timer()
     # @todo optimise to start this timer only when playmode is needing it?
+
+    async def show_pairing_text(text: str) -> None:
+        await DisplayMsg.show(Message.SHOW_TEXT(text_string=text))
+
+    pairing_bridge = pairing_ipc.PairingBridge(main_loop, show_pairing_text)
+    try:
+        await pairing_bridge.start()
+        pairing_ipc.set_bridge(pairing_bridge)
+        state.pairing_bridge = pairing_bridge
+        if pairing_bridge.server_task is not None:
+            non_main_tasks.add(pairing_bridge.server_task)
+    except Exception as exc:
+        logger.warning("pairing IPC not available: %s", exc)
 
     ModeInfo.set_clock_side(args.clockside)
 
@@ -3549,6 +3563,8 @@ async def main() -> None:
         async def final_exit_or_reboot_cleanups(self):
             """Last cleanups before exit or reboot"""
             logger.debug("final exit_or_reboot_cleanups")
+            if getattr(self.state, "pairing_bridge", None):
+                await self.state.pairing_bridge.close()
             if self.pico_talker:
                 # close the sound system (this is why final is a separate call)
                 await self.pico_talker.exit_or_reboot_cleanups()

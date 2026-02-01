@@ -22,6 +22,8 @@ import json
 import logging
 import os
 import re
+import ipaddress
+import subprocess
 from collections import OrderedDict
 from typing import Set
 import asyncio
@@ -76,6 +78,13 @@ def _get_remote_ip(request) -> str:
 
 def _is_local_request(request) -> bool:
     return _get_remote_ip(request) in ("127.0.0.1", "::1")
+
+def _is_private_request(request) -> bool:
+    try:
+        addr = ipaddress.ip_address(_get_remote_ip(request))
+    except ValueError:
+        return False
+    return addr.is_private or addr.is_loopback or addr.is_link_local
 
 
 def _require_auth_if_remote(handler, realm: str) -> bool:
@@ -705,6 +714,61 @@ class SettingsSaveHandler(ServerRequestHandler):
         self.write({"status": "ok"})
 
 
+class WifiSetupPageHandler(tornado.web.RequestHandler):
+    def get(self):
+        if not _is_private_request(self.request):
+            if not _require_auth_if_remote(self, "WiFi Setup"):
+                return
+        self.render("web/picoweb/templates/onboard.html")
+
+
+class WifiSetupHandler(ServerRequestHandler):
+    def post(self):
+        if not _is_private_request(self.request):
+            if not _require_auth_if_remote(self, "WiFi Setup"):
+                return
+        try:
+            payload = json.loads(self.request.body.decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            self.set_status(400)
+            self.write({"error": "Invalid JSON payload"})
+            return
+        ssid = str(payload.get("ssid", "")).strip()
+        password = str(payload.get("password", ""))
+        hidden = bool(payload.get("hidden", False))
+        if not ssid or len(ssid) > 32:
+            self.set_status(400)
+            self.write({"error": "Invalid SSID"})
+            return
+        if password and len(password) < 8:
+            self.set_status(400)
+            self.write({"error": "Password must be at least 8 characters"})
+            return
+        nmcli = "/usr/bin/nmcli"
+        if not os.path.exists(nmcli):
+            self.set_status(500)
+            self.write({"error": "NetworkManager (nmcli) not available"})
+            return
+        cmd = [nmcli, "dev", "wifi", "connect", ssid]
+        if password:
+            cmd += ["password", password]
+        if hidden:
+            cmd += ["hidden", "yes"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            self.set_status(500)
+            self.write({"error": (result.stderr or result.stdout or "Wi-Fi connect failed").strip()})
+            return
+        ip_result = subprocess.run(
+            [nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"], capture_output=True, text=True
+        )
+        ip_addr = ""
+        if ip_result.returncode == 0:
+            ip_addr = ip_result.stdout.strip().split("\n")[0].split("/")[0]
+        self.set_header("Content-Type", "application/json")
+        self.write({"status": "ok", "ip": ip_addr})
+
+
 class WebServer:
     def __init__(self):
         pass
@@ -726,6 +790,8 @@ class WebServer:
                 (r"/settings", SettingsPageHandler),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler),
+                (r"/onboard", WifiSetupPageHandler),
+                (r"/onboard/wifi", WifiSetupHandler),
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
             ]
         )

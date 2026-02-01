@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Picochess Wi-Fi Setup</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            max-width: 680px;
+        }
+        label {
+            display: block;
+            margin: 12px 0 6px;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .row label {
+            margin: 0;
+        }
+        #status {
+            margin-top: 12px;
+            font-weight: 600;
+        }
+        .hint {
+            color: #555;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Connect Pi to Wi-Fi</h1>
+    <p class="hint">Enter the phone hotspot or Wi-Fi credentials. The Pi will connect and keep the network for future use.</p>
+
+    <label for="ssid">Wi-Fi SSID</label>
+    <input type="text" id="ssid" maxlength="32" autocomplete="off" required>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" autocomplete="new-password">
+
+    <div class="row">
+        <input type="checkbox" id="hidden">
+        <label for="hidden">Hidden network</label>
+    </div>
+
+    <div class="row" style="margin-top: 16px;">
+        <button type="button" id="connectBtn">Connect</button>
+        <a href="/">Back</a>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        function setStatus(message, isError) {
+            var status = document.getElementById("status");
+            status.textContent = message;
+            status.style.color = isError ? "red" : "green";
+        }
+
+        document.getElementById("connectBtn").addEventListener("click", function () {
+            var ssid = document.getElementById("ssid").value.trim();
+            var password = document.getElementById("password").value;
+            var hidden = document.getElementById("hidden").checked;
+
+            if (!ssid) {
+                setStatus("SSID is required", true);
+                return;
+            }
+            if (password && password.length < 8) {
+                setStatus("Password must be at least 8 characters", true);
+                return;
+            }
+
+            setStatus("Connecting...", false);
+            fetch("/onboard/wifi", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ssid: ssid, password: password, hidden: hidden })
+            })
+                .then(function (resp) {
+                    if (!resp.ok) {
+                        return resp.json().then(function (data) {
+                            throw new Error(data.error || "Wi-Fi connect failed");
+                        });
+                    }
+                    return resp.json();
+                })
+                .then(function (data) {
+                    if (data.ip) {
+                        setStatus("Connected. Pi IP: " + data.ip, false);
+                    } else {
+                        setStatus("Connected.", false);
+                    }
+                })
+                .catch(function (err) {
+                    setStatus(err.message, true);
+                });
+        });
+    </script>
+</body>
+
+</html>

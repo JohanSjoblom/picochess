@@ -207,6 +207,11 @@ def main() -> int:
     if success:
         if current_device:
             send_bt(proc, f"trust {current_device}")
+            try:
+                with open("/tmp/picochess-last-bt-mac", "w", encoding="utf-8") as handle:
+                    handle.write(current_device)
+            except OSError:
+                pass
         show_text(ipc_sock, "PAIRED OK")
         ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
         send_bt(proc, "quit")

@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import re
+import subprocess
+import sys
+import time
+
+DEFAULT_MAC_FILE = "/tmp/picochess-last-bt-mac"
+
+
+def run(cmd, timeout=10):
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def find_mac_from_paired():
+    try:
+        result = run(["/usr/bin/bluetoothctl", "devices", "Paired"], timeout=5)
+    except FileNotFoundError:
+        return None, []
+    if result.returncode != 0:
+        return None, []
+    devices = []
+    for line in result.stdout.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 3 and parts[0] == "Device":
+            devices.append((parts[1], " ".join(parts[2:])))
+    if len(devices) == 1:
+        return devices[0][0], devices
+    return None, devices
+
+
+def read_mac_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = handle.read().strip()
+            if re.fullmatch(r"[0-9A-Fa-f:]{17}", value):
+                return value
+    except OSError:
+        return None
+    return None
+
+
+def mac_to_objpath(mac):
+    return "/org/bluez/hci0/dev_" + mac.replace(":", "_")
+
+
+def get_bnep_iface(timeout):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            result = run(["/sbin/ip", "-o", "link", "show"], timeout=3)
+        except FileNotFoundError:
+            return None
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if ": bnep" in line:
+                    name = line.split(":", 1)[1].strip().split()[0]
+                    return name
+        time.sleep(0.5)
+    return None
+
+
+def bring_up_iface(iface):
+    nmcli = "/usr/bin/nmcli"
+    if os.path.exists(nmcli):
+        result = run([nmcli, "dev", "connect", iface], timeout=15)
+        if result.returncode == 0:
+            return True
+    dhclient = "/sbin/dhclient"
+    if os.path.exists(dhclient):
+        result = run([dhclient, "-1", iface], timeout=20)
+        if result.returncode == 0:
+            return True
+    udhcpc = "/sbin/udhcpc"
+    if os.path.exists(udhcpc):
+        result = run([udhcpc, "-i", iface, "-q"], timeout=20)
+        if result.returncode == 0:
+            return True
+    return False
+
+
+def get_ipv4(iface):
+    try:
+        result = run(["/sbin/ip", "-4", "-o", "addr", "show", "dev", iface], timeout=5)
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if "inet" in parts:
+            idx = parts.index("inet")
+            return parts[idx + 1].split("/")[0]
+    return None
+
+
+def connect_with_busctl(mac, timeout):
+    busctl = "/usr/bin/busctl"
+    if not os.path.exists(busctl):
+        return None
+    objpath = mac_to_objpath(mac)
+    result = run([busctl, "call", "org.bluez", objpath, "org.bluez.Network1", "Connect", "s", "panu"], timeout=timeout)
+    if result.returncode != 0:
+        return None
+    # busctl output format: s "bnep0"
+    match = re.search(r"\"(bnep\d+)\"", result.stdout)
+    if match:
+        return match.group(1)
+    return None
+
+
+def connect_with_bt_network(mac, timeout):
+    bt_network = "/usr/bin/bt-network"
+    if not os.path.exists(bt_network):
+        return None
+    proc = subprocess.Popen(["sudo", bt_network, "-c", mac, "panu"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            break
+        time.sleep(0.5)
+    return get_bnep_iface(5)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Connect to a paired phone using Bluetooth PAN (PANU).")
+    parser.add_argument("--mac", help="Phone Bluetooth MAC address")
+    parser.add_argument("--timeout", type=int, default=20, help="Seconds to wait for PAN link")
+    parser.add_argument("--mac-file", default=DEFAULT_MAC_FILE, help="Path to last paired MAC file")
+    args = parser.parse_args()
+
+    mac = args.mac or read_mac_file(args.mac_file)
+    devices = []
+    if not mac:
+        mac, devices = find_mac_from_paired()
+    if not mac:
+        print("bt-pan-connect: no MAC available", file=sys.stderr)
+        if devices:
+            print("paired devices:", file=sys.stderr)
+            for dev_mac, name in devices:
+                print(f"- {dev_mac} {name}", file=sys.stderr)
+        return 2
+
+    iface = connect_with_busctl(mac, args.timeout)
+    if iface is None:
+        iface = connect_with_bt_network(mac, args.timeout)
+    if iface is None:
+        iface = get_bnep_iface(args.timeout)
+    if iface is None:
+        print("bt-pan-connect: PAN connect failed", file=sys.stderr)
+        return 3
+
+    if not bring_up_iface(iface):
+        print(f"bt-pan-connect: DHCP failed on {iface}", file=sys.stderr)
+        return 4
+
+    ip = get_ipv4(iface)
+    if not ip:
+        print(f"bt-pan-connect: no IPv4 on {iface}", file=sys.stderr)
+        return 5
+
+    print(f"bt-pan-connect: connected {iface} {ip}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

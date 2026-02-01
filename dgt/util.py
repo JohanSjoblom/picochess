@@ -806,6 +806,9 @@ class GameResult(MyEnum):
     # King of the Hill variant results
     KOTH_WHITE = "B00_gameresult_koth_white"  # White king reached center
     KOTH_BLACK = "B00_gameresult_koth_black"  # Black king reached center
+    # Atomic variant results
+    ATOMIC_WHITE = "B00_gameresult_atomic_white"  # Black king exploded
+    ATOMIC_BLACK = "B00_gameresult_atomic_black"  # White king exploded
 
 
 def game_result_from_header(result_str: str) -> GameResult:

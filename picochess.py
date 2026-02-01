@@ -291,15 +291,18 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
-        # Chess variant support (e.g., "3check")
+        # Chess variant support (e.g., "3check", "atomic")
         self.variant = "chess"
         self._threecheck_board = None  # ThreeCheckBoard instance when variant == "3check"
+        self._atomic_board = None  # chess.variant.AtomicBoard instance when variant == "atomic"
 
     def push_move(self, move: chess.Move) -> None:
         """Push a move to the game board and sync variant board if active."""
         self.game.push(move)
         if self.variant == "3check" and self._threecheck_board is not None:
             self._threecheck_board.push(move)
+        elif self.variant == "atomic" and self._atomic_board is not None:
+            self._atomic_board.push(move)
 
     def pop_move(self) -> chess.Move:
         """Pop a move from the game board and sync variant board if active."""
@@ -309,7 +312,19 @@ class PicochessState:
                 self._threecheck_board.pop()
             except IndexError:
                 pass  # History already empty
+        elif self.variant == "atomic" and self._atomic_board is not None:
+            try:
+                self._atomic_board.pop()
+            except IndexError:
+                pass  # History already empty
         return move
+
+    def get_variant_board(self):
+        """Return the variant-specific board for legal move generation, or None for standard chess."""
+        if self.variant == "atomic" and self._atomic_board is not None:
+            return self._atomic_board
+        # 3check and KOTH use standard legal moves, so return None
+        return None
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -463,16 +478,39 @@ class PicochessState:
                     mode=self.interaction_mode,
                 )
 
+        # Check Atomic variant win condition (king exploded)
+        if self.variant == "atomic" and self._atomic_board is not None:
+            white_king = self._atomic_board.king(chess.WHITE)
+            black_king = self._atomic_board.king(chess.BLACK)
+            if white_king is None:
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=GameResult.ATOMIC_BLACK,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+            if black_king is None:
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=GameResult.ATOMIC_WHITE,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+
         # Standard game end conditions
-        if self.game.is_stalemate():
+        # For Atomic, use _atomic_board for correct state after explosions
+        check_board = self._atomic_board if self.variant == "atomic" and self._atomic_board else self.game
+        if check_board.is_stalemate():
             result = GameResult.STALEMATE
-        elif self.game.is_insufficient_material():
+        elif check_board.is_insufficient_material():
             result = GameResult.INSUFFICIENT_MATERIAL
-        elif self.game.is_seventyfive_moves():
+        elif check_board.is_seventyfive_moves():
             result = GameResult.SEVENTYFIVE_MOVES
-        elif self.game.is_fivefold_repetition():
+        elif check_board.is_fivefold_repetition():
             result = GameResult.FIVEFOLD_REPETITION
-        elif self.game.is_checkmate():
+        elif check_board.is_checkmate():
             result = GameResult.MATE
         else:
             return False
@@ -669,18 +707,21 @@ def compare_fen(fen_board_external="", fen_board_internal="") -> str:
     return put_field
 
 
-def compute_legal_fens(game_copy: chess.Board):
+def compute_legal_fens(game_copy: chess.Board, variant_board=None):
     """
     Compute a list of legal FENs for the given game.
 
-    :param game_copy: The game
+    :param game_copy: The game (standard chess.Board)
+    :param variant_board: Optional variant-specific board (e.g., AtomicBoard) for legal move generation
     :return: A list of legal FENs
     """
+    # Use variant board for legal moves if provided (e.g., Atomic has different legal moves)
+    board = variant_board if variant_board is not None else game_copy
     fens = []
-    for move in game_copy.legal_moves:
-        game_copy.push(move)
-        fens.append(game_copy.board_fen())
-        game_copy.pop()
+    for move in board.legal_moves:
+        board.push(move)
+        fens.append(board.board_fen())
+        board.pop()
     return fens
 
 
@@ -1072,7 +1113,7 @@ async def main() -> None:
 
             # Startup - internal
             self.state.game = chess.Board()  # Create the current game
-            self.state.legal_fens = compute_legal_fens(self.state.game.copy())  # Compute the legal FENs
+            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())  # Compute the legal FENs
             self.state.flag_startup = True
 
             if self.args.pgn_elo and self.args.pgn_elo.isnumeric() and self.args.rating_deviation:
@@ -1558,7 +1599,7 @@ async def main() -> None:
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.searchmoves.reset()
                 self.state.game_declared = False
-                self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 self.state.legal_fens_after_cmove = []
                 self.state.last_legal_fens = []
                 await self.set_picotutor_position(new_game=True)
@@ -1616,6 +1657,7 @@ async def main() -> None:
                 if self.state.variant == "3check":
                     from threecheck import ThreeCheckBoard
                     self.state._threecheck_board = ThreeCheckBoard()
+                    self.state._atomic_board = None
                     # Sync with existing move_stack from game (for engine switch mid-game)
                     if self.state.game.move_stack:
                         logger.info("3check: syncing with existing %d moves", len(self.state.game.move_stack))
@@ -1628,11 +1670,24 @@ async def main() -> None:
                 elif self.state.variant == "kingofthehill":
                     logger.info("King of the Hill variant initialized")
                     self.state._threecheck_board = None
+                    self.state._atomic_board = None
+                elif self.state.variant == "atomic":
+                    import chess.variant
+                    self.state._atomic_board = chess.variant.AtomicBoard()
+                    self.state._threecheck_board = None
+                    # Sync with existing move_stack from game (for engine switch mid-game)
+                    if self.state.game.move_stack:
+                        logger.info("atomic: syncing with existing %d moves", len(self.state.game.move_stack))
+                        for move in self.state.game.move_stack:
+                            self.state._atomic_board.push(move)
+                    logger.info("Atomic variant initialized")
                 else:
                     self.state._threecheck_board = None
+                    self.state._atomic_board = None
             else:
                 self.state.variant = "chess"
                 self.state._threecheck_board = None
+                self.state._atomic_board = None
 
             # Update shared dict for web interface
             self._update_variant_shared()
@@ -1652,7 +1707,7 @@ async def main() -> None:
         async def set_wait_state(self, msg: Message, start_search=True):
             """Enter engine waiting (normal mode) and maybe (by parameter) start pondering."""
             if not self.state.done_computer_fen:
-                self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 self.state.last_legal_fens = []
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN):  # @todo handle Mode.REMOTE too and TRAINING?
                 if self.state.done_computer_fen:
@@ -1791,7 +1846,7 @@ async def main() -> None:
             else:
                 await DisplayMsg.show(msg)
                 await self.state.start_clock()
-                self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
         async def switch_online(self):
             color = ""
@@ -1850,7 +1905,7 @@ async def main() -> None:
             """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
             handled_fen = True
             self.state.error_fen = None
-            legal_fens_pico = compute_legal_fens(self.state.game.copy())
+            legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
             # Check for same position
             if fen == self.state.game.board_fen():
@@ -1971,7 +2026,7 @@ async def main() -> None:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
                         self.state.legal_fens = []
                     else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 else:
                     handled_fen = False
 
@@ -2009,7 +2064,7 @@ async def main() -> None:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
                         self.state.legal_fens = []
                     else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 else:
                     handled_fen = False
 
@@ -2025,7 +2080,7 @@ async def main() -> None:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
                         self.state.legal_fens = []
                     else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 else:
                     handled_fen = False
 
@@ -2113,7 +2168,7 @@ async def main() -> None:
                     await self.state.start_clock()
 
                 self.state.legal_fens = compute_legal_fens(
-                    self.state.game.copy()
+                    self.state.game.copy(), self.state.get_variant_board()
                 )  # calc. new legal moves based on alt. move
                 self.state.last_legal_fens = []
 
@@ -2185,7 +2240,7 @@ async def main() -> None:
                         await DisplayMsg.show(Message.EXIT_MENU())  # show clock
                         end_time_cmove_done = 0
 
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
                     if self.pgn_mode():
                         log_pgn(self.state)
@@ -2251,7 +2306,7 @@ async def main() -> None:
                 self.state.last_legal_fens = []
                 self.state.legal_fens_after_cmove = []
                 self.state.legal_fens = compute_legal_fens(
-                    self.state.game.copy()
+                    self.state.game.copy(), self.state.get_variant_board()
                 )  # molli new legal fance based on cmove
 
                 # standard user move handling
@@ -2264,7 +2319,7 @@ async def main() -> None:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
                         self.state.legal_fens = []
                     else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                 else:
                     handled_fen = False
 
@@ -3096,7 +3151,7 @@ async def main() -> None:
                             self.state.done_move = self.state.pb_move = chess.Move.null()
                             self.state.searchmoves.reset()
                             self.state.game_declared = False
-                            self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                             self.state.legal_fens_after_cmove = []
                             self.state.last_legal_fens = []
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
@@ -3114,7 +3169,7 @@ async def main() -> None:
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
                                 self.state.searchmoves.reset()
                                 self.state.game_declared = False
-                                self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                                 self.state.legal_fens_after_cmove = []
                                 self.state.last_legal_fens = []
                                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
@@ -3457,7 +3512,7 @@ async def main() -> None:
             self.state.searchmoves.reset()
             self.state.game_declared = False
 
-            self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
             self.state.legal_fens_after_cmove = []
             self.state.last_legal_fens = []
             await self.stop_search_and_clock()
@@ -4047,7 +4102,7 @@ async def main() -> None:
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()
                     self.state.game_declared = False
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
                     self.is_out_of_time_already = False
@@ -4398,7 +4453,7 @@ async def main() -> None:
                         self.state.seeking_flag = False
                         self.state.best_move_displayed = None
 
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
                     self.is_out_of_time_already = False
@@ -4490,7 +4545,7 @@ async def main() -> None:
                         self.state.automatic_takeback = False
                         self.state.done_computer_fen = None
                         self.state.done_move = self.state.pb_move = chess.Move.null()
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                         self.state.last_legal_fens = []
                         self.state.legal_fens_after_cmove = []
                         self.is_out_of_time_already = False
@@ -4670,7 +4725,7 @@ async def main() -> None:
                         self.state.time_control.reset()
                         self.state.searchmoves.reset()
                         self.state.game_declared = False
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                         self.state.legal_fens_after_cmove = []
                         self.state.last_legal_fens = []
                         # switching sides in PONDER (ANALYSIS in menu, not a playing mode)
@@ -4749,7 +4804,7 @@ async def main() -> None:
                     else:
                         await DisplayMsg.show(msg)  # PLAY_MODE
                         await self.state.start_clock()
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
                     if self.state.best_move_displayed:
                         await DisplayMsg.show(Message.SWITCH_SIDES(game=self.state.game.copy(), move=move))
@@ -4792,7 +4847,7 @@ async def main() -> None:
                         else:
                             await DisplayMsg.show(msg)
                             await self.state.start_clock()
-                            self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
                     if self.state.best_move_displayed:
                         await DisplayMsg.show(Message.SWITCH_SIDES(game=self.state.game.copy(), move=move))
@@ -4812,6 +4867,10 @@ async def main() -> None:
                     elif event.result == GameResult.KOTH_WHITE:
                         l_result = "1-0"
                     elif event.result == GameResult.KOTH_BLACK:
+                        l_result = "0-1"
+                    elif event.result == GameResult.ATOMIC_WHITE:
+                        l_result = "1-0"
+                    elif event.result == GameResult.ATOMIC_BLACK:
                         l_result = "0-1"
                     ModeInfo.set_game_ending(result=l_result)
                     self.game_end_event()
@@ -5257,7 +5316,7 @@ async def main() -> None:
                                         await DisplayMsg.show(Message.EXIT_MENU())  # show clock
                                         end_time_cmove_done = 0
 
-                                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                                    self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
                                     if self.pgn_mode():
                                         log_pgn(self.state)
@@ -5600,7 +5659,7 @@ async def main() -> None:
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.searchmoves.reset()
                     self.state.game_declared = False
-                    self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+                    self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
                     self.is_out_of_time_already = False

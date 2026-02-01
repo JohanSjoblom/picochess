@@ -6786,6 +6786,82 @@ class DgtTranslate(object):
                 medium_text="KotH 0-1",
                 small_text="KH 0-1"
             )
+        if text_id == "gameresult_atomic_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King exploded. 1-0",
+                large_text="Explode 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König explodiert. 1-0",
+                large_text="Explod. 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning ontploft. 1-0",
+                large_text="Ontplof 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi explose. 1-0",
+                large_text="Explose 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey explota. 1-0",
+                large_text="Explota 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re esplode. 1-0",
+                large_text="Esplode 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+        if text_id == "gameresult_atomic_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King exploded. 0-1",
+                large_text="Explode 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König explodiert. 0-1",
+                large_text="Explod. 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning ontploft. 0-1",
+                large_text="Ontplof 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi explose. 0-1",
+                large_text="Explose 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey explota. 0-1",
+                large_text="Explota 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re esplode. 0-1",
+                large_text="Esplode 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

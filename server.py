@@ -1500,6 +1500,10 @@ class WebDisplay(DisplayMsg):
                 WebDisplay.result_sav = "1-0"
             elif message.result == GameResult.KOTH_BLACK:
                 WebDisplay.result_sav = "0-1"
+            elif message.result == GameResult.ATOMIC_WHITE:
+                WebDisplay.result_sav = "1-0"
+            elif message.result == GameResult.ATOMIC_BLACK:
+                WebDisplay.result_sav = "0-1"
             elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                 # last moved won - same as in DgtDisplay
                 if message.game.turn == chess.WHITE:

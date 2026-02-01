@@ -41,12 +41,14 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   dgt3000    -> install DGTPi clock support
 #   DGT3000    -> install DGTPi clock support
 #   kiosk      -> enable autologin and kiosk autostart
+#   pi3        -> install Bluetooth unblock service for Raspberry Pi 3
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
 INSTALL_DGTPI=false
 EXPLICIT_ENGINE_VARIANT=false
 INSTALL_KIOSK=false
+INSTALL_PI3_BT=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -69,6 +71,9 @@ for arg in "$@"; do
             ;;
         kiosk|KIOSK)
             INSTALL_KIOSK=true
+            ;;
+        pi3|PI3)
+            INSTALL_PI3_BT=true
             ;;
     esac
 done
@@ -386,6 +391,20 @@ if [ "$INSTALL_DGTPI" = true ]; then
     fi
 else
     echo "DGT3000 flag not set - skipping DGTPi clock install"
+fi
+
+# Install Bluetooth unblock service for Pi3 on request.
+if [ "$INSTALL_PI3_BT" = true ]; then
+    echo "PI3 flag set - installing Bluetooth unblock service"
+    if [ -f "$REPO_DIR/etc/unblock-bt.service" ]; then
+        cp "$REPO_DIR/etc/unblock-bt.service" /etc/systemd/system/
+        systemctl daemon-reload
+        systemctl enable unblock-bt.service
+    else
+        echo "Warning: $REPO_DIR/etc/unblock-bt.service not found; skipping" >&2
+    fi
+else
+    echo "PI3 flag not set - skipping Bluetooth unblock service install"
 fi
 
 # Install kiosk autologin and autostart on request.

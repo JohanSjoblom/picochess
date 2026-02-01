@@ -52,6 +52,7 @@ The script installs the following services in `/etc/systemd/system/`:
 - `noengines` skips installing engines (used internally during code-only updates).
 - `dgt3000` or `DGT3000` installs the DGT Pi 3000 clock service; do not run `install-dgtpi-clock.sh` separately.
 - `kiosk` installs autologin + kiosk autostart using `etc/pico-kiosk.desktop`.
+- `pi3` installs the Bluetooth unblock service (useful on Raspberry Pi 3 with Trixie).
 
 You can safely rerun `install-picochess.sh` any time. It can fix permissions, refresh services, and is a good first troubleshooting step if something isn’t working.
 

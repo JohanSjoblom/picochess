@@ -189,8 +189,8 @@ volume-voice = 14
 speed-voice = 2
 ## Select audio backend for voice playback: sox (default) or native
 ## Set to native to avoid PulseAudio dependency
-audio-backend = sox
-#audio-backend = native
+#audio-backend = sox
+audio-backend = native
 ## Speak last computer move again when 'set pieces' displayed
 #enable-setpieces-voice = True
 enable-setpieces-voice = True

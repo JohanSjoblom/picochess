@@ -1358,8 +1358,11 @@ async def main() -> None:
             book_res = None
             if self.bookreader:
                 # For 3check variant, use standard FEN for book lookup
+                # For atomic variant, use atomic board which has correct position after explosions
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
                     book_lookup_board = chess.Board(self.state._threecheck_board.standard_fen())
+                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                    book_lookup_board = chess.Board(self.state._atomic_board.fen())
                 else:
                     book_lookup_board = self.state.game.copy()
                 book_res = self.state.searchmoves.book(self.bookreader, book_lookup_board)
@@ -1382,10 +1385,12 @@ async def main() -> None:
                     # webplay: Event.BEST_MOVE pushes the move on display
                     # dgt board: BEST_MOVE 1) informs 2) user moves, 3) dgt event to process_fen() push
                     result_queue = asyncio.Queue()  # engines move result
-                    # For 3check variant, pass the ThreeCheckBoard to engine for extended FEN
+                    # For 3check/atomic variants, pass the variant board to engine for correct FEN
                     variant_board = None
                     if self.state.variant == "3check" and self.state._threecheck_board is not None:
                         variant_board = self.state._threecheck_board.copy()
+                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                        variant_board = self.state._atomic_board.copy()
                     await self.engine.go(
                         time_dict=uci_dict,
                         game=self.state.game,
@@ -1595,6 +1600,11 @@ async def main() -> None:
             if bit_board.is_valid():
                 logger.debug("molli PGN fen is valid!")
                 self.state.game = chess.Board(bit_board.fen())
+                # Sync variant boards with new position
+                if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                    self.state._threecheck_board.set_fen(bit_board.fen())
+                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                    self.state._atomic_board.set_fen(bit_board.fen())
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.searchmoves.reset()
@@ -2853,7 +2863,9 @@ async def main() -> None:
             if self.engine:
                 if self.need_engine_analyser():
                     limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
-                    await self.engine.start_analysis(self.state.game, limit=limit)
+                    # Use variant board if available for correct position representation
+                    analysis_board = self.state.get_variant_board() or self.state.game
+                    await self.engine.start_analysis(analysis_board, limit=limit)
                 else:
                     self.engine.stop_analysis()
 
@@ -3145,6 +3157,11 @@ async def main() -> None:
                         bit_board.set_fen(bit_board.fen())
                         if bit_board.is_valid():
                             self.state.game = chess.Board(bit_board.fen())
+                            # Sync variant boards with new position
+                            if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                                self.state._threecheck_board.set_fen(bit_board.fen())
+                            elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                                self.state._atomic_board.set_fen(bit_board.fen())
                             await self.engine.newgame(self.state.game.copy(), False)
                             self.state.best_sent_depth.reset()
                             self.state.done_computer_fen = None
@@ -3163,6 +3180,11 @@ async def main() -> None:
                             bit_board.set_fen(bit_board.fen())
                             if bit_board.is_valid():
                                 self.state.game = chess.Board(bit_board.fen())
+                                # Sync variant boards with new position
+                                if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                                    self.state._threecheck_board.set_fen(bit_board.fen())
+                                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                                    self.state._atomic_board.set_fen(bit_board.fen())
                                 await self.engine.newgame(self.state.game.copy(), False)
                                 self.state.best_sent_depth.reset()
                                 self.state.done_computer_fen = None
@@ -4092,6 +4114,11 @@ async def main() -> None:
                     game_fen = self.state.game.board_fen()
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
+                    # Reset variant boards if active
+                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                        self.state._threecheck_board.reset()
+                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                        self.state._atomic_board.reset()
                     self.state.play_mode = PlayMode.USER_WHITE
                     if self.pgn_mode():
                         self.engine.option("game_sequence", "forward")
@@ -4282,10 +4309,12 @@ async def main() -> None:
                         )
                 self.state.game = chess.Board(event.fen)  # check what uci960 should do here
 
-                # Reset 3check variant board if active (new position = new check counts)
+                # Reset variant boards if active (new position = new state)
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
                     self.state._threecheck_board.set_fen(event.fen)
                     self._update_variant_shared()
+                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                    self.state._atomic_board.set_fen(event.fen)
 
                 # see new_game
                 await self.stop_search_and_clock()
@@ -4385,10 +4414,12 @@ async def main() -> None:
                     if uci960:
                         self.state.game.set_chess960_pos(event.pos960)
 
-                    # Reset 3check variant board if active
+                    # Reset variant boards if active
                     if self.state.variant == "3check" and self.state._threecheck_board is not None:
                         self.state._threecheck_board.reset()
                         self._update_variant_shared()
+                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                        self.state._atomic_board.reset()
 
                     if self.state.play_mode != PlayMode.USER_WHITE:
                         self.state.play_mode = PlayMode.USER_WHITE
@@ -4717,6 +4748,11 @@ async def main() -> None:
                     bit_board.set_fen(bit_board.fen())
                     if bit_board.is_valid():
                         self.state.game = chess.Board(bit_board.fen())
+                        # Sync variant boards with new position
+                        if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                            self.state._threecheck_board.set_fen(bit_board.fen())
+                        elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                            self.state._atomic_board.set_fen(bit_board.fen())
                         #  await self.stop_search_and_clock()
                         await self.engine.newgame(self.state.game.copy())
                         self.state.best_sent_depth.reset()
@@ -5649,6 +5685,11 @@ async def main() -> None:
                     game_fen = self.state.game.board_fen()
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
+                    # Reset variant boards if active
+                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                        self.state._threecheck_board.reset()
+                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
+                        self.state._atomic_board.reset()
                     self.state.play_mode = PlayMode.USER_WHITE
                     if game_fen != chess.STARTING_BOARD_FEN:
                         msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)

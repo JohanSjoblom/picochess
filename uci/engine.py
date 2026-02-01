@@ -729,6 +729,7 @@ class UciEngine(object):
         self.engine_lease: EngineLease | None = None
         self.game_id = 1
         self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
+        self.uci_variant = None  # UCI_Variant value to send directly to engine (bypasses python-chess)
         # Whether to suppress early/verbose info lines (used for remote main engine, not for tutor).
         self.suppress_info = suppress_info
         # Remote engine settings (asyncssh)
@@ -963,6 +964,21 @@ class UciEngine(object):
             logger.warning("send called but no engine is loaded")
             return
         try:
+            # Handle UCI_Variant separately - python-chess blocks this in configure()
+            # Send it directly to the engine instead. Check both instance variable and
+            # options dict (in case new UCI_Variant was added from .uci file during level change)
+            if "UCI_Variant" in self.options:
+                self.uci_variant = self.options["UCI_Variant"]
+                del self.options["UCI_Variant"]
+
+            # Send UCI_Variant directly to engine if set (bypasses python-chess blocking)
+            if self.uci_variant:
+                try:
+                    self.engine.send_line(f"setoption name UCI_Variant value {self.uci_variant}")
+                    logger.info("Sent UCI_Variant=%s directly to engine", self.uci_variant)
+                except Exception as e:
+                    logger.warning("Failed to send UCI_Variant to engine: %s", e)
+
             # issue 85 - remove options not allowed by engine before sending
             options = self.filter_options(self.options, self.engine.options)
             async with self.engine_lock:
@@ -1460,7 +1476,7 @@ class UciEngine(object):
 
         self.options = options.copy()
 
-        # Extract PicoChess-specific Variant option (not sent to engine)
+        # Extract PicoChess-specific Variant option (not sent to engine via configure())
         # This allows .uci files to specify a chess variant like "3check"
         if "Variant" in self.options:
             self.variant = self.options["Variant"]
@@ -1468,6 +1484,15 @@ class UciEngine(object):
             logger.info("Engine variant set to: %s", self.variant)
         else:
             self.variant = "chess"
+
+        # Handle UCI_Variant separately - python-chess blocks this option in configure()
+        # because it "automatically manages" it based on board type. We send it directly
+        # to the engine before configure() is called. Store it in instance variable so
+        # it can be re-sent when options change (e.g., level changes).
+        if "UCI_Variant" in self.options:
+            self.uci_variant = self.options["UCI_Variant"]
+            del self.options["UCI_Variant"]
+            logger.info("UCI_Variant will be sent directly to engine: %s", self.uci_variant)
 
         analysis_option = None
         if "Analysis" in self.options:

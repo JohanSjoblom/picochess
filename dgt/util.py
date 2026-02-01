@@ -803,6 +803,9 @@ class GameResult(MyEnum):
     # 3check variant results
     THREE_CHECK_WHITE = "B00_gameresult_3check_white"  # White gave 3 checks
     THREE_CHECK_BLACK = "B00_gameresult_3check_black"  # Black gave 3 checks
+    # King of the Hill variant results
+    KOTH_WHITE = "B00_gameresult_koth_white"  # White king reached center
+    KOTH_BLACK = "B00_gameresult_koth_black"  # Black king reached center
 
 
 def game_result_from_header(result_str: str) -> GameResult:

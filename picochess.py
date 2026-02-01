@@ -440,6 +440,29 @@ class PicochessState:
                     mode=self.interaction_mode,
                 )
 
+        # Check King of the Hill variant win condition
+        if self.variant == "kingofthehill":
+            koth_center = {chess.D4, chess.D5, chess.E4, chess.E5}
+            # Check if either king is in the center (win for that player)
+            white_king = self.game.king(chess.WHITE)
+            black_king = self.game.king(chess.BLACK)
+            if white_king in koth_center:
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=GameResult.KOTH_WHITE,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+            if black_king in koth_center:
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=GameResult.KOTH_BLACK,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+
         # Standard game end conditions
         if self.game.is_stalemate():
             result = GameResult.STALEMATE
@@ -1602,6 +1625,9 @@ async def main() -> None:
                             temp_board.push(move)
                             self.state._threecheck_board.push(move)
                     logger.info("3check variant initialized")
+                elif self.state.variant == "kingofthehill":
+                    logger.info("King of the Hill variant initialized")
+                    self.state._threecheck_board = None
                 else:
                     self.state._threecheck_board = None
             else:
@@ -4782,6 +4808,10 @@ async def main() -> None:
                     elif event.result == GameResult.THREE_CHECK_WHITE:
                         l_result = "1-0"
                     elif event.result == GameResult.THREE_CHECK_BLACK:
+                        l_result = "0-1"
+                    elif event.result == GameResult.KOTH_WHITE:
+                        l_result = "1-0"
+                    elif event.result == GameResult.KOTH_BLACK:
                         l_result = "0-1"
                     ModeInfo.set_game_ending(result=l_result)
                     self.game_end_event()

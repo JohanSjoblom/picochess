@@ -6710,6 +6710,82 @@ class DgtTranslate(object):
                 medium_text="3sca 0-1",
                 small_text="3s 0-1"
             )
+        if text_id == "gameresult_koth_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King in center. 1-0",
+                large_text="K center1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König im Zentrum. 1-0",
+                large_text="K Zentrum1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning in centrum. 1-0",
+                large_text="K centrum1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi au centre. 1-0",
+                large_text="R centre1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en centro. 1-0",
+                large_text="R centro1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re al centro. 1-0",
+                large_text="R centro1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+        if text_id == "gameresult_koth_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King in center. 0-1",
+                large_text="K center0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König im Zentrum. 0-1",
+                large_text="K Zentrum0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning in centrum. 0-1",
+                large_text="K centrum0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi au centre. 0-1",
+                large_text="R centre0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en centro. 0-1",
+                large_text="R centro0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re al centro. 0-1",
+                large_text="R centro0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

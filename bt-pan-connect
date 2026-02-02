@@ -100,6 +100,20 @@ def iface_exists(iface):
     result = run([ip_cmd, "-o", "link", "show", "dev", iface], timeout=3)
     return result.returncode == 0 and bool(result.stdout.strip())
 
+def set_static_ip(iface, static_ip, peer_ip=None, verbose=False):
+    ip_cmd = "/sbin/ip"
+    if not os.path.exists(ip_cmd):
+        return False
+    run([ip_cmd, "link", "set", iface, "up"], timeout=5)
+    run([ip_cmd, "addr", "flush", "dev", iface], timeout=5)
+    result = run([ip_cmd, "addr", "add", static_ip, "dev", iface], timeout=5)
+    if verbose and result.returncode != 0:
+        print(f"bt-pan-connect: ip addr add failed: {result.stderr or result.stdout}".strip(), file=sys.stderr)
+    if result.returncode != 0:
+        return False
+    if peer_ip:
+        run([ip_cmd, "route", "replace", peer_ip, "dev", iface], timeout=5)
+    return True
 
 def get_ipv4(iface):
     try:
@@ -170,6 +184,8 @@ def main():
     parser.add_argument("--mac-file", default=DEFAULT_MAC_FILE, help="Path to last paired MAC file")
     parser.add_argument("--retries", type=int, default=3, help="PAN connect attempts")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--static-ip", help="Static IP/CIDR to set on bnep interface (skips DHCP)")
+    parser.add_argument("--peer-ip", help="Peer IP to add as a host route (optional)")
     args = parser.parse_args()
 
     mac = args.mac or read_mac_file(args.mac_file)
@@ -205,6 +221,13 @@ def main():
     if not iface_exists(iface):
         print("bt-pan-connect: PAN link dropped (no bnep interface)", file=sys.stderr)
         return 3
+
+    if args.static_ip:
+        if set_static_ip(iface, args.static_ip, peer_ip=args.peer_ip, verbose=args.verbose):
+            print(f"bt-pan-connect: connected {iface} {args.static_ip.split('/')[0]}")
+            return 0
+        print(f"bt-pan-connect: static IP failed on {iface}", file=sys.stderr)
+        return 4
 
     if not bring_up_iface(iface, verbose=args.verbose):
         if not iface_exists(iface):

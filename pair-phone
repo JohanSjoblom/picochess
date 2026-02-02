@@ -52,6 +52,32 @@ def send_bt(proc: subprocess.Popen, command: str) -> None:
     proc.stdin.write(command + "\n")
     proc.stdin.flush()
 
+def _get_wlan0_ip() -> str | None:
+    ip_cmd = "/sbin/ip"
+    if not os.path.exists(ip_cmd):
+        return None
+    try:
+        result = subprocess.run([ip_cmd, "-4", "-o", "addr", "show", "dev", "wlan0"], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if "inet" in parts:
+            idx = parts.index("inet")
+            return parts[idx + 1].split("/")[0]
+    return None
+
+def _show_hotspot_or_ip(sock: socket.socket) -> None:
+    wlan_ip = _get_wlan0_ip()
+    if wlan_ip:
+        show_text(sock, f"IP {wlan_ip}")
+        return
+    show_text(sock, "PAN FAILED")
+    time.sleep(2)
+    show_text(sock, "WIFI HOTSPOT")
+
 def _bt_info(btctl_path: str, mac: str) -> tuple[bool, bool]:
     try:
         result = subprocess.run([btctl_path, "info", mac], capture_output=True, text=True, timeout=5)
@@ -279,9 +305,7 @@ def main() -> int:
                         timeout=args.pan_timeout + 5,
                     )
                 except subprocess.TimeoutExpired:
-                    show_text(ipc_sock, "PAN FAILED")
-                    time.sleep(2)
-                    show_text(ipc_sock, "WIFI HOTSPOT")
+                    _show_hotspot_or_ip(ipc_sock)
                     print("pair-phone: paired, PAN timed out")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
@@ -298,25 +322,19 @@ def main() -> int:
                         ipc_sock.close()
                         print("pair-phone: paired and PAN connected")
                         return 0
-                    show_text(ipc_sock, "PAN FAILED")
-                    time.sleep(2)
-                    show_text(ipc_sock, "WIFI HOTSPOT")
+                    _show_hotspot_or_ip(ipc_sock)
                     print("pair-phone: paired, PAN IP missing")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
                     ipc_sock.close()
                     return 6
-                show_text(ipc_sock, "PAN FAILED")
-                time.sleep(2)
-                show_text(ipc_sock, "WIFI HOTSPOT")
+                _show_hotspot_or_ip(ipc_sock)
                 print("pair-phone: paired, PAN failed")
                 ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                 send_bt(proc, "quit")
                 ipc_sock.close()
                 return 6
-            show_text(ipc_sock, "PAN FAILED")
-            time.sleep(2)
-            show_text(ipc_sock, "WIFI HOTSPOT")
+            _show_hotspot_or_ip(ipc_sock)
             print("pair-phone: paired, PAN helper missing")
             ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
             send_bt(proc, "quit")

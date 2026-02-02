@@ -162,6 +162,17 @@ smtp-port = 587
 ### = PicoChess related options =
 ### =============================
 
+## Bluetooth pairing and onboarding options (experimental).
+## Default PIN used when a phone asks for a PIN during pairing.
+#bt-pair-pin = 0000
+## Pairing timeout in seconds (default 40, max 300).
+#bt-pair-timeout = 40
+## Optional hotspot credentials to auto-connect after PAN failure.
+#hotspot-ssid = YourPhoneHotspot
+#hotspot-pass = yourpassword
+## Allow Wi-Fi onboarding without auth on private IPs (default true).
+#allow-onboard-without-auth = true
+
 ## log-file points to a file that is used to write the log information.
 ## This file is created in the 'log' folder. Altogether there are 6 log files kept (rotating logs)
 log-file = picochess.log

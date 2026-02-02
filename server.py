@@ -157,6 +157,18 @@ def _load_ini_entries():
     return ini_path, lines, entries, entries_map
 
 
+def _allow_onboard_without_auth() -> bool:
+    try:
+        _, _, _, entries_map = _load_ini_entries()
+    except OSError:
+        return True
+    entry = entries_map.get("allow-onboard-without-auth")
+    if not entry or not entry.get("enabled", True):
+        return True
+    value = str(entry.get("value", "")).strip().lower()
+    return value in ("1", "true", "yes", "on")
+
+
 class ServerRequestHandler(tornado.web.RequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
@@ -716,7 +728,8 @@ class SettingsSaveHandler(ServerRequestHandler):
 
 class WifiSetupPageHandler(tornado.web.RequestHandler):
     def get(self):
-        if not _is_private_request(self.request):
+        allow_unauth = _allow_onboard_without_auth()
+        if not allow_unauth or not _is_private_request(self.request):
             if not _require_auth_if_remote(self, "WiFi Setup"):
                 return
         self.render("web/picoweb/templates/onboard.html")
@@ -724,7 +737,8 @@ class WifiSetupPageHandler(tornado.web.RequestHandler):
 
 class WifiSetupHandler(ServerRequestHandler):
     def post(self):
-        if not _is_private_request(self.request):
+        allow_unauth = _allow_onboard_without_auth()
+        if not allow_unauth or not _is_private_request(self.request):
             if not _require_auth_if_remote(self, "WiFi Setup"):
                 return
         try:

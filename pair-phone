@@ -271,12 +271,20 @@ def main() -> int:
             time.sleep(3)
             pan_script = args.pan_script
             if os.path.exists(pan_script) and os.access(pan_script, os.X_OK):
-                pan_proc = subprocess.run(
-                    [pan_script, "--timeout", str(args.pan_timeout)],
-                    capture_output=True,
-                    text=True,
-                    timeout=args.pan_timeout + 5,
-                )
+                try:
+                    pan_proc = subprocess.run(
+                        [pan_script, "--timeout", str(args.pan_timeout)],
+                        capture_output=True,
+                        text=True,
+                        timeout=args.pan_timeout + 5,
+                    )
+                except subprocess.TimeoutExpired:
+                    show_text(ipc_sock, "PAN FAILED")
+                    print("pair-phone: paired, PAN timed out")
+                    ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
+                    send_bt(proc, "quit")
+                    ipc_sock.close()
+                    return 6
                 if pan_proc.returncode == 0:
                     ip_match = re.search(r"connected\\s+\\w+\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+)", pan_proc.stdout)
                     if ip_match:

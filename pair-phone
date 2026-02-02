@@ -280,6 +280,8 @@ def main() -> int:
                     )
                 except subprocess.TimeoutExpired:
                     show_text(ipc_sock, "PAN FAILED")
+                    time.sleep(2)
+                    show_text(ipc_sock, "WIFI HOTSPOT")
                     print("pair-phone: paired, PAN timed out")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
@@ -297,18 +299,24 @@ def main() -> int:
                         print("pair-phone: paired and PAN connected")
                         return 0
                     show_text(ipc_sock, "PAN FAILED")
+                    time.sleep(2)
+                    show_text(ipc_sock, "WIFI HOTSPOT")
                     print("pair-phone: paired, PAN IP missing")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
                     ipc_sock.close()
                     return 6
                 show_text(ipc_sock, "PAN FAILED")
+                time.sleep(2)
+                show_text(ipc_sock, "WIFI HOTSPOT")
                 print("pair-phone: paired, PAN failed")
                 ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                 send_bt(proc, "quit")
                 ipc_sock.close()
                 return 6
             show_text(ipc_sock, "PAN FAILED")
+            time.sleep(2)
+            show_text(ipc_sock, "WIFI HOTSPOT")
             print("pair-phone: paired, PAN helper missing")
             ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
             send_bt(proc, "quit")

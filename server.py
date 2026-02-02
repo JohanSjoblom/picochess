@@ -736,7 +736,7 @@ class WifiSetupPageHandler(tornado.web.RequestHandler):
 
 
 class WifiSetupHandler(ServerRequestHandler):
-    def post(self):
+    async def post(self):
         allow_unauth = _allow_onboard_without_auth()
         if not allow_unauth or not _is_private_request(self.request):
             if not _require_auth_if_remote(self, "WiFi Setup"):
@@ -768,8 +768,11 @@ class WifiSetupHandler(ServerRequestHandler):
             cmd += ["password", password]
         if hidden:
             cmd += ["hidden", "yes"]
+        loop = asyncio.get_event_loop()
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            result = await loop.run_in_executor(
+                None, lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            )
         except subprocess.TimeoutExpired:
             self.set_status(504)
             self.write({"error": "Wi-Fi connect timed out"})
@@ -779,11 +782,14 @@ class WifiSetupHandler(ServerRequestHandler):
             self.write({"error": (result.stderr or result.stdout or "Wi-Fi connect failed").strip()})
             return
         try:
-            ip_result = subprocess.run(
-                ["sudo", "-n", nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+            ip_result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    ["sudo", "-n", nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                ),
             )
         except subprocess.TimeoutExpired:
             ip_result = subprocess.CompletedProcess([], 124, stdout="", stderr="timeout")

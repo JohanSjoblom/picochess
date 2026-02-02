@@ -89,6 +89,30 @@ class DgtIface(DisplayDgt):
         """Override this function."""
         raise NotImplementedError()
 
+    def _mk_board(self, message):
+        """Create the appropriate board type based on variant for SAN generation."""
+        variant = getattr(message, "variant", "chess")
+        fen = message.fen
+
+        if variant == "atomic":
+            import chess.variant
+
+            return chess.variant.AtomicBoard(fen)
+        elif variant == "kingofthehill":
+            import chess.variant
+
+            return chess.variant.KingOfTheHillBoard(fen)
+        elif variant == "3check":
+            # ThreeCheckBoard uses standard FEN for board position
+            # The extended FEN with check counts is only for engine communication
+            from threecheck import ThreeCheckBoard
+
+            board = ThreeCheckBoard()
+            board.set_fen(fen)
+            return board._board  # Return underlying chess.Board for SAN
+
+        return Board(fen)
+
     def get_san(self, message, is_xl=False):
         """Create a chess.board plus a text ready to display on clock."""
 
@@ -114,8 +138,8 @@ class DgtIface(DisplayDgt):
             else:
                 return text
 
-        # bit_board = Board(message.fen, message.uci960)
-        bit_board = Board(message.fen)
+        # Use variant-appropriate board for legal move check and SAN generation
+        bit_board = self._mk_board(message)
         if bit_board.is_legal(message.move):
             if message.long:
                 move_text = message.move.uci()

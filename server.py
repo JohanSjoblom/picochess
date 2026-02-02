@@ -749,19 +749,30 @@ class WifiSetupHandler(ServerRequestHandler):
             self.set_status(500)
             self.write({"error": "NetworkManager (nmcli) not available"})
             return
-        cmd = ["sudo", nmcli, "dev", "wifi", "connect", ssid]
+        cmd = ["sudo", "-n", nmcli, "dev", "wifi", "connect", ssid]
         if password:
             cmd += ["password", password]
         if hidden:
             cmd += ["hidden", "yes"]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        except subprocess.TimeoutExpired:
+            self.set_status(504)
+            self.write({"error": "Wi-Fi connect timed out"})
+            return
         if result.returncode != 0:
             self.set_status(500)
             self.write({"error": (result.stderr or result.stdout or "Wi-Fi connect failed").strip()})
             return
-        ip_result = subprocess.run(
-            ["sudo", nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"], capture_output=True, text=True
-        )
+        try:
+            ip_result = subprocess.run(
+                ["sudo", "-n", nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired:
+            ip_result = subprocess.CompletedProcess([], 124, stdout="", stderr="timeout")
         ip_addr = ""
         if ip_result.returncode == 0:
             ip_addr = ip_result.stdout.strip().split("\n")[0].split("/")[0]

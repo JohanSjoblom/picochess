@@ -64,7 +64,7 @@ def get_bnep_iface(timeout):
     return None
 
 
-def bring_up_iface(iface):
+def bring_up_iface(iface, verbose=False):
     ip_cmd = "/sbin/ip"
     if os.path.exists(ip_cmd):
         run([ip_cmd, "link", "set", iface, "up"], timeout=5)
@@ -72,19 +72,33 @@ def bring_up_iface(iface):
     if os.path.exists(nmcli):
         run([nmcli, "dev", "set", iface, "managed", "yes"], timeout=5)
         result = run([nmcli, "dev", "connect", iface], timeout=15)
+        if verbose and result.returncode != 0:
+            print(f"bt-pan-connect: nmcli failed: {result.stderr or result.stdout}".strip(), file=sys.stderr)
         if result.returncode == 0:
             return True
     dhclient = "/sbin/dhclient"
     if os.path.exists(dhclient):
         result = run([dhclient, "-1", iface], timeout=20)
+        if verbose and result.returncode != 0:
+            print(f"bt-pan-connect: dhclient failed: {result.stderr or result.stdout}".strip(), file=sys.stderr)
         if result.returncode == 0:
             return True
     udhcpc = "/sbin/udhcpc"
     if os.path.exists(udhcpc):
         result = run([udhcpc, "-i", iface, "-q"], timeout=20)
+        if verbose and result.returncode != 0:
+            print(f"bt-pan-connect: udhcpc failed: {result.stderr or result.stdout}".strip(), file=sys.stderr)
         if result.returncode == 0:
             return True
     return False
+
+
+def iface_exists(iface):
+    ip_cmd = "/sbin/ip"
+    if not os.path.exists(ip_cmd):
+        return False
+    result = run([ip_cmd, "-o", "link", "show", "dev", iface], timeout=3)
+    return result.returncode == 0 and bool(result.stdout.strip())
 
 
 def get_ipv4(iface):
@@ -179,6 +193,8 @@ def main():
             iface = connect_with_bt_network(mac, args.timeout, verbose=args.verbose)
         if iface is None:
             iface = get_bnep_iface(args.timeout)
+        if iface and not iface_exists(iface):
+            iface = None
         if iface is not None:
             break
         time.sleep(1)
@@ -186,7 +202,14 @@ def main():
         print("bt-pan-connect: PAN connect failed", file=sys.stderr)
         return 3
 
-    if not bring_up_iface(iface):
+    if not iface_exists(iface):
+        print("bt-pan-connect: PAN link dropped (no bnep interface)", file=sys.stderr)
+        return 3
+
+    if not bring_up_iface(iface, verbose=args.verbose):
+        if not iface_exists(iface):
+            print("bt-pan-connect: PAN link dropped (no bnep interface)", file=sys.stderr)
+            return 3
         print(f"bt-pan-connect: DHCP failed on {iface}", file=sys.stderr)
         return 4
 

@@ -499,6 +499,7 @@ class PlayingContinuousAnalysis:
         self._task: asyncio.Task | None = None
         self._force_event = asyncio.Event()
         self._cancel_event = asyncio.Event()
+        self._search_started = asyncio.Event()
         self.whoami = f"{engine_debug_name} (playing)"
         self.engine_lease = engine_lease
         self.allow_info_loop = allow_info_loop
@@ -526,6 +527,7 @@ class PlayingContinuousAnalysis:
         self.latest_fen = ""
         self._force_event.clear()
         self._cancel_event.clear()
+        self._search_started.clear()
 
         async def _engine_task():
             lease_acquired = False
@@ -541,7 +543,14 @@ class PlayingContinuousAnalysis:
                 ponder_move = None
                 info_snapshot: InfoDict | None = None
 
+                if self._cancel_event.is_set():
+                    logger.debug("%s play_move cancelled before search start", self.whoami)
+                    should_queue = True
+                    queue_payload = None
+                    return
+
                 if self.allow_info_loop:
+                    self._search_started.set()
                     analysis = await self.engine.analysis(
                         board=copy.deepcopy(game),
                         limit=limit,
@@ -574,6 +583,7 @@ class PlayingContinuousAnalysis:
 
                     info_snapshot = copy.deepcopy(analysis.info)
                 else:
+                    self._search_started.set()
                     play_response = await self.engine.play(
                         board=copy.deepcopy(game),
                         limit=limit,
@@ -615,6 +625,7 @@ class PlayingContinuousAnalysis:
                 queue_payload = None
             finally:
                 self._waiting = False
+                self._search_started.clear()
                 if lease_acquired:
                     self.engine_lease.release("playing")
                     lease_acquired = False
@@ -633,14 +644,14 @@ class PlayingContinuousAnalysis:
         """Ask the engine to stop thinking and return a bestmove as soon as possible."""
         if self._waiting:
             self._force_event.set()
-            if hasattr(self.engine, "send_line"):
+            if self._search_started.is_set() and hasattr(self.engine, "send_line"):
                 self.engine.send_line("stop")
 
     def cancel(self):
         """Cancel any ongoing search (e.g., engine shutdown)."""
         self._cancel_event.set()
         self._force_event.set()
-        if hasattr(self.engine, "send_line"):
+        if self._search_started.is_set() and hasattr(self.engine, "send_line"):
             self.engine.send_line("stop")
 
     def is_waiting_for_move(self) -> bool:

@@ -802,8 +802,14 @@ class WifiSetupHandler(ServerRequestHandler):
 
 class SettingsActionHandler(ServerRequestHandler):
     async def post(self, action: str):
-        if not _require_auth_if_remote(self, "Settings"):
-            return
+        allow_unauth = _allow_onboard_without_auth()
+        if action == "wifi-hotspot":
+            if not allow_unauth or not _is_private_request(self.request):
+                if not _require_auth_if_remote(self, "Settings"):
+                    return
+        else:
+            if not _require_auth_if_remote(self, "Settings"):
+                return
         if action not in ("wifi-hotspot", "bt-pair", "bt-fix"):
             self.set_status(404)
             self.write({"error": "Unknown action"})

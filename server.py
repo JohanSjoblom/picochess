@@ -819,7 +819,7 @@ class SettingsActionHandler(ServerRequestHandler):
             timeout = 30
         elif action == "bt-pair":
             cmd = ["sudo", "-n", "/opt/picochess/pair-phone"]
-            timeout = 120
+            timeout = 50
         else:
             cmd = ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"]
             timeout = 60

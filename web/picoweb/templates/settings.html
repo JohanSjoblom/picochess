@@ -6,6 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Picochess Settings</title>
     <style>
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .tab-button {
+            border: 1px solid #666;
+            background: #f4f4f4;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background: #dfe8ff;
+            font-weight: 600;
+        }
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
         .touch-only {
             display: none;
         }
@@ -29,6 +50,12 @@
             word-wrap: break-word;
             overflow-wrap: anywhere;
         }
+        .help-row {
+            font-size: 0.95em;
+            color: #333;
+            background: #f4f4f4;
+            padding: 6px;
+        }
         @media (max-width: 600px) {
             table {
                 font-size: 0.95em;
@@ -42,25 +69,53 @@
 
 <body>
     <h1>Picochess Settings</h1>
-    <p>Changes take effect after the next restart.</p>
+
+    <div class="tab-bar">
+        <button type="button" class="tab-button active" data-tab="settings">Picochess.ini</button>
+        <button type="button" class="tab-button" data-tab="wifi">Wi-Fi</button>
+    </div>
 
     <div id="status"></div>
 
-    <table border="1" cellpadding="4" cellspacing="0" style="width:100%; table-layout:fixed;">
-        <thead>
-            <tr>
-                <th>Enabled</th>
-                <th>Key</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody id="settings-body"></tbody>
-    </table>
+    <div id="settings-panel" class="tab-panel active">
+        <p>Changes take effect after the next restart.</p>
+        <table border="1" cellpadding="4" cellspacing="0" style="width:100%; table-layout:fixed;">
+            <thead>
+                <tr>
+                    <th>Enabled</th>
+                    <th>Key</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody id="settings-body"></tbody>
+        </table>
 
-    <div style="margin-top: 10px;">
-        <button type="button" id="addRowBtn">Add setting</button>
-        <button type="button" id="saveBtn">Save</button>
-        <a href="/">Back</a>
+        <div style="margin-top: 10px;">
+            <button type="button" id="addRowBtn">Add setting</button>
+            <button type="button" id="saveBtn">Save</button>
+            <a href="/">Back</a>
+        </div>
+    </div>
+
+    <div id="wifi-panel" class="tab-panel">
+        <h2>Connect Pi to Wi-Fi</h2>
+        <p class="help-row">Enter the phone hotspot or Wi-Fi credentials. The Pi will connect and keep the network for future use.</p>
+        <p class="help-row">If you see a permissions error, run <code>sudo ./enable-wifi-setup.sh</code> on the Pi once.</p>
+
+        <label for="wifi-ssid">Wi-Fi SSID</label>
+        <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off" required>
+
+        <label for="wifi-pass">Password</label>
+        <input type="password" id="wifi-pass" autocomplete="new-password">
+
+        <div style="margin-top: 8px;">
+            <input type="checkbox" id="wifi-hidden">
+            <label for="wifi-hidden">Hidden network</label>
+        </div>
+
+        <div style="margin-top: 10px;">
+            <button type="button" id="wifi-connect-btn">Connect</button>
+        </div>
     </div>
 
     <script>
@@ -274,6 +329,60 @@
 
         document.getElementById("addRowBtn").addEventListener("click", function () {
             addEmptyRow();
+        });
+
+        document.querySelectorAll(".tab-button").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                document.querySelectorAll(".tab-button").forEach(function (b) { b.classList.remove("active"); });
+                document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
+                btn.classList.add("active");
+                var tab = btn.getAttribute("data-tab");
+                if (tab === "wifi") {
+                    document.getElementById("wifi-panel").classList.add("active");
+                } else {
+                    document.getElementById("settings-panel").classList.add("active");
+                }
+            });
+        });
+
+        document.getElementById("wifi-connect-btn").addEventListener("click", function () {
+            var ssid = document.getElementById("wifi-ssid").value.trim();
+            var password = document.getElementById("wifi-pass").value;
+            var hidden = document.getElementById("wifi-hidden").checked;
+
+            if (!ssid) {
+                setStatus("SSID is required", true);
+                return;
+            }
+            if (password && password.length < 8) {
+                setStatus("Password must be at least 8 characters", true);
+                return;
+            }
+
+            setStatus("Connecting...", false);
+            fetch("/onboard/wifi", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ssid: ssid, password: password, hidden: hidden })
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        return response.json().then(function (data) {
+                            throw new Error(data.error || "Wi-Fi connect failed");
+                        });
+                    }
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data.ip) {
+                        setStatus("Connected. Pi IP: " + data.ip, false);
+                    } else {
+                        setStatus("Connected.", false);
+                    }
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
         });
 
         loadSettings();

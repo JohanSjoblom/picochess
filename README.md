@@ -71,10 +71,15 @@ If your Pi boots without Wi‑Fi configured, you can set it from the web UI:
 2) Open the web UI and go to Settings → Wi‑Fi.
 3) Run `sudo ./enable-wifi-setup.sh` once on the Pi to allow Wi‑Fi changes.
 4) Enter your Wi‑Fi SSID/password and click Connect.
+5) To require authentication on the onboarding page, set `allow-onboard-without-auth = false` in `picochess.ini`.
 
 Bluetooth pairing (experimental)
 --------------------------------
 The `pair-phone` tool can pair a phone and attempt Bluetooth PAN (tethering). On some phones (notably Samsung), PAN may fail; the flow then falls back to phone hotspot. Consider this feature experimental and optional; it does not affect normal Picochess usage.
+Optional settings (in `picochess.ini`):
+- `bt-pair-pin` (default `0000`)
+- `bt-pair-timeout` (seconds, default 40)
+- `hotspot-ssid` / `hotspot-pass` (auto-connect to a phone hotspot after PAN failure)
 
 Kiosk mode (auto-launch on boot)
 --------------------------------

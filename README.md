@@ -73,6 +73,12 @@ If your Pi boots without Wi‑Fi configured, you can set it from the web UI:
 4) Enter your Wi‑Fi SSID/password and click Connect.
 5) After onboarding, you can tighten access by setting `allow-onboard-without-auth = false` in `picochess.ini`.
 
+Cybersecurity notes
+-------------------
+- The Wi‑Fi onboarding page is open to private network clients by default to simplify first‑boot setup.
+- After onboarding, set `allow-onboard-without-auth = false` in `picochess.ini` to require authentication.
+- The Settings page always requires authentication.
+
 Bluetooth pairing (experimental)
 --------------------------------
 The `pair-phone` tool can pair a phone and attempt Bluetooth PAN (tethering). On some phones (notably Samsung), PAN may fail; the flow then falls back to phone hotspot. Consider this feature experimental and optional; it does not affect normal Picochess usage.
@@ -109,6 +115,9 @@ Additional scripts you might find useful:
 - `check-bluetooth.sh`, collect Bluetooth diagnostics into `bluetooth.txt` for troubleshooting (run with sudo).
 - `install-kiosk.sh`, enable autologin and kiosk autostart (run with sudo).
 - `check-config.sh`, validate `picochess.ini` for common mistakes.
+- `pair-phone`, interactive phone pairing tool with clock prompts (run with sudo).
+- `bt-pan-connect`, Bluetooth PAN helper (run with sudo).
+- `enable-wifi-setup.sh`, allow the web onboarding page to run `nmcli` (run with sudo once).
 
 How to add more engines?
 ------------------------

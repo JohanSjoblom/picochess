@@ -3203,8 +3203,8 @@ class DgtMenu(object):
             try:
                 subprocess.Popen(
                     ["sudo", "-n", "/opt/picochess/pair-phone"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     universal_newlines=True,
                 )
             except Exception as exc:
@@ -3215,8 +3215,8 @@ class DgtMenu(object):
             try:
                 subprocess.Popen(
                     ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     universal_newlines=True,
                 )
             except Exception as exc:

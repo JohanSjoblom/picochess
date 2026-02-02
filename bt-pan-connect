@@ -10,7 +10,10 @@ DEFAULT_MAC_FILE = "/tmp/picochess-last-bt-mac"
 
 
 def run(cmd, timeout=10):
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(cmd, 124, stdout=exc.stdout or "", stderr=exc.stderr or "timeout")
 
 
 def find_mac_from_paired():
@@ -62,8 +65,12 @@ def get_bnep_iface(timeout):
 
 
 def bring_up_iface(iface):
+    ip_cmd = "/sbin/ip"
+    if os.path.exists(ip_cmd):
+        run([ip_cmd, "link", "set", iface, "up"], timeout=5)
     nmcli = "/usr/bin/nmcli"
     if os.path.exists(nmcli):
+        run([nmcli, "dev", "set", iface, "managed", "yes"], timeout=5)
         result = run([nmcli, "dev", "connect", iface], timeout=15)
         if result.returncode == 0:
             return True

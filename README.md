@@ -86,6 +86,7 @@ Optional settings (in `picochess.ini`):
 - `bt-pair-pin` (default `0000`)
 - `bt-pair-timeout` (seconds, default 40)
 - `hotspot-ssid` / `hotspot-pass` (auto-connect to a phone hotspot after PAN failure)
+You can also connect directly to a configured phone hotspot from the DGT clock via System → Wi‑Fi → Hotspot.
 
 Kiosk mode (auto-launch on boot)
 --------------------------------
@@ -118,6 +119,7 @@ Additional scripts you might find useful:
 - `pair-phone`, interactive phone pairing tool with clock prompts (run with sudo).
 - `bt-pan-connect`, Bluetooth PAN helper (run with sudo).
 - `enable-wifi-setup.sh`, allow the web onboarding page to run `nmcli` (run with sudo once).
+- `wifi-hotspot-connect`, connect to a configured phone hotspot (run with sudo).
 
 How to add more engines?
 ------------------------

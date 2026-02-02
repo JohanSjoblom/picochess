@@ -46,6 +46,8 @@ from dgt.util import (
     EngineTopLoop,
     System,
     SystemLoop,
+    Wifi,
+    WifiLoop,
     Bluetooth,
     BluetoothLoop,
     Display,
@@ -187,6 +189,8 @@ class MenuState(object):
     SYS_DISP_ENGINENAME_YESNO = 766100  # yes,no
     SYS_EBOARD = 770000
     SYS_EBOARD_TYPE = 771000  # dgt, chesslink, ...
+    SYS_WIFI = 773000
+    SYS_WIFI_HOTSPOT = 773100
     # System -> Bluetooth submenu (pair/fix actions).
     SYS_BLUETOOTH = 775000
     SYS_BLUETOOTH_PAIR = 775100
@@ -381,6 +385,7 @@ class DgtMenu(object):
         self.menu_system_display = Display.CLOCKSIDE
         self.menu_system_info = Info.VERSION
         self.menu_system_power = Power.SHUT_DOWN
+        self.menu_system_wifi = Wifi.CONNECT_HOTSPOT
         self.menu_system_bluetooth = Bluetooth.PAIR_PHONE
 
         self.menu_time_mode = TimeMode.BLITZ
@@ -1824,6 +1829,18 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_system_eboard_type.value)
         return text
 
+    def enter_sys_wifi_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_WIFI
+        text = self.dgttranslate.text(self.menu_system.value)
+        return text
+
+    def enter_sys_wifi_hotspot_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_WIFI_HOTSPOT
+        text = self.dgttranslate.text(self.menu_system_wifi.value)
+        return text
+
     def enter_sys_bluetooth_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_BLUETOOTH
@@ -2145,6 +2162,12 @@ class DgtMenu(object):
 
         elif self.state == MenuState.SYS_EBOARD_TYPE:
             text = self.enter_sys_eboard_menu()
+
+        elif self.state == MenuState.SYS_WIFI:
+            text = self.enter_sys_menu()
+
+        elif self.state == MenuState.SYS_WIFI_HOTSPOT:
+            text = self.enter_sys_wifi_menu()
 
         elif self.state == MenuState.SYS_BLUETOOTH:
             text = self.enter_sys_menu()
@@ -2867,6 +2890,8 @@ class DgtMenu(object):
                 text = self.enter_sys_disp_menu()
             elif self.menu_system == System.EBOARD:
                 text = self.enter_sys_eboard_menu()
+            elif self.menu_system == System.WIFI:
+                text = self.enter_sys_wifi_menu()
             elif self.menu_system == System.BLUETOOTH:
                 text = self.enter_sys_bluetooth_menu()
             elif self.menu_system == System.THEME:
@@ -3191,6 +3216,22 @@ class DgtMenu(object):
                 if eboard_type != self.current_board_type:
                     # only reboot if e-board type is different from the current e-board type
                     await self._fire_event(Event.REBOOT(dev="menu"))
+
+        elif self.state == MenuState.SYS_WIFI:
+            if self.menu_system_wifi == Wifi.CONNECT_HOTSPOT:
+                text = self.enter_sys_wifi_hotspot_menu()
+
+        elif self.state == MenuState.SYS_WIFI_HOTSPOT:
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/wifi-hotspot-connect"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    universal_newlines=True,
+                )
+            except Exception as exc:
+                logger.warning("wifi-hotspot-connect failed to start: %s", exc)
 
         elif self.state == MenuState.SYS_BLUETOOTH:
             if self.menu_system_bluetooth == Bluetooth.PAIR_PHONE:
@@ -3863,8 +3904,18 @@ class DgtMenu(object):
             self.menu_system_eboard_type = EBoardLoop.prev(self.menu_system_eboard_type)
             text = self.dgttranslate.text(self.menu_system_eboard_type.value)
 
-        elif self.state == MenuState.SYS_BLUETOOTH:
+        elif self.state == MenuState.SYS_WIFI:
             self.state = MenuState.SYS_EBOARD
+            self.menu_system = SystemLoop.prev(self.menu_system)
+            text = self.dgttranslate.text(self.menu_system.value)
+
+        elif self.state == MenuState.SYS_WIFI_HOTSPOT:
+            self.state = MenuState.SYS_WIFI
+            self.menu_system_wifi = WifiLoop.prev(self.menu_system_wifi)
+            text = self.dgttranslate.text(self.menu_system_wifi.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH:
+            self.state = MenuState.SYS_WIFI
             self.menu_system = SystemLoop.prev(self.menu_system)
             text = self.dgttranslate.text(self.menu_system.value)
 
@@ -4505,13 +4556,23 @@ class DgtMenu(object):
             text = self.dgttranslate.text("B00_notation_" + msg)
 
         elif self.state == MenuState.SYS_EBOARD:
-            self.state = MenuState.SYS_BLUETOOTH
+            self.state = MenuState.SYS_WIFI
             self.menu_system = SystemLoop.next(self.menu_system)
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_EBOARD_TYPE:
             self.menu_system_eboard_type = EBoardLoop.next(self.menu_system_eboard_type)
             text = self.dgttranslate.text(self.menu_system_eboard_type.value)
+
+        elif self.state == MenuState.SYS_WIFI:
+            self.state = MenuState.SYS_BLUETOOTH
+            self.menu_system = SystemLoop.next(self.menu_system)
+            text = self.dgttranslate.text(self.menu_system.value)
+
+        elif self.state == MenuState.SYS_WIFI_HOTSPOT:
+            self.state = MenuState.SYS_WIFI
+            self.menu_system_wifi = WifiLoop.next(self.menu_system_wifi)
+            text = self.dgttranslate.text(self.menu_system_wifi.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH:
             self.state = MenuState.SYS_THEME

@@ -71,7 +71,7 @@ If your Pi boots without Wi‑Fi configured, you can set it from the web UI:
 2) Open the web UI and go to Settings → Wi‑Fi.
 3) Run `sudo ./enable-wifi-setup.sh` once on the Pi to allow Wi‑Fi changes.
 4) Enter your Wi‑Fi SSID/password and click Connect.
-5) To require authentication on the onboarding page, set `allow-onboard-without-auth = false` in `picochess.ini`.
+5) After onboarding, you can tighten access by setting `allow-onboard-without-auth = false` in `picochess.ini`.
 
 Bluetooth pairing (experimental)
 --------------------------------

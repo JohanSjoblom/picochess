@@ -749,7 +749,7 @@ class WifiSetupHandler(ServerRequestHandler):
             self.set_status(500)
             self.write({"error": "NetworkManager (nmcli) not available"})
             return
-        cmd = [nmcli, "dev", "wifi", "connect", ssid]
+        cmd = ["sudo", nmcli, "dev", "wifi", "connect", ssid]
         if password:
             cmd += ["password", password]
         if hidden:
@@ -760,7 +760,7 @@ class WifiSetupHandler(ServerRequestHandler):
             self.write({"error": (result.stderr or result.stdout or "Wi-Fi connect failed").strip()})
             return
         ip_result = subprocess.run(
-            [nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"], capture_output=True, text=True
+            ["sudo", nmcli, "-g", "IP4.ADDRESS", "dev", "show", "wlan0"], capture_output=True, text=True
         )
         ip_addr = ""
         if ip_result.returncode == 0:

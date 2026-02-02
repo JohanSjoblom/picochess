@@ -16,9 +16,11 @@ MAC_RE = re.compile(r"Device\s+([0-9A-F:]{17})", re.IGNORECASE)
 PASSKEY_RE = re.compile(r"Confirm passkey\s+(\d+)")
 
 
-def read_ini(path: str) -> tuple[str | None, int | None]:
+def read_ini(path: str) -> tuple[str | None, int | None, str | None, str | None]:
     pin = None
     timeout = None
+    hotspot_ssid = None
+    hotspot_pass = None
     try:
         with open(path, "r", encoding="utf-8") as handle:
             for raw in handle:
@@ -32,9 +34,13 @@ def read_ini(path: str) -> tuple[str | None, int | None]:
                     pin = value
                 if key == "bt-pair-timeout" and value.isdigit():
                     timeout = int(value)
+                if key == "hotspot-ssid" and value:
+                    hotspot_ssid = value
+                if key == "hotspot-pass" and value:
+                    hotspot_pass = value
     except OSError:
         pass
-    return pin, timeout
+    return pin, timeout, hotspot_ssid, hotspot_pass
 
 
 def ipc_send(sock: socket.socket, payload: dict) -> None:
@@ -77,6 +83,16 @@ def _show_hotspot_or_ip(sock: socket.socket) -> None:
     show_text(sock, "PAN FAILED")
     time.sleep(2)
     show_text(sock, "WIFI HOTSPOT")
+
+def _try_hotspot_connect(ssid: str, password: str | None) -> bool:
+    nmcli = "/usr/bin/nmcli"
+    if not os.path.exists(nmcli):
+        return False
+    cmd = [nmcli, "dev", "wifi", "connect", ssid]
+    if password:
+        cmd += ["password", password]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    return result.returncode == 0
 
 def _bt_info(btctl_path: str, mac: str) -> tuple[bool, bool]:
     try:
@@ -132,7 +148,7 @@ def main() -> int:
     parser.add_argument("--pan-script", type=str, default="/opt/picochess/bt-pan-connect", help="PAN helper path")
     args = parser.parse_args()
 
-    ini_pin, ini_timeout = read_ini(args.ini)
+    ini_pin, ini_timeout, hotspot_ssid, hotspot_pass = read_ini(args.ini)
     pin = args.pin if args.pin is not None else (ini_pin or "0000")
     timeout = args.timeout if args.timeout is not None else (ini_timeout or 40)
     timeout = max(5, min(timeout, 300))
@@ -306,6 +322,9 @@ def main() -> int:
                     )
                 except subprocess.TimeoutExpired:
                     _show_hotspot_or_ip(ipc_sock)
+                    if hotspot_ssid:
+                        _try_hotspot_connect(hotspot_ssid, hotspot_pass)
+                        _show_hotspot_or_ip(ipc_sock)
                     print("pair-phone: paired, PAN timed out")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
@@ -323,18 +342,27 @@ def main() -> int:
                         print("pair-phone: paired and PAN connected")
                         return 0
                     _show_hotspot_or_ip(ipc_sock)
+                    if hotspot_ssid:
+                        _try_hotspot_connect(hotspot_ssid, hotspot_pass)
+                        _show_hotspot_or_ip(ipc_sock)
                     print("pair-phone: paired, PAN IP missing")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
                     ipc_sock.close()
                     return 6
                 _show_hotspot_or_ip(ipc_sock)
+                if hotspot_ssid:
+                    _try_hotspot_connect(hotspot_ssid, hotspot_pass)
+                    _show_hotspot_or_ip(ipc_sock)
                 print("pair-phone: paired, PAN failed")
                 ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                 send_bt(proc, "quit")
                 ipc_sock.close()
                 return 6
             _show_hotspot_or_ip(ipc_sock)
+            if hotspot_ssid:
+                _try_hotspot_connect(hotspot_ssid, hotspot_pass)
+                _show_hotspot_or_ip(ipc_sock)
             print("pair-phone: paired, PAN helper missing")
             ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
             send_bt(proc, "quit")

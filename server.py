@@ -800,6 +800,40 @@ class WifiSetupHandler(ServerRequestHandler):
         self.write({"status": "ok", "ip": ip_addr})
 
 
+class SettingsActionHandler(ServerRequestHandler):
+    async def post(self, action: str):
+        if not _require_auth_if_remote(self, "Settings"):
+            return
+        if action not in ("wifi-hotspot", "bt-pair", "bt-fix"):
+            self.set_status(404)
+            self.write({"error": "Unknown action"})
+            return
+        if action == "wifi-hotspot":
+            cmd = ["sudo", "-n", "/opt/picochess/wifi-hotspot-connect"]
+            timeout = 30
+        elif action == "bt-pair":
+            cmd = ["sudo", "-n", "/opt/picochess/pair-phone"]
+            timeout = 120
+        else:
+            cmd = ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"]
+            timeout = 60
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None, lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            )
+        except subprocess.TimeoutExpired:
+            self.set_status(504)
+            self.write({"error": f"{action} timed out"})
+            return
+        if result.returncode != 0:
+            self.set_status(500)
+            self.write({"error": (result.stderr or result.stdout or "Action failed").strip()})
+            return
+        self.set_header("Content-Type", "application/json")
+        self.write({"status": "ok"})
+
+
 class WebServer:
     def __init__(self):
         pass
@@ -821,6 +855,7 @@ class WebServer:
                 (r"/settings", SettingsPageHandler),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler),
+                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix)", SettingsActionHandler),
                 (r"/onboard", WifiSetupPageHandler),
                 (r"/onboard/wifi", WifiSetupHandler),
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),

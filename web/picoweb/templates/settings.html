@@ -73,6 +73,7 @@
     <div class="tab-bar">
         <button type="button" class="tab-button active" data-tab="settings">Picochess.ini</button>
         <button type="button" class="tab-button" data-tab="wifi">Wi-Fi</button>
+        <button type="button" class="tab-button" data-tab="bluetooth">Bluetooth</button>
     </div>
 
     <div id="status"></div>
@@ -101,6 +102,7 @@
         <h2>Connect Pi to Wi-Fi</h2>
         <p class="help-row">Enter the phone hotspot or Wi-Fi credentials. The Pi will connect and keep the network for future use.</p>
         <p class="help-row">If you see a permissions error, run <code>sudo ./enable-wifi-setup.sh</code> on the Pi once.</p>
+        <p class="help-row">If your phone hotspot credentials are saved in picochess.ini, you can also use the quick connect button.</p>
 
         <label for="wifi-ssid">Wi-Fi SSID</label>
         <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off" required>
@@ -115,6 +117,16 @@
 
         <div style="margin-top: 10px;">
             <button type="button" id="wifi-connect-btn">Connect</button>
+            <button type="button" id="wifi-hotspot-btn">Connect Hotspot</button>
+        </div>
+    </div>
+
+    <div id="bluetooth-panel" class="tab-panel">
+        <h2>Bluetooth pairing</h2>
+        <p class="help-row">Use these tools to pair a phone or reset Bluetooth if needed.</p>
+        <div style="margin-top: 10px;">
+            <button type="button" id="bt-pair-btn">Pair phone</button>
+            <button type="button" id="bt-fix-btn">Fix Bluetooth</button>
         </div>
     </div>
 
@@ -164,6 +176,25 @@
             var status = document.getElementById("status");
             status.textContent = message;
             status.style.color = isError ? "red" : "green";
+        }
+
+        function triggerAction(action, busyMessage, successMessage) {
+            setStatus(busyMessage, false);
+            fetch("/settings/action/" + action, { method: "POST" })
+                .then(function (response) {
+                    if (!response.ok) {
+                        return response.json().then(function (data) {
+                            throw new Error(data.error || "Action failed");
+                        });
+                    }
+                    return response.json();
+                })
+                .then(function () {
+                    setStatus(successMessage, false);
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
         }
 
         function renderEntry(entry) {
@@ -339,6 +370,8 @@
                 var tab = btn.getAttribute("data-tab");
                 if (tab === "wifi") {
                     document.getElementById("wifi-panel").classList.add("active");
+                } else if (tab === "bluetooth") {
+                    document.getElementById("bluetooth-panel").classList.add("active");
                 } else {
                     document.getElementById("settings-panel").classList.add("active");
                 }
@@ -383,6 +416,18 @@
                 .catch(function (error) {
                     setStatus(error.message, true);
                 });
+        });
+
+        document.getElementById("wifi-hotspot-btn").addEventListener("click", function () {
+            triggerAction("wifi-hotspot", "Connecting hotspot...", "Hotspot connect started.");
+        });
+
+        document.getElementById("bt-pair-btn").addEventListener("click", function () {
+            triggerAction("bt-pair", "Starting Bluetooth pairing...", "Bluetooth pairing started.");
+        });
+
+        document.getElementById("bt-fix-btn").addEventListener("click", function () {
+            triggerAction("bt-fix", "Running Bluetooth fix...", "Bluetooth fix started.");
         });
 
         loadSettings();

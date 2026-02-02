@@ -94,6 +94,21 @@ def _try_hotspot_connect(ssid: str, password: str | None) -> bool:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     return result.returncode == 0
 
+def _wait_for_hotspot(sock: socket.socket, ssid: str, password: str | None, wait_secs: int, interval: int) -> bool:
+    deadline = time.time() + max(5, wait_secs)
+    while time.time() < deadline:
+        wlan_ip = _get_wlan0_ip()
+        if wlan_ip:
+            show_text(sock, f"IP {wlan_ip}")
+            return True
+        _try_hotspot_connect(ssid, password)
+        wlan_ip = _get_wlan0_ip()
+        if wlan_ip:
+            show_text(sock, f"IP {wlan_ip}")
+            return True
+        time.sleep(max(2, interval))
+    return False
+
 def _bt_info(btctl_path: str, mac: str) -> tuple[bool, bool]:
     try:
         result = subprocess.run([btctl_path, "info", mac], capture_output=True, text=True, timeout=5)
@@ -146,6 +161,8 @@ def main() -> int:
     parser.add_argument("--no-pan", action="store_true", help="Skip bt-pan-connect after pairing")
     parser.add_argument("--pan-timeout", type=int, default=40, help="Seconds to wait for PAN link")
     parser.add_argument("--pan-script", type=str, default="/opt/picochess/bt-pan-connect", help="PAN helper path")
+    parser.add_argument("--hotspot-wait", type=int, default=60, help="Seconds to wait for hotspot connect")
+    parser.add_argument("--hotspot-interval", type=int, default=5, help="Seconds between hotspot retries")
     args = parser.parse_args()
 
     ini_pin, ini_timeout, hotspot_ssid, hotspot_pass = read_ini(args.ini)
@@ -323,8 +340,7 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     _show_hotspot_or_ip(ipc_sock)
                     if hotspot_ssid:
-                        _try_hotspot_connect(hotspot_ssid, hotspot_pass)
-                        _show_hotspot_or_ip(ipc_sock)
+                        _wait_for_hotspot(ipc_sock, hotspot_ssid, hotspot_pass, args.hotspot_wait, args.hotspot_interval)
                     print("pair-phone: paired, PAN timed out")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
@@ -343,8 +359,7 @@ def main() -> int:
                         return 0
                     _show_hotspot_or_ip(ipc_sock)
                     if hotspot_ssid:
-                        _try_hotspot_connect(hotspot_ssid, hotspot_pass)
-                        _show_hotspot_or_ip(ipc_sock)
+                        _wait_for_hotspot(ipc_sock, hotspot_ssid, hotspot_pass, args.hotspot_wait, args.hotspot_interval)
                     print("pair-phone: paired, PAN IP missing")
                     ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                     send_bt(proc, "quit")
@@ -352,8 +367,7 @@ def main() -> int:
                     return 6
                 _show_hotspot_or_ip(ipc_sock)
                 if hotspot_ssid:
-                    _try_hotspot_connect(hotspot_ssid, hotspot_pass)
-                    _show_hotspot_or_ip(ipc_sock)
+                    _wait_for_hotspot(ipc_sock, hotspot_ssid, hotspot_pass, args.hotspot_wait, args.hotspot_interval)
                 print("pair-phone: paired, PAN failed")
                 ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
                 send_bt(proc, "quit")
@@ -361,8 +375,7 @@ def main() -> int:
                 return 6
             _show_hotspot_or_ip(ipc_sock)
             if hotspot_ssid:
-                _try_hotspot_connect(hotspot_ssid, hotspot_pass)
-                _show_hotspot_or_ip(ipc_sock)
+                _wait_for_hotspot(ipc_sock, hotspot_ssid, hotspot_pass, args.hotspot_wait, args.hotspot_interval)
             print("pair-phone: paired, PAN helper missing")
             ipc_send(ipc_sock, {"action": "stop", "reason": "paired"})
             send_bt(proc, "quit")

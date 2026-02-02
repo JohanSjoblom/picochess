@@ -154,8 +154,11 @@ def connect_with_bt_network(mac, timeout, verbose=False):
     bt_network = "/usr/bin/bt-network"
     if not os.path.exists(bt_network):
         return None
+    cmd = [bt_network, "-c", mac, "panu"]
+    if os.geteuid() != 0:
+        cmd = ["sudo", "-n"] + cmd
     proc = subprocess.Popen(
-        ["sudo", bt_network, "-c", mac, "panu"],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -165,6 +168,12 @@ def connect_with_bt_network(mac, timeout, verbose=False):
         if proc.poll() is not None:
             break
         time.sleep(0.5)
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
     if verbose:
         try:
             out, err = proc.communicate(timeout=1)

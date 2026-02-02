@@ -46,6 +46,8 @@ from dgt.util import (
     EngineTopLoop,
     System,
     SystemLoop,
+    Bluetooth,
+    BluetoothLoop,
     Display,
     DisplayLoop,
     ClockIcons,
@@ -185,6 +187,10 @@ class MenuState(object):
     SYS_DISP_ENGINENAME_YESNO = 766100  # yes,no
     SYS_EBOARD = 770000
     SYS_EBOARD_TYPE = 771000  # dgt, chesslink, ...
+    # System -> Bluetooth submenu (pair/fix actions).
+    SYS_BLUETOOTH = 775000
+    SYS_BLUETOOTH_PAIR = 775100
+    SYS_BLUETOOTH_FIX = 775200
     SYS_THEME = 780000
     SYS_THEME_TYPE = 781000
 
@@ -375,6 +381,7 @@ class DgtMenu(object):
         self.menu_system_display = Display.CLOCKSIDE
         self.menu_system_info = Info.VERSION
         self.menu_system_power = Power.SHUT_DOWN
+        self.menu_system_bluetooth = Bluetooth.PAIR_PHONE
 
         self.menu_time_mode = TimeMode.BLITZ
 
@@ -1817,6 +1824,24 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_system_eboard_type.value)
         return text
 
+    def enter_sys_bluetooth_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_BLUETOOTH
+        text = self.dgttranslate.text(self.menu_system.value)
+        return text
+
+    def enter_sys_bluetooth_pair_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_BLUETOOTH_PAIR
+        text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+        return text
+
+    def enter_sys_bluetooth_fix_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_BLUETOOTH_FIX
+        text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+        return text
+
     def enter_sys_theme_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_THEME
@@ -2120,6 +2145,15 @@ class DgtMenu(object):
 
         elif self.state == MenuState.SYS_EBOARD_TYPE:
             text = self.enter_sys_eboard_menu()
+
+        elif self.state == MenuState.SYS_BLUETOOTH:
+            text = self.enter_sys_menu()
+
+        elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
+            text = self.enter_sys_bluetooth_menu()
+
+        elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            text = self.enter_sys_bluetooth_menu()
 
         elif self.state == MenuState.SYS_THEME:
             text = self.enter_sys_menu()
@@ -2815,6 +2849,8 @@ class DgtMenu(object):
                 text = self.enter_fav_eng_menu()
 
         elif self.state == MenuState.SYS:
+            # System menu: add new submenus by extending System enum/items,
+            # then hook entry here and state transitions in main_left/right/up/down.
             if self.menu_system == System.POWER:
                 text = self.enter_sys_power_menu()
             elif self.menu_system == System.INFO:
@@ -2831,6 +2867,8 @@ class DgtMenu(object):
                 text = self.enter_sys_disp_menu()
             elif self.menu_system == System.EBOARD:
                 text = self.enter_sys_eboard_menu()
+            elif self.menu_system == System.BLUETOOTH:
+                text = self.enter_sys_bluetooth_menu()
             elif self.menu_system == System.THEME:
                 text = self.enter_sys_theme_menu()
 
@@ -3153,6 +3191,36 @@ class DgtMenu(object):
                 if eboard_type != self.current_board_type:
                     # only reboot if e-board type is different from the current e-board type
                     await self._fire_event(Event.REBOOT(dev="menu"))
+
+        elif self.state == MenuState.SYS_BLUETOOTH:
+            if self.menu_system_bluetooth == Bluetooth.PAIR_PHONE:
+                text = self.enter_sys_bluetooth_pair_menu()
+            elif self.menu_system_bluetooth == Bluetooth.FIX_BT:
+                text = self.enter_sys_bluetooth_fix_menu()
+
+        elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/pair-phone"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                )
+            except Exception as exc:
+                logger.warning("pair-phone failed to start: %s", exc)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                )
+            except Exception as exc:
+                logger.warning("Fix_bluetooth failed to start: %s", exc)
 
         elif self.state == MenuState.SYS_THEME:
             text = self.enter_sys_theme_type_menu()
@@ -3795,8 +3863,23 @@ class DgtMenu(object):
             self.menu_system_eboard_type = EBoardLoop.prev(self.menu_system_eboard_type)
             text = self.dgttranslate.text(self.menu_system_eboard_type.value)
 
-        elif self.state == MenuState.SYS_THEME:
+        elif self.state == MenuState.SYS_BLUETOOTH:
             self.state = MenuState.SYS_EBOARD
+            self.menu_system = SystemLoop.prev(self.menu_system)
+            text = self.dgttranslate.text(self.menu_system.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
+            self.state = MenuState.SYS_BLUETOOTH_FIX
+            self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            self.state = MenuState.SYS_BLUETOOTH_PAIR
+            self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+
+        elif self.state == MenuState.SYS_THEME:
+            self.state = MenuState.SYS_BLUETOOTH
             self.menu_system = SystemLoop.prev(self.menu_system)
             text = self.dgttranslate.text(self.menu_system.value)
 
@@ -4422,13 +4505,28 @@ class DgtMenu(object):
             text = self.dgttranslate.text("B00_notation_" + msg)
 
         elif self.state == MenuState.SYS_EBOARD:
-            self.state = MenuState.SYS_THEME
+            self.state = MenuState.SYS_BLUETOOTH
             self.menu_system = SystemLoop.next(self.menu_system)
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_EBOARD_TYPE:
             self.menu_system_eboard_type = EBoardLoop.next(self.menu_system_eboard_type)
             text = self.dgttranslate.text(self.menu_system_eboard_type.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH:
+            self.state = MenuState.SYS_THEME
+            self.menu_system = SystemLoop.next(self.menu_system)
+            text = self.dgttranslate.text(self.menu_system.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
+            self.state = MenuState.SYS_BLUETOOTH_FIX
+            self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            self.state = MenuState.SYS_BLUETOOTH_PAIR
+            self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
         elif self.state == MenuState.SYS_THEME:
             self.state = MenuState.SYS_POWER

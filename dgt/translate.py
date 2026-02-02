@@ -5960,6 +5960,44 @@ class DgtTranslate(object):
                 medium_text="E-Board ",
                 small_text="ebrd ",
             )
+        if text_id == "system_bluetooth_menu":
+            # Menu checklist: add translation IDs for new System menu items here
+            # so label lookups don't break menu rotation display.
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Bluetooth  ",
+                medium_text="Bluetooth",
+                small_text="bt",
+            )
+            ittxt = entxt
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
+        if text_id == "bluetooth_pair_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Pair phone ",
+                medium_text="Pair ph",
+                small_text="pair",
+            )
+            ittxt = entxt
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
+        if text_id == "bluetooth_fix_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Fix BT     ",
+                medium_text="Fix BT",
+                small_text="fixbt",
+            )
+            ittxt = entxt
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
         if text_id == "eboard_dgt_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

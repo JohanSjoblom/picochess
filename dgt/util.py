@@ -490,10 +490,13 @@ class System(MyEnum):
     VOICE = "B00_system_voice_menu"
     DISPLAY = "B00_system_display_menu"
     EBOARD = "B00_system_eboard_menu"
+    BLUETOOTH = "B00_system_bluetooth_menu"
     THEME = "B00_system_theme_menu"
 
     @classmethod
     def items(cls):
+        # Menu checklist: add enum entry above, include it here, then wire
+        # MenuState + translations + main_left/right/up/down in dgt/menu.py.
         return [
             System.POWER,
             System.INFO,
@@ -503,6 +506,7 @@ class System(MyEnum):
             System.VOICE,
             System.DISPLAY,
             System.EBOARD,
+            System.BLUETOOTH,
             System.THEME,
         ]
 
@@ -522,6 +526,28 @@ class SystemLoop(object):
     def prev(item: System):
         """Get previous item."""
         return prev_item(System.items(), item, "errSystPrev")
+
+
+class Bluetooth(MyEnum):
+    PAIR_PHONE = "B00_bluetooth_pair_menu"
+    FIX_BT = "B00_bluetooth_fix_menu"
+
+    @classmethod
+    def items(cls):
+        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT]
+
+
+class BluetoothLoop(object):
+    def __init__(self):
+        super(BluetoothLoop, self).__init__()
+
+    @staticmethod
+    def next(item: Bluetooth):
+        return next_item(Bluetooth.items(), item, "errBluetoothNext")
+
+    @staticmethod
+    def prev(item: Bluetooth):
+        return prev_item(Bluetooth.items(), item, "errBluetoothPrev")
 
 
 class Power(MyEnum):

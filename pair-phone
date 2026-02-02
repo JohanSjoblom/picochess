@@ -52,6 +52,48 @@ def send_bt(proc: subprocess.Popen, command: str) -> None:
     proc.stdin.write(command + "\n")
     proc.stdin.flush()
 
+def _bt_info(btctl_path: str, mac: str) -> tuple[bool, bool]:
+    try:
+        result = subprocess.run([btctl_path, "info", mac], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return False, False
+    if result.returncode != 0:
+        return False, False
+    output = result.stdout
+    paired = "Paired: yes" in output
+    connected = "Connected: yes" in output
+    return paired, connected
+
+
+def _resolve_paired_mac(btctl_path: str, current_mac: str | None) -> str | None:
+    candidates = []
+    if current_mac:
+        candidates.append(current_mac)
+    try:
+        with open("/tmp/picochess-last-bt-mac", "r", encoding="utf-8") as handle:
+            value = handle.read().strip()
+            if value and value not in candidates:
+                candidates.append(value)
+    except OSError:
+        pass
+    if not candidates:
+        try:
+            result = subprocess.run([btctl_path, "devices", "Paired"], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 2 and parts[0] == "Device":
+                        mac = parts[1]
+                        if mac not in candidates:
+                            candidates.append(mac)
+        except Exception:
+            pass
+    for mac in candidates:
+        paired, _ = _bt_info(btctl_path, mac)
+        if paired:
+            return mac
+    return None
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pair an Android phone via bluetoothctl and show prompts on Picochess.")
@@ -128,6 +170,8 @@ def main() -> int:
         match = MAC_RE.search(line)
         if match:
             current_device = match.group(1)
+        if "Connected: yes" in line:
+            success = True
         if "Enter PIN code" in line:
             show_text(ipc_sock, f"PIN {pin}")
             send_bt(proc, pin)
@@ -206,6 +250,12 @@ def main() -> int:
             if stop_reason is None:
                 stop_reason = "btctl_exit"
             break
+
+    if not success and not failed:
+        resolved = _resolve_paired_mac(btctl_path, current_device)
+        if resolved:
+            current_device = resolved
+            success = True
 
     if success:
         if current_device:

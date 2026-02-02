@@ -490,6 +490,7 @@ class System(MyEnum):
     VOICE = "B00_system_voice_menu"
     DISPLAY = "B00_system_display_menu"
     EBOARD = "B00_system_eboard_menu"
+    WIFI = "B00_system_wifi_menu"
     BLUETOOTH = "B00_system_bluetooth_menu"
     THEME = "B00_system_theme_menu"
 
@@ -506,9 +507,31 @@ class System(MyEnum):
             System.VOICE,
             System.DISPLAY,
             System.EBOARD,
+            System.WIFI,
             System.BLUETOOTH,
             System.THEME,
         ]
+
+
+class Wifi(MyEnum):
+    CONNECT_HOTSPOT = "B00_wifi_hotspot_menu"
+
+    @classmethod
+    def items(cls):
+        return [Wifi.CONNECT_HOTSPOT]
+
+
+class WifiLoop(object):
+    def __init__(self):
+        super(WifiLoop, self).__init__()
+
+    @staticmethod
+    def next(item: Wifi):
+        return next_item(Wifi.items(), item, "errWifiNext")
+
+    @staticmethod
+    def prev(item: Wifi):
+        return prev_item(Wifi.items(), item, "errWifiPrev")
 
 
 class SystemLoop(object):

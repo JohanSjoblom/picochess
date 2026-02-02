@@ -797,6 +797,18 @@ class DgtDisplay(DisplayMsg):
         # Display the move
         side = self._get_clock_side(message.game.turn)
         beep = self.dgttranslate.bl(BeepLevel.CONFIG)
+
+        # Detect variant from board object class name
+        board_obj = message.game
+        variant_name = "chess"
+        class_name = board_obj.__class__.__name__
+        if class_name == "AtomicBoard":
+            variant_name = "atomic"
+        elif class_name == "KingOfTheHillBoard":
+            variant_name = "kingofthehill"
+        elif class_name == "ThreeCheckBoard":
+            variant_name = "3check"
+
         disp = Dgt.DISPLAY_MOVE(
             move=move,
             fen=message.game.fen(),
@@ -810,6 +822,7 @@ class DgtDisplay(DisplayMsg):
             capital=self.dgttranslate.capital,
             long=self.dgttranslate.notation,
         )
+        disp.variant = variant_name  # Attach variant info for iface.py
         await DispatchDgt.fire(disp)
 
         await DispatchDgt.fire(Dgt.LIGHT_SQUARES(uci_move=move.uci(), devs={"ser", "web"}))

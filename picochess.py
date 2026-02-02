@@ -320,10 +320,18 @@ class PicochessState:
         return move
 
     def get_variant_board(self):
-        """Return the variant-specific board for legal move generation, or None for standard chess."""
+        """Return the variant-specific board, or None for standard chess.
+
+        Returns the appropriate variant board object which can be used for:
+        - Legal move generation (atomic has different rules)
+        - FEN retrieval (atomic shows explosions, 3check has check counts)
+        - Variant detection via class name in display layer
+        """
         if self.variant == "atomic" and self._atomic_board is not None:
             return self._atomic_board
-        # 3check and KOTH use standard legal moves, so return None
+        elif self.variant == "3check" and self._threecheck_board is not None:
+            return self._threecheck_board
+        # KOTH uses standard board with special win condition only
         return None
 
     def get_board_fen(self) -> str:
@@ -2080,7 +2088,11 @@ async def main() -> None:
                             await asyncio.sleep(2)
                             await DisplayMsg.show(
                                 Message.COMPUTER_MOVE(
-                                    move=move, ponder=False, game=self.state.game.copy(), wait=False, is_user_move=False
+                                    move=move,
+                                    ponder=False,
+                                    game=(self.state.get_variant_board() or self.state.game).copy(),
+                                    wait=False,
+                                    is_user_move=False,
                                 )
                             )
                             await asyncio.sleep(2)
@@ -2136,7 +2148,7 @@ async def main() -> None:
                         Message.COMPUTER_MOVE(
                             move=self.state.done_move,
                             ponder=False,
-                            game=self.state.game.copy(),
+                            game=(self.state.get_variant_board() or self.state.game).copy(),
                             wait=False,
                             is_user_move=False,
                         )
@@ -3231,7 +3243,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=self.state.done_move,
                                     ponder=False,
-                                    game=self.state.game.copy(),
+                                    game=(self.state.get_variant_board() or self.state.game).copy(),
                                     wait=False,
                                     is_user_move=False,
                                 )
@@ -3850,7 +3862,7 @@ async def main() -> None:
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 await self.user_move(next_move, sliding=False)
             else:
-                game_copy = self.state.game.copy()
+                game_copy = (self.state.get_variant_board() or self.state.game).copy()
                 await DisplayMsg.show(
                     Message.COMPUTER_MOVE(
                         move=next_move,
@@ -4966,7 +4978,7 @@ async def main() -> None:
                             Message.COMPUTER_MOVE(
                                 move=event.move,
                                 ponder=chess.Move.null(),
-                                game=self.state.game.copy(),
+                                game=(self.state.get_variant_board() or self.state.game).copy(),
                                 wait=False,
                                 is_user_move=False,
                             )
@@ -5278,7 +5290,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=event.move,
                                     ponder=event.ponder,
-                                    game=self.state.game.copy(),
+                                    game=(self.state.get_variant_board() or self.state.game).copy(),
                                     wait=event.inbook,
                                     is_user_move=False,
                                 )
@@ -5452,7 +5464,11 @@ async def main() -> None:
                     if self.state.game.is_legal(event.pv[0]):
                         # only pv received from event
                         await DisplayMsg.show(
-                            Message.NEW_PV(pv=event.pv, mode=self.state.interaction_mode, game=self.state.game.copy())
+                            Message.NEW_PV(
+                                pv=event.pv,
+                                mode=self.state.interaction_mode,
+                                game=(self.state.get_variant_board() or self.state.game).copy(),
+                            )
                         )
                     else:
                         logger.info(

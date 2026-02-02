@@ -102,7 +102,11 @@
         <h2>Connect Pi to Wi-Fi</h2>
         <p class="help-row">Enter the phone hotspot or Wi-Fi credentials. The Pi will connect and keep the network for future use.</p>
         <p class="help-row">If you see a permissions error, run <code>sudo ./enable-wifi-setup.sh</code> on the Pi once.</p>
-        <p class="help-row">If your phone hotspot credentials are saved in picochess.ini, you can also use the quick connect button.</p>
+        <p class="help-row">If your phone hotspot credentials are saved in picochess.ini, you can also use the Quick connect button.</p>
+
+        <div style="margin-top: 10px;">
+            <button type="button" id="wifi-hotspot-btn">Quick connect</button>
+        </div>
 
         <label for="wifi-ssid">Wi-Fi SSID</label>
         <input type="text" id="wifi-ssid" maxlength="32" autocomplete="off" required>
@@ -117,7 +121,6 @@
 
         <div style="margin-top: 10px;">
             <button type="button" id="wifi-connect-btn">Connect</button>
-            <button type="button" id="wifi-hotspot-btn">Connect Hotspot</button>
         </div>
     </div>
 

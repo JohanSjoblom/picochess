@@ -326,6 +326,18 @@ class PicochessState:
         # 3check and KOTH use standard legal moves, so return None
         return None
 
+    def get_board_fen(self) -> str:
+        """Return board FEN from variant board if active, otherwise from game.
+
+        For atomic variant, this returns the position with explosions applied.
+        For 3check, piece positions are identical to standard chess (included for consistency).
+        """
+        if self.variant == "atomic" and self._atomic_board is not None:
+            return self._atomic_board.board_fen()
+        elif self.variant == "3check" and self._threecheck_board is not None:
+            return self._threecheck_board.board_fen()
+        return self.game.board_fen()
+
     async def start_clock(self) -> None:
         """Start the clock."""
         if self.interaction_mode in (
@@ -674,7 +686,7 @@ def read_online_user_info() -> Tuple[str, str, str, str, int, int]:
     return login, own_color, own_user, opp_user, game_time, fischer_inc
 
 
-def compare_fen(fen_board_external="", fen_board_internal="") -> str:
+def compare_fen(fen_board_external="", fen_board_internal="", board_type: type = None) -> str:
     # <Piece Placement> ::= <rank8>'/'<rank7>'/'<rank6>'/'<rank5>'/'<rank4>'/'<rank3>'/'<rank2>'/'<rank1>
     # <ranki>       ::= [<digit17>]<piece> {[<digit17>]<piece>} [<digit17>] | '8'
     # <piece>       ::= <white Piece> | <black Piece>
@@ -683,14 +695,20 @@ def compare_fen(fen_board_external="", fen_board_internal="") -> str:
     # <black Piece> ::= 'p' | 'n' | 'b' | 'r' | 'q' | 'k'
     # eg. starting position 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'
     #                       'a8 b8 c8 d8... / a7 b7... / a1 b1 c1 ... h1'
+    #
+    # board_type: Optional board class (e.g., chess.Board, chess.variant.AtomicBoard).
+    #             If None, defaults to chess.Board.
 
     if fen_board_external == fen_board_internal or fen_board_external == "" or fen_board_internal == "":
         return ""
 
-    internal_board = chess.Board()
+    if board_type is None:
+        board_type = chess.Board
+
+    internal_board = board_type()
     internal_board.set_board_fen(fen_board_internal)
 
-    external_board = chess.Board()
+    external_board = board_type()
     external_board.set_board_fen(fen_board_external)
 
     # now compare each square and return first difference
@@ -3109,7 +3127,7 @@ async def main() -> None:
 
             if self.state.error_fen:
                 logger.debug("fen_timer expired %s", self.state.error_fen)
-                game_fen = self.state.game.board_fen()
+                game_fen = self.state.get_board_fen()
                 internal_fen = game_fen
                 external_fen = self.state.error_fen
                 fen_res = compare_fen(external_fen, internal_fen)
@@ -3219,7 +3237,7 @@ async def main() -> None:
                                 )
                             )
                     fen_res = ""
-                    internal_fen = self.state.game.board_fen()
+                    internal_fen = self.state.get_board_fen()
                     external_fen = self.state.error_fen
                     fen_res = compare_fen(external_fen, internal_fen)
 
@@ -3844,7 +3862,13 @@ async def main() -> None:
                 )
                 # set state variables as waiting for the move to be done on the eboard
                 game_copy.push(next_move)
-                self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
+                # For atomic variant, use atomic board to get FEN with explosions applied
+                if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                    atomic_copy = self.state._atomic_board.copy()
+                    atomic_copy.push(next_move)
+                    self.state.done_computer_fen = atomic_copy.board_fen()
+                else:
+                    self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
                 self.state.done_move = next_move  # expected move
 
         def game_end_event(self):
@@ -3914,7 +3938,13 @@ async def main() -> None:
                 else:
                     game_copy = self.state.game.copy()
                     game_copy.push(move)
-                    fen = game_copy.board_fen()
+                    # For atomic variant, use atomic board to get FEN with explosions applied
+                    if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                        atomic_copy = self.state._atomic_board.copy()
+                        atomic_copy.push(move)
+                        fen = atomic_copy.board_fen()
+                    else:
+                        fen = game_copy.board_fen()
                     await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
 
             elif isinstance(event, Event.LEVEL):
@@ -4943,7 +4973,13 @@ async def main() -> None:
                         )
                         game_copy = self.state.game.copy()
                         game_copy.push(event.move)
-                        self.state.done_computer_fen = game_copy.board_fen()
+                        # For atomic variant, use atomic board to get FEN with explosions applied
+                        if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                            atomic_copy = self.state._atomic_board.copy()
+                            atomic_copy.push(event.move)
+                            self.state.done_computer_fen = atomic_copy.board_fen()
+                        else:
+                            self.state.done_computer_fen = game_copy.board_fen()
                         self.state.done_move = event.move
                         self.state.pb_move = chess.Move.null()
                         self.state.legal_fens_after_cmove = compute_legal_fens(game_copy)
@@ -5267,7 +5303,13 @@ async def main() -> None:
                                     self.state.picotutor.get_user_move_eval()  # eval engine move
                                 if not valid:
                                     await self.set_picotutor_position()
-                            self.state.done_computer_fen = game_copy.board_fen()
+                            # For atomic variant, use atomic board to get FEN with explosions applied
+                            if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                                atomic_copy = self.state._atomic_board.copy()
+                                atomic_copy.push(event.move)
+                                self.state.done_computer_fen = atomic_copy.board_fen()
+                            else:
+                                self.state.done_computer_fen = game_copy.board_fen()
                             self.state.done_move = event.move
 
                             self.state.pb_move = (

@@ -64,6 +64,18 @@ How to open the web page and play?
 ----------------------------------
 Use `localhost` in your browser to open the web page. If you are running on another machine replace `localhost` with the IP address of your Pi. If you use a firewall, ensure the Picochess web port is allowed.
 
+Wi-Fi setup (no network on first boot)
+--------------------------------------
+If your Pi boots without Wi‑Fi configured, you can set it from the web UI:
+1) Connect the Pi to a temporary network (e.g., phone hotspot or Ethernet).
+2) Open the web UI and go to Settings → Wi‑Fi.
+3) Run `sudo ./enable-wifi-setup.sh` once on the Pi to allow Wi‑Fi changes.
+4) Enter your Wi‑Fi SSID/password and click Connect.
+
+Bluetooth pairing (experimental)
+--------------------------------
+The `pair-phone` tool can pair a phone and attempt Bluetooth PAN (tethering). On some phones (notably Samsung), PAN may fail; the flow then falls back to phone hotspot. Consider this feature experimental and optional; it does not affect normal Picochess usage.
+
 Kiosk mode (auto-launch on boot)
 --------------------------------
 If you want Picochess to start automatically on a touchscreen, you can run Chromium in kiosk mode after the desktop loads.

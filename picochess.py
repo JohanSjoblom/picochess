@@ -4525,6 +4525,8 @@ async def main() -> None:
                         if not self.state.check_game_state():
                             if self.picotutor_mode():
                                 await self.state.picotutor.pop_last_move(self.state.game)
+                            # Allow any late bestmove/info lines from the previous search to drain.
+                            await asyncio.sleep(0.2)
                             await self.think(
                                 Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode),
                                 searchlist=True,

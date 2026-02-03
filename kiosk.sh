@@ -99,7 +99,7 @@ while true; do
   if [ $? -eq 0 ]; then
     close_update_terminal
     if is_wayland; then
-      /usr/bin/chromium --touch-events=enabled --enable-features=TouchpadOverscrollHistoryNavigation --password-store=basic --kiosk http://127.0.0.1 &
+      /usr/bin/chromium --password-store=basic --kiosk http://127.0.0.1 &
     else
       /usr/bin/chromium --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk http://127.0.0.1 &
     fi

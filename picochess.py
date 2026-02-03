@@ -2474,12 +2474,24 @@ async def main() -> None:
                                     # send move to engine
                                     logger.debug("starting think()")
                                     await self._deliver_picotutor_messages(pending_picotutor_msgs)
-                                    await self.think(msg)
+                                    if self.state.takeback_active and self.state.is_not_user_turn():
+                                        # Allow additional takebacks to settle before starting engine search.
+                                        await asyncio.sleep(0.6)
+                                    if self.state.is_not_user_turn():
+                                        await self.think(msg)
+                                    else:
+                                        logger.debug("skipping think() after takeback debounce: user turn")
                         else:
                             assert self.state.interaction_mode == Mode.BRAIN
                             logger.debug("new implementation of ponderhit - starting think")
                             await self._deliver_picotutor_messages(pending_picotutor_msgs)
-                            await self.think(msg)
+                            if self.state.takeback_active and self.state.is_not_user_turn():
+                                # Allow additional takebacks to settle before starting engine search.
+                                await asyncio.sleep(0.6)
+                            if self.state.is_not_user_turn():
+                                await self.think(msg)
+                            else:
+                                logger.debug("skipping think() after takeback debounce: user turn")
 
                     self.state.last_move = move
                 elif self.state.interaction_mode == Mode.REMOTE:

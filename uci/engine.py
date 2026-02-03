@@ -501,6 +501,7 @@ class PlayingContinuousAnalysis:
         self._force_event = asyncio.Event()
         self._cancel_event = asyncio.Event()
         self._search_started = asyncio.Event()
+        self._analysis_started_ts: float | None = None
         self.whoami = f"{engine_debug_name} (playing)"
         self.engine_lease = engine_lease
         self.allow_info_loop = allow_info_loop
@@ -529,6 +530,7 @@ class PlayingContinuousAnalysis:
         self._force_event.clear()
         self._cancel_event.clear()
         self._search_started.clear()
+        self._analysis_started_ts = None
 
         async def _engine_task():
             lease_acquired = False
@@ -551,6 +553,7 @@ class PlayingContinuousAnalysis:
                     return
 
                 if self.allow_info_loop:
+                    self._analysis_started_ts = self.loop.time()
                     self._search_started.set()
                     analysis = await self.engine.analysis(
                         board=copy.deepcopy(game),
@@ -584,6 +587,7 @@ class PlayingContinuousAnalysis:
 
                     info_snapshot = copy.deepcopy(analysis.info)
                 else:
+                    self._analysis_started_ts = self.loop.time()
                     self._search_started.set()
                     play_response = await self.engine.play(
                         board=copy.deepcopy(game),
@@ -627,6 +631,7 @@ class PlayingContinuousAnalysis:
             finally:
                 self._waiting = False
                 self._search_started.clear()
+                self._analysis_started_ts = None
                 if lease_acquired:
                     self.engine_lease.release("playing")
                     lease_acquired = False
@@ -645,15 +650,13 @@ class PlayingContinuousAnalysis:
         """Ask the engine to stop thinking and return a bestmove as soon as possible."""
         if self._waiting:
             self._force_event.set()
-            if self._search_started.is_set() and hasattr(self.engine, "send_line"):
-                self.engine.send_line("stop")
+            self._send_stop_or_delay()
 
     def cancel(self):
         """Cancel any ongoing search (e.g., engine shutdown)."""
         self._cancel_event.set()
         self._force_event.set()
-        if self._search_started.is_set() and hasattr(self.engine, "send_line"):
-            self.engine.send_line("stop")
+        self._send_stop_or_delay()
 
     def is_waiting_for_move(self) -> bool:
         """True if engine is currently thinking about a move."""
@@ -685,6 +688,28 @@ class PlayingContinuousAnalysis:
         """Hard-cancel the current playing task (used when force fails)."""
         if self._task and not self._task.done():
             self._task.cancel()
+
+    def _send_stop_or_delay(self, guard_window: float = 0.2) -> None:
+        """Send stop immediately unless we're within the analysis-start guard window."""
+        if not self._search_started.is_set() or not hasattr(self.engine, "send_line"):
+            return
+
+        if self._analysis_started_ts is None or not self.loop:
+            self.engine.send_line("stop")
+            return
+
+        elapsed = self.loop.time() - self._analysis_started_ts
+        remaining = guard_window - elapsed
+        if remaining <= 0:
+            self.engine.send_line("stop")
+            return
+
+        async def _delayed_stop():
+            await asyncio.sleep(remaining)
+            if self._search_started.is_set() and hasattr(self.engine, "send_line"):
+                self.engine.send_line("stop")
+
+        self.loop.create_task(_delayed_stop())
 
 
 class UciEngine(object):

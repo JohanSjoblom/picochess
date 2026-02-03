@@ -22,6 +22,7 @@ import asyncio
 from asyncio import CancelledError
 import os
 import platform
+import traceback
 from typing import Optional, Iterable
 import logging
 import configparser
@@ -1129,6 +1130,12 @@ class UciEngine(object):
 
     def stop(self):
         """Stop background ContinuousAnalyser and/or force engine to move"""
+        logger.debug(
+            "engine.stop called (thinking=%s, waiting=%s)\n%s",
+            self.is_thinking(),
+            self.is_waiting(),
+            "".join(traceback.format_stack(limit=6)),
+        )
         self.stop_analysis()
         if not self.is_waiting():
             self.force_move()

@@ -31,6 +31,7 @@ import gc
 import logging
 from logging.handlers import RotatingFileHandler
 import math
+import traceback
 from typing import Any, List, Optional, Set, Tuple
 import asyncio
 from pathlib import Path
@@ -1352,6 +1353,14 @@ async def main() -> None:
 
         async def stop_search_and_clock(self, ponder_hit=False):
             """Depending on the interaction mode stop search and clock."""
+            logger.debug(
+                "stop_search_and_clock called (mode=%s, ponder_hit=%s, thinking=%s, waiting=%s)\n%s",
+                self.state.interaction_mode,
+                ponder_hit,
+                self.engine.is_thinking(),
+                self.engine.is_waiting(),
+                "".join(traceback.format_stack(limit=6)),
+            )
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 await self.state.stop_clock()
                 if self.engine.is_waiting():

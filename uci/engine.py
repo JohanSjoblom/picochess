@@ -1286,6 +1286,9 @@ class UciEngine(object):
             return
 
         async with self.engine_lock:
+            if self.playing.is_waiting_for_move():
+                logger.debug("%s go() skipped - engine already thinking", self.whoami)
+                return
             if expected_turn is not None and game.turn != expected_turn:
                 logger.warning(
                     "%s go() called with mismatching turn: board turn=%s expected=%s",

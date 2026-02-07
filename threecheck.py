@@ -17,20 +17,19 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 """
-ThreeCheckBoard wrapper for 3check chess variant.
+ThreeCheckBoard compatibility wrapper for 3check chess variant.
 
-This module provides a wrapper around chess.Board that tracks check counts
-for the 3check variant. In 3check, a player wins by giving check three times.
+This module provides a compatibility wrapper around chess.variant.ThreeCheckBoard
+that maintains the same API as the original custom implementation.
 
-The wrapper maintains:
-- Remaining checks needed for each side (starts at 3)
-- History of checks for proper takeback support
-- Both standard FEN (for opening books) and extended FEN (for Fairy-Stockfish)
+The wrapper uses python-chess's built-in 3check support while providing the same
+interface that PicoChess expects.
 """
 
 from __future__ import annotations
 
 import chess
+import chess.variant
 import logging
 from typing import Optional
 
@@ -39,14 +38,16 @@ logger = logging.getLogger(__name__)
 
 class ThreeCheckBoard:
     """
-    Wrapper for chess.Board that tracks 3check variant state.
+    Compatibility wrapper for chess.variant.ThreeCheckBoard.
 
-    This class wraps a standard chess.Board and adds:
-    - Check counting for both sides
-    - Check history for takeback support
-    - Extended FEN format for Fairy-Stockfish communication
-    - Standard FEN for opening book lookups
+    This class wraps chess.variant.ThreeCheckBoard and provides the same API
+    as the original custom implementation for backward compatibility.
     """
+
+    # Required by python-chess engine._position() which does type(board).uci_variant
+    uci_variant = "3check"
+    # Needed for python-chess engine._position() chess960 check
+    chess960 = False
 
     def __init__(self, fen: Optional[str] = None):
         """
@@ -57,14 +58,10 @@ class ThreeCheckBoard:
                  Extended format: "pieces turn castling ep checks halfmove fullmove"
                  where checks is "white_remaining+black_remaining" (e.g., "3+3")
         """
-        self._board = chess.Board()
-        # Remaining checks needed to win: 3 = need 3 more checks, 0 = won
-        self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
-        # History stack for takebacks: [(move, was_check, side_that_was_checked), ...]
-        self._check_history: list[tuple[chess.Move, bool, Optional[chess.Color]]] = []
-
         if fen:
-            self.set_fen(fen)
+            self._board = chess.variant.ThreeCheckBoard(fen)
+        else:
+            self._board = chess.variant.ThreeCheckBoard()
 
     def set_fen(self, fen: str) -> None:
         """
@@ -75,43 +72,18 @@ class ThreeCheckBoard:
         Args:
             fen: FEN string (standard 6-field or extended 7-field 3check format)
         """
-        parts = fen.split()
+        self._board.set_fen(fen)
 
-        if len(parts) == 7:
-            # Extended 3check FEN: pieces turn castling ep checks halfmove fullmove
-            standard_fen = f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}"
-            check_field = parts[4]  # e.g., "3+3" or "2+3"
-            self._parse_check_field(check_field)
-            self._board.set_fen(standard_fen)
-        elif len(parts) == 6:
-            # Standard FEN
-            self._board.set_fen(fen)
-            self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
-        else:
-            # Try to parse anyway
-            self._board.set_fen(fen)
-            self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
+    @property
+    def checks_remaining(self):
+        """Get remaining checks as dictionary for backward compatibility."""
+        return {chess.WHITE: self._board.remaining_checks[0], chess.BLACK: self._board.remaining_checks[1]}
 
-        # Clear history when setting new position
-        self._check_history = []
-
-    def _parse_check_field(self, check_field: str) -> None:
-        """
-        Parse the check counting field from 3check FEN.
-
-        Format: "white_remaining+black_remaining" (e.g., "3+3", "2+3", "1+0")
-        """
-        try:
-            parts = check_field.split("+")
-            if len(parts) == 2:
-                self.checks_remaining[chess.WHITE] = int(parts[0])
-                self.checks_remaining[chess.BLACK] = int(parts[1])
-            else:
-                logger.warning("Invalid check field format: %s, using defaults", check_field)
-                self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
-        except ValueError:
-            logger.warning("Could not parse check field: %s, using defaults", check_field)
-            self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
+    @checks_remaining.setter
+    def checks_remaining(self, value):
+        """Set remaining checks from dictionary."""
+        self._board.remaining_checks[0] = value.get(chess.WHITE, 3)
+        self._board.remaining_checks[1] = value.get(chess.BLACK, 3)
 
     def standard_fen(self) -> str:
         """
@@ -122,7 +94,9 @@ class ThreeCheckBoard:
         Returns:
             Standard 6-field FEN string
         """
-        return self._board.fen()
+        parts = self._board.fen().split()
+        # Return standard 6-field FEN: pieces turn castling ep halfmove fullmove
+        return f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}"
 
     def extended_fen(self) -> str:
         """
@@ -130,91 +104,57 @@ class ThreeCheckBoard:
 
         Use this for communication with Fairy-Stockfish engine.
 
-        Format: "pieces turn castling ep checks halfmove fullmove"
-        where checks is "white_remaining+black_remaining"
-
         Returns:
             Extended 7-field FEN string
         """
-        parts = self._board.fen().split()
-        check_field = f"{self.checks_remaining[chess.WHITE]}+{self.checks_remaining[chess.BLACK]}"
-        return f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {check_field} {parts[4]} {parts[5]}"
+        return self._board.fen()
 
-    def fen(self) -> str:
+    def fen(self, *, shredder=False, en_passant='legal', promoted=None) -> str:
         """
         Return FEN string.
 
-        For compatibility, returns extended FEN. Use standard_fen() for book lookups.
+        For compatibility, returns extended FEN.
+
+        Args:
+            shredder: Use Shredder-FEN format for castling rights
+            en_passant: How to handle en passant squares
+            promoted: How to handle promoted pieces
 
         Returns:
             Extended 7-field FEN string
         """
-        return self.extended_fen()
+        return self._board.fen(shredder=shredder, en_passant=en_passant, promoted=promoted)
 
-    def board_fen(self) -> str:
+    def board_fen(self, *, promoted=False) -> str:
         """
         Return only the piece placement part of FEN.
 
         Used for e-board comparison (e-boards only report piece positions).
 
+        Args:
+            promoted: Whether to include promoted piece information
+
         Returns:
             Piece placement string (first field of FEN)
         """
-        return self._board.board_fen()
+        return self._board.board_fen(promoted=promoted)
 
     def push(self, move: chess.Move) -> None:
         """
         Push a move and update check counts.
-
-        Records whether the move gave check and which side was checked,
-        for proper restoration during takeback.
 
         Args:
             move: The move to push
         """
         self._board.push(move)
 
-        was_check = self._board.is_check()
-        side_checked: Optional[chess.Color] = None
-
-        if was_check:
-            # The side now to move is the side that was checked
-            side_checked = self._board.turn
-            self.checks_remaining[side_checked] = max(0, self.checks_remaining[side_checked] - 1)
-            logger.debug(
-                "Check given to %s, remaining: %d",
-                "white" if side_checked == chess.WHITE else "black",
-                self.checks_remaining[side_checked],
-            )
-
-        self._check_history.append((move, was_check, side_checked))
-
     def pop(self) -> chess.Move:
         """
         Pop a move and restore check counts.
 
-        Automatically restores the check count that was decremented when
-        the move was pushed.
-
         Returns:
             The popped move
-
-        Raises:
-            IndexError: If there are no moves to pop
         """
-        if not self._check_history:
-            raise IndexError("pop from empty move stack")
-
-        move, was_check, side_checked = self._check_history.pop()
-
-        if was_check and side_checked is not None:
-            self.checks_remaining[side_checked] = min(3, self.checks_remaining[side_checked] + 1)
-            logger.debug(
-                "Takeback restored check for %s, remaining: %d",
-                "white" if side_checked == chess.WHITE else "black",
-                self.checks_remaining[side_checked],
-            )
-
         return self._board.pop()
 
     def is_variant_end(self) -> bool:
@@ -224,7 +164,7 @@ class ThreeCheckBoard:
         Returns:
             True if either side has received 3 checks
         """
-        return self.checks_remaining[chess.WHITE] == 0 or self.checks_remaining[chess.BLACK] == 0
+        return self._board.is_variant_end()
 
     def variant_winner(self) -> Optional[chess.Color]:
         """
@@ -235,9 +175,9 @@ class ThreeCheckBoard:
             chess.BLACK if black gave 3 checks to white,
             None if game not ended by 3check
         """
-        if self.checks_remaining[chess.WHITE] == 0:
+        if self._board.remaining_checks[chess.WHITE] == 0:
             return chess.BLACK  # Black gave 3 checks to white
-        if self.checks_remaining[chess.BLACK] == 0:
+        if self._board.remaining_checks[chess.BLACK] == 0:
             return chess.WHITE  # White gave 3 checks to black
         return None
 
@@ -248,39 +188,38 @@ class ThreeCheckBoard:
         Returns:
             True if game ended by checkmate, stalemate, draw rules, or 3check
         """
-        return self.is_variant_end() or self._board.is_game_over()
+        return self._board.is_game_over()
 
-    def copy(self) -> "ThreeCheckBoard":
+    def copy(self, *, stack=True) -> "ThreeCheckBoard":
         """
         Create a copy of this board.
+
+        Args:
+            stack: Whether to copy the move stack. Defaults to True.
 
         Returns:
             A new ThreeCheckBoard with the same state
         """
-        new_board = ThreeCheckBoard()
-        new_board._board = self._board.copy()
-        new_board.checks_remaining = self.checks_remaining.copy()
-        new_board._check_history = self._check_history.copy()
-        return new_board
+        new_wrapper = ThreeCheckBoard()
+        new_wrapper._board = self._board.copy(stack=stack)
+        return new_wrapper
 
     def reset(self) -> None:
         """Reset to starting position with fresh check counts."""
         self._board.reset()
-        self.checks_remaining = {chess.WHITE: 3, chess.BLACK: 3}
-        self._check_history = []
 
     def __getattr__(self, name: str):
         """
-        Delegate unknown attributes to the underlying chess.Board.
+        Delegate unknown attributes to the underlying chess.variant.ThreeCheckBoard.
 
         This allows ThreeCheckBoard to be used as a drop-in replacement
-        for chess.Board in most contexts.
+        for the original implementation.
 
         Args:
             name: Attribute name
 
         Returns:
-            The attribute from the underlying chess.Board
+            The attribute from the underlying board
         """
         return getattr(self._board, name)
 

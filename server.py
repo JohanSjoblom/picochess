@@ -1082,9 +1082,28 @@ class WebDisplay(DisplayMsg):
             _build_headers()
             _send_headers()
 
+        def _variant_board_fen(game: chess.Board) -> str:
+            """Return board_fen with variant rules applied (e.g. atomic explosions).
+
+            For atomic: replays the move stack on an AtomicBoard so captured
+            pieces and their neighbours are removed.  For all other variants
+            the standard board_fen is returned unchanged.
+            """
+            variant = self.shared.get("variant", "chess")
+            if variant == "atomic":
+                try:
+                    import chess.variant
+                    atm = chess.variant.AtomicBoard()
+                    for move in game.move_stack:
+                        atm.push(move)
+                    return atm.board_fen()
+                except Exception:
+                    pass  # fall through to standard
+            return game.board_fen()
+
         def _oldstyle_fen(game: chess.Board):
             builder = []
-            builder.append(game.board_fen())
+            builder.append(_variant_board_fen(game))
             builder.append("w" if game.turn == chess.WHITE else "b")
             builder.append(game.castling_xfen())
             builder.append(chess.SQUARE_NAMES[game.ep_square] if game.ep_square else "-")

@@ -730,6 +730,7 @@ class UciEngine(object):
         self.game_id = 1
         self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
         self.uci_variant = None  # UCI_Variant value to send directly to engine (bypasses python-chess)
+        self._variant_sent = False  # True once UCI_Variant has been sent; prevents crashing mid-game resend
         # Whether to suppress early/verbose info lines (used for remote main engine, not for tutor).
         self.suppress_info = suppress_info
         # Remote engine settings (asyncssh)
@@ -897,6 +898,7 @@ class UciEngine(object):
 
             if self.engine and "name" in self.engine.id:
                 self.engine_name = self.engine.id["name"]
+                self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
                 await self.send()
                 return True  # engine responded with its name
         except Exception:
@@ -971,10 +973,13 @@ class UciEngine(object):
                 self.uci_variant = self.options["UCI_Variant"]
                 del self.options["UCI_Variant"]
 
-            # Send UCI_Variant directly to engine if set (bypasses python-chess blocking)
-            if self.uci_variant:
+            # Send UCI_Variant directly to engine if set (bypasses python-chess blocking).
+            # Only send once per engine lifetime to avoid crashing variant engines (e.g.,
+            # Fairy-Stockfish SIGSEGV when UCI_Variant is re-sent mid-game).
+            if self.uci_variant and not self._variant_sent:
                 try:
                     self.engine.send_line(f"setoption name UCI_Variant value {self.uci_variant}")
+                    self._variant_sent = True
                     logger.info("Sent UCI_Variant=%s directly to engine", self.uci_variant)
                 except Exception as e:
                     logger.warning("Failed to send UCI_Variant to engine: %s", e)
@@ -985,6 +990,10 @@ class UciEngine(object):
                 await self.engine.configure(options)
         except chess.engine.EngineError as e:
             logger.warning(e)
+        except (AssertionError, asyncio.CancelledError) as e:
+            # Engine may not be ready (e.g., CommandState.NEW after a recent stop/cancel).
+            # Log the error but don't propagate — callers must not crash on option changes.
+            logger.warning("engine.configure() failed (engine busy or cancelled): %s", e)
 
     def has_levels(self):
         """Return engine level support."""
@@ -1501,6 +1510,7 @@ class UciEngine(object):
         allow_analysis = self._parse_bool_flag(analysis_option) if analysis_option is not None else True
         self.legacy_analysis_mode = not allow_analysis
         self._engine_rating(rating)
+        self._variant_sent = False  # (re-)starting engine config — allow UCI_Variant to be sent
         logger.debug("setting engine with options %s", self.options)
         await self.send()
         self._apply_playing_mode_policy()
@@ -1587,7 +1597,7 @@ class UciEngine(object):
         write_picochess_ini("pgn-elo", max(500, int(new_rating.rating)))
         write_picochess_ini("rating-deviation", int(new_rating.rating_deviation))
 
-    async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0) -> str:
+    async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0, variant_board=None) -> str:
         """
         Handle 'bestmove 0000' from a UCI engine using python-chess UciProtocol.
 
@@ -1596,7 +1606,24 @@ class UciEngine(object):
             "0-1"       → Black wins (White checkmated or resigned)
             "1/2-1/2"   → Stalemate or draw
             "*"         → Engine dead/unresponsive (game not yet decided)
+
+        variant_board: optional variant-specific board (ThreeCheckBoard, AtomicBoard, etc.)
+                       for detecting variant-specific game endings.
         """
+
+        # --- Phase 0: Variant-specific terminal states ---
+        if variant_board is not None:
+            if hasattr(variant_board, "is_variant_end") and variant_board.is_variant_end():
+                winner = variant_board.result()
+                if winner == "1-0" or winner == "0-1":
+                    return winner
+                return "1/2-1/2"
+            # For atomic: check if a king is missing (exploded)
+            if hasattr(variant_board, "king"):
+                if variant_board.king(chess.WHITE) is None:
+                    return "0-1"
+                if variant_board.king(chess.BLACK) is None:
+                    return "1-0"
 
         # --- Phase 1: Legitimate terminal states ---
         if game.is_checkmate():

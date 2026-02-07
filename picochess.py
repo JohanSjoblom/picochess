@@ -1941,10 +1941,15 @@ async def main() -> None:
             """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
             handled_fen = True
             self.state.error_fen = None
+            # Use variant board for legal move enumeration when available (atomic has
+            # different legal moves than standard chess).  The same board must be used
+            # for both FEN computation AND move-index lookup — mixing them produces
+            # wrong moves.
+            _move_board = self.state.get_variant_board() or self.state.game
             legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
-            # Check for same position
-            if fen == self.state.game.board_fen():
+            # Check for same position (use variant board_fen for atomic explosions)
+            if fen == self.state.get_board_fen():
                 logger.debug("Already in this fen: %s", fen)
                 self.state.flag_startup = False
                 # molli: Chess tutor
@@ -2055,7 +2060,7 @@ async def main() -> None:
                         # @todo - check valid here - dont reset position if valid
                         await self.set_picotutor_position()
                     logger.info("wrong color move -> sliding, reverting to: %s", self.state.game.fen())
-                legal_moves = list(self.state.game.legal_moves)
+                legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[state.last_legal_fens.index(fen)]
                 ok = await self.user_move(move, sliding=True)
                 if ok:
@@ -2068,7 +2073,7 @@ async def main() -> None:
 
             # allow playing/correcting moves for pico's side in TRAINING mode:
             elif fen in legal_fens_pico and self.state.interaction_mode in (Mode.TRAINING, Mode.PGNREPLAY):
-                legal_moves = list(self.state.game.legal_moves)
+                legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[legal_fens_pico.index(fen)]
 
                 if self.state.done_computer_fen:
@@ -2090,7 +2095,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=move,
                                     ponder=False,
-                                    game=(self.state.get_variant_board() or self.state.game).copy(),
+                                    game=self.state.game.copy(),
                                     wait=False,
                                     is_user_move=False,
                                 )
@@ -2112,7 +2117,7 @@ async def main() -> None:
             elif fen in self.state.legal_fens:
                 logger.debug("standard move detected")
                 self.state.newgame_happened = False
-                legal_moves = list(self.state.game.legal_moves)
+                legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[state.legal_fens.index(fen)]
                 ok = await self.user_move(move, sliding=False)
                 if ok:
@@ -2137,7 +2142,7 @@ async def main() -> None:
                 and self.state.dgtmenu.get_game_altmove()
                 and not self.state.takeback_active
             ):
-                legal_moves = list(self.state.game.legal_moves)
+                legal_moves = list(_move_board.legal_moves)
                 self.state.done_move = legal_moves[legal_fens_pico.index(fen)]
                 await DisplayMsg.show(
                     Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode)
@@ -2148,7 +2153,7 @@ async def main() -> None:
                         Message.COMPUTER_MOVE(
                             move=self.state.done_move,
                             ponder=False,
-                            game=(self.state.get_variant_board() or self.state.game).copy(),
+                            game=self.state.game.copy(),
                             wait=False,
                             is_user_move=False,
                         )
@@ -2350,7 +2355,7 @@ async def main() -> None:
                 )  # molli new legal fance based on cmove
 
                 # standard user move handling
-                legal_moves = list(self.state.game.legal_moves)
+                legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[state.legal_fens.index(fen)]
                 ok = await self.user_move(move, sliding=False)
                 if ok:
@@ -3243,7 +3248,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=self.state.done_move,
                                     ponder=False,
-                                    game=(self.state.get_variant_board() or self.state.game).copy(),
+                                    game=self.state.game.copy(),
                                     wait=False,
                                     is_user_move=False,
                                 )
@@ -3805,7 +3810,8 @@ async def main() -> None:
                 # not waiting for a move, ok to do next move
                 return True
             # the most tricky part, we are waiting for a move, has it been done?
-            if self.state.game.board_fen() == self.state.done_computer_fen:
+            # Use get_board_fen() for variant-aware comparison (atomic explosions, etc.)
+            if self.state.get_board_fen() == self.state.done_computer_fen:
                 # yes, the move has been done, we can do the next move
                 return True
             return False
@@ -3862,7 +3868,7 @@ async def main() -> None:
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 await self.user_move(next_move, sliding=False)
             else:
-                game_copy = (self.state.get_variant_board() or self.state.game).copy()
+                game_copy = self.state.game.copy()
                 await DisplayMsg.show(
                     Message.COMPUTER_MOVE(
                         move=next_move,
@@ -3945,7 +3951,9 @@ async def main() -> None:
             elif isinstance(event, Event.KEYBOARD_MOVE):
                 move = event.move
                 logger.debug("keyboard move [%s]", move)
-                if move not in self.state.game.legal_moves:
+                # Use variant board for legality check (atomic has different legal moves)
+                _check_board = self.state.get_variant_board() or self.state.game
+                if move not in _check_board.legal_moves:
                     logger.warning("illegal move. fen: [%s]", self.state.game.fen())
                 else:
                     game_copy = self.state.game.copy()
@@ -4472,14 +4480,13 @@ async def main() -> None:
                         await DisplayMsg.show(msg)
                     await self.stop_search_and_clock()
 
-                    if self.engine:
-                        # need to stop analyser for all modes
-                        self.engine.stop()
-
                     # see setup_position
                     if self.engine.has_chess960():
                         self.engine.option("UCI_Chess960", uci960)
-                        await self.engine.send()
+                        try:
+                            await self.engine.send()
+                        except Exception as exc:
+                            logger.warning("engine.send() failed during new game setup: %s", exc)
 
                     if self.online_mode():
                         await DisplayMsg.show(Message.SEEKING())
@@ -4978,7 +4985,7 @@ async def main() -> None:
                             Message.COMPUTER_MOVE(
                                 move=event.move,
                                 ponder=chess.Move.null(),
-                                game=(self.state.get_variant_board() or self.state.game).copy(),
+                                game=self.state.game.copy(),
                                 wait=False,
                                 is_user_move=False,
                             )
@@ -4994,7 +5001,7 @@ async def main() -> None:
                             self.state.done_computer_fen = game_copy.board_fen()
                         self.state.done_move = event.move
                         self.state.pb_move = chess.Move.null()
-                        self.state.legal_fens_after_cmove = compute_legal_fens(game_copy)
+                        self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, self.state.get_variant_board())
                     else:
                         logger.warning(
                             "wrong function call [remote]! mode: %s turn: %s",
@@ -5290,7 +5297,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=event.move,
                                     ponder=event.ponder,
-                                    game=(self.state.get_variant_board() or self.state.game).copy(),
+                                    game=self.state.game.copy(),
                                     wait=event.inbook,
                                     is_user_move=False,
                                 )
@@ -5327,7 +5334,7 @@ async def main() -> None:
                             self.state.pb_move = (
                                 event.ponder if event.ponder and not event.inbook else chess.Move.null()
                             )
-                            self.state.legal_fens_after_cmove = compute_legal_fens(game_copy)
+                            self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, self.state.get_variant_board())
 
                             if self.pgn_mode():
                                 # molli pgn: reset pgn guess counters
@@ -5467,7 +5474,7 @@ async def main() -> None:
                             Message.NEW_PV(
                                 pv=event.pv,
                                 mode=self.state.interaction_mode,
-                                game=(self.state.get_variant_board() or self.state.game).copy(),
+                                game=self.state.game.copy(),
                             )
                         )
                     else:

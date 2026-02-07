@@ -799,19 +799,15 @@ var updateStatus = function () {
     dataTableFen = fen;
 
 
-    if ($('#' + strippedFen).position()) {
+    if ($('#' + strippedFen).length) {
         var element = $('#' + strippedFen);
         $(".fen").each(function () {
             $(this).removeClass('text-warning');
         });
         element.addClass('text-warning');
 
-        // Centrar el movimiento activo en el contenedor
-        var containerHeight = moveListEl.height();
-        var elementTop = element.position().top;
-        var elementHeight = element.outerHeight();
-        var scrollPosition = moveListEl.scrollTop() + elementTop - (containerHeight / 2) + (elementHeight / 2);
-        moveListEl.scrollTop(scrollPosition);
+        // Scroll the active move into view inside the move list container
+        element[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     bookDataTable.ajax.reload();
@@ -1788,8 +1784,22 @@ function analyze(position_update) {
 function updateDGTPosition(data) {
     if (!goToPosition(data.fen) || data.play === 'reload') {
         loadGame(data['pgn'].split("\n"));
-        goToPosition(data.fen);
+        if (!goToPosition(data.fen)) {
+            // Variant chess (e.g. atomic explosions): chess.js computed a different
+            // FEN than the server sent.  Force the board to show the server's FEN.
+            forcePosition(data.fen);
+        }
     }
+}
+
+function forcePosition(fen) {
+    // For variant chess (e.g. atomic) the server sends the correct FEN but
+    // chess.js has no variant support and computes a standard-rules FEN.
+    // Use the last known game node for move metadata and override the display.
+    if (fenHash['last']) {
+        currentPosition = fenHash['last'];
+    }
+    chessground1.set({ fen: fen });
 }
 
 function updateTutorMistakes(mistakes) {

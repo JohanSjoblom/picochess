@@ -321,6 +321,24 @@ class PicochessState:
                 pass  # History already empty
         return move
 
+    def game_copy(self) -> chess.Board:
+        """Return a copy of the game board with variant name attached.
+
+        The _variant_name attribute allows the display layer to reconstruct
+        the correct variant FEN (e.g. atomic explosions) from the move_stack.
+        """
+        copy = self.game.copy()
+        if self.variant != "chess":
+            copy._variant_name = self.variant
+        return copy
+
+    def new_game_msg(self, newgame: bool):
+        """Create a START_NEW_GAME message with variant info attached."""
+        msg = Message.START_NEW_GAME(game=self.game_copy(), newgame=newgame)
+        if self.variant != "chess":
+            msg.variant = self.variant
+        return msg
+
     def get_variant_board(self):
         """Return the variant-specific board, or None for standard chess.
 
@@ -347,6 +365,18 @@ class PicochessState:
         elif self.variant == "3check" and self._threecheck_board is not None:
             return self._threecheck_board.board_fen()
         return self.game.board_fen()
+
+    def get_fen(self) -> str:
+        """Return full FEN from variant board if active, otherwise from game.
+
+        For atomic variant, this returns the position with explosions applied.
+        This is the full FEN string (pieces + turn + castling + en passant + clocks).
+        """
+        if self.variant == "atomic" and self._atomic_board is not None:
+            return self._atomic_board.fen()
+        elif self.variant == "3check" and self._threecheck_board is not None:
+            return self._threecheck_board.fen()
+        return self.game.fen()
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -1259,7 +1289,7 @@ async def main() -> None:
 
             if self.online_mode():
                 ModeInfo.set_online_mode(mode=True)
-                await self.set_wait_state(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True))
+                await self.set_wait_state(self.state.new_game_msg(newgame=True))
             else:
                 ModeInfo.set_online_mode(mode=False)
                 await self.engine.newgame(self.state.game.copy())
@@ -1397,13 +1427,11 @@ async def main() -> None:
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
             book_res = None
-            if self.bookreader:
+            if self.bookreader and self.state.variant != "atomic":
+                # Skip opening book for atomic chess - the engine should think from move 1
                 # For 3check variant, use standard FEN for book lookup
-                # For atomic variant, use atomic board which has correct position after explosions
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
                     book_lookup_board = chess.Board(self.state._threecheck_board.standard_fen())
-                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                    book_lookup_board = chess.Board(self.state._atomic_board.fen())
                 else:
                     book_lookup_board = self.state.game.copy()
                 book_res = self.state.searchmoves.book(self.bookreader, book_lookup_board)
@@ -2118,7 +2146,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=move,
                                     ponder=False,
-                                    game=self.state.game.copy(),
+                                    game=self.state.game_copy(),
                                     wait=False,
                                     is_user_move=False,
                                 )
@@ -2176,7 +2204,7 @@ async def main() -> None:
                         Message.COMPUTER_MOVE(
                             move=self.state.done_move,
                             ponder=False,
-                            game=self.state.game.copy(),
+                            game=self.state.game_copy(),
                             wait=False,
                             is_user_move=False,
                         )
@@ -2480,7 +2508,9 @@ async def main() -> None:
             self.state.take_back_locked = False
 
             logger.info("user move [%s] sliding: %s", move, sliding)
-            if move not in self.state.game.legal_moves:
+            # Use variant board for legality check (atomic has different legal moves after explosions)
+            move_check_board = self.state.get_variant_board() or self.state.game
+            if move not in move_check_board.legal_moves:
                 logger.warning("illegal move [%s]", move)
                 return False
             else:
@@ -3008,7 +3038,8 @@ async def main() -> None:
                             # would already have routed analysis through picotutor. Only fall back to
                             # engine analysis when tutor info cannot be used.
                             # save cpu - only run engine analysis on user turn if coach/watcher off
-                            result = await self.engine.get_analysis(self.state.game)
+                            analysis_board = self.state.get_variant_board() or self.state.game
+                            result = await self.engine.get_analysis(analysis_board)
                             info_list: list[InfoDict] = result.get("info")
                             info_list_source = "engine"
                             analysed_fen = result.get("fen", "")
@@ -3043,7 +3074,7 @@ async def main() -> None:
                     await asyncio.sleep(1.0)
                     await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
                 elif self.state.picotutor.can_use_coach_analyser():
-                    if analysed_fen == self.state.game.fen():
+                    if analysed_fen == self.state.get_fen():
                         latest_depth = await self.state.picotutor.get_latest_seen_depth()
                         min_depth = max(DEEP_DEPTH - 2, 1)
                         if latest_depth >= min_depth:
@@ -3066,7 +3097,7 @@ async def main() -> None:
             this is executed periodically in the background_analyse_timer task"""
             if not info:
                 return
-            current_fen = self.state.game.fen()
+            current_fen = self.state.get_fen()
             if analysed_fen != current_fen:
                 logger.debug("ignoring analysis info for old fen: %s != %s", analysed_fen, current_fen)
                 return
@@ -3105,7 +3136,7 @@ async def main() -> None:
             """Send full analysis info to the web client without depth gating."""
             if not info:
                 return
-            current_fen = self.state.game.fen()
+            current_fen = self.state.get_fen()
             if analysed_fen != current_fen:
                 logger.debug("ignoring web analysis for old fen: %s != %s", analysed_fen, current_fen)
                 return
@@ -3242,7 +3273,7 @@ async def main() -> None:
                             self.state.legal_fens_after_cmove = []
                             self.state.last_legal_fens = []
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                            await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
+                            await DisplayMsg.show(self.state.new_game_msg(newgame=False))
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
                         else:
                             # ask python-chess to correct the castling string
@@ -3266,7 +3297,7 @@ async def main() -> None:
                                 self.state.last_legal_fens = []
                                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                                 await DisplayMsg.show(
-                                    Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False)
+                                    self.state.new_game_msg(newgame=False)
                                 )
                                 await self.set_picotutor_position(new_game=True)  # issue #78 new code
                             else:
@@ -3283,7 +3314,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=self.state.done_move,
                                     ponder=False,
-                                    game=self.state.game.copy(),
+                                    game=self.state.game_copy(),
                                     wait=False,
                                     is_user_move=False,
                                 )
@@ -3495,7 +3526,7 @@ async def main() -> None:
             await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
             if fen_header and fen_board_valid:
                 # publish FEN-started game to displays/engine listeners
-                await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=False))
+                await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
             # switch temporarly picotutor off
             old_flag_picotutor = self.state.flag_picotutor
@@ -3905,7 +3936,7 @@ async def main() -> None:
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 await self.user_move(next_move, sliding=False)
             else:
-                game_copy = self.state.game.copy()
+                game_copy = self.state.game_copy()
                 await DisplayMsg.show(
                     Message.COMPUTER_MOVE(
                         move=next_move,
@@ -4221,7 +4252,7 @@ async def main() -> None:
                     self.state.legal_fens_after_cmove = []
                     self.is_out_of_time_already = False
                     real_new_game = game_fen != chess.STARTING_BOARD_FEN
-                    msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=real_new_game)
+                    msg = self.state.new_game_msg(newgame=real_new_game)
                     await DisplayMsg.show(msg)
                 else:
                     # issue #72 - avoid problems by not sending newgame to new engine
@@ -4421,7 +4452,7 @@ async def main() -> None:
                 self.state.game_declared = False
 
                 await self.set_picotutor_position(new_game=True)
-                await self.set_wait_state(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True))
+                await self.set_wait_state(self.state.new_game_msg(newgame=True))
                 if self.emulation_mode():
                     if self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                         # switch windows/tasks
@@ -4587,7 +4618,7 @@ async def main() -> None:
                         # V4 built-in pgn replay done - no game to replay
                         self.state.interaction_mode = Mode.NORMAL  # switch to NORMAL plyaing mode
                         await self.engine_mode()  # see INTERACTION_MODE handling
-                    await self.set_wait_state(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame))
+                    await self.set_wait_state(self.state.new_game_msg(newgame=newgame))
                     if "no_player" not in self.opp_user and "no_user" not in self.own_user:
                         await self.switch_online()
                     if self.picotutor_mode():
@@ -4668,7 +4699,7 @@ async def main() -> None:
                         self.is_out_of_time_already = False
                         self.state.game_declared = False
                         await self.set_wait_state(
-                            Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame),
+                            self.state.new_game_msg(newgame=newgame),
                         )
                         if "no_player" not in self.opp_user and "no_user" not in self.own_user:
                             await self.switch_online()
@@ -4683,14 +4714,14 @@ async def main() -> None:
                             if "mate in" in pgn_problem or "Mate in" in pgn_problem or pgn_fen != "":
                                 await self.set_fen_from_pgn(pgn_fen)
                                 await self.set_wait_state(
-                                    Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame),
+                                    self.state.new_game_msg(newgame=newgame),
                                 )
                             else:
                                 await DisplayMsg.show(
-                                    Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame)
+                                    self.state.new_game_msg(newgame=newgame)
                                 )
                         else:
-                            await DisplayMsg.show(Message.START_NEW_GAME(game=self.state.game.copy(), newgame=newgame))
+                            await DisplayMsg.show(self.state.new_game_msg(newgame=newgame))
 
                 if self.picotutor_mode():
                     self.state.picotutor.newgame()
@@ -5024,7 +5055,7 @@ async def main() -> None:
                             Message.COMPUTER_MOVE(
                                 move=event.move,
                                 ponder=chess.Move.null(),
-                                game=self.state.game.copy(),
+                                game=self.state.game_copy(),
                                 wait=False,
                                 is_user_move=False,
                             )
@@ -5336,7 +5367,7 @@ async def main() -> None:
                                 Message.COMPUTER_MOVE(
                                     move=event.move,
                                     ponder=event.ponder,
-                                    game=self.state.game.copy(),
+                                    game=self.state.game_copy(),
                                     wait=event.inbook,
                                     is_user_move=False,
                                 )
@@ -5507,20 +5538,22 @@ async def main() -> None:
                 if event.pv[0]:
                     # illegal moves can occur if a pv from the engine arrives
                     # at the same time as an user move
-                    if self.state.game.is_legal(event.pv[0]):
+                    # Use variant board for legality check (atomic has different legal moves)
+                    pv_check_board = self.state.get_variant_board() or self.state.game
+                    if pv_check_board.is_legal(event.pv[0]):
                         # only pv received from event
                         await DisplayMsg.show(
                             Message.NEW_PV(
                                 pv=event.pv,
                                 mode=self.state.interaction_mode,
-                                game=self.state.game.copy(),
+                                game=self.state.game_copy(),
                             )
                         )
                     else:
                         logger.info(
                             "illegal move can not be displayed. move: %s fen: %s",
                             event.pv[0],
-                            self.state.game.fen(),
+                            self.state.get_fen(),
                         )
                         logger.info("engine status: t:%s p:%s", self.engine.is_thinking(), self.engine.is_pondering())
 
@@ -5796,7 +5829,7 @@ async def main() -> None:
                         self.state._atomic_board.reset()
                     self.state.play_mode = PlayMode.USER_WHITE
                     if game_fen != chess.STARTING_BOARD_FEN:
-                        msg = Message.START_NEW_GAME(game=self.state.game.copy(), newgame=True)
+                        msg = self.state.new_game_msg(newgame=True)
                         await DisplayMsg.show(msg)
                     await self.engine.newgame(self.state.game.copy())
                     self.state.best_sent_depth.reset()

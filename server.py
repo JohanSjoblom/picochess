@@ -1102,6 +1102,16 @@ class WebDisplay(DisplayMsg):
             return game.board_fen()
 
         def _oldstyle_fen(game: chess.Board):
+            variant = self.shared.get("variant", "chess")
+            if variant == "atomic" and game.move_stack:
+                try:
+                    import chess.variant
+                    atm = chess.variant.AtomicBoard()
+                    for move in game.move_stack:
+                        atm.push(move)
+                    return atm.fen()
+                except Exception:
+                    pass  # fall through to standard
             builder = []
             builder.append(_variant_board_fen(game))
             builder.append("w" if game.turn == chess.WHITE else "b")
@@ -1168,7 +1178,18 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         def _transfer(game: chess.Board, keep_these_headers: dict = None):
-            pgn_game = pgn.Game().from_board(game)
+            variant = self.shared.get("variant", "chess")
+            if variant == "atomic" and game.move_stack:
+                try:
+                    import chess.variant
+                    atm = chess.variant.AtomicBoard()
+                    for move in game.move_stack:
+                        atm.push(move)
+                    pgn_game = pgn.Game.from_board(atm)
+                except Exception:
+                    pgn_game = pgn.Game().from_board(game)
+            else:
+                pgn_game = pgn.Game().from_board(game)
             self._build_game_header(pgn_game, keep_these_headers)
             self.shared["headers"] = pgn_game.headers
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
@@ -1192,7 +1213,7 @@ class WebDisplay(DisplayMsg):
                 # #78 and #55 just a new position, keep headers
                 keep_these_headers = self.shared["headers"]
             pgn_str = _transfer(message.game, keep_these_headers)
-            fen = message.game.fen()
+            fen = _oldstyle_fen(message.game) if message.game.move_stack else message.game.fen()
             result = {
                 "pgn": pgn_str,
                 "fen": fen,

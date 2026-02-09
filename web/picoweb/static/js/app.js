@@ -52,13 +52,16 @@ function updateCheckCounters(variant, checks) {
     var checkCounters = document.getElementById('checkCounters');
     if (!checkCounters) return;
 
+    // Track current variant for all variant types
+    if (variant) {
+        currentVariant = variant;
+    }
+
     if (variant === '3check' && checks) {
-        currentVariant = '3check';
         document.getElementById('whiteChecks').textContent = (3 - checks.black); // checks given by White to Black
         document.getElementById('blackChecks').textContent = (3 - checks.white); // checks given by Black to White
         checkCounters.style.display = 'inline';
     } else {
-        currentVariant = 'chess';
         checkCounters.style.display = 'none';
     }
 }
@@ -810,8 +813,12 @@ var updateStatus = function () {
         element[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
-    bookDataTable.ajax.reload();
-    gameDataTable.ajax.reload();
+    // Skip book and games database lookups for atomic chess — the databases
+    // contain standard-chess data and the FEN after explosions will not match.
+    if (currentVariant !== 'atomic') {
+        bookDataTable.ajax.reload();
+        gameDataTable.ajax.reload();
+    }
 };
 
 function toDests(chess) {
@@ -1095,11 +1102,14 @@ function loadGame(pgn_lines) {
             var move = board_stack[last_board_stack_index].move(preparsed_move, { sloppy: true });
             in_variation = true;
             if (move === null) {
-                ('Unparsed move:');
-                console.log(preparsed_move);
+                // Variant chess (e.g. atomic): chess.js cannot validate moves
+                // that are only legal under variant rules (explosions clear
+                // pieces that chess.js still thinks are on the board).  Skip
+                // the move so we don't corrupt fenHash; forcePosition() will
+                // set the correct board state later.
+                console.log('Unparsed move (variant?): ' + preparsed_move);
                 console.log('Fen: ' + board_stack[last_board_stack_index].fen());
-                console.log('faulty line: ' + line);
-                console.log('Chess960: ' + chessGameType)
+                continue;
             }
 
             var props = {};
@@ -1117,7 +1127,7 @@ function loadGame(pgn_lines) {
             variation_stack[last_variation_stack_index] = __ret.node;
         }
     }
-    if (computerside == "" || (computerside != "" && lastmove.color != computerside)) {
+    if (lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
         var tmp_board = new Chess(currentPosition.fen, chessGameType);
         saymove(lastmove, tmp_board); // announce user move
     }
@@ -1798,8 +1808,17 @@ function forcePosition(fen) {
     // Use the last known game node for move metadata and override the display.
     if (fenHash['last']) {
         currentPosition = fenHash['last'];
+        // Override the chess.js-computed FEN with the server's correct FEN
+        // so that subsequent Light events and goToPosition work correctly.
+        var oldFen = currentPosition.fen;
+        currentPosition.fen = fen;
+        fenHash[fen] = currentPosition;
+        if (oldFen && oldFen !== fen) {
+            delete fenHash[oldFen];
+        }
     }
     chessground1.set({ fen: fen });
+    updateStatus();
 }
 
 function updateTutorMistakes(mistakes) {
@@ -2333,9 +2352,11 @@ $(function () {
                     if (tmp_move !== null) {
                         computerside = tmp_move.color;
                         saymove(tmp_move, tmp_board);
-                        highlightBoard(data.move, 'computer');
-                        addArrow(data.move, 'computer');
                     }
+                    // Always show highlight and arrow for computer moves,
+                    // even when chess.js can't validate the move (atomic variant).
+                    highlightBoard(data.move, 'computer');
+                    addArrow(data.move, 'computer');
                     break;
                 case 'Clear':
                     break;

@@ -401,13 +401,13 @@ def get_location():
     # to `ip -4 addr show` (e.g., wlan0/eth0) for offline-friendly IP display.
     if int_ip := _get_internal_ip():
         try:
-            response = urllib.request.urlopen("https://get.geojs.io/v1/ip/geo.json")
+            response = urllib.request.urlopen("https://ipv4.geojs.io/v1/ip/geo.json")
             j = json.loads(response.read().decode())
 
             country_name = j.get("country", "")
             country_code = j.get("country_code", "")
             city = j.get("city", "")
-            ext_ip = j.get("IPv4", None)
+            ext_ip = j.get("ip", None)
 
             return f"{city}, {country_name} {country_code}", ext_ip, int_ip
         except Exception:

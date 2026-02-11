@@ -32,6 +32,7 @@ import platform
 import chess  # type: ignore
 import chess.pgn as pgn  # type: ignore
 import chess.polyglot  # type: ignore
+import chess.variant  # type: ignore
 
 import pam
 import tornado.web  # type: ignore
@@ -1230,7 +1231,6 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic":
                 try:
-                    import chess.variant
                     atm = chess.variant.AtomicBoard()
                     for move in game.move_stack:
                         atm.push(move)
@@ -1243,7 +1243,6 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic" and game.move_stack:
                 try:
-                    import chess.variant
                     atm = chess.variant.AtomicBoard()
                     for move in game.move_stack:
                         atm.push(move)
@@ -1319,7 +1318,6 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic" and game.move_stack:
                 try:
-                    import chess.variant
                     atm = chess.variant.AtomicBoard()
                     for move in game.move_stack:
                         atm.push(move)
@@ -1715,7 +1713,12 @@ class WebDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self.task(message))
-                await self.task(message)
+                try:
+                    await self.task(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("WebDisplay: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

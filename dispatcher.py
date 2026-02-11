@@ -187,7 +187,12 @@ class Dispatcher(DispatchDgt):
                 logger.debug("received command from dispatch_queue: %s devs: %s", msg, ",".join(msg.devs))
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self.process_dispatch_message(msg))
-                await self.process_dispatch_message(msg)
+                try:
+                    await self.process_dispatch_message(msg)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("dispatch: unhandled exception processing %s", msg)
                 dispatch_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

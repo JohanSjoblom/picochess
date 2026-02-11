@@ -19,6 +19,7 @@ import logging
 import asyncio
 
 from chess import Board  # type: ignore
+import chess.variant  # type: ignore
 from utilities import DisplayDgt
 from dgt.util import ClockSide
 from dgt.api import Dgt
@@ -95,12 +96,8 @@ class DgtIface(DisplayDgt):
         fen = message.fen
 
         if variant == "atomic":
-            import chess.variant
-
             return chess.variant.AtomicBoard(fen)
         elif variant == "kingofthehill":
-            import chess.variant
-
             return chess.variant.KingOfTheHillBoard(fen)
         elif variant == "3check":
             # ThreeCheckBoard uses standard FEN for board position
@@ -216,7 +213,12 @@ class DgtIface(DisplayDgt):
                 message = await self.dgt_queue.get()
                 # issue #45 just process one message at a time - dont spawn task
                 # task = asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("[%s] unhandled exception processing %s", self.get_name(), message)
                 # res = await task # needed only for debug below
                 self.dgt_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues

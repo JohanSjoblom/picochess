@@ -45,6 +45,7 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
+NATIVE_PAD_MS = 20
 
 
 class PicoTalker(object):
@@ -272,6 +273,11 @@ class PicoTalkerDisplay(DisplayMsg):
                 samples, samplerate = sf.read(voice_file, dtype="float32", always_2d=True)
                 if self.speed_factor != 1.0:
                     samples = self._audiotsm_process(samples)
+                if NATIVE_PAD_MS > 0:
+                    pad_samples = int(samplerate * (NATIVE_PAD_MS / 1000.0))
+                    if pad_samples > 0:
+                        pad = np.zeros((pad_samples, samples.shape[1]), dtype=np.float32)
+                        samples = np.vstack((pad, samples, pad))
                 self._sound_cache_put(key, (samples, samplerate))
             else:
                 samples, samplerate = cached

@@ -21,6 +21,7 @@ import logging
 import copy
 import asyncio
 import chess  # type: ignore
+import chess.variant  # type: ignore
 from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
 from timecontrol import TimeControl
@@ -788,7 +789,12 @@ class DgtDisplay(DisplayMsg):
         2. self._current_variant (instance state, set via Message attributes)
         Returns (variant_name, fen).
         """
-        variant_name = getattr(game, '_variant_name', None) or self._current_variant
+        game_variant = getattr(game, '_variant_name', None)
+        variant_name = game_variant or self._current_variant
+        # Keep _current_variant in sync when game carries variant info
+        if game_variant and game_variant != self._current_variant:
+            self._current_variant = game_variant
+            logger.debug("_variant_fen_from_game: updated _current_variant to %s", game_variant)
         class_name = game.__class__.__name__
 
         # If the board object is already a variant board, use it directly
@@ -802,7 +808,6 @@ class DgtDisplay(DisplayMsg):
         # For atomic variant with a standard chess.Board, replay on AtomicBoard
         if variant_name == "atomic" and game.move_stack:
             try:
-                import chess.variant
                 atm = chess.variant.AtomicBoard()
                 for move in game.move_stack:
                     atm.push(move)
@@ -1333,6 +1338,14 @@ class DgtDisplay(DisplayMsg):
                     ModeInfo.set_game_ending(result="1-0")
                 elif message.result == GameResult.THREE_CHECK_BLACK:
                     ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.ATOMIC_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.ATOMIC_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.KOTH_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.KOTH_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
                 elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                     # last moved has won
                     if message.game.turn == chess.WHITE:
@@ -1723,7 +1736,12 @@ class DgtDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("DgtDisplay: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

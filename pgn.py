@@ -792,7 +792,12 @@ class PgnDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("PGN: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

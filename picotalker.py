@@ -717,7 +717,12 @@ class PicoTalkerDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self.process_picotalker_messages(message))
-                await self.process_picotalker_messages(message)
+                try:
+                    await self.process_picotalker_messages(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("picotalker: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

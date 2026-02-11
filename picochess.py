@@ -40,6 +40,7 @@ import chess.pgn
 from chess.pgn import Game
 import chess.polyglot
 import chess.engine
+import chess.variant
 from tornado.platform.asyncio import AsyncIOMainLoop
 from chess.engine import InfoDict, Limit, BestMove, PlayResult
 import dgt.util
@@ -1736,7 +1737,6 @@ async def main() -> None:
                     self.state._threecheck_board = None
                     self.state._atomic_board = None
                 elif self.state.variant == "atomic":
-                    import chess.variant
                     self.state._atomic_board = chess.variant.AtomicBoard()
                     self.state._threecheck_board = None
                     # Sync with existing move_stack from game (for engine switch mid-game)
@@ -4220,6 +4220,8 @@ async def main() -> None:
                 else:
                     # issue #72 - avoid problems by not sending newgame to new engine
                     await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
+                    # Still notify the display layer about the new game (variant info etc.)
+                    await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
                 await self.engine_mode()
 

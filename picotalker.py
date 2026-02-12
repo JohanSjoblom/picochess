@@ -46,6 +46,7 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
 NATIVE_PAD_MS = 20
+NATIVE_GAP_MS = 20
 
 
 class PicoTalker(object):
@@ -234,6 +235,8 @@ class PicoTalkerDisplay(DisplayMsg):
                 played = False
                 if self.use_native_audio:
                     played = await asyncio.to_thread(self.native_sound_player, voice_file)
+                    if played and NATIVE_GAP_MS > 0:
+                        await asyncio.sleep(NATIVE_GAP_MS / 1000.0)
                 if not played:
                     await asyncio.to_thread(self.pico3_sound_player, voice_file)
         except asyncio.CancelledError:

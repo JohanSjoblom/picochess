@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
 NATIVE_PAD_MS = 20
 NATIVE_GAP_MS = 20
-SHUTDOWN_SOUND_WAIT_S = 2.0
+SHUTDOWN_SOUND_WAIT_S = 2  # seconds, integer
 
 
 class PicoTalker(object):
@@ -209,8 +209,12 @@ class PicoTalkerDisplay(DisplayMsg):
     async def exit_or_reboot_cleanups(self):
         """Clean up before exit or reboot."""
         logger.debug("picotalker cleaning up sound cache and queues")
-        if SHUTDOWN_SOUND_WAIT_S > 0:
-            await asyncio.sleep(SHUTDOWN_SOUND_WAIT_S)
+        if SHUTDOWN_SOUND_WAIT_S > 0 and not self.common_queue.empty():
+            waits = int(SHUTDOWN_SOUND_WAIT_S)
+            for _ in range(waits):
+                if self.common_queue.empty():
+                    break
+                await asyncio.sleep(1.0)
         # First drain remaining unplayed sounds
         while not self.common_queue.empty():
             try:

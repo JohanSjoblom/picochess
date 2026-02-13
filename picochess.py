@@ -4450,6 +4450,11 @@ async def main() -> None:
                 self.state.reset_auto = False
                 self.state.flag_startup = False
                 self.state.flag_pgn_game_over = False
+                
+                # Check if game already ended BEFORE resetting the game ending status
+                # This prevents duplicate PGN saves when user resets board after game ends
+                game_already_ended = ModeInfo.get_game_ending() != "*"
+                
                 ModeInfo.set_game_ending(result="*")  # initialize game result for game saving status
                 self.state.position_mode = False
                 self.state.fen_error_occured = False
@@ -4464,7 +4469,7 @@ async def main() -> None:
                 if newgame:
                     logger.debug("starting a new game with code: %s", event.pos960)
                     uci960 = event.pos960 != 518
-
+                    
                     if not (self.state.game.is_game_over() or self.state.game_declared) or self.pgn_mode():
                         if self.emulation_mode():  # force abortion for mame
                             if self.state.is_not_user_turn():
@@ -4478,18 +4483,20 @@ async def main() -> None:
                                 self.state.stop_fen_timer()
                                 self.state.legal_fens_after_cmove = []
 
-                        result = GameResult.ABORT
-                        self.game_end_event()
-                        await DisplayMsg.show(
-                            Message.GAME_ENDS(
-                                tc_init=self.state.time_control.get_parameters(),
-                                result=result,
-                                play_mode=self.state.play_mode,
-                                game=self.state.game.copy(),
-                                mode=self.state.interaction_mode,
+                        # Only send ABORT message if game hasn't already ended
+                        if not game_already_ended:
+                            result = GameResult.ABORT
+                            self.game_end_event()
+                            await DisplayMsg.show(
+                                Message.GAME_ENDS(
+                                    tc_init=self.state.time_control.get_parameters(),
+                                    result=result,
+                                    play_mode=self.state.play_mode,
+                                    game=self.state.game.copy(),
+                                    mode=self.state.interaction_mode,
+                                )
                             )
-                        )
-                        await asyncio.sleep(0.3)
+                            await asyncio.sleep(0.3)
 
                     self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE

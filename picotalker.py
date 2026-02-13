@@ -45,6 +45,8 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
+NATIVE_PAD_MS = 20
+SHUTDOWN_SOUND_WAIT_S = 2  # seconds, integer
 
 
 class PicoTalker(object):
@@ -78,14 +80,18 @@ class PicoTalker(object):
             return False
 
         result = False
+        voice_files = []
         for part in sounds:
             voice_file = self.voice_path + "/" + part
             if Path(voice_file).is_file():
-                # put in common queue in PicoTalkerDisplay to play one sound at a time
-                await self.sound_queue.put(voice_file)
+                voice_files.append(voice_file)
                 result = True
             else:
                 logger.warning("voice file not found %s", voice_file)
+        if voice_files:
+            # put in common queue in PicoTalkerDisplay to play one sound at a time
+            # use a list to allow native batch playback
+            await self.sound_queue.put(voice_files)
         return result
 
 
@@ -206,6 +212,12 @@ class PicoTalkerDisplay(DisplayMsg):
     async def exit_or_reboot_cleanups(self):
         """Clean up before exit or reboot."""
         logger.debug("picotalker cleaning up sound cache and queues")
+        if SHUTDOWN_SOUND_WAIT_S > 0 and not self.common_queue.empty():
+            waits = int(SHUTDOWN_SOUND_WAIT_S)
+            for _ in range(waits):
+                if self.common_queue.empty():
+                    break
+                await asyncio.sleep(1.0)
         # First drain remaining unplayed sounds
         while not self.common_queue.empty():
             try:
@@ -225,16 +237,24 @@ class PicoTalkerDisplay(DisplayMsg):
         Both user, computer and beeper talker will use this queue to play sounds."""
         try:
             while True:
-                voice_file = await self.common_queue.get()
-                if voice_file is None:
+                voice_item = await self.common_queue.get()
+                if voice_item is None:
                     # stop sound player
                     logger.debug("picotalker sound player stopping")
                     break  # exit the loop
                 played = False
-                if self.use_native_audio:
-                    played = await asyncio.to_thread(self.native_sound_player, voice_file)
-                if not played:
-                    await asyncio.to_thread(self.pico3_sound_player, voice_file)
+                if isinstance(voice_item, list):
+                    if self.use_native_audio:
+                        played = await asyncio.to_thread(self.native_sound_player_batch, voice_item)
+                    if not played:
+                        for voice_file in voice_item:
+                            await asyncio.to_thread(self.pico3_sound_player, voice_file)
+                else:
+                    voice_file = voice_item
+                    if self.use_native_audio:
+                        played = await asyncio.to_thread(self.native_sound_player, voice_file)
+                    if not played:
+                        await asyncio.to_thread(self.pico3_sound_player, voice_file)
         except asyncio.CancelledError:
             logger.debug("picotalker sound player cancelled")
 
@@ -272,6 +292,11 @@ class PicoTalkerDisplay(DisplayMsg):
                 samples, samplerate = sf.read(voice_file, dtype="float32", always_2d=True)
                 if self.speed_factor != 1.0:
                     samples = self._audiotsm_process(samples)
+                if NATIVE_PAD_MS > 0:
+                    pad_samples = int(samplerate * (NATIVE_PAD_MS / 1000.0))
+                    if pad_samples > 0:
+                        pad = np.zeros((pad_samples, samples.shape[1]), dtype=np.float32)
+                        samples = np.vstack((pad, samples, pad))
                 self._sound_cache_put(key, (samples, samplerate))
             else:
                 samples, samplerate = cached
@@ -279,6 +304,43 @@ class PicoTalkerDisplay(DisplayMsg):
             return True
         except Exception as exc:
             logger.warning("native audio failed for %s: %s", voice_file, exc)
+            return False
+
+    def native_sound_player_batch(self, voice_files) -> bool:
+        """Play a list of sound files as one concatenated native buffer."""
+        if not NATIVE_AUDIO_AVAILABLE:
+            return False
+        try:
+            buffers = []
+            samplerate = None
+            for voice_file in voice_files:
+                key = (voice_file, self.speed_factor)
+                cached = self._sound_cache_get(key)
+                if cached is None:
+                    samples, sr = sf.read(voice_file, dtype="float32", always_2d=True)
+                    if self.speed_factor != 1.0:
+                        samples = self._audiotsm_process(samples)
+                    if NATIVE_PAD_MS > 0:
+                        pad_samples = int(sr * (NATIVE_PAD_MS / 1000.0))
+                        if pad_samples > 0:
+                            pad = np.zeros((pad_samples, samples.shape[1]), dtype=np.float32)
+                            samples = np.vstack((pad, samples, pad))
+                    self._sound_cache_put(key, (samples, sr))
+                else:
+                    samples, sr = cached
+                if samplerate is None:
+                    samplerate = sr
+                elif sr != samplerate:
+                    logger.warning("native audio sample rate mismatch: %s (%s) != %s", voice_file, sr, samplerate)
+                    return False
+                buffers.append(samples)
+            if not buffers or samplerate is None:
+                return False
+            combined = np.vstack(buffers)
+            sd.play(combined, samplerate, blocking=True)
+            return True
+        except Exception as exc:
+            logger.warning("native audio batch failed: %s", exc)
             return False
 
     def pico3_sound_player(self, voice_file) -> bool:

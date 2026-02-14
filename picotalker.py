@@ -24,6 +24,7 @@ import os
 import asyncio
 from collections import OrderedDict
 import subprocess
+import threading
 
 try:
     import numpy as np  # type: ignore
@@ -191,6 +192,10 @@ class PicoTalkerDisplay(DisplayMsg):
             if self.audio_backend == "native" and not NATIVE_AUDIO_AVAILABLE:
                 logger.warning("native audio requested but unavailable, falling back to SoX")
             self.use_native_audio = False
+        self.native_stream = None
+        self.native_stream_samplerate = None
+        self.native_stream_channels = None
+        self.native_stream_lock = threading.RLock()
 
         if user_voice:
             logger.debug("creating user voice: [%s]", str(user_voice))
@@ -217,6 +222,7 @@ class PicoTalkerDisplay(DisplayMsg):
         # calling main picochess is waiting after this, but...
         # cannot clear cache before it finds None in the sound queue
         await asyncio.sleep(0.1)  # give sound player time to process None
+        self._close_native_stream()
         self.sound_cache.clear()  # clear sound cache
         self.sound_cache = OrderedDict()
 
@@ -250,6 +256,47 @@ class PicoTalkerDisplay(DisplayMsg):
         if len(self.sound_cache) > SOUND_CACHE_LIMIT:
             self.sound_cache.popitem(last=False)
 
+    def _close_native_stream(self):
+        with self.native_stream_lock:
+            if self.native_stream is not None:
+                try:
+                    if self.native_stream.active:
+                        self.native_stream.stop()
+                except Exception:
+                    pass
+                try:
+                    self.native_stream.close()
+                except Exception:
+                    pass
+            self.native_stream = None
+            self.native_stream_samplerate = None
+            self.native_stream_channels = None
+
+    def _ensure_native_stream(self, samplerate: int, channels: int) -> bool:
+        with self.native_stream_lock:
+            if self.native_stream is not None:
+                if (
+                    self.native_stream_samplerate == samplerate
+                    and self.native_stream_channels == channels
+                    and self.native_stream.active
+                ):
+                    return True
+                self._close_native_stream()
+            try:
+                self.native_stream = sd.OutputStream(
+                    samplerate=samplerate,
+                    channels=channels,
+                    dtype="float32",
+                )
+                self.native_stream.start()
+                self.native_stream_samplerate = samplerate
+                self.native_stream_channels = channels
+                return True
+            except Exception as exc:
+                logger.warning("native audio stream init failed: %s", exc)
+                self._close_native_stream()
+                return False
+
     def _audiotsm_process(self, samples):
         channels = samples.shape[1]
         if channels == 0:
@@ -275,7 +322,10 @@ class PicoTalkerDisplay(DisplayMsg):
                 self._sound_cache_put(key, (samples, samplerate))
             else:
                 samples, samplerate = cached
-            sd.play(samples, samplerate, blocking=True)
+            with self.native_stream_lock:
+                if not self._ensure_native_stream(samplerate, samples.shape[1]):
+                    return False
+                self.native_stream.write(samples)
             return True
         except Exception as exc:
             logger.warning("native audio failed for %s: %s", voice_file, exc)

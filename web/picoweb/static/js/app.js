@@ -1817,7 +1817,7 @@ function forcePosition(fen) {
             delete fenHash[oldFen];
         }
     }
-    chessground1.set({ fen: fen });
+    updateChessGround();
     updateStatus();
 }
 

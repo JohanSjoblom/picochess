@@ -298,6 +298,7 @@ class PicochessState:
         self.variant = "chess"
         self._threecheck_board = None  # ThreeCheckBoard instance when variant == "3check"
         self._atomic_board = None  # chess.variant.AtomicBoard instance when variant == "atomic"
+        self._racingkings_board = None  # chess.variant.RacingKingsBoard instance when variant == "racingkings"
 
     def push_move(self, move: chess.Move) -> None:
         """Push a move to the game board and sync variant board if active."""
@@ -306,6 +307,8 @@ class PicochessState:
             self._threecheck_board.push(move)
         elif self.variant == "atomic" and self._atomic_board is not None:
             self._atomic_board.push(move)
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            self._racingkings_board.push(move)
 
     def pop_move(self) -> chess.Move:
         """Pop a move from the game board and sync variant board if active."""
@@ -320,6 +323,11 @@ class PicochessState:
                 self._atomic_board.pop()
             except IndexError:
                 pass  # History already empty
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            try:
+                self._racingkings_board.pop()
+            except IndexError:
+                pass  # History already empty
         return move
 
     def game_copy(self) -> chess.Board:
@@ -332,6 +340,18 @@ class PicochessState:
         if self.variant != "chess":
             copy._variant_name = self.variant
         return copy
+
+    def engine_board_copy(self):
+        """Return a board copy suitable for engine communication.
+
+        For variants with a dedicated board (racingkings, atomic, 3check) return
+        a copy of the variant board so that python-chess sends the correct
+        UCI_Variant to the engine.  Falls back to self.game.copy().
+        """
+        vb = self.get_variant_board()
+        if vb is not None:
+            return vb.copy()
+        return self.game.copy()
 
     def new_game_msg(self, newgame: bool):
         """Create a START_NEW_GAME message with variant info attached."""
@@ -352,6 +372,8 @@ class PicochessState:
             return self._atomic_board
         elif self.variant == "3check" and self._threecheck_board is not None:
             return self._threecheck_board
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            return self._racingkings_board
         # KOTH uses standard board with special win condition only
         return None
 
@@ -365,6 +387,8 @@ class PicochessState:
             return self._atomic_board.board_fen()
         elif self.variant == "3check" and self._threecheck_board is not None:
             return self._threecheck_board.board_fen()
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            return self._racingkings_board.board_fen()
         return self.game.board_fen()
 
     def get_fen(self) -> str:
@@ -377,6 +401,8 @@ class PicochessState:
             return self._atomic_board.fen()
         elif self.variant == "3check" and self._threecheck_board is not None:
             return self._threecheck_board.fen()
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            return self._racingkings_board.fen()
         return self.game.fen()
 
     async def start_clock(self) -> None:
@@ -552,9 +578,32 @@ class PicochessState:
                     mode=self.interaction_mode,
                 )
 
+        # Check Racing Kings variant win condition (king reaches 8th rank)
+        if self.variant == "racingkings" and self._racingkings_board is not None:
+            if self._racingkings_board.is_variant_end():
+                rk_result = self._racingkings_board.result()
+                if rk_result == "1-0":
+                    result = GameResult.RK_WHITE
+                elif rk_result == "0-1":
+                    result = GameResult.RK_BLACK
+                else:
+                    result = GameResult.DRAW
+                return Message.GAME_ENDS(
+                    tc_init=self.time_control.get_parameters(),
+                    result=result,
+                    play_mode=self.play_mode,
+                    game=self.game.copy(),
+                    mode=self.interaction_mode,
+                )
+
         # Standard game end conditions
-        # For Atomic, use _atomic_board for correct state after explosions
-        check_board = self._atomic_board if self.variant == "atomic" and self._atomic_board else self.game
+        # For variant boards with different rules, use variant board for correct state
+        if self.variant == "atomic" and self._atomic_board:
+            check_board = self._atomic_board
+        elif self.variant == "racingkings" and self._racingkings_board:
+            check_board = self._racingkings_board
+        else:
+            check_board = self.game
         if check_board.is_stalemate():
             result = GameResult.STALEMATE
         elif check_board.is_insufficient_material():
@@ -725,6 +774,10 @@ def read_online_user_info() -> Tuple[str, str, str, str, int, int]:
     logger.debug("online game_time %s fischer_inc: %s", game_time, fischer_inc)
 
     return login, own_color, own_user, opp_user, game_time, fischer_inc
+
+
+# Racing Kings starting board FEN (piece positions only, no turn/castling/etc.)
+RK_STARTING_BOARD_FEN = "8/8/8/8/8/8/krbnNBRK/qrbnNBRQ"
 
 
 def compare_fen(fen_board_external="", fen_board_internal="", board_type: type = None) -> str:
@@ -1293,7 +1346,7 @@ async def main() -> None:
                 await self.set_wait_state(self.state.new_game_msg(newgame=True))
             else:
                 ModeInfo.set_online_mode(mode=False)
-                await self.engine.newgame(self.state.game.copy())
+                await self.engine.newgame(self.state.engine_board_copy())
 
             self.state.comment_file = self.get_comment_file()
             tutor_engine = self.args.tutor_engine
@@ -1412,7 +1465,10 @@ async def main() -> None:
             if self.state.pending_engine_result is None:
                 # For any engine that produces bestmove 0000 or an illegal move we always
                 # ping it (isready) in handle_bestmove_0000() to decide between resignation and crash.
-                self.state.pending_engine_result = await self.engine.handle_bestmove_0000(self.state.game.copy())
+                vb = self.state.get_variant_board()
+                self.state.pending_engine_result = await self.engine.handle_bestmove_0000(
+                    self.state.game.copy(), variant_board=vb.copy() if vb else None
+                )
 
         async def think(
             self,
@@ -1428,8 +1484,8 @@ async def main() -> None:
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
             book_res = None
-            if self.bookreader and self.state.variant != "atomic":
-                # Skip opening book for atomic chess - the engine should think from move 1
+            if self.bookreader and self.state.variant not in ("atomic", "racingkings"):
+                # Skip opening book for atomic/racingkings - non-standard starting positions
                 # For 3check variant, use standard FEN for book lookup
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
                     book_lookup_board = chess.Board(self.state._threecheck_board.standard_fen())
@@ -1455,12 +1511,14 @@ async def main() -> None:
                     # webplay: Event.BEST_MOVE pushes the move on display
                     # dgt board: BEST_MOVE 1) informs 2) user moves, 3) dgt event to process_fen() push
                     result_queue = asyncio.Queue()  # engines move result
-                    # For 3check/atomic variants, pass the variant board to engine for correct FEN
+                    # For variant chess, pass the variant board to engine for correct FEN
                     variant_board = None
                     if self.state.variant == "3check" and self.state._threecheck_board is not None:
                         variant_board = self.state._threecheck_board.copy()
                     elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                         variant_board = self.state._atomic_board.copy()
+                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                        variant_board = self.state._racingkings_board.copy()
                     await self.engine.go(
                         time_dict=uci_dict,
                         game=self.state.game,
@@ -1683,6 +1741,8 @@ async def main() -> None:
                     self.state._threecheck_board.set_fen(bit_board.fen())
                 elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                     self.state._atomic_board.set_fen(bit_board.fen())
+                elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                    self.state._racingkings_board.set_fen(bit_board.fen())
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.searchmoves.reset()
@@ -1746,6 +1806,7 @@ async def main() -> None:
                     from threecheck import ThreeCheckBoard
                     self.state._threecheck_board = ThreeCheckBoard()
                     self.state._atomic_board = None
+                    self.state._racingkings_board = None
                     # Sync with existing move_stack from game (for engine switch mid-game)
                     if self.state.game.move_stack:
                         logger.info("3check: syncing with existing %d moves", len(self.state.game.move_stack))
@@ -1759,22 +1820,40 @@ async def main() -> None:
                     logger.info("King of the Hill variant initialized")
                     self.state._threecheck_board = None
                     self.state._atomic_board = None
+                    self.state._racingkings_board = None
                 elif self.state.variant == "atomic":
                     self.state._atomic_board = chess.variant.AtomicBoard()
                     self.state._threecheck_board = None
+                    self.state._racingkings_board = None
                     # Sync with existing move_stack from game (for engine switch mid-game)
                     if self.state.game.move_stack:
                         logger.info("atomic: syncing with existing %d moves", len(self.state.game.move_stack))
                         for move in self.state.game.move_stack:
                             self.state._atomic_board.push(move)
                     logger.info("Atomic variant initialized")
+                elif self.state.variant == "racingkings":
+                    self.state._racingkings_board = chess.variant.RacingKingsBoard()
+                    self.state._threecheck_board = None
+                    self.state._atomic_board = None
+                    # Sync with existing move_stack from game (for engine switch mid-game)
+                    if self.state.game.move_stack:
+                        logger.info("racingkings: syncing with existing %d moves", len(self.state.game.move_stack))
+                        for move in self.state.game.move_stack:
+                            self.state._racingkings_board.push(move)
+                    else:
+                        # Fresh game: set main board to RK starting position
+                        # (standard chess.Board defaults to standard chess starting FEN)
+                        self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+                    logger.info("Racing Kings variant initialized")
                 else:
                     self.state._threecheck_board = None
                     self.state._atomic_board = None
+                    self.state._racingkings_board = None
             else:
                 self.state.variant = "chess"
                 self.state._threecheck_board = None
                 self.state._atomic_board = None
+                self.state._racingkings_board = None
 
             # Update shared dict for web interface
             self._update_variant_shared()
@@ -1888,7 +1967,10 @@ async def main() -> None:
                             if self.state.no_guess_black > self.state.max_guess_black:
                                 await self.get_next_pgn_move()
 
-                if self.state.game.board_fen() == chess.STARTING_BOARD_FEN:
+                if self.state.game.board_fen() == chess.STARTING_BOARD_FEN or (
+                    self.state.variant == "racingkings"
+                    and self.state.game.board_fen() == RK_STARTING_BOARD_FEN
+                ):
                     pos960 = 518
                     await Observable.fire(Event.NEW_GAME(pos960=pos960))
 
@@ -2008,6 +2090,7 @@ async def main() -> None:
                     self.picotutor_mode()
                     and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT
                     and fen != chess.STARTING_BOARD_FEN
+                    and not (self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN)
                     and not self.state.take_back_locked
                     and self.state.coach_triggered
                     and not self.state.position_mode
@@ -2433,6 +2516,16 @@ async def main() -> None:
                     while game_copy.move_stack:
                         game_copy.pop()
                         if game_copy.board_fen() == fen:
+                            # Racing Kings: if all moves have been popped we are back
+                            # at the RK starting position.  Treat this as a NEW GAME,
+                            # not a takeback, so that Event.NEW_GAME fires below.
+                            if (
+                                not game_copy.move_stack
+                                and self.state.variant == "racingkings"
+                                and fen == RK_STARTING_BOARD_FEN
+                            ):
+                                logger.info("racingkings: takeback reached starting position – treating as new game")
+                                break  # handled_fen stays False → falls through to NEW_GAME
                             handled_fen = True
                             logger.info("current game fen      : %s", self.state.game.fen())
                             logger.info("undoing game until fen: %s", fen)
@@ -2484,7 +2577,9 @@ async def main() -> None:
                     await DisplayMsg.show(Message.EXIT_MENU())
                 self.state.position_mode = False
             else:
-                if fen == chess.STARTING_BOARD_FEN:
+                if fen == chess.STARTING_BOARD_FEN or (
+                    self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN
+                ):
                     pos960 = 518
                     self.state.error_fen = None
                     if self.state.position_mode and self.state.delay_fen_error == 1:
@@ -3219,7 +3314,8 @@ async def main() -> None:
                 if (
                     self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.BRAIN)
                     and self.state.error_fen != chess.STARTING_BOARD_FEN
-                    and game_fen == chess.STARTING_BOARD_FEN
+                    and not (self.state.variant == "racingkings" and self.state.error_fen == RK_STARTING_BOARD_FEN)
+                    and (game_fen == chess.STARTING_BOARD_FEN or (self.state.variant == "racingkings" and game_fen == RK_STARTING_BOARD_FEN))
                     and self.state.flag_startup
                     and self.state.dgtmenu.get_game_contlast()
                     and not self.online_mode()
@@ -3263,7 +3359,7 @@ async def main() -> None:
                                 self.state._threecheck_board.set_fen(bit_board.fen())
                             elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                                 self.state._atomic_board.set_fen(bit_board.fen())
-                            await self.engine.newgame(self.state.game.copy(), False)
+                            await self.engine.newgame(self.state.engine_board_copy(), False)
                             self.state.best_sent_depth.reset()
                             self.state.done_computer_fen = None
                             self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -3286,7 +3382,7 @@ async def main() -> None:
                                     self.state._threecheck_board.set_fen(bit_board.fen())
                                 elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                                     self.state._atomic_board.set_fen(bit_board.fen())
-                                await self.engine.newgame(self.state.game.copy(), False)
+                                await self.engine.newgame(self.state.engine_board_copy(), False)
                                 self.state.best_sent_depth.reset()
                                 self.state.done_computer_fen = None
                                 self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -3348,7 +3444,9 @@ async def main() -> None:
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False
-                        if external_fen != chess.STARTING_BOARD_FEN:
+                        if external_fen != chess.STARTING_BOARD_FEN and not (
+                            self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
+                        ):
                             await DisplayMsg.show(Message.WRONG_FEN())
                             await asyncio.sleep(2)
                         self.state.delay_fen_error = 4
@@ -3365,9 +3463,10 @@ async def main() -> None:
                         await DisplayMsg.show(Message.EXIT_MENU())
                         self.state.delay_fen_error = 4
 
+                    _start_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
                     if (
                         self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.BRAIN)
-                        and game_fen != chess.STARTING_BOARD_FEN
+                        and game_fen != _start_fen
                         and self.state.flag_startup
                     ):
                         if self.state.dgtmenu.get_enginename():
@@ -3523,7 +3622,7 @@ async def main() -> None:
                 self.state.pop_move()
 
             # issue #72 - newgame sends a ucinewgame unless stopped
-            await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
+            await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
             if fen_header and fen_board_valid:
                 # publish FEN-started game to displays/engine listeners
                 await DisplayMsg.show(self.state.new_game_msg(newgame=False))
@@ -4230,18 +4329,23 @@ async def main() -> None:
                     # molli for emulation engines we have to reset to starting position
                     await self.stop_search_and_clock()
                     game_fen = self.state.game.board_fen()
-                    self.state.game = chess.Board()
+                    if self.state.variant == "racingkings":
+                        self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+                    else:
+                        self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
                     # Reset variant boards if active
                     if self.state.variant == "3check" and self.state._threecheck_board is not None:
                         self.state._threecheck_board.reset()
                     elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                         self.state._atomic_board.reset()
+                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
                     self.state.play_mode = PlayMode.USER_WHITE
                     if self.pgn_mode():
                         self.engine.option("game_sequence", "forward")
                         await self.engine.send()
-                    await self.engine.newgame(self.state.game.copy())
+                    await self.engine.newgame(self.state.engine_board_copy())
                     self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -4251,12 +4355,13 @@ async def main() -> None:
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
                     self.is_out_of_time_already = False
-                    real_new_game = game_fen != chess.STARTING_BOARD_FEN
+                    starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
+                    real_new_game = game_fen != starting_fen
                     msg = self.state.new_game_msg(newgame=real_new_game)
                     await DisplayMsg.show(msg)
                 else:
                     # issue #72 - avoid problems by not sending newgame to new engine
-                    await self.engine.newgame(self.state.game.copy(), send_ucinewgame=False)
+                    await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
                     # Still notify the display layer about the new game (variant info etc.)
                     await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
@@ -4384,8 +4489,9 @@ async def main() -> None:
                 if self.online_mode():
                     ModeInfo.set_online_mode(mode=True)
                     logger.debug("online game fen: %s", self.state.game.fen())
+                    _start_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
                     if (not self.state.flag_last_engine_online) or (
-                        self.state.game.board_fen() == chess.STARTING_BOARD_FEN
+                        self.state.game.board_fen() == _start_fen
                     ):
                         pos960 = 518
                         await Observable.fire(Event.NEW_GAME(pos960=pos960))
@@ -4435,6 +4541,8 @@ async def main() -> None:
                     self._update_variant_shared()
                 elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                     self.state._atomic_board.set_fen(event.fen)
+                elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                    self.state._racingkings_board.set_fen(event.fen)
 
                 # see new_game
                 await self.stop_search_and_clock()
@@ -4443,7 +4551,7 @@ async def main() -> None:
                     await self.engine.send()
 
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION_SCAN"))
-                await self.engine.newgame(self.state.game.copy())
+                await self.engine.newgame(self.state.engine_board_copy())
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -4535,7 +4643,10 @@ async def main() -> None:
                             )
                             await asyncio.sleep(0.3)
 
-                    self.state.game = chess.Board()
+                    if self.state.variant == "racingkings":
+                        self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+                    else:
+                        self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
 
                     if uci960:
@@ -4547,6 +4658,8 @@ async def main() -> None:
                         self._update_variant_shared()
                     elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                         self.state._atomic_board.reset()
+                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
 
                     if self.state.play_mode != PlayMode.USER_WHITE:
                         self.state.play_mode = PlayMode.USER_WHITE
@@ -4575,7 +4688,7 @@ async def main() -> None:
 
                     if self.pgn_mode():
                         self._advance_pgn_engine_game()
-                    await self.engine.newgame(self.state.game.copy())
+                    await self.engine.newgame(self.state.engine_board_copy())
 
                     self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
@@ -4674,7 +4787,7 @@ async def main() -> None:
                         await DisplayMsg.show(Message.SEEKING())
                         self.state.seeking_flag = True
 
-                        await self.engine.newgame(self.state.game.copy())
+                        await self.engine.newgame(self.state.engine_board_copy())
 
                         (
                             self.login,
@@ -4882,7 +4995,7 @@ async def main() -> None:
                         elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                             self.state._atomic_board.set_fen(bit_board.fen())
                         #  await self.stop_search_and_clock()
-                        await self.engine.newgame(self.state.game.copy())
+                        await self.engine.newgame(self.state.engine_board_copy())
                         self.state.best_sent_depth.reset()
                         self.state.done_computer_fen = None
                         self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -5035,6 +5148,10 @@ async def main() -> None:
                     elif event.result == GameResult.ATOMIC_WHITE:
                         l_result = "1-0"
                     elif event.result == GameResult.ATOMIC_BLACK:
+                        l_result = "0-1"
+                    elif event.result == GameResult.RK_WHITE:
+                        l_result = "1-0"
+                    elif event.result == GameResult.RK_BLACK:
                         l_result = "0-1"
                     ModeInfo.set_game_ending(result=l_result)
                     self.game_end_event()
@@ -5321,7 +5438,10 @@ async def main() -> None:
                                     if not result_str:
                                         # Same logic as above: ping every engine after an illegal move
                                         # so we can distinguish a resignation from a crashed process.
-                                        result_str = await self.engine.handle_bestmove_0000(self.state.game.copy())
+                                        vb = self.state.get_variant_board()
+                                        result_str = await self.engine.handle_bestmove_0000(
+                                            self.state.game.copy(), variant_board=vb.copy() if vb else None
+                                        )
                                     result = game_result_from_header(result_str)  # "*" maps to ABORT
                                     if result != GameResult.ABORT:
                                         await DisplayMsg.show(
@@ -5829,18 +5949,24 @@ async def main() -> None:
                                     "Command failed with return code %s: %s", process.returncode, stderr.decode()
                                 )
                     game_fen = self.state.game.board_fen()
-                    self.state.game = chess.Board()
+                    if self.state.variant == "racingkings":
+                        self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+                    else:
+                        self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
                     # Reset variant boards if active
                     if self.state.variant == "3check" and self.state._threecheck_board is not None:
                         self.state._threecheck_board.reset()
                     elif self.state.variant == "atomic" and self.state._atomic_board is not None:
                         self.state._atomic_board.reset()
+                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
+                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
                     self.state.play_mode = PlayMode.USER_WHITE
-                    if game_fen != chess.STARTING_BOARD_FEN:
+                    starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
+                    if game_fen != starting_fen:
                         msg = self.state.new_game_msg(newgame=True)
                         await DisplayMsg.show(msg)
-                    await self.engine.newgame(self.state.game.copy())
+                    await self.engine.newgame(self.state.engine_board_copy())
                     self.state.best_sent_depth.reset()
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()

@@ -815,7 +815,7 @@ var updateStatus = function () {
 
     // Skip book and games database lookups for atomic chess — the databases
     // contain standard-chess data and the FEN after explosions will not match.
-    if (currentVariant !== 'atomic') {
+    if (currentVariant !== 'atomic' && currentVariant !== 'racingkings') {
         bookDataTable.ajax.reload();
         gameDataTable.ajax.reload();
     }

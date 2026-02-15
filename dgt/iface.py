@@ -19,6 +19,7 @@ import logging
 import asyncio
 
 from chess import Board  # type: ignore
+import chess.variant  # type: ignore
 from utilities import DisplayDgt
 from dgt.util import ClockSide
 from dgt.api import Dgt
@@ -89,6 +90,28 @@ class DgtIface(DisplayDgt):
         """Override this function."""
         raise NotImplementedError()
 
+    def _mk_board(self, message):
+        """Create the appropriate board type based on variant for SAN generation."""
+        variant = getattr(message, "variant", "chess")
+        fen = message.fen
+
+        if variant == "atomic":
+            return chess.variant.AtomicBoard(fen)
+        elif variant == "kingofthehill":
+            return chess.variant.KingOfTheHillBoard(fen)
+        elif variant == "3check":
+            # ThreeCheckBoard uses standard FEN for board position
+            # The extended FEN with check counts is only for engine communication
+            from threecheck import ThreeCheckBoard
+
+            board = ThreeCheckBoard()
+            board.set_fen(fen)
+            return board._board  # Return underlying chess.Board for SAN
+        elif variant == "racingkings":
+            return chess.variant.RacingKingsBoard(fen)
+
+        return Board(fen)
+
     def get_san(self, message, is_xl=False):
         """Create a chess.board plus a text ready to display on clock."""
 
@@ -114,8 +137,8 @@ class DgtIface(DisplayDgt):
             else:
                 return text
 
-        # bit_board = Board(message.fen, message.uci960)
-        bit_board = Board(message.fen)
+        # Use variant-appropriate board for legal move check and SAN generation
+        bit_board = self._mk_board(message)
         if bit_board.is_legal(message.move):
             if message.long:
                 move_text = message.move.uci()
@@ -192,7 +215,12 @@ class DgtIface(DisplayDgt):
                 message = await self.dgt_queue.get()
                 # issue #45 just process one message at a time - dont spawn task
                 # task = asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("[%s] unhandled exception processing %s", self.get_name(), message)
                 # res = await task # needed only for debug below
                 self.dgt_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues

@@ -765,6 +765,9 @@ class UciEngine(object):
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
         self.game_id = 1
+        self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
+        self.uci_variant = None  # UCI_Variant value to send directly to engine (bypasses python-chess)
+        self._variant_sent = False  # True once UCI_Variant has been sent; prevents crashing mid-game resend
         # Whether to suppress early/verbose info lines (used for remote main engine, not for tutor).
         self.suppress_info = suppress_info
         # Remote engine settings (asyncssh)
@@ -932,6 +935,7 @@ class UciEngine(object):
 
             if self.engine and "name" in self.engine.id:
                 self.engine_name = self.engine.id["name"]
+                self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
                 await self.send()
                 return True  # engine responded with its name
         except Exception:
@@ -999,12 +1003,34 @@ class UciEngine(object):
             logger.warning("send called but no engine is loaded")
             return
         try:
+            # Handle UCI_Variant separately - python-chess blocks this in configure()
+            # Send it directly to the engine instead. Check both instance variable and
+            # options dict (in case new UCI_Variant was added from .uci file during level change)
+            if "UCI_Variant" in self.options:
+                self.uci_variant = self.options["UCI_Variant"]
+                del self.options["UCI_Variant"]
+
+            # Send UCI_Variant directly to engine if set (bypasses python-chess blocking).
+            # Only send once per engine lifetime to avoid crashing variant engines (e.g.,
+            # Fairy-Stockfish SIGSEGV when UCI_Variant is re-sent mid-game).
+            if self.uci_variant and not self._variant_sent:
+                try:
+                    self.engine.send_line(f"setoption name UCI_Variant value {self.uci_variant}")
+                    self._variant_sent = True
+                    logger.info("Sent UCI_Variant=%s directly to engine", self.uci_variant)
+                except Exception as e:
+                    logger.warning("Failed to send UCI_Variant to engine: %s", e)
+
             # issue 85 - remove options not allowed by engine before sending
             options = self.filter_options(self.options, self.engine.options)
             async with self.engine_lock:
                 await self.engine.configure(options)
         except chess.engine.EngineError as e:
             logger.warning(e)
+        except (AssertionError, asyncio.CancelledError) as e:
+            # Engine may not be ready (e.g., CommandState.NEW after a recent stop/cancel).
+            # Log the error but don't propagate — callers must not crash on option changes.
+            logger.warning("engine.configure() failed (engine busy or cancelled): %s", e)
 
     def has_levels(self):
         """Return engine level support."""
@@ -1299,9 +1325,12 @@ class UciEngine(object):
         result_queue: asyncio.Queue,
         root_moves: Optional[Iterable[chess.Move]],
         expected_turn: chess.Color | None = None,
+        variant_board=None,
     ) -> None:
         """Go engine.
-        parameter game will not change, it is deep copied"""
+        parameter game will not change, it is deep copied
+        parameter variant_board: optional variant board (e.g., ThreeCheckBoard) that provides
+                                 extended FEN for variant-aware engines like Fairy-Stockfish"""
         if not self.engine:
             logger.error("go called but no engine loaded")
             return
@@ -1323,8 +1352,10 @@ class UciEngine(object):
                 )
             limit: Limit = self.get_engine_limit(time_dict)  # time restrictions
             self.get_engine_uci_options(time_dict, limit)  # possibly restrict Node/Depth
+            # Use variant_board for FEN if provided, otherwise use standard game board
+            board_for_engine = variant_board if variant_board is not None else game
             await self.playing.play_move(
-                game, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
+                board_for_engine, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
             )
 
     async def start_analysis(self, game: chess.Board, limit: Limit | None = None, multipv: int | None = None) -> bool:
@@ -1499,6 +1530,25 @@ class UciEngine(object):
         self.level_support = bool(options)
 
         self.options = options.copy()
+
+        # Extract PicoChess-specific Variant option (not sent to engine via configure())
+        # This allows .uci files to specify a chess variant like "3check"
+        if "Variant" in self.options:
+            self.variant = self.options["Variant"]
+            del self.options["Variant"]
+            logger.info("Engine variant set to: %s", self.variant)
+        else:
+            self.variant = "chess"
+
+        # Handle UCI_Variant separately - python-chess blocks this option in configure()
+        # because it "automatically manages" it based on board type. We send it directly
+        # to the engine before configure() is called. Store it in instance variable so
+        # it can be re-sent when options change (e.g., level changes).
+        if "UCI_Variant" in self.options:
+            self.uci_variant = self.options["UCI_Variant"]
+            del self.options["UCI_Variant"]
+            logger.info("UCI_Variant will be sent directly to engine: %s", self.uci_variant)
+
         analysis_option = None
         if "Analysis" in self.options:
             analysis_option = self.options["Analysis"]
@@ -1506,6 +1556,7 @@ class UciEngine(object):
         allow_analysis = self._parse_bool_flag(analysis_option) if analysis_option is not None else True
         self.legacy_analysis_mode = not allow_analysis
         self._engine_rating(rating)
+        self._variant_sent = False  # (re-)starting engine config — allow UCI_Variant to be sent
         logger.debug("setting engine with options %s", self.options)
         await self.send()
         self._apply_playing_mode_policy()
@@ -1592,7 +1643,7 @@ class UciEngine(object):
         write_picochess_ini("pgn-elo", max(500, int(new_rating.rating)))
         write_picochess_ini("rating-deviation", int(new_rating.rating_deviation))
 
-    async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0) -> str:
+    async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0, variant_board=None) -> str:
         """
         Handle 'bestmove 0000' from a UCI engine using python-chess UciProtocol.
 
@@ -1601,7 +1652,24 @@ class UciEngine(object):
             "0-1"       → Black wins (White checkmated or resigned)
             "1/2-1/2"   → Stalemate or draw
             "*"         → Engine dead/unresponsive (game not yet decided)
+
+        variant_board: optional variant-specific board (ThreeCheckBoard, AtomicBoard, etc.)
+                       for detecting variant-specific game endings.
         """
+
+        # --- Phase 0: Variant-specific terminal states ---
+        if variant_board is not None:
+            if hasattr(variant_board, "is_variant_end") and variant_board.is_variant_end():
+                winner = variant_board.result()
+                if winner == "1-0" or winner == "0-1":
+                    return winner
+                return "1/2-1/2"
+            # For atomic: check if a king is missing (exploded)
+            if hasattr(variant_board, "king"):
+                if variant_board.king(chess.WHITE) is None:
+                    return "0-1"
+                if variant_board.king(chess.BLACK) is None:
+                    return "1-0"
 
         # --- Phase 1: Legitimate terminal states ---
         if game.is_checkmate():

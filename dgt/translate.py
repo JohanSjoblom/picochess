@@ -6696,6 +6696,310 @@ class DgtTranslate(object):
                 medium_text="sinres",
                 small_text="sres ",
             )
+        if text_id == "gameresult_3check_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="3x check. 1-0",
+                large_text="3 check 1-0",
+                medium_text="3chk 1-0",
+                small_text="3x 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="3x Schach. 1-0",
+                large_text="3 Schach1-0",
+                medium_text="3Sch 1-0",
+                small_text="3x 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="3x schaak. 1-0",
+                large_text="3schaak 1-0",
+                medium_text="3sch 1-0",
+                small_text="3x 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="3x echec. 1-0",
+                large_text="3-echec 1-0",
+                medium_text="3ech 1-0",
+                small_text="3x 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="3x jaque. 1-0",
+                large_text="3-jaque 1-0",
+                medium_text="3jaq 1-0",
+                small_text="3j 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="3 scacchi. 1-0",
+                large_text="3scacch 1-0",
+                medium_text="3sca 1-0",
+                small_text="3s 1-0"
+            )
+        if text_id == "gameresult_3check_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="3x check. 0-1",
+                large_text="3 check 0-1",
+                medium_text="3chk 0-1",
+                small_text="3x 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="3x Schach. 0-1",
+                large_text="3 Schach0-1",
+                medium_text="3Sch 0-1",
+                small_text="3x 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="3x schaak. 0-1",
+                large_text="3schaak 0-1",
+                medium_text="3sch 0-1",
+                small_text="3x 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="3x echec. 0-1",
+                large_text="3-echec 0-1",
+                medium_text="3ech 0-1",
+                small_text="3x 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="3x jaque. 0-1",
+                large_text="3-jaque 0-1",
+                medium_text="3jaq 0-1",
+                small_text="3j 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="3 scacchi. 0-1",
+                large_text="3scacch 0-1",
+                medium_text="3sca 0-1",
+                small_text="3s 0-1"
+            )
+        if text_id == "gameresult_koth_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King in center. 1-0",
+                large_text="K center1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König im Zentrum. 1-0",
+                large_text="K Zentrum1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning in centrum. 1-0",
+                large_text="K centrum1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi au centre. 1-0",
+                large_text="R centre1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en centro. 1-0",
+                large_text="R centro1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re al centro. 1-0",
+                large_text="R centro1-0",
+                medium_text="KotH 1-0",
+                small_text="KH 1-0"
+            )
+        if text_id == "gameresult_koth_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King in center. 0-1",
+                large_text="K center0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König im Zentrum. 0-1",
+                large_text="K Zentrum0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning in centrum. 0-1",
+                large_text="K centrum0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi au centre. 0-1",
+                large_text="R centre0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en centro. 0-1",
+                large_text="R centro0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re al centro. 0-1",
+                large_text="R centro0-1",
+                medium_text="KotH 0-1",
+                small_text="KH 0-1"
+            )
+        if text_id == "gameresult_atomic_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King exploded. 1-0",
+                large_text="Explode 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König explodiert. 1-0",
+                large_text="Explod. 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning ontploft. 1-0",
+                large_text="Ontplof 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi explose. 1-0",
+                large_text="Explose 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey explota. 1-0",
+                large_text="Explota 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re esplode. 1-0",
+                large_text="Esplode 1-0",
+                medium_text="Atom 1-0",
+                small_text="At 1-0"
+            )
+        if text_id == "gameresult_atomic_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King exploded. 0-1",
+                large_text="Explode 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="König explodiert. 0-1",
+                large_text="Explod. 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning ontploft. 0-1",
+                large_text="Ontplof 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi explose. 0-1",
+                large_text="Explose 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey explota. 0-1",
+                large_text="Explota 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re esplode. 0-1",
+                large_text="Esplode 0-1",
+                medium_text="Atom 0-1",
+                small_text="At 0-1"
+            )
+        if text_id == "gameresult_rk_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King on rank 8. 1-0",
+                large_text="K Rank8 1-0",
+                medium_text="Rnk8 1-0",
+                small_text="R8 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Konig auf 8. Reihe. 1-0",
+                large_text="K Reih8 1-0",
+                medium_text="Rei8 1-0",
+                small_text="R8 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning op rij 8. 1-0",
+                large_text="K rij8. 1-0",
+                medium_text="Rij8 1-0",
+                small_text="R8 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi sur 8e rangee. 1-0",
+                large_text="R rang8 1-0",
+                medium_text="Ran8 1-0",
+                small_text="8R 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en la 8a fila. 1-0",
+                large_text="R fila8 1-0",
+                medium_text="Fil8 1-0",
+                small_text="8F 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re sull 8 traversa. 1-0",
+                large_text="R 8trav 1-0",
+                medium_text="Trv8 1-0",
+                small_text="T8 1-0"
+            )
+        if text_id == "gameresult_rk_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King on rank 8. 0-1",
+                large_text="K Rank8 0-1",
+                medium_text="Rnk8 0-1",
+                small_text="R8 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Konig auf 8. Reihe. 0-1",
+                large_text="K Reih8 0-1",
+                medium_text="Rei8 0-1",
+                small_text="R8 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning op 8e rij. 0-1",
+                large_text="K rij8. 0-1",
+                medium_text="Rij8 0-1",
+                small_text="R8 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi sur 8e rangee. 0-1",
+                large_text="R rang8 0-1",
+                medium_text="Ran8 0-1",
+                small_text="8R 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en la 8a fila. 0-1",
+                large_text="R fila8 0-1",
+                medium_text="Fil8 0-1",
+                small_text="8F 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re sull 8 traversa. 0-1",
+                large_text="R 8trav 0-1",
+                medium_text="Trv8 0-1",
+                small_text="T8 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

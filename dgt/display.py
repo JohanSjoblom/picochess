@@ -21,11 +21,12 @@ import logging
 import copy
 import asyncio
 import chess  # type: ignore
+import chess.variant  # type: ignore
 from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
-from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top
+from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top, flip_board_fen
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
@@ -55,6 +56,7 @@ class DgtDisplay(DisplayMsg):
 
         self.play_move = self.hint_move = self.last_move = self.take_back_move = chess.Move.null()
         self.play_fen = self.hint_fen = self.last_fen = None
+        self._current_variant = "chess"  # Updated by picochess via Message attributes
         self.play_turn = self.hint_turn = self.last_turn = None
         self.score = self.dgttranslate.text("N10_score", None)
         self.depth = 0
@@ -532,13 +534,13 @@ class DgtDisplay(DisplayMsg):
         if bit_board.chess960_pos(ignore_castling=True):
             logger.debug("flipping the board - W infront")
             self.dgtmenu.set_position_reverse_flipboard(False, self.play_mode)
-        bit_board = chess.Board(fen[::-1] + " w - - 0 1")  # try a revered board and check for any starting pos
+        bit_board = chess.Board(flip_board_fen(fen) + " w - - 0 1")  # try a reversed board and check for any starting pos
         if bit_board.chess960_pos(ignore_castling=True):
             logger.debug("flipping the board - B infront")
             self.dgtmenu.set_position_reverse_flipboard(True, self.play_mode)
 
         if self.dgtmenu.get_flip_board() and raw:  # Flip the board if needed
-            fen = fen[::-1]
+            fen = flip_board_fen(fen)
 
         logger.debug("DGT-Fen [%s]", fen)
         if fen == self.dgtmenu.get_dgt_fen():
@@ -758,6 +760,11 @@ class DgtDisplay(DisplayMsg):
         self.c_last_player = ""
         await self.force_leds_off()
         self._reset_moves_and_score()
+        # Update current variant from message attribute (set by picochess)
+        msg_variant = getattr(message, 'variant', None)
+        if msg_variant:
+            self._current_variant = msg_variant
+            logger.debug("_process_start_new_game: variant set to %s", msg_variant)
         self.time_control.reset()
 
         if message.newgame:
@@ -776,23 +783,82 @@ class DgtDisplay(DisplayMsg):
         ):
             await self._set_clock()
 
+    def _variant_fen_from_game(self, game: chess.Board) -> tuple[str, str]:
+        """Determine variant name and return correct FEN for variant boards.
+
+        For atomic chess, the standard chess.Board does not track explosions,
+        so we replay all moves on an AtomicBoard to get the correct FEN.
+        The variant is detected from (in order):
+        1. game._variant_name attribute (set by picochess.game_copy())
+        2. self._current_variant (instance state, set via Message attributes)
+        Returns (variant_name, fen).
+        """
+        game_variant = getattr(game, '_variant_name', None)
+        variant_name = game_variant or self._current_variant
+        # Keep _current_variant in sync when game carries variant info
+        if game_variant and game_variant != self._current_variant:
+            self._current_variant = game_variant
+            logger.debug("_variant_fen_from_game: updated _current_variant to %s", game_variant)
+        class_name = game.__class__.__name__
+
+        # If the board object is already a variant board, use it directly
+        if class_name == "AtomicBoard":
+            return "atomic", game.fen()
+        elif class_name == "KingOfTheHillBoard":
+            return "kingofthehill", game.fen()
+        elif class_name == "ThreeCheckBoard":
+            return "3check", game.fen()
+        elif class_name == "RacingKingsBoard":
+            return "racingkings", game.fen()
+
+        # For atomic variant with a standard chess.Board, replay on AtomicBoard
+        if variant_name == "atomic" and game.move_stack:
+            try:
+                atm = chess.variant.AtomicBoard()
+                for move in game.move_stack:
+                    atm.push(move)
+                return variant_name, atm.fen()
+            except Exception as exc:
+                logger.warning("_variant_fen_from_game: atomic replay failed: %s", exc)
+
+        # For racingkings variant with a standard chess.Board, replay on RacingKingsBoard
+        if variant_name == "racingkings" and game.move_stack:
+            try:
+                rkb = chess.variant.RacingKingsBoard()
+                for move in game.move_stack:
+                    rkb.push(move)
+                return variant_name, rkb.fen()
+            except Exception as exc:
+                logger.warning("_variant_fen_from_game: racingkings replay failed: %s", exc)
+
+        return variant_name or "chess", game.fen()
+
     async def _process_computer_move(self, message):
         if not message.is_user_move:
             self.last_pos_start = False  # issue 54, see below
             await self.force_leds_off(log=True)  # can happen in case of a book move
         move = message.move
         ponder = message.ponder
+
+        # Get variant-aware FEN for the current position
+        variant_name, game_fen = self._variant_fen_from_game(message.game)
+
         if not message.is_user_move:
             # @todo issue 54 misuse this as USER_MOVE until we have such a message
             # do not update state variables
             self.play_move = move
-            self.play_fen = message.game.fen()
+            self.play_fen = game_fen
             self.play_turn = message.game.turn
         if ponder:
             game_copy = message.game.copy()
+            # Preserve _variant_name which chess.Board.copy() does not copy
+            vn = getattr(message.game, '_variant_name', None)
+            if vn:
+                game_copy._variant_name = vn
             game_copy.push(move)
+            _, hint_fen = self._variant_fen_from_game(game_copy)
             self.hint_move = ponder
-            self.hint_fen = game_copy.fen()
+            self.hint_fen = hint_fen
             self.hint_turn = game_copy.turn
         else:
             self.hint_move = chess.Move.null()
@@ -801,9 +867,10 @@ class DgtDisplay(DisplayMsg):
         # Display the move
         side = self._get_clock_side(message.game.turn)
         beep = self.dgttranslate.bl(BeepLevel.CONFIG)
+
         disp = Dgt.DISPLAY_MOVE(
             move=move,
-            fen=message.game.fen(),
+            fen=game_fen,
             side=side,
             wait=message.wait,
             maxtime=0,
@@ -814,6 +881,7 @@ class DgtDisplay(DisplayMsg):
             capital=self.dgttranslate.capital,
             long=self.dgttranslate.notation,
         )
+        disp.variant = variant_name  # Attach variant info for iface.py
         await DispatchDgt.fire(disp)
 
         await DispatchDgt.fire(Dgt.LIGHT_SQUARES(uci_move=move.uci(), devs={"ser", "web"}))
@@ -916,7 +984,8 @@ class DgtDisplay(DisplayMsg):
 
     async def _process_new_pv(self, message):
         self.hint_move = message.pv[0]
-        self.hint_fen = message.game.fen()
+        pv_variant, pv_fen = self._variant_fen_from_game(message.game)
+        self.hint_fen = pv_fen
         self.hint_turn = message.game.turn
         if message.mode == Mode.ANALYSIS and not self._inside_main_menu():
             side = self._get_clock_side(self.hint_turn)
@@ -934,6 +1003,7 @@ class DgtDisplay(DisplayMsg):
                 capital=self.dgttranslate.capital,
                 long=self.dgttranslate.notation,
             )
+            disp.variant = pv_variant  # Attach variant info for iface.py
             disp.analysis_update = True
             await DispatchDgt.fire(disp)
 
@@ -1225,6 +1295,10 @@ class DgtDisplay(DisplayMsg):
         elif isinstance(message, Message.TAKE_BACK):
             self.take_back_move: chess.Move = chess.Move.null()
             game_copy: chess.Board = message.game.copy()
+            # Preserve _variant_name which chess.Board.copy() does not copy
+            vn = getattr(message.game, '_variant_name', None)
+            if vn:
+                game_copy._variant_name = vn
 
             await self.force_leds_off()
             self._reset_moves_and_score()
@@ -1239,9 +1313,10 @@ class DgtDisplay(DisplayMsg):
                 #  and not ModeInfo.get_pgn_mode()
                 side = self._get_clock_side(game_copy.turn)
                 beep = self.dgttranslate.bl(BeepLevel.NO)
+                _, tb_fen = self._variant_fen_from_game(game_copy)
                 text = Dgt.DISPLAY_MOVE(
                     move=self.take_back_move,
-                    fen=game_copy.fen(),
+                    fen=tb_fen,
                     side=side,
                     wait=True,
                     maxtime=1,
@@ -1252,6 +1327,8 @@ class DgtDisplay(DisplayMsg):
                     capital=self.dgttranslate.capital,
                     long=True,
                 )  # molli: for take back display use long notation
+                if vn:
+                    text.variant = vn
                 text.wait = True
                 await DispatchDgt.fire(text)
                 await self.force_leds_off()
@@ -1272,6 +1349,22 @@ class DgtDisplay(DisplayMsg):
                 elif message.result == GameResult.WIN_WHITE:
                     ModeInfo.set_game_ending(result="1-0")
                 elif message.result == GameResult.WIN_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.THREE_CHECK_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.THREE_CHECK_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.ATOMIC_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.ATOMIC_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.KOTH_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.KOTH_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.RK_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.RK_BLACK:
                     ModeInfo.set_game_ending(result="0-1")
                 elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                     # last moved has won
@@ -1663,7 +1756,12 @@ class DgtDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("DgtDisplay: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

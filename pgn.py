@@ -502,6 +502,21 @@ class PgnDisplay(DisplayMsg):
             pgn_game.headers["Opening"] = ModeInfo.opening_name
             pgn_game.headers["ECO"] = ModeInfo.opening_eco
 
+        # Variant tag for variant games (3check, atomic, etc.)
+        if self.shared and self.shared.get("variant"):
+            variant = self.shared.get("variant")
+            # Use proper capitalization for known variants
+            variant_map = {
+                "atomic": "Atomic",
+                "3check": "Three-Check",
+                "crazyhouse": "Crazyhouse",
+                "kingofthehill": "King of the Hill",
+                "antichess": "Antichess",
+                "horde": "Horde",
+                "racingkings": "Racing Kings"
+            }
+            pgn_game.headers["Variant"] = variant_map.get(variant.lower(), variant.capitalize())
+
         return pgn_game
 
     def get_node_at_halfmove_nr(self, game: chess.Board, halfmove_nr: int) -> Optional[chess.pgn.GameNode]:
@@ -788,7 +803,12 @@ class PgnDisplay(DisplayMsg):
                     logger.debug("received message from msg_queue: %s", message)
                 # issue #45 just process one message at a time - dont spawn task
                 # asyncio.create_task(self._process_message(message))
-                await self._process_message(message)
+                try:
+                    await self._process_message(message)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception("PGN: unhandled exception processing %s", message)
                 self.msg_queue.task_done()
                 await asyncio.sleep(0.05)  # balancing message queues
         except asyncio.CancelledError:

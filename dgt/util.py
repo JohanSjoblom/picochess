@@ -809,6 +809,9 @@ class GameResult(MyEnum):
     # Atomic variant results
     ATOMIC_WHITE = "B00_gameresult_atomic_white"  # Black king exploded
     ATOMIC_BLACK = "B00_gameresult_atomic_black"  # White king exploded
+    # Racing Kings variant results
+    RK_WHITE = "B00_gameresult_rk_white"  # White king reached 8th rank first
+    RK_BLACK = "B00_gameresult_rk_black"  # Black king reached 8th rank first
 
 
 def game_result_from_header(result_str: str) -> GameResult:

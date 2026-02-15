@@ -107,6 +107,8 @@ class DgtIface(DisplayDgt):
             board = ThreeCheckBoard()
             board.set_fen(fen)
             return board._board  # Return underlying chess.Board for SAN
+        elif variant == "racingkings":
+            return chess.variant.RacingKingsBoard(fen)
 
         return Board(fen)
 

@@ -6862,6 +6862,82 @@ class DgtTranslate(object):
                 medium_text="Atom 0-1",
                 small_text="At 0-1"
             )
+        if text_id == "gameresult_rk_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King on rank 8. 1-0",
+                large_text="K Rank8 1-0",
+                medium_text="Rnk8 1-0",
+                small_text="R8 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Konig auf 8. Reihe. 1-0",
+                large_text="K Reih8 1-0",
+                medium_text="Rei8 1-0",
+                small_text="R8 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning op rij 8. 1-0",
+                large_text="K rij8. 1-0",
+                medium_text="Rij8 1-0",
+                small_text="R8 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi sur 8e rangee. 1-0",
+                large_text="R rang8 1-0",
+                medium_text="Ran8 1-0",
+                small_text="8R 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en la 8a fila. 1-0",
+                large_text="R fila8 1-0",
+                medium_text="Fil8 1-0",
+                small_text="8F 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re sull 8 traversa. 1-0",
+                large_text="R 8trav 1-0",
+                medium_text="Trv8 1-0",
+                small_text="T8 1-0"
+            )
+        if text_id == "gameresult_rk_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="King on rank 8. 0-1",
+                large_text="K Rank8 0-1",
+                medium_text="Rnk8 0-1",
+                small_text="R8 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Konig auf 8. Reihe. 0-1",
+                large_text="K Reih8 0-1",
+                medium_text="Rei8 0-1",
+                small_text="R8 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Koning op 8e rij. 0-1",
+                large_text="K rij8. 0-1",
+                medium_text="Rij8 0-1",
+                small_text="R8 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Roi sur 8e rangee. 0-1",
+                large_text="R rang8 0-1",
+                medium_text="Ran8 0-1",
+                small_text="8R 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Rey en la 8a fila. 0-1",
+                large_text="R fila8 0-1",
+                medium_text="Fil8 0-1",
+                small_text="8F 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Re sull 8 traversa. 0-1",
+                large_text="R 8trav 0-1",
+                medium_text="Trv8 0-1",
+                small_text="T8 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

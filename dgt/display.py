@@ -804,6 +804,8 @@ class DgtDisplay(DisplayMsg):
             return "kingofthehill", game.fen()
         elif class_name == "ThreeCheckBoard":
             return "3check", game.fen()
+        elif class_name == "RacingKingsBoard":
+            return "racingkings", game.fen()
 
         # For atomic variant with a standard chess.Board, replay on AtomicBoard
         if variant_name == "atomic" and game.move_stack:
@@ -814,6 +816,16 @@ class DgtDisplay(DisplayMsg):
                 return variant_name, atm.fen()
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: atomic replay failed: %s", exc)
+
+        # For racingkings variant with a standard chess.Board, replay on RacingKingsBoard
+        if variant_name == "racingkings" and game.move_stack:
+            try:
+                rkb = chess.variant.RacingKingsBoard()
+                for move in game.move_stack:
+                    rkb.push(move)
+                return variant_name, rkb.fen()
+            except Exception as exc:
+                logger.warning("_variant_fen_from_game: racingkings replay failed: %s", exc)
 
         return variant_name or "chess", game.fen()
 
@@ -1345,6 +1357,10 @@ class DgtDisplay(DisplayMsg):
                 elif message.result == GameResult.KOTH_WHITE:
                     ModeInfo.set_game_ending(result="1-0")
                 elif message.result == GameResult.KOTH_BLACK:
+                    ModeInfo.set_game_ending(result="0-1")
+                elif message.result == GameResult.RK_WHITE:
+                    ModeInfo.set_game_ending(result="1-0")
+                elif message.result == GameResult.RK_BLACK:
                     ModeInfo.set_game_ending(result="0-1")
                 elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                     # last moved has won

@@ -335,6 +335,7 @@ class PicoTalkerDisplay(DisplayMsg):
             return True
         except Exception as exc:
             logger.warning("native audio failed for %s: %s", voice_file, exc)
+            self._close_native_stream()
             return False
 
     def pico3_sound_player(self, voice_file) -> bool:

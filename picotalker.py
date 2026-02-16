@@ -46,6 +46,7 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
+NATIVE_STREAM_STARTUP_WAIT = 0.3
 
 
 class PicoTalker(object):
@@ -289,6 +290,11 @@ class PicoTalkerDisplay(DisplayMsg):
                     dtype="float32",
                 )
                 self.native_stream.start()
+                if NATIVE_STREAM_STARTUP_WAIT > 0:
+                    prime_samples = int(samplerate * NATIVE_STREAM_STARTUP_WAIT)
+                    if prime_samples > 0:
+                        prime = np.zeros((prime_samples, channels), dtype=np.float32)
+                        self.native_stream.write(prime)
                 self.native_stream_samplerate = samplerate
                 self.native_stream_channels = channels
                 return True

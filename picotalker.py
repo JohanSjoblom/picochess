@@ -18,6 +18,7 @@
 # Native audio playback with optional SoX fallback.
 
 import logging
+import base64
 from pathlib import Path
 from random import randint
 import os
@@ -25,6 +26,7 @@ import asyncio
 from collections import OrderedDict
 import subprocess
 import threading
+from typing import Callable, Optional
 
 try:
     import numpy as np  # type: ignore
@@ -119,6 +121,8 @@ class PicoTalkerDisplay(DisplayMsg):
         computer_voice: str,
         speed_factor: int,
         audio_backend: str,
+        web_audio_backend_remote: bool,
+        web_audio_emitter: Optional[Callable[[dict], None]],
         setpieces_voice: bool,
         comment_factor: int,
         sample_beeper: bool,
@@ -187,6 +191,8 @@ class PicoTalkerDisplay(DisplayMsg):
         self.sample_beeper_level = sample_beeper_level
 
         self.audio_backend = (audio_backend or "sox").lower()
+        self.web_audio_backend_remote = bool(web_audio_backend_remote)
+        self.web_audio_emitter = web_audio_emitter
         if self.audio_backend == "native" and NATIVE_AUDIO_AVAILABLE:
             self.use_native_audio = True
         else:
@@ -237,6 +243,7 @@ class PicoTalkerDisplay(DisplayMsg):
                     # stop sound player
                     logger.debug("picotalker sound player stopping")
                     break  # exit the loop
+                await self._emit_web_audio(voice_file)
                 played = False
                 if self.use_native_audio:
                     played = await asyncio.to_thread(self.native_sound_player, voice_file)
@@ -244,6 +251,34 @@ class PicoTalkerDisplay(DisplayMsg):
                     await asyncio.to_thread(self.pico3_sound_player, voice_file)
         except asyncio.CancelledError:
             logger.debug("picotalker sound player cancelled")
+
+    async def _emit_web_audio(self, voice_file: str):
+        if not self.web_audio_backend_remote:
+            return
+        audio_data = await asyncio.to_thread(self._encode_voice_file_for_web, voice_file, self.speed_factor)
+        if audio_data and self.web_audio_emitter:
+            try:
+                self.web_audio_emitter(audio_data)
+            except Exception as exc:
+                logger.debug("web audio emit failed: %s", exc)
+
+    @staticmethod
+    def _encode_voice_file_for_web(voice_file: str, speed_factor: float):
+        suffix = Path(voice_file).suffix.lower()
+        if suffix == ".ogg":
+            mime_type = "audio/ogg"
+        elif suffix == ".wav":
+            mime_type = "audio/wav"
+        elif suffix == ".mp3":
+            mime_type = "audio/mpeg"
+        else:
+            mime_type = "application/octet-stream"
+        try:
+            encoded = base64.b64encode(Path(voice_file).read_bytes()).decode("ascii")
+        except OSError as os_exc:
+            logger.debug("web audio encode failed for %s: %s", voice_file, os_exc)
+            return None
+        return {"mime_type": mime_type, "base64": encoded, "rate": speed_factor}
 
     def _sound_cache_get(self, key):
         entry = self.sound_cache.get(key)

@@ -597,24 +597,34 @@ class ChessBoardHandler(ServerRequestHandler):
 
     def get(self):
         web_speech = True
+        web_audio_backend = False
         tutor_watch_active = False
         if self.shared is not None:
+            web_audio_backend = self._get_web_audio_backend_setting()
             web_speech = self._get_web_speech_setting()
+            if web_audio_backend:
+                # Backend audio takes priority over browser speech synthesis.
+                web_speech = False
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
             web_speech=web_speech,
+            web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
         )
 
     def _get_web_speech_setting(self) -> bool:
-        web_speech_local = self.shared.get("web_speech_local", True)
-        web_speech_remote = self.shared.get("web_speech_remote", False)
-        remote_ip = self.request.headers.get("X-Real-IP") or self.request.remote_ip
-        if remote_ip in ("127.0.0.1", "::1"):
+        web_speech_local = self.shared.get("web_speech_local", False)
+        web_speech_remote = self.shared.get("web_speech_remote", True)
+        if _is_local_request(self.request):
             return web_speech_local
         return web_speech_remote
+
+    def _get_web_audio_backend_setting(self) -> bool:
+        if _is_local_request(self.request):
+            return False
+        return bool(self.shared.get("web_audio_backend_remote", False))
 
 
 class HelpHandler(ServerRequestHandler):

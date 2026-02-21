@@ -228,7 +228,7 @@ web-speech-local = False
 ## Enable speech synthesis in the web client when accessed remotely
 web-speech-remote = True
 ## Stream backend picotalker audio to remote web clients (takes priority over web-speech-remote)
-web-audio-backend-remote = True
+web-audio-backend-remote = False
 
 ## When in ponder mode decides how long each info is displayed. Default is 3 secs.
 ## Must be between 1 to 8 secs.

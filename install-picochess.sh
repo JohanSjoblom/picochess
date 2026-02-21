@@ -102,10 +102,25 @@ apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
 apt -y install libsndfile1 libportaudio2
-if [ "$SKIP_UPDATE" = false ]; then
-    apt -y install pipewire-alsa
-else
+audio_backend_setting=""
+if [ -f "$REPO_DIR/picochess.ini" ]; then
+    audio_backend_setting=$(awk -F '=' '
+        /^[[:space:]]*#/ {next}
+        /^[[:space:]]*audio-backend[[:space:]]*=/ {
+            value=$2
+            gsub(/[[:space:]]/, "", value)
+            print value
+            exit
+        }
+    ' "$REPO_DIR/picochess.ini")
+    audio_backend_setting=$(printf "%s" "$audio_backend_setting" | tr '[:upper:]' '[:lower:]')
+fi
+if [ "$SKIP_UPDATE" = true ]; then
     echo "Skipping pipewire-alsa install during 'pico' code-only update."
+elif [ "$audio_backend_setting" = "sox" ]; then
+    echo "Skipping pipewire-alsa install because picochess.ini is configured with audio-backend=sox."
+else
+    apt -y install pipewire-alsa
 fi
 # hide mouse cursor for kiosk mode
 apt -y install unclutter

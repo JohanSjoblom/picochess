@@ -1800,8 +1800,14 @@ async def main() -> None:
 
         def _init_variant_from_engine(self):
             """Initialize variant state from engine settings."""
-            if self.engine and hasattr(self.engine, 'variant'):
-                self.state.variant = self.engine.variant
+            prev_variant = self.state.variant
+            if self.engine and hasattr(self.engine, "variant"):
+                new_variant = self.engine.variant
+                # Racing Kings uses a different starting setup. When switching away
+                # from it, reset to standard chess before initializing another variant.
+                if prev_variant == "racingkings" and new_variant != "racingkings":
+                    self.state.game = chess.Board()
+                self.state.variant = new_variant
                 if self.state.variant == "3check":
                     from threecheck import ThreeCheckBoard
                     self.state._threecheck_board = ThreeCheckBoard()

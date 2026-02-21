@@ -146,7 +146,7 @@ class Configuration:
         self.parser.add_argument(
             "--web-audio-backend-remote",
             type=str_to_bool,
-            default=True,
+            default=False,
             help="stream backend picotalker audio to remote web client",
         )
         self.parser.add_argument("-m", "--email", type=str, help="email used to send pgn/log files", default=None)

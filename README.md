@@ -5,7 +5,8 @@ Installation includes Stockfish and Leela Chess Zero (LC0) as examples. You can 
 
 Features
 ========
-- Play via Web Browser. Enjoy chess directly from your browser. You do need an electronic chess board.
+- Play via Web Browser. Enjoy chess directly from your browser. You do not need an electronic chess board.
+- Use phone browser audio as an alternative to local speakers. This is useful on headless systems such as DGT3000 clock setups or Pi systems without external speakers.
 - Electronic Chess Board support for an authentic playing experience. Compatible with DGT e-board, Certabo, Chesslink, Chessnut, and Ichessone. Note that no guarantees can be given that it will work with all of these boards, but the community has worked hard to maintain this possibility. I currently use a DGT e-board and a DGT Pi 3000 myself.
 - DGT Clock Compatibility. Runs on the DGT Pi 3000 electronic clock which becomes an all-in one chess computer.
 - Responsive web layout scales well on large desktop screens.
@@ -17,7 +18,7 @@ This fork of Picochess focuses on:
 - Ability to run both on Raspberry Pi and Linux computers.
 - Asynchronous Architecture – Replaces threads with an async-based architecture for improved performance and scalability.
 - Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
-- Wayland support with optional native audio backend (no X11/PulseAudio requirement).
+- Wayland support with native audio backend (recommended/default; no X11/PulseAudio requirement).
 - Engines, books, and games database are distributed as external resource packs.
 - The obooksrv dataset is now read directly in `server.py` without an external service.
 - Built-in replay mode, while preserving the original PGN Replay engine.
@@ -27,7 +28,7 @@ Requirements
 ------------
 
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
-- RaspiOS Bookworm 64bit or the new Trixie 13, released in 2025. Wayland is supported. If you don't want to switch to PulseAudio, set `audio_backend = native` in `picochess.ini`. You might also need to make sure that the PulseAudio packages are installed like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins.
+- RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Use `audio-backend = native` in `picochess.ini` (default for new installs). If you upgraded from older versions and still use SoX, switch to native.
 
 Quick Installation
 ------------------
@@ -63,6 +64,7 @@ You can manually update to latest version from within the program. Go to the Sys
 How to open the web page and play?
 ----------------------------------
 Use `localhost` in your browser to open the web page. If you are running on another machine replace `localhost` with the IP address of your Pi. If you use a firewall, ensure the Picochess web port is allowed.
+For headless setups (for example DGT3000), you can use your phone browser as both display and audio output instead of local speakers.
 
 Wi-Fi setup (no network on first boot)
 --------------------------------------
@@ -159,8 +161,8 @@ Installation with more detailed info
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.
 8. Boot your PI with the SD card inserted. A standard image will reboot after first start, and the second time it starts you should be able to login as user pi.
-9. Using sudo raspi-config make changes to advanced options: select PulseAudio if you want the PulseAudio backend. If you prefer to stay on Pipewire, set `audio_backend = native` in `picochess.ini`. Wayland is supported; X11 is optional.
-New Trixie might be missing audio libraries you need like pulseaudio, pulseaudio-utils, libpulse0, or even libasound2-plugins
+9. Using sudo raspi-config, keep the default PipeWire setup. Set `audio-backend = native` in `picochess.ini` (default for new installs). Wayland is supported; X11 is optional.
+The install script now installs the native audio runtime libraries, including `pipewire-alsa`.
 10. Get this repo. First cd /opt then do sudo git clone. This should create your /opt/picochess folder. Alternative: Download the install-picochess.sh script and run it using sudo. See quick installation above.
 11. Run the install-picochess.sh script. The script will first do a system update which may run for a while depending on how old your installation is. Then it will do git clone if you dont have the repo, and git pull if you already have the repo in /opt/picochess.
 12. Reboot when install is done. When you login again the voice should say "picochess", "engine startup", "ok".

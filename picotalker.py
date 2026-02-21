@@ -245,9 +245,17 @@ class PicoTalkerDisplay(DisplayMsg):
                     # stop sound player
                     logger.debug("picotalker sound player stopping")
                     break  # exit the loop
+                # Audio routing scenarios:
+                # 1) web-audio-backend-remote disabled: local native/sox playback only.
+                # 2) web-audio-backend-remote enabled, but no remote client connected:
+                #    local native/sox playback only.
+                # 3) web-audio-backend-remote enabled and remote client connected:
+                #    emit to web client only (skip local playback).
                 if self._should_emit_web_audio():
-                    # Do not block local playback path on web audio encoding.
-                    self.loop.create_task(self._emit_web_audio(voice_file))
+                    # Scenario 3: when remote web audio is active, emit only to web client.
+                    # Keep this awaited to preserve clip order and avoid dual local+web playback.
+                    await self._emit_web_audio(voice_file)
+                    continue
                 played = False
                 if self.use_native_audio:
                     played = await asyncio.to_thread(self.native_sound_player, voice_file)

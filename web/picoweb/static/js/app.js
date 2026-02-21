@@ -68,11 +68,21 @@ function updateCheckCounters(variant, checks) {
 }
 
 // Speech/audio toggles for the web client.
-var speechMuted = webAudioMode !== "tts";
-var backendAudioMuted = webAudioMode !== "backend";
+var speechMuted = true;
+var backendAudioMuted = true;
 var backendAudioQueue = [];
 var backendAudioPlaying = false;
 var backendAudioElement = null;
+
+function isCurrentAudioMuted() {
+    if (webAudioMode === "backend") {
+        return backendAudioMuted;
+    }
+    if (webAudioMode === "tts") {
+        return speechMuted;
+    }
+    return true;
+}
 
 var speechAvailable = true
 if (typeof speechSynthesis === "undefined") {
@@ -165,6 +175,10 @@ function setSpeechMuted(muted) {
         if (speechMuted && speechAvailable) {
             speechSynthesis.cancel();
         }
+    }
+    var muteButton = document.getElementById('btn-mute');
+    if (muteButton && webAudioMode !== "off") {
+        muteButton.classList.toggle('is-muted', isCurrentAudioMuted());
     }
 }
 
@@ -2280,6 +2294,8 @@ $(window).on('load', function () {
     } else {
         if (webAudioMode === "off") {
             $('#btn-mute').hide();
+        } else {
+            $('#btn-mute').addClass('is-muted');
         }
         $('#downloadBtn').on('click', download);
         $('#uploadBtn').on('click', function () {

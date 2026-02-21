@@ -1329,7 +1329,7 @@ class UciEngine(object):
     ) -> None:
         """Go engine.
         parameter game will not change, it is deep copied
-        parameter variant_board: optional variant board (e.g., ThreeCheckBoard) that provides
+        parameter variant_board: optional variant board (e.g., chess.variant.ThreeCheckBoard) that provides
                                  extended FEN for variant-aware engines like Fairy-Stockfish"""
         if not self.engine:
             logger.error("go called but no engine loaded")
@@ -1653,7 +1653,7 @@ class UciEngine(object):
             "1/2-1/2"   → Stalemate or draw
             "*"         → Engine dead/unresponsive (game not yet decided)
 
-        variant_board: optional variant-specific board (ThreeCheckBoard, AtomicBoard, etc.)
+        variant_board: optional variant-specific board (chess.variant.ThreeCheckBoard, AtomicBoard, etc.)
                        for detecting variant-specific game endings.
         """
 

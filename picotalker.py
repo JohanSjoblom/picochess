@@ -123,6 +123,7 @@ class PicoTalkerDisplay(DisplayMsg):
         audio_backend: str,
         web_audio_backend_remote: bool,
         web_audio_emitter: Optional[Callable[[dict], None]],
+        web_audio_should_emit: Optional[Callable[[], bool]],
         setpieces_voice: bool,
         comment_factor: int,
         sample_beeper: bool,
@@ -193,6 +194,7 @@ class PicoTalkerDisplay(DisplayMsg):
         self.audio_backend = (audio_backend or "sox").lower()
         self.web_audio_backend_remote = bool(web_audio_backend_remote)
         self.web_audio_emitter = web_audio_emitter
+        self.web_audio_should_emit = web_audio_should_emit
         if self.audio_backend == "native" and NATIVE_AUDIO_AVAILABLE:
             self.use_native_audio = True
         else:
@@ -243,7 +245,9 @@ class PicoTalkerDisplay(DisplayMsg):
                     # stop sound player
                     logger.debug("picotalker sound player stopping")
                     break  # exit the loop
-                await self._emit_web_audio(voice_file)
+                if self._should_emit_web_audio():
+                    # Do not block local playback path on web audio encoding.
+                    self.loop.create_task(self._emit_web_audio(voice_file))
                 played = False
                 if self.use_native_audio:
                     played = await asyncio.to_thread(self.native_sound_player, voice_file)
@@ -252,15 +256,24 @@ class PicoTalkerDisplay(DisplayMsg):
         except asyncio.CancelledError:
             logger.debug("picotalker sound player cancelled")
 
-    async def _emit_web_audio(self, voice_file: str):
+    def _should_emit_web_audio(self) -> bool:
         if not self.web_audio_backend_remote:
-            return
-        audio_data = await asyncio.to_thread(self._encode_voice_file_for_web, voice_file, self.speed_factor)
-        if audio_data and self.web_audio_emitter:
-            try:
+            return False
+        if not self.web_audio_emitter or not self.web_audio_should_emit:
+            return False
+        try:
+            return bool(self.web_audio_should_emit())
+        except Exception as exc:
+            logger.debug("web audio should_emit check failed: %s", exc)
+            return False
+
+    async def _emit_web_audio(self, voice_file: str):
+        try:
+            audio_data = await asyncio.to_thread(self._encode_voice_file_for_web, voice_file, self.speed_factor)
+            if audio_data and self.web_audio_emitter:
                 self.web_audio_emitter(audio_data)
-            except Exception as exc:
-                logger.debug("web audio emit failed: %s", exc)
+        except Exception as exc:
+            logger.debug("web audio emit failed: %s", exc)
 
     @staticmethod
     def _encode_voice_file_for_web(voice_file: str, speed_factor: float):

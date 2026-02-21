@@ -894,8 +894,18 @@ var updateStatus = function () {
         });
         element.addClass('text-warning');
 
-        // Scroll the active move into view inside the move list container
-        element[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        // Keep scrolling constrained to the move list and avoid scrolling the whole page on mobile.
+        var moveList = document.getElementById('moveList');
+        if (moveList) {
+            var rowRect = element[0].getBoundingClientRect();
+            var listRect = moveList.getBoundingClientRect();
+            var margin = 10;
+            if (rowRect.top < listRect.top) {
+                moveList.scrollTop -= (listRect.top - rowRect.top) + margin;
+            } else if (rowRect.bottom > listRect.bottom) {
+                moveList.scrollTop += (rowRect.bottom - listRect.bottom) + margin;
+            }
+        }
     }
 
     // Skip book and games database lookups for atomic chess — the databases

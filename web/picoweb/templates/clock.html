@@ -1084,8 +1084,18 @@
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos
                 const moveInput = document.getElementById('moveInput');
+                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 if (moveInput) {
-                    moveInput.focus();
+                    const focusMoveInput = () => {
+                        try {
+                            moveInput.focus({ preventScroll: true });
+                        } catch (e) {
+                            moveInput.focus();
+                        }
+                    };
+                    if (!isTouchDevice) {
+                        focusMoveInput();
+                    }
                     moveInput.addEventListener('keydown', async function (e) {
                         if (e.key === 'Enter') {
                             e.preventDefault();
@@ -1101,11 +1111,13 @@
                         }
                     });
                     // Mantener el foco siempre en el input de jugada
-                    document.addEventListener('click', function (e) {
-                        if (e.target !== moveInput && moveInput) {
-                            setTimeout(() => moveInput.focus(), 10);
-                        }
-                    });
+                    if (!isTouchDevice) {
+                        document.addEventListener('click', function (e) {
+                            if (e.target !== moveInput && moveInput) {
+                                setTimeout(focusMoveInput, 10);
+                            }
+                        });
+                    }
                 }
 
                 // New Game button event handler

@@ -131,6 +131,17 @@
             <button type="button" id="bt-pair-btn">Pair phone</button>
             <button type="button" id="bt-fix-btn">Fix Bluetooth</button>
         </div>
+        <h2 style="margin-top: 18px;">Web client audio</h2>
+        <div style="margin-top: 8px;">
+            <input type="checkbox" id="web-audio-backend-remote-toggle">
+            <label for="web-audio-backend-remote-toggle">Play sound on your phone from the Picochess web page</label>
+        </div>
+        <p class="help-row">Enable this to use your phone web browser as the picochess speaker.</p>
+        <p class="help-row">On your phone web page, tap Unmute to hear sound.</p>
+        <p class="help-row">After changing this setting, restart picochess.</p>
+        <div style="margin-top: 10px;">
+            <button type="button" id="web-audio-backend-save-btn">Save web audio setting</button>
+        </div>
     </div>
 
     <script>
@@ -179,6 +190,64 @@
             var status = document.getElementById("status");
             status.textContent = message;
             status.style.color = isError ? "red" : "green";
+        }
+
+        function normalizeBoolean(value, fallback) {
+            var normalized = String(value || "").trim().toLowerCase();
+            if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+                return true;
+            }
+            if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+                return false;
+            }
+            return fallback;
+        }
+
+        function getWebAudioBackendRemoteEnabled(entries) {
+            var found = null;
+            (entries || []).forEach(function (entry) {
+                if (((entry.key || "").trim().toLowerCase()) === "web-audio-backend-remote") {
+                    found = entry;
+                }
+            });
+            if (!found || !found.enabled) {
+                return false;
+            }
+            return normalizeBoolean(found.value, false);
+        }
+
+        function updateBluetoothTab(entries) {
+            document.getElementById("web-audio-backend-remote-toggle").checked =
+                getWebAudioBackendRemoteEnabled(entries);
+        }
+
+        function saveWebAudioBackendSetting() {
+            var enabled = document.getElementById("web-audio-backend-remote-toggle").checked;
+            var entries = [{
+                key: "web-audio-backend-remote",
+                value: enabled ? "true" : "false",
+                enabled: true
+            }];
+
+            setStatus("Saving web audio setting...", false);
+            fetch("/settings/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entries: entries })
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error("Failed to save web audio setting");
+                    }
+                    return response.json();
+                })
+                .then(function () {
+                    setStatus("Saved. Restart Picochess, then open the phone web page and tap Unmute.", false);
+                    loadSettings();
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
         }
 
         function triggerAction(action, busyMessage, successMessage) {
@@ -329,6 +398,7 @@
                     (data.entries || []).forEach(function (entry) {
                         body.appendChild(renderEntry(entry));
                     });
+                    updateBluetoothTab(data.entries || []);
                     if (!data.entries || data.entries.length === 0) {
                         setStatus("No settings found in picochess.ini", true);
                     } else {
@@ -431,6 +501,10 @@
 
         document.getElementById("bt-fix-btn").addEventListener("click", function () {
             triggerAction("bt-fix", "Running Bluetooth fix...", "Bluetooth fix started.");
+        });
+
+        document.getElementById("web-audio-backend-save-btn").addEventListener("click", function () {
+            saveWebAudioBackendSetting();
         });
 
         loadSettings();

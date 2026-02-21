@@ -52,12 +52,10 @@ function updateCheckCounters(variant, checks) {
     var checkCounters = document.getElementById('checkCounters');
     if (!checkCounters) return;
 
-    // Track current variant for all variant types
-    if (variant) {
-        currentVariant = variant;
-    }
+    // Keep a deterministic variant state for UI behavior.
+    currentVariant = variant || 'chess';
 
-    if (variant === '3check' && checks) {
+    if (currentVariant === '3check' && checks) {
         document.getElementById('whiteChecks').textContent = (3 - checks.black); // checks given by White to Black
         document.getElementById('blackChecks').textContent = (3 - checks.white); // checks given by Black to White
         checkCounters.style.display = 'inline';

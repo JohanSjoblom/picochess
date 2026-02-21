@@ -1285,8 +1285,7 @@ class WebDisplay(DisplayMsg):
         def _attach_variant_info(result: dict) -> None:
             """Attach 3check variant info to result dict for web clients."""
             variant = self.shared.get("variant", "chess")
-            if variant != "chess":
-                result["variant"] = variant
+            result["variant"] = variant
             if variant == "3check":
                 result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
 
@@ -1357,12 +1356,7 @@ class WebDisplay(DisplayMsg):
                 "move": "0000",
                 "play": "newgame",
             }
-            # Add variant info for 3check
-            variant = self.shared.get("variant", "chess")
-            if variant != "chess":
-                result["variant"] = variant
-            if variant == "3check":
-                result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
+            _attach_variant_info(result)
             _attach_mistakes(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)

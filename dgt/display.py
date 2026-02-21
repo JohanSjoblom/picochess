@@ -760,11 +760,11 @@ class DgtDisplay(DisplayMsg):
         self.c_last_player = ""
         await self.force_leds_off()
         self._reset_moves_and_score()
-        # Update current variant from message attribute (set by picochess)
-        msg_variant = getattr(message, 'variant', None)
-        if msg_variant:
-            self._current_variant = msg_variant
-            logger.debug("_process_start_new_game: variant set to %s", msg_variant)
+        # Always reset variant context for the new game.
+        # If variant is not attached to the message, treat it as normal chess.
+        msg_variant = getattr(message, "variant", "chess")
+        self._current_variant = msg_variant
+        logger.debug("_process_start_new_game: variant set to %s", msg_variant)
         self.time_control.reset()
 
         if message.newgame:

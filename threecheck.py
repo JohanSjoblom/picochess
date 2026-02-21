@@ -77,13 +77,13 @@ class ThreeCheckBoard:
     @property
     def checks_remaining(self):
         """Get remaining checks as dictionary for backward compatibility."""
-        return {chess.WHITE: self._board.remaining_checks[0], chess.BLACK: self._board.remaining_checks[1]}
+        return {chess.WHITE: self._board.remaining_checks[chess.WHITE], chess.BLACK: self._board.remaining_checks[chess.BLACK]}
 
     @checks_remaining.setter
     def checks_remaining(self, value):
         """Set remaining checks from dictionary."""
-        self._board.remaining_checks[0] = value.get(chess.WHITE, 3)
-        self._board.remaining_checks[1] = value.get(chess.BLACK, 3)
+        self._board.remaining_checks[chess.WHITE] = value.get(chess.WHITE, 3)
+        self._board.remaining_checks[chess.BLACK] = value.get(chess.BLACK, 3)
 
     def standard_fen(self) -> str:
         """
@@ -171,14 +171,14 @@ class ThreeCheckBoard:
         Return the winner by 3check rule.
 
         Returns:
-            chess.WHITE if white gave 3 checks to black,
-            chess.BLACK if black gave 3 checks to white,
+            chess.WHITE if white delivered 3 checks (white wins),
+            chess.BLACK if black delivered 3 checks (black wins),
             None if game not ended by 3check
         """
         if self._board.remaining_checks[chess.WHITE] == 0:
-            return chess.BLACK  # Black gave 3 checks to white
+            return chess.WHITE  # White delivered 3 checks, white wins
         if self._board.remaining_checks[chess.BLACK] == 0:
-            return chess.WHITE  # White gave 3 checks to black
+            return chess.BLACK  # Black delivered 3 checks, black wins
         return None
 
     def is_game_over(self) -> bool:

@@ -55,12 +55,14 @@ function updateCheckCounters(variant, checks) {
     var checkCounters = document.getElementById('checkCounters');
     if (!checkCounters) return;
 
-    // Keep a deterministic variant state for UI behavior.
-    currentVariant = variant || 'chess';
+    // Track current variant for all variant types
+    if (variant) {
+        currentVariant = variant;
+    }
 
-    if (currentVariant === '3check' && checks) {
-        document.getElementById('whiteChecks').textContent = (3 - checks.black); // checks given by White to Black
-        document.getElementById('blackChecks').textContent = (3 - checks.white); // checks given by Black to White
+    if (variant === '3check' && checks) {
+        document.getElementById('whiteChecks').textContent = (3 - checks.white); // checks delivered by White
+        document.getElementById('blackChecks').textContent = (3 - checks.black); // checks delivered by Black
         checkCounters.style.display = 'inline';
     } else {
         checkCounters.style.display = 'none';

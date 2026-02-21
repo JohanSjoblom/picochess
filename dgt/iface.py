@@ -101,13 +101,7 @@ class DgtIface(DisplayDgt):
         elif variant == "kingofthehill":
             return chess.variant.KingOfTheHillBoard(fen)
         elif variant == "3check":
-            # ThreeCheckBoard uses standard FEN for board position
-            # The extended FEN with check counts is only for engine communication
-            from threecheck import ThreeCheckBoard
-
-            board = ThreeCheckBoard()
-            board.set_fen(fen)
-            return board._board  # Return underlying chess.Board for SAN
+            return chess.variant.ThreeCheckBoard(fen)
         elif variant == "racingkings":
             return chess.variant.RacingKingsBoard(fen)
         elif variant == "antichess":

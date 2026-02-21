@@ -39,10 +39,13 @@ var simpleNags = {
     '142': '&#8979',
     '146': 'N'
 };
-// Speech toggle for the web client (set via setSpeechMuted)
-var speechMuted = false;
-if (typeof window !== "undefined" && window.picoWebConfig && window.picoWebConfig.webSpeech === false) {
-    speechMuted = true;
+var webAudioMode = "off";
+if (typeof window !== "undefined" && window.picoWebConfig) {
+    if (window.picoWebConfig.webAudioBackend === true) {
+        webAudioMode = "backend";
+    } else if (window.picoWebConfig.webSpeech !== false) {
+        webAudioMode = "tts";
+    }
 }
 
 // 3check variant support
@@ -62,6 +65,23 @@ function updateCheckCounters(variant, checks) {
     } else {
         checkCounters.style.display = 'none';
     }
+}
+
+// Speech/audio toggles for the web client.
+var speechMuted = true;
+var backendAudioMuted = true;
+var backendAudioQueue = [];
+var backendAudioPlaying = false;
+var backendAudioElement = null;
+
+function isCurrentAudioMuted() {
+    if (webAudioMode === "backend") {
+        return backendAudioMuted;
+    }
+    if (webAudioMode === "tts") {
+        return speechMuted;
+    }
+    return true;
 }
 
 var speechAvailable = true
@@ -91,8 +111,75 @@ function talk(text) {
     }
 }
 
+function stopBackendAudioPlayback() {
+    backendAudioQueue = [];
+    backendAudioPlaying = false;
+    if (backendAudioElement) {
+        backendAudioElement.pause();
+        backendAudioElement.src = "";
+        backendAudioElement = null;
+    }
+}
+
+function playNextBackendAudio() {
+    if (webAudioMode !== "backend" || backendAudioMuted || backendAudioPlaying || backendAudioQueue.length === 0) {
+        return;
+    }
+
+    var clip = backendAudioQueue.shift();
+    if (!clip || !clip.base64) {
+        return;
+    }
+
+    backendAudioPlaying = true;
+    backendAudioElement = new Audio("data:" + (clip.mime_type || "audio/ogg") + ";base64," + clip.base64);
+    if (clip.rate && clip.rate > 0) {
+        backendAudioElement.playbackRate = clip.rate;
+    }
+    backendAudioElement.onended = function () {
+        backendAudioPlaying = false;
+        backendAudioElement = null;
+        playNextBackendAudio();
+    };
+    backendAudioElement.onerror = function () {
+        backendAudioPlaying = false;
+        backendAudioElement = null;
+        playNextBackendAudio();
+    };
+    var playPromise = backendAudioElement.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(function () {
+            backendAudioPlaying = false;
+            backendAudioElement = null;
+        });
+    }
+}
+
+function queueBackendAudio(clip) {
+    if (webAudioMode !== "backend" || backendAudioMuted) {
+        return;
+    }
+    backendAudioQueue.push(clip);
+    playNextBackendAudio();
+}
+
 function setSpeechMuted(muted) {
-    speechMuted = !!muted;
+    var isMuted = !!muted;
+    if (webAudioMode === "backend") {
+        backendAudioMuted = isMuted;
+        if (backendAudioMuted) {
+            stopBackendAudioPlayback();
+        }
+    } else {
+        speechMuted = isMuted || webAudioMode !== "tts";
+        if (speechMuted && speechAvailable) {
+            speechSynthesis.cancel();
+        }
+    }
+    var muteButton = document.getElementById('btn-mute');
+    if (muteButton && webAudioMode !== "off") {
+        muteButton.classList.toggle('is-muted', isCurrentAudioMuted());
+    }
 }
 
 talk("Hello, welcome to Picochess!");
@@ -807,8 +894,18 @@ var updateStatus = function () {
         });
         element.addClass('text-warning');
 
-        // Scroll the active move into view inside the move list container
-        element[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        // Keep scrolling constrained to the move list and avoid scrolling the whole page on mobile.
+        var moveList = document.getElementById('moveList');
+        if (moveList) {
+            var rowRect = element[0].getBoundingClientRect();
+            var listRect = moveList.getBoundingClientRect();
+            var margin = 10;
+            if (rowRect.top < listRect.top) {
+                moveList.scrollTop -= (listRect.top - rowRect.top) + margin;
+            } else if (rowRect.bottom > listRect.bottom) {
+                moveList.scrollTop += (rowRect.bottom - listRect.bottom) + margin;
+            }
+        }
     }
 
     // Skip book and games database lookups for atomic chess — the databases
@@ -2205,6 +2302,11 @@ $(window).on('load', function () {
         $('#uploadBtn').hide();
         $('#btn-mute').hide();
     } else {
+        if (webAudioMode === "off") {
+            $('#btn-mute').hide();
+        } else {
+            $('#btn-mute').addClass('is-muted');
+        }
         $('#downloadBtn').on('click', download);
         $('#uploadBtn').on('click', function () {
             window.location.href = 'upload';
@@ -2335,6 +2437,9 @@ $(function () {
                     break;
                 case 'Clock':
                     dgtClockTextEl.html(data.msg);
+                    break;
+                case 'WebAudio':
+                    queueBackendAudio(data.audio);
                     break;
                 case 'Status':
                     // dgtClockStatusEl.html(data.msg);

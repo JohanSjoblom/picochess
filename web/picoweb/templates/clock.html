@@ -38,11 +38,13 @@
             border-radius: 4px;
             margin: 0 3px;
         }
+
         .check-counter.white-checks {
             background: #fff;
             color: #000;
             border: 1px solid #000;
         }
+
         .check-counter.black-checks {
             background: #333;
             color: #fff;
@@ -630,8 +632,12 @@
                                                     <span id="sidetomove"></span>&nbsp;<span id="BoardStatus"></span>
                                                     <!-- 3check variant: check counters -->
                                                     <span id="checkCounters" style="display: none; margin-left: 10px;">
-                                                        <span class="check-counter white-checks" title="White checks remaining">&#9812; <span id="whiteChecks">3</span></span>
-                                                        <span class="check-counter black-checks" title="Black checks remaining">&#9818; <span id="blackChecks">3</span></span>
+                                                        <span class="check-counter white-checks"
+                                                            title="White checks remaining">&#9812; <span
+                                                                id="whiteChecks">3</span></span>
+                                                        <span class="check-counter black-checks"
+                                                            title="Black checks remaining">&#9818; <span
+                                                                id="blackChecks">3</span></span>
                                                     </span>
                                                 </div>
                                             </div>
@@ -671,7 +677,7 @@
                             <div class="card">
                                 <div class="card-header"
                                     style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center;">
-                                    <span>PicoChess Version 4.2.1</span>
+                                    <span>PicoChess Version 4.2.2</span>
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <form id="moveForm" autocomplete="off" style="margin: 0;">
                                             <input id="moveInput" type="text" inputmode="none" value="" style="
@@ -1076,6 +1082,7 @@
         <script>
             window.picoWebConfig = window.picoWebConfig || {};
             window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
+            window.picoWebConfig.webAudioBackend = {{ "true" if web_audio_backend else "false" }};
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
         </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
@@ -1083,8 +1090,18 @@
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos
                 const moveInput = document.getElementById('moveInput');
+                const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 if (moveInput) {
-                    moveInput.focus();
+                    const focusMoveInput = () => {
+                        try {
+                            moveInput.focus({ preventScroll: true });
+                        } catch (e) {
+                            moveInput.focus();
+                        }
+                    };
+                    if (!isTouchDevice) {
+                        focusMoveInput();
+                    }
                     moveInput.addEventListener('keydown', async function (e) {
                         if (e.key === 'Enter') {
                             e.preventDefault();
@@ -1100,11 +1117,13 @@
                         }
                     });
                     // Mantener el foco siempre en el input de jugada
-                    document.addEventListener('click', function (e) {
-                        if (e.target !== moveInput && moveInput) {
-                            setTimeout(() => moveInput.focus(), 10);
-                        }
-                    });
+                    if (!isTouchDevice) {
+                        document.addEventListener('click', function (e) {
+                            if (e.target !== moveInput && moveInput) {
+                                setTimeout(focusMoveInput, 10);
+                            }
+                        });
+                    }
                 }
 
                 // New Game button event handler

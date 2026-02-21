@@ -173,10 +173,11 @@ Google group for reporting and discussing: https://groups.google.com/g/picochess
 
 Playing chess variants
 ----------------------
-Install the Fairy-Stockfish 14 engine along with fairy.uci and enable it in engines.ini to play some fun chess variants. Three variants are implemented as engine levels, each with four Elo strengths (1000, 1500, 2000, 2850):
+Install the Fairy-Stockfish 14 engine along with fairy.uci and enable it in engines.ini to play some fun chess variants. Four variants are implemented as engine levels, each with four Elo strengths (1000, 1500, 2000, 2850):
 1. Three-Check: in addition to the normal rules of chess, you win the game immediately when you check your opponent for the third time in the game (not necessarily consecutive checks).
 2. King of the Hill: in addition to the normal rules of chess, the player who reaches d4, d5, e4 or e5 in a legal way with his king, wins the game immediately.
 3. Atomic Chess: captures trigger an explosion that destroys the capturing piece, the victim, and all surrounding non-pawn pieces within a one-square radius.
+4. Racing Kings: the player whose king reaches the 8th rank first, wins. No checks allowed!
 
 Screenshots
 -----------

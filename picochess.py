@@ -296,7 +296,7 @@ class PicochessState:
         self.pending_engine_result: str | None = None
         # Chess variant support (e.g., "3check", "atomic")
         self.variant = "chess"
-        self._threecheck_board = None  # ThreeCheckBoard instance when variant == "3check"
+        self._threecheck_board = None  # chess.variant.ThreeCheckBoard instance when variant == "3check"
         self._atomic_board = None  # chess.variant.AtomicBoard instance when variant == "atomic"
         self._racingkings_board = None  # chess.variant.RacingKingsBoard instance when variant == "racingkings"
         self._antichess_board = None  # chess.variant.AntichessBoard instance when variant == "antichess"
@@ -531,11 +531,13 @@ class PicochessState:
         # Check 3check variant win condition first
         if self.variant == "3check" and self._threecheck_board is not None:
             if self._threecheck_board.is_variant_end():
-                winner = self._threecheck_board.variant_winner()
-                if winner == chess.WHITE:
+                tc_result = self._threecheck_board.result()
+                if tc_result == "1-0":
                     result = GameResult.THREE_CHECK_WHITE
-                else:
+                elif tc_result == "0-1":
                     result = GameResult.THREE_CHECK_BLACK
+                else:
+                    result = GameResult.DRAW
                 return Message.GAME_ENDS(
                     tc_init=self.time_control.get_parameters(),
                     result=result,
@@ -1535,7 +1537,9 @@ async def main() -> None:
                 # Skip opening book for atomic/racingkings/antichess - non-standard rules
                 # For 3check variant, use standard FEN for book lookup
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                    book_lookup_board = chess.Board(self.state._threecheck_board.standard_fen())
+                    # Strip check-count field (field 5 of 7) from 3check extended FEN
+                    parts = self.state._threecheck_board.fen().split()
+                    book_lookup_board = chess.Board(f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}")
                 else:
                     book_lookup_board = self.state.game.copy()
                 book_res = self.state.searchmoves.book(self.bookreader, book_lookup_board)
@@ -1864,18 +1868,14 @@ async def main() -> None:
                     self.state.game = chess.Board()
                 self.state.variant = new_variant
                 if self.state.variant == "3check":
-                    from threecheck import ThreeCheckBoard
-                    self.state._threecheck_board = ThreeCheckBoard()
+                    self.state._threecheck_board = chess.variant.ThreeCheckBoard()
                     self.state._atomic_board = None
                     self.state._racingkings_board = None
                     self.state._antichess_board = None
                     # Sync with existing move_stack from game (for engine switch mid-game)
                     if self.state.game.move_stack:
                         logger.info("3check: syncing with existing %d moves", len(self.state.game.move_stack))
-                        # Replay all moves to reconstruct check history
-                        temp_board = chess.Board()
                         for move in self.state.game.move_stack:
-                            temp_board.push(move)
                             self.state._threecheck_board.push(move)
                     logger.info("3check variant initialized")
                 elif self.state.variant == "kingofthehill":
@@ -1943,8 +1943,8 @@ async def main() -> None:
                 self.shared["variant"] = self.state.variant
                 if self.state.variant == "3check" and self.state._threecheck_board:
                     self.shared["checks_remaining"] = {
-                        "white": self.state._threecheck_board.checks_remaining[chess.WHITE],
-                        "black": self.state._threecheck_board.checks_remaining[chess.BLACK],
+                        "white": self.state._threecheck_board.remaining_checks[chess.WHITE],
+                        "black": self.state._threecheck_board.remaining_checks[chess.BLACK],
                     }
                 else:
                     self.shared.pop("checks_remaining", None)

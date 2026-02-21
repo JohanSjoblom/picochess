@@ -1803,9 +1803,12 @@ async def main() -> None:
             prev_variant = self.state.variant
             if self.engine and hasattr(self.engine, "variant"):
                 new_variant = self.engine.variant
-                # Racing Kings uses a different starting setup. When switching away
-                # from it, reset to standard chess before initializing another variant.
-                if prev_variant == "racingkings" and new_variant != "racingkings":
+                # Variants with non-standard board state should reset when switching away.
+                # Racing Kings has a custom start position; Atomic keeps explosions only
+                # on its variant board while self.state.game keeps standard captures.
+                if (prev_variant == "racingkings" and new_variant != "racingkings") or (
+                    prev_variant == "atomic" and new_variant != "atomic"
+                ):
                     self.state.game = chess.Board()
                 self.state.variant = new_variant
                 if self.state.variant == "3check":

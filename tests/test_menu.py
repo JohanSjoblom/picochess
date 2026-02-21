@@ -192,19 +192,19 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Modern", text.medium_text.strip())
         await menu.main_down()  # first engine 'Lc0'
         text = menu.main_left()
-        self.assertEqual("zurichess", text.large_text)  # last engine
+        self.assertEqual("Fairy-Stock", text.large_text)  # last engine
         text = await menu.main_down()
-        self.assertEqual("level     0", text.large_text)  # level of zurichess
+        self.assertEqual("level     0", text.large_text)  # level of Fairy-Stock
         text = await menu.main_down()
-        self.assertFalse(text)  # select zurichess engine
-        self.assertEqual("zurichess", menu.get_current_engine_name().large_text)
+        self.assertFalse(text)  # select Fairy-Stock engine
+        self.assertEqual("Fairy-Stock", menu.get_current_engine_name().large_text)
 
         text = await menu.main_down()
         self.assertEqual("Engine", text.medium_text.strip())
         text = await menu.main_down()
         self.assertEqual("Modern", text.medium_text.strip())
         text = await menu.main_down()
-        self.assertEqual("zurichess", text.large_text)  # previously selected engine
+        self.assertEqual("Fairy-Stock", text.large_text)  # previously selected engine
 
     @patch("platform.machine")
     async def test_retro_engine_retrieval(self, machine_mock):
@@ -386,11 +386,19 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = menu.main_right()
         self.assertEqual("E-Board", text.large_text.strip())
         text = menu.main_right()
+        self.assertEqual("Wi-Fi", text.large_text.strip())
+        text = menu.main_right()
+        self.assertEqual("Bluetooth", text.large_text.strip())
+        text = menu.main_right()
         self.assertEqual("Web-Theme", text.large_text.strip())
         text = menu.main_right()
         self.assertEqual("Power", text.large_text.strip())
         text = menu.main_left()
         self.assertEqual("Web-Theme", text.large_text.strip())
+        text = menu.main_left()
+        self.assertEqual("Bluetooth", text.large_text.strip())
+        text = menu.main_left()
+        self.assertEqual("Wi-Fi", text.large_text.strip())
         text = menu.main_left()
         self.assertEqual("E-Board", text.large_text.strip())
         text = menu.main_left()

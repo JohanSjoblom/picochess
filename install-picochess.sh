@@ -101,7 +101,12 @@ apt -y install python3-venv
 apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
-apt -y install libsndfile1 libportaudio2 pipewire-alsa
+apt -y install libsndfile1 libportaudio2
+if [ "$SKIP_UPDATE" = false ]; then
+    apt -y install pipewire-alsa
+else
+    echo "Skipping pipewire-alsa install during 'pico' code-only update."
+fi
 # hide mouse cursor for kiosk mode
 apt -y install unclutter
 # for mame_emulation we need xdotool (X11) and ydotool (Wayland-compatible key injection)

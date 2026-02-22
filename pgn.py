@@ -35,6 +35,7 @@ from ssl import create_default_context
 import requests
 import chess  # type: ignore
 import chess.pgn  # type: ignore
+import chess.variant  # type: ignore
 import dgt.util
 
 from timecontrol import TimeControl
@@ -61,6 +62,7 @@ class ModeInfo:
     clock_side = "left"
     flipped_board = False
     eboard_type = dgt.util.EBoard.DGT
+    variant = "chess"
 
     @classmethod
     def set_opening(cls, book_in_use, op_name, op_eco):
@@ -137,6 +139,14 @@ class ModeInfo:
     @classmethod
     def get_eboard_type(cls):
         return ModeInfo.eboard_type
+
+    @classmethod
+    def set_variant(cls, variant):
+        ModeInfo.variant = variant
+
+    @classmethod
+    def get_variant(cls):
+        return ModeInfo.variant
 
     @classmethod
     def set_emulation_mode(cls, mode):
@@ -368,15 +378,31 @@ class PgnDisplay(DisplayMsg):
         # pgn_game: chess.pgn.Game = self._generate_pgn_from_existing_headers(message)
         return pgn_game
 
+    def _pgn_game_from_board(self, game: chess.Board) -> chess.pgn.Game:
+        """Create a chess.pgn.Game using the variant board when appropriate.
+
+        Using the variant board ensures correct SAN notation (e.g. no + in antichess).
+        """
+        variant = self.shared.get("variant", "chess") if self.shared else "chess"
+        if variant == "antichess" and game.move_stack:
+            try:
+                acb = chess.variant.AntichessBoard()
+                for move in game.move_stack:
+                    acb.push(move)
+                return chess.pgn.Game().from_board(acb)
+            except Exception:
+                pass
+        return chess.pgn.Game().from_board(game)
+
     def _generate_pgn_from_existing_headers(self, message) -> chess.pgn.Game:
         """create a pgn.game and fill it with existing headers"""
-        pgn_game = chess.pgn.Game().from_board(message.game)
+        pgn_game = self._pgn_game_from_board(message.game)
         pgn_game.headers.update(self.shared["headers"])  # overwrite with existing headers
         return pgn_game
 
     def _generate_pgn_from_message(self, message) -> chess.pgn.Game:
         """create a pgn.game and fill it with headers from a played game"""
-        pgn_game = chess.pgn.Game().from_board(message.game)
+        pgn_game = self._pgn_game_from_board(message.game)
 
         # Headers
         if ModeInfo.get_online_mode():
@@ -388,9 +414,9 @@ class PgnDisplay(DisplayMsg):
         pgn_game.headers["Date"] = datetime.date.today().strftime("%Y.%m.%d")
         pgn_game.headers["Time"] = self.startime
 
-        logger.debug("molli: pgn save result = %s", ModeInfo.get_game_ending())
-        if pgn_game.headers["Result"] == "*":
-            pgn_game.headers["Result"] = ModeInfo.get_game_ending()
+        game_ending = ModeInfo.get_game_ending()
+        logger.debug("molli: pgn save result = %s", game_ending)
+        pgn_game.headers["Result"] = game_ending
 
         if not self.level_text:
             engine_level = ""
@@ -601,6 +627,14 @@ class PgnDisplay(DisplayMsg):
         pgn_game.headers.update(self.shared["headers"])
         ensure_important_headers(pgn_game.headers)
 
+        # In antichess, stalemate is a win for the stalemated side
+        if self.shared and self.shared.get("variant") == "antichess":
+            if not any(message.game.legal_moves):
+                if message.game.turn == chess.WHITE:
+                    pgn_game.headers["Result"] = "1-0"
+                else:
+                    pgn_game.headers["Result"] = "0-1"
+
         # Save to last game file
         with open(self.last_file_name, "w") as last_file:
             last_exporter = chess.pgn.FileExporter(last_file)
@@ -625,6 +659,14 @@ class PgnDisplay(DisplayMsg):
         # no need to keep_essential_headers - we want all headers from headers
         pgn_game.headers.update(self.shared["headers"])
         ensure_important_headers(pgn_game.headers)
+
+        # In antichess, stalemate is a win for the stalemated side
+        if self.shared and self.shared.get("variant") == "antichess":
+            if not any(message.game.legal_moves):
+                if message.game.turn == chess.WHITE:
+                    pgn_game.headers["Result"] = "1-0"
+                else:
+                    pgn_game.headers["Result"] = "0-1"
 
         with open(l_file_name, "w") as file:
             exporter = chess.pgn.FileExporter(file)

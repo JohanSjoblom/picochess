@@ -861,6 +861,9 @@ class GameResult(MyEnum):
     # Racing Kings variant results
     RK_WHITE = "B00_gameresult_rk_white"  # White king reached 8th rank first
     RK_BLACK = "B00_gameresult_rk_black"  # Black king reached 8th rank first
+    # Antichess variant results
+    ANTICHESS_WHITE = "B00_gameresult_antichess_white"  # White wins (lost all pieces or is stalemated)
+    ANTICHESS_BLACK = "B00_gameresult_antichess_black"  # Black wins (lost all pieces or is stalemated)
 
 
 def game_result_from_header(result_str: str) -> GameResult:

@@ -7000,6 +7000,82 @@ class DgtTranslate(object):
                 medium_text="Trv8 0-1",
                 small_text="T8 0-1"
             )
+        if text_id == "gameresult_antichess_white":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Antichess. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Antischach. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Antischaak. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Anti-echecs. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Antiajedrez. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Antiscacchi. 1-0",
+                large_text="Anti   1-0",
+                medium_text="Anti 1-0",
+                small_text="An 1-0"
+            )
+        if text_id == "gameresult_antichess_black":
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Antichess. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Antischach. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Antischaak. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Anti-echecs. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Antiajedrez. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Antiscacchi. 0-1",
+                large_text="Anti   0-1",
+                medium_text="Anti 0-1",
+                small_text="An 0-1"
+            )
         if text_id == "playmode_white_user":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(

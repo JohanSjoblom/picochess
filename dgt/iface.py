@@ -21,6 +21,7 @@ import asyncio
 from chess import Board  # type: ignore
 import chess.variant  # type: ignore
 from utilities import DisplayDgt
+from pgn import ModeInfo
 from dgt.util import ClockSide
 from dgt.api import Dgt
 from dgt.board import Rev2Info
@@ -92,7 +93,7 @@ class DgtIface(DisplayDgt):
 
     def _mk_board(self, message):
         """Create the appropriate board type based on variant for SAN generation."""
-        variant = getattr(message, "variant", "chess")
+        variant = getattr(message, "variant", None)
         fen = message.fen
 
         if variant == "atomic":
@@ -109,6 +110,15 @@ class DgtIface(DisplayDgt):
             return board._board  # Return underlying chess.Board for SAN
         elif variant == "racingkings":
             return chess.variant.RacingKingsBoard(fen)
+        elif variant == "antichess":
+            return chess.variant.AntichessBoard(fen)
+
+        # Fallback: message has no variant attribute (e.g. DISPLAY_MOVE).
+        # Only use ModeInfo for antichess where suppressing '+' matters;
+        # other variants either don't need it or have FEN incompatibilities
+        # (e.g. atomic board FEN differs from standard board FEN).
+        if ModeInfo.get_variant() == "antichess":
+            return chess.variant.AntichessBoard(fen)
 
         return Board(fen)
 

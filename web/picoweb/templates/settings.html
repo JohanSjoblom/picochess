@@ -27,6 +27,17 @@
         .tab-panel.active {
             display: block;
         }
+        .page-actions {
+            margin-bottom: 12px;
+        }
+        .back-link {
+            display: inline-block;
+            padding: 6px 10px;
+            border: 1px solid #666;
+            background: #f4f4f4;
+            color: #000;
+            text-decoration: none;
+        }
         .touch-only {
             display: none;
         }
@@ -69,6 +80,9 @@
 
 <body>
     <h1>Picochess Settings</h1>
+    <div class="page-actions">
+        <a href="/" class="back-link">Back to game</a>
+    </div>
 
     <div class="tab-bar">
         <button type="button" class="tab-button active" data-tab="settings">Picochess.ini</button>
@@ -94,7 +108,7 @@
         <div style="margin-top: 10px;">
             <button type="button" id="addRowBtn">Add setting</button>
             <button type="button" id="saveBtn">Save</button>
-            <a href="/">Back</a>
+            <a href="/" class="back-link">Back to game</a>
         </div>
     </div>
 
@@ -121,6 +135,7 @@
 
         <div style="margin-top: 10px;">
             <button type="button" id="wifi-connect-btn">Connect</button>
+            <a href="/" class="back-link" style="margin-left: 8px;">Back to game</a>
         </div>
     </div>
 
@@ -141,6 +156,7 @@
         <p class="help-row">After changing this setting, restart picochess.</p>
         <div style="margin-top: 10px;">
             <button type="button" id="web-audio-backend-save-btn">Save web audio setting</button>
+            <a href="/" class="back-link" style="margin-left: 8px;">Back to game</a>
         </div>
     </div>
 

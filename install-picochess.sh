@@ -115,9 +115,7 @@ if [ -f "$REPO_DIR/picochess.ini" ]; then
     ' "$REPO_DIR/picochess.ini")
     audio_backend_setting=$(printf "%s" "$audio_backend_setting" | tr '[:upper:]' '[:lower:]')
 fi
-if [ "$SKIP_UPDATE" = true ]; then
-    echo "Skipping pipewire-alsa install during 'pico' code-only update."
-elif [ "$audio_backend_setting" = "sox" ]; then
+if [ "$audio_backend_setting" = "sox" ]; then
     echo "Skipping pipewire-alsa install because picochess.ini is configured with audio-backend=sox."
 else
     apt -y install pipewire-alsa

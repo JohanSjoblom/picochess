@@ -425,6 +425,10 @@ class InfoHandler(ServerRequestHandler):
 class BookHandler(ServerRequestHandler):
 
     async def _get_obooksrv_moves(self, fen: str):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._get_obooksrv_moves_sync, fen)
+
+    def _get_obooksrv_moves_sync(self, fen: str):
         moves_data = []
         try:
             board = chess.Board(fen)
@@ -589,7 +593,8 @@ class BookHandler(ServerRequestHandler):
             if moves_data is None:
                 moves_data = []
         else:
-            moves_data = self._get_polyglot_moves(book_file, fen)
+            loop = asyncio.get_event_loop()
+            moves_data = await loop.run_in_executor(None, self._get_polyglot_moves, book_file, fen)
 
         self.set_header("Content-Type", "application/json")
         self.write({"book": {"file": book_file or "", "label": book_label or ""}, "data": moves_data})
@@ -1342,6 +1347,14 @@ class WebDisplay(DisplayMsg):
                     pgn_game = pgn.Game.from_board(atm)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)
+            elif variant == "antichess" and game.move_stack:
+                try:
+                    acb = chess.variant.AntichessBoard()
+                    for move in game.move_stack:
+                        acb.push(move)
+                    pgn_game = pgn.Game.from_board(acb)
+                except Exception:
+                    pgn_game = pgn.Game().from_board(game)
             else:
                 pgn_game = pgn.Game().from_board(game)
             self._build_game_header(pgn_game, keep_these_headers)
@@ -1696,6 +1709,10 @@ class WebDisplay(DisplayMsg):
             elif message.result == GameResult.RK_WHITE:
                 WebDisplay.result_sav = "1-0"
             elif message.result == GameResult.RK_BLACK:
+                WebDisplay.result_sav = "0-1"
+            elif message.result == GameResult.ANTICHESS_WHITE:
+                WebDisplay.result_sav = "1-0"
+            elif message.result == GameResult.ANTICHESS_BLACK:
                 WebDisplay.result_sav = "0-1"
             elif message.result == GameResult.OUT_OF_TIME or message.result == GameResult.MATE:
                 # last moved won - same as in DgtDisplay

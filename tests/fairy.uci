@@ -1,78 +1,159 @@
+# Fairy-Stockfish configuration for PicoChess
+# Copy this file to fairy.uci and adjust as needed
+#
+# This file configures Fairy-Stockfish 14 to play chess variants.
+# Each section defines a "level" that appears in the PicoChess level menu.
+#
+# Required options per variant:
+#   Variant = <variant>       - PicoChess internal variant name
+#   UCI_Variant = <variant>   - UCI option sent to Fairy-Stockfish
+#
+# Supported variants:
+#   3check        - First to give 3 checks wins
+#   kingofthehill - First to get king to d4/d5/e4/e5 wins
+#   atomic        - First to get opponent's king to explode wins
+#   racingkings   - First to get king to the 8th rank wins
+#   antichess     - First to lose all pieces or get stalemated wins
+
 [DEFAULT]
-; PicoChess variant handling (not sent to engine)
-Variant = 3check
-
-; UCI options sent to Fairy-Stockfish
-UCI_Variant = 3check
-Hash = 192
 Threads = 1
-SyzygyPath = /opt/picochess/tablebases/syzygy
-Slow Mover = 33
-Move Overhead = 2000
-Use NNUE = false
-
-[Level@00]
-Skill Level = 0
-
-[Level@01]
-Skill Level = 1
-
-[Level@02]
-Skill Level = 2
-
-[Level@03]
-Skill Level = 3
-
-[Level@04]
-Skill Level = 4
-
-[Level@05]
-Skill Level = 5
-
-[Level@06]
-Skill Level = 6
-
-[Level@07]
-Skill Level = 7
-
-[Level@08]
-Skill Level = 8
-
-[Level@09]
-Skill Level = 9
-
-[Level@10]
-Skill Level = 10
-
-[Level@11]
-Skill Level = 11
-
-[Level@12]
-Skill Level = 12
-
-[Level@13]
-Skill Level = 13
-
-[Level@14]
-Skill Level = 14
-
-[Level@15]
-Skill Level = 15
-
-[Level@16]
-Skill Level = 16
-
-[Level@17]
-Skill Level = 17
-
-[Level@18]
-Skill Level = 18
+ 
+# =============================================================================
+# 3CHECK VARIANT - First player to give 3 checks wins
+# =============================================================================
+ 
+[3check@1000]
+Variant = 3check
+UCI_Variant = 3check
+UCI_LimitStrength = true
+UCI_Elo = 1000
+ 
+[3check@1500]
+Variant = 3check
+UCI_Variant = 3check
+UCI_LimitStrength = true
+UCI_Elo = 1500
+ 
+[3check@2000]
+Variant = 3check
+UCI_Variant = 3check
+UCI_LimitStrength = true
+UCI_Elo = 2000
+ 
+[3check@2850]
+Variant = 3check
+UCI_Variant = 3check
+UCI_LimitStrength = false
 Threads = 2
 
-[Level@19]
-Skill Level = 19
-Threads = 3
+# =============================================================================
+# KING OF THE HILL - First player to get king to center (d4/d5/e4/e5) wins
+# =============================================================================
+ 
+[KotH@1000]
+Variant = kingofthehill
+UCI_Variant = kingofthehill
+UCI_LimitStrength = true
+UCI_Elo = 1000
+ 
+[KotH@1500]
+Variant = kingofthehill
+UCI_Variant = kingofthehill
+UCI_LimitStrength = true
+UCI_Elo = 1500
+ 
+[KotH@2000]
+Variant = kingofthehill
+UCI_Variant = kingofthehill
+UCI_LimitStrength = true
+UCI_Elo = 2000
+ 
+[KotH@2850]
+Variant = kingofthehill
+UCI_Variant = kingofthehill
+UCI_LimitStrength = false
+Threads = 2
 
-[Level@20]
-Skill Level = 20
-Threads = 4
+# =============================================================================
+# ATOMIC - First player to get the opponent's king to explode wins
+# =============================================================================
+ 
+[Atomic@1000]
+Variant = atomic
+UCI_Variant = atomic
+UCI_LimitStrength = true
+UCI_Elo = 1000
+ 
+[Atomic@1500]
+Variant = atomic
+UCI_Variant = atomic
+UCI_LimitStrength = true
+UCI_Elo = 1500
+ 
+[Atomic@2000]
+Variant = atomic
+UCI_Variant = atomic
+UCI_LimitStrength = true
+UCI_Elo = 2000
+ 
+[Atomic@2850]
+Variant = atomic
+UCI_Variant = atomic
+UCI_LimitStrength = false
+Threads = 2
+
+# =============================================================================
+# RACING KINGS - First player to get king to the 8th rank wins
+# =============================================================================
+
+[RK@1000]
+Variant = racingkings
+UCI_Variant = racingkings
+UCI_LimitStrength = true
+UCI_Elo = 1000
+
+[RK@1500]
+Variant = racingkings
+UCI_Variant = racingkings
+UCI_LimitStrength = true
+UCI_Elo = 1500
+
+[RK@2000]
+Variant = racingkings
+UCI_Variant = racingkings
+UCI_LimitStrength = true
+UCI_Elo = 2000
+
+[RK@2850]
+Variant = racingkings
+UCI_Variant = racingkings
+UCI_LimitStrength = false
+Threads = 2
+
+# =============================================================================
+# ANTICHESS - First player to lose all pieces or get stalemated wins
+# =============================================================================
+
+[Anti@1000]
+Variant = antichess
+UCI_Variant = antichess
+UCI_LimitStrength = true
+UCI_Elo = 1000
+
+[Anti@1500]
+Variant = antichess
+UCI_Variant = antichess
+UCI_LimitStrength = true
+UCI_Elo = 1500
+
+[Anti@2000]
+Variant = antichess
+UCI_Variant = antichess
+UCI_LimitStrength = true
+UCI_Elo = 2000
+
+[Anti@2850]
+Variant = antichess
+UCI_Variant = antichess
+UCI_LimitStrength = false
+Threads = 2

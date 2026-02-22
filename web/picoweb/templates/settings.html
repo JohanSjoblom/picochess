@@ -94,6 +94,9 @@
 
     <div id="settings-panel" class="tab-panel active">
         <p>Changes take effect after the next restart.</p>
+        <div style="margin-top: 10px; margin-bottom: 10px;">
+            <button type="button" id="saveBtnTop">Save</button>
+        </div>
         <table border="1" cellpadding="4" cellspacing="0" style="width:100%; table-layout:fixed;">
             <thead>
                 <tr>
@@ -152,8 +155,7 @@
             <label for="web-audio-backend-remote-toggle">Play sound on your phone from the Picochess web page</label>
         </div>
         <p class="help-row">Enable this to use your phone web browser as the picochess speaker.</p>
-        <p class="help-row">On your phone web page, tap Unmute to hear sound.</p>
-        <p class="help-row">After changing this setting, restart picochess.</p>
+        <p class="help-row">After changing and saving this setting, restart picochess.</p>
         <div style="margin-top: 10px;">
             <button type="button" id="web-audio-backend-save-btn">Save web audio setting</button>
             <a href="/" class="back-link" style="margin-left: 8px;">Back to game</a>
@@ -426,7 +428,7 @@
                 });
         }
 
-        document.getElementById("saveBtn").addEventListener("click", function () {
+        function saveSettings() {
             var entries = collectEntries();
             fetch("/settings/save", {
                 method: "POST",
@@ -445,7 +447,10 @@
                 .catch(function (error) {
                     setStatus(error.message, true);
                 });
-        });
+        }
+
+        document.getElementById("saveBtnTop").addEventListener("click", saveSettings);
+        document.getElementById("saveBtn").addEventListener("click", saveSettings);
 
         document.getElementById("addRowBtn").addEventListener("click", function () {
             addEmptyRow();

@@ -194,7 +194,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = menu.main_left()
         self.assertEqual("Fairy-Stock", text.large_text)  # last engine
         text = await menu.main_down()
-        self.assertEqual("level     0", text.large_text)  # level of Fairy-Stock
+        self.assertEqual("3check@1000", text.large_text)  # level of Fairy-Stock
         text = await menu.main_down()
         self.assertFalse(text)  # select Fairy-Stock engine
         self.assertEqual("Fairy-Stock", menu.get_current_engine_name().large_text)

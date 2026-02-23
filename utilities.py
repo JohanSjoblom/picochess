@@ -401,7 +401,7 @@ def get_location():
     # to `ip -4 addr show` (e.g., wlan0/eth0) for offline-friendly IP display.
     if int_ip := _get_internal_ip():
         try:
-            response = urllib.request.urlopen("https://ipv4.geojs.io/v1/ip/geo.json")
+            response = urllib.request.urlopen("https://ipv4.geojs.io/v1/ip/geo.json", timeout=4)
             j = json.loads(response.read().decode())
 
             country_name = j.get("country", "")

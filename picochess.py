@@ -1855,8 +1855,11 @@ async def main() -> None:
                 # Variants with non-standard board state should reset when switching away.
                 # Racing Kings has a custom start position; Atomic keeps explosions only
                 # on its variant board while self.state.game keeps standard captures.
+                # Antichess can also diverge from standard-chess legal-state assumptions.
                 if (prev_variant == "racingkings" and new_variant != "racingkings") or (
                     prev_variant == "atomic" and new_variant != "atomic"
+                ) or (
+                    prev_variant == "antichess" and new_variant != "antichess"
                 ):
                     self.state.game = chess.Board()
                 self.state.variant = new_variant

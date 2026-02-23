@@ -66,7 +66,7 @@
             }
         }
 
-        /* Barra de evaluación horizontal */
+        /* Horizontal evaluation bar */
         .evaluation-bar-horizontal {
             margin-bottom: 10px;
         }
@@ -542,9 +542,9 @@
 
     <script type="text/javascript" src="/static/js/jquery-3.6.1.min.js"></script>
     <script>
-        // Parche global para prevenir errores de Bootstrap
+        // Global patch to prevent Bootstrap errors
         (function () {
-            // Interceptar errores globales
+            // Intercept global errors
             window.addEventListener('error', function (e) {
                 if (e.message && (e.message.includes('split') || e.message.includes('null'))) {
                     e.preventDefault();
@@ -552,14 +552,14 @@
                 }
             });
 
-            // Parche para split
+            // Patch for split
             const originalSplit = String.prototype.split;
             String.prototype.split = function () {
                 if (this == null || this == undefined) return [];
                 return originalSplit.apply(this, arguments);
             };
 
-            // Parche para getAttribute
+            // Patch for getAttribute
             const originalGetAttribute = Element.prototype.getAttribute;
             Element.prototype.getAttribute = function (name) {
                 const value = originalGetAttribute.call(this, name);

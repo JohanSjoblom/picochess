@@ -399,6 +399,8 @@ class PicochessState:
             return self._threecheck_board.board_fen()
         elif self.variant == "racingkings" and self._racingkings_board is not None:
             return self._racingkings_board.board_fen()
+        elif self.variant == "antichess" and self._antichess_board is not None:
+            return self._antichess_board.board_fen()
         return self.game.board_fen()
 
     def get_fen(self) -> str:
@@ -413,7 +415,29 @@ class PicochessState:
             return self._threecheck_board.fen()
         elif self.variant == "racingkings" and self._racingkings_board is not None:
             return self._racingkings_board.fen()
+        elif self.variant == "antichess" and self._antichess_board is not None:
+            return self._antichess_board.fen()
         return self.game.fen()
+
+    def reset_variant_board(self) -> None:
+        """Reset the active variant board to starting position."""
+        if self.variant == "3check" and self._threecheck_board is not None:
+            self._threecheck_board.reset()
+        elif self.variant == "atomic" and self._atomic_board is not None:
+            self._atomic_board.reset()
+        elif self.variant == "racingkings" and self._racingkings_board is not None:
+            self._racingkings_board = chess.variant.RacingKingsBoard()
+        elif self.variant == "antichess" and self._antichess_board is not None:
+            self._antichess_board = chess.variant.AntichessBoard()
+
+    def get_move_check_board(self):
+        """Return the board to use for move legality checks.
+
+        Returns the variant board (atomic/3check/racingkings/antichess) when
+        active, otherwise the standard game board.  This is the single point
+        of truth for 'which board object do I check legal_moves against?'.
+        """
+        return self.get_variant_board() or self.game
 
     async def start_clock(self) -> None:
         """Start the clock."""
@@ -2157,7 +2181,7 @@ async def main() -> None:
             # different legal moves than standard chess).  The same board must be used
             # for both FEN computation AND move-index lookup — mixing them produces
             # wrong moves.
-            _move_board = self.state.get_variant_board() or self.state.game
+            _move_board = self.state.get_move_check_board()
             legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
             # Check for same position (use variant board_fen for atomic explosions)
@@ -2683,7 +2707,7 @@ async def main() -> None:
 
             logger.info("user move [%s] sliding: %s", move, sliding)
             # Use variant board for legality check (atomic has different legal moves after explosions)
-            move_check_board = self.state.get_variant_board() or self.state.game
+            move_check_board = self.state.get_move_check_board()
             if move not in move_check_board.legal_moves:
                 logger.warning("illegal move [%s]", move)
                 return False
@@ -3138,7 +3162,7 @@ async def main() -> None:
                 if self.need_engine_analyser():
                     limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
                     # Use variant board if available for correct position representation
-                    analysis_board = self.state.get_variant_board() or self.state.game
+                    analysis_board = self.state.get_move_check_board()
                     await self.engine.start_analysis(analysis_board, limit=limit)
                 else:
                     self.engine.stop_analysis()
@@ -3212,7 +3236,7 @@ async def main() -> None:
                             # would already have routed analysis through picotutor. Only fall back to
                             # engine analysis when tutor info cannot be used.
                             # save cpu - only run engine analysis on user turn if coach/watcher off
-                            analysis_board = self.state.get_variant_board() or self.state.game
+                            analysis_board = self.state.get_move_check_board()
                             result = await self.engine.get_analysis(analysis_board)
                             info_list: list[InfoDict] = result.get("info")
                             info_list_source = "engine"
@@ -4198,7 +4222,7 @@ async def main() -> None:
                 move = event.move
                 logger.debug("keyboard move [%s]", move)
                 # Use variant board for legality check (atomic has different legal moves)
-                _check_board = self.state.get_variant_board() or self.state.game
+                _check_board = self.state.get_move_check_board()
                 if move not in _check_board.legal_moves:
                     logger.warning("illegal move. fen: [%s]", self.state.game.fen())
                 else:
@@ -4413,15 +4437,7 @@ async def main() -> None:
                     else:
                         self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
-                    # Reset variant boards if active
-                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                        self.state._threecheck_board.reset()
-                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                        self.state._atomic_board.reset()
-                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
-                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
-                    elif self.state.variant == "antichess" and self.state._antichess_board is not None:
-                        self.state._antichess_board = chess.variant.AntichessBoard()
+                    self.state.reset_variant_board()
                     self.state.play_mode = PlayMode.USER_WHITE
                     if self.pgn_mode():
                         self.engine.option("game_sequence", "forward")
@@ -4733,16 +4749,8 @@ async def main() -> None:
                     if uci960:
                         self.state.game.set_chess960_pos(event.pos960)
 
-                    # Reset variant boards if active
-                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                        self.state._threecheck_board.reset()
-                        self._update_variant_shared()
-                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                        self.state._atomic_board.reset()
-                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
-                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
-                    elif self.state.variant == "antichess" and self.state._antichess_board is not None:
-                        self.state._antichess_board = chess.variant.AntichessBoard()
+                    self.state.reset_variant_board()
+                    self._update_variant_shared()
 
                     if self.state.play_mode != PlayMode.USER_WHITE:
                         self.state.play_mode = PlayMode.USER_WHITE
@@ -5061,7 +5069,7 @@ async def main() -> None:
 
                 if self.state.interaction_mode == Mode.PONDER:
                     # molli: allow switching sides in flexble ponder mode
-                    fen = self.state.game.board_fen()
+                    fen = self.state.get_board_fen()
 
                     if self.state.game.turn == chess.WHITE:
                         fen += " b KQkq - 0 1"
@@ -5755,7 +5763,7 @@ async def main() -> None:
                     # illegal moves can occur if a pv from the engine arrives
                     # at the same time as an user move
                     # Use variant board for legality check (atomic has different legal moves)
-                    pv_check_board = self.state.get_variant_board() or self.state.game
+                    pv_check_board = self.state.get_move_check_board()
                     if pv_check_board.is_legal(event.pv[0]):
                         # only pv received from event
                         await DisplayMsg.show(
@@ -6041,15 +6049,7 @@ async def main() -> None:
                     else:
                         self.state.game = chess.Board()
                     self.state.game.turn = chess.WHITE
-                    # Reset variant boards if active
-                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                        self.state._threecheck_board.reset()
-                    elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                        self.state._atomic_board.reset()
-                    elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
-                        self.state._racingkings_board = chess.variant.RacingKingsBoard()
-                    elif self.state.variant == "antichess" and self.state._antichess_board is not None:
-                        self.state._antichess_board = chess.variant.AntichessBoard()
+                    self.state.reset_variant_board()
                     self.state.play_mode = PlayMode.USER_WHITE
                     starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
                     if game_fen != starting_fen:

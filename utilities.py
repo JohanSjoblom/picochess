@@ -395,11 +395,16 @@ def _get_internal_ip() -> Optional[str]:
     return None
 
 
+def get_internal_ip() -> Optional[str]:
+    """Return the current internal IPv4 address, if available."""
+    return _get_internal_ip()
+
+
 def get_location():
     """Return the location of the user and the external and internal ip adr."""
     # TODO: The internal IP lookup uses a route to 8.8.8.8. Consider switching
     # to `ip -4 addr show` (e.g., wlan0/eth0) for offline-friendly IP display.
-    if int_ip := _get_internal_ip():
+    if int_ip := get_internal_ip():
         try:
             response = urllib.request.urlopen("https://ipv4.geojs.io/v1/ip/geo.json", timeout=4)
             j = json.loads(response.read().decode())

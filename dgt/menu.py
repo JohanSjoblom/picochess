@@ -26,7 +26,7 @@ from typing import Dict, List, Set
 from pgn import ModeInfo
 import chess  # type: ignore
 from timecontrol import TimeControl
-from utilities import Observable, DispatchDgt, get_tags, version, write_picochess_ini, get_window_command
+from utilities import Observable, DispatchDgt, get_internal_ip, get_tags, version, write_picochess_ini, get_window_command
 from dgt.util import (
     TimeMode,
     TimeModeLoop,
@@ -2964,17 +2964,21 @@ class DgtMenu(object):
             text = await self._fire_dispatchdgt(text)
 
         elif self.state == MenuState.SYS_INFO_IP:
-            if self.int_ip:
+            live_int_ip = get_internal_ip()
+            if live_int_ip is not None:
+                self.int_ip = live_int_ip
+            display_int_ip = live_int_ip or self.int_ip
+            if display_int_ip:
                 if Rev2Info.get_web_only():
-                    msg = self.int_ip
+                    msg = display_int_ip
                     text = self.dgttranslate.text("N07_default", msg)
                 else:
-                    msg = " ".join(self.int_ip.split(".")[:2])
+                    msg = " ".join(display_int_ip.split(".")[:2])
                     text = self.dgttranslate.text("B07_default", msg)
                     if len(msg) == 7:  # delete the " " for XL incase its "123 456"
                         text.s = msg[:3] + msg[4:]
                     await DispatchDgt.fire(text)
-                    msg = " ".join(self.int_ip.split(".")[2:])
+                    msg = " ".join(display_int_ip.split(".")[2:])
                     text = self.dgttranslate.text("N07_default", msg)
                     if len(msg) == 7:  # delete the " " for XL incase its "123 456"
                         text.s = msg[:3] + msg[4:]

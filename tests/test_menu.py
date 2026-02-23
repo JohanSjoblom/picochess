@@ -1,7 +1,7 @@
 import os
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
@@ -421,6 +421,40 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Exit Pico", text.large_text.strip())
         text = menu.main_left()
         self.assertEqual("Shut down", text.large_text.strip())
+
+    @patch("platform.machine")
+    async def test_sys_info_ip_refreshes_live_internal_ip(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        menu.state = MenuState.SYS_INFO_IP
+        menu.int_ip = "192.168.0.99"
+
+        with patch("dgt.menu.get_internal_ip", return_value="10.20.30.40"), patch(
+            "dgt.menu.Rev2Info.get_web_only", return_value=False
+        ), patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock) as dispatch_fire:
+            await menu.main_down()
+
+        self.assertEqual("10.20.30.40", menu.int_ip)
+        self.assertEqual(2, dispatch_fire.await_count)
+        self.assertEqual("10 20", dispatch_fire.await_args_list[0].args[0].large_text.strip())
+        self.assertEqual("30 40", dispatch_fire.await_args_list[1].args[0].large_text.strip())
+
+    @patch("platform.machine")
+    async def test_sys_info_ip_falls_back_to_cached_ip(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        menu.state = MenuState.SYS_INFO_IP
+        menu.int_ip = "192.168.0.99"
+
+        with patch("dgt.menu.get_internal_ip", return_value=None), patch(
+            "dgt.menu.Rev2Info.get_web_only", return_value=True
+        ), patch(
+            "dgt.menu.DispatchDgt.fire", new_callable=AsyncMock
+        ) as dispatch_fire:
+            await menu.main_down()
+
+        self.assertEqual("192.168.0.99", menu.int_ip)
+        self.assertEqual(1, dispatch_fire.await_count)
+        self.assertEqual("192.168.0.99", dispatch_fire.await_args_list[0].args[0].web_text.strip())
+        self.assertEqual("192.168.0.9", dispatch_fire.await_args_list[0].args[0].large_text.strip())
 
     @patch("platform.machine")
     async def test_node_menu(self, machine_mock):

@@ -76,7 +76,7 @@
         max-height: 580px;
     }
     
-    /* Barra de evaluación ajustada */
+    /* Adjusted evaluation bar */
     .evaluation-container-horizontal {
         max-width: 1014px;
         margin: 0 auto;
@@ -268,7 +268,7 @@
         max-height: 790px;
     }
     
-    /* Barra de evaluación ajustada al ancho del tablero */
+    /* Evaluation bar adjusted to board width */
     .evaluation-container-horizontal {
         max-width: 1270px;
         margin: 0 auto;

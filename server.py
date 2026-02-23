@@ -425,6 +425,10 @@ class InfoHandler(ServerRequestHandler):
 class BookHandler(ServerRequestHandler):
 
     async def _get_obooksrv_moves(self, fen: str):
+        # Opening books contain standard chess positions only
+        variant = self.shared.get("variant", "chess")
+        if variant not in ("chess", "3check"):
+            return []
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._get_obooksrv_moves_sync, fen)
 
@@ -465,6 +469,10 @@ class BookHandler(ServerRequestHandler):
         return fen
 
     def _get_polyglot_moves(self, book_file: str, fen: str):
+        # Opening books contain standard chess positions only
+        variant = self.shared.get("variant", "chess")
+        if variant not in ("chess", "3check"):
+            return []
         moves_data = []
         try:
             # Strip 3check extension if present for standard book lookup

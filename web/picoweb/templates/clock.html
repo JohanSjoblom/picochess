@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/static/css/bootstrap-5.5.2.min.css" />
     <link rel="stylesheet" href="/static/css/chessground/chessground.css" />
     <link rel="stylesheet" href="/static/css/chessground/theme.css" />
-    <link rel="stylesheet" href="/static/css/chessground/theme_natural_wood.css" />
+    <link rel="stylesheet" href="/static/css/chessground/theme_{{ board }}.css" />
     <link rel="stylesheet" type="text/css" href="/static/css/datatables.min.css" />
     <link rel="stylesheet" href="/static/css/font-awesome.min.css" />
     {% try %}
@@ -597,7 +597,7 @@
                                         <div class="evaluation-value-horizontal" id="evaluationValue">0.0</div>
                                     </div>
                                 </div>
-                                <section id="xboardsection" class="natural-wood merida svg-container">
+                                <section id="xboardsection" class="{{ board.replace('_', '-') }} {{ pieces }} svg-container">
                                     <div class="board-container">
                                         <div id="board" class="svg-content" style="margin-bottom: 10px;"></div>
                                     </div>

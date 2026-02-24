@@ -613,8 +613,10 @@ class BookHandler(ServerRequestHandler):
 
 
 class ChessBoardHandler(ServerRequestHandler):
-    def initialize(self, theme="dark", shared=None):
+    def initialize(self, theme="dark", pieces="merida", board="natural_wood", shared=None):
         self.theme = theme
+        self.pieces = pieces
+        self.board = board
         self.shared = shared
 
     def get(self):
@@ -628,9 +630,13 @@ class ChessBoardHandler(ServerRequestHandler):
                 # Backend audio takes priority over browser speech synthesis.
                 web_speech = False
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
+        pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
+        board = self.shared.get("board", self.board) if self.shared else self.board
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
+            pieces=pieces,
+            board=board,
             web_speech=web_speech,
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
@@ -688,6 +694,9 @@ class SettingsDataHandler(ServerRequestHandler):
 
 
 class SettingsSaveHandler(ServerRequestHandler):
+    def initialize(self, shared=None):
+        self.shared = shared
+
     def post(self):
         if not _require_auth_if_remote(self, "Settings"):
             return
@@ -766,6 +775,14 @@ class SettingsSaveHandler(ServerRequestHandler):
 
         with open(ini_path, "w", encoding="utf-8") as ini_file:
             ini_file.writelines(new_lines)
+
+        # Update shared state for settings that take effect without restart
+        if self.shared is not None:
+            for key in ("pieces", "board"):
+                entry = entries_by_key.get(key)
+                if entry and entry["enabled"]:
+                    self.shared[key] = entry["value"]
+
         self.set_header("Content-Type", "application/json")
         self.write({"status": "ok"})
 
@@ -888,12 +905,12 @@ class WebServer:
     def __init__(self):
         pass
 
-    def make_app(self, theme: str, shared: dict) -> tornado.web.Application:
+    def make_app(self, theme: str, pieces: str, board: str, shared: dict) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
         return tornado.web.Application(
             [
-                (r"/", ChessBoardHandler, dict(theme=theme, shared=shared)),
+                (r"/", ChessBoardHandler, dict(theme=theme, pieces=pieces, board=board, shared=shared)),
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),
                 (r"/info", InfoHandler, dict(shared=shared)),
@@ -904,7 +921,7 @@ class WebServer:
                 (r"/upload", UploadPageHandler),
                 (r"/settings", SettingsPageHandler),
                 (r"/settings/data", SettingsDataHandler),
-                (r"/settings/save", SettingsSaveHandler),
+                (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
                 (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix)", SettingsActionHandler),
                 (r"/onboard", WifiSetupPageHandler),
                 (r"/onboard/wifi", WifiSetupHandler),

@@ -1109,7 +1109,9 @@ async def main() -> None:
         logger.info("message queues ready - starting web server")
         dgtdispatcher.register("web")
         theme: str = calc_theme(args.theme, state.set_location)
-        web_app = my_web_server.make_app(theme, shared)
+        shared["pieces"] = args.pieces
+        shared["board"] = args.board
+        web_app = my_web_server.make_app(theme, args.pieces, args.board, shared)
         try:
             web_app.listen(args.web_server_port)
         except PermissionError:

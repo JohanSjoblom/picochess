@@ -201,6 +201,12 @@
             if (normalized === "theme") {
                 return ["", "auto", "light", "dark", "time"];
             }
+            if (normalized === "pieces") {
+                return ["merida", "alpha", "leipzig"];
+            }
+            if (normalized === "board") {
+                return ["natural_wood", "blue", "darkwood", "green", "metal", "newspaper", "soft", "wood"];
+            }
             return null;
         }
 

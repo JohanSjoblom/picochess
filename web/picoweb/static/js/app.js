@@ -2260,14 +2260,24 @@ function getAllInfo() {
     });
 }
 
-var boardThemes = ['blue', 'green', 'metal', 'newspaper', 'soft', 'wood', 'natural-wood'];
-var currentThemeIndex = parseInt(localStorage.getItem('boardThemeIndex')) || 6;
+var boardThemes = ['blue', 'darkwood', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
+
+function getCurrentBoardTheme() {
+    var section = $('#xboardsection');
+    for (var i = 0; i < boardThemes.length; i++) {
+        if (section.hasClass(boardThemes[i])) {
+            return i;
+        }
+    }
+    return boardThemes.indexOf('natural-wood');
+}
 
 function changeBoardTheme() {
-    currentThemeIndex = (currentThemeIndex + 1) % boardThemes.length;
-    var theme = boardThemes[currentThemeIndex];
+    var currentIndex = getCurrentBoardTheme();
+    var newIndex = (currentIndex + 1) % boardThemes.length;
+    var theme = boardThemes[newIndex];
 
-    $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
+    $('#xboardsection').removeClass(boardThemes.join(' '));
     $('#xboardsection').addClass(theme);
 
     var themeLink = $('#theme-' + theme);
@@ -2275,18 +2285,18 @@ function changeBoardTheme() {
         $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
     }
 
-    localStorage.setItem('boardThemeIndex', currentThemeIndex);
+    // Persist to server so the choice survives page reloads
+    var boardValue = theme.replace(/-/g, '_');
+    $.ajax({
+        url: '/settings/save',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({entries: [{key: 'board', value: boardValue, enabled: true}]})
+    });
 }
 
 function loadSavedTheme() {
-    var theme = boardThemes[currentThemeIndex];
-    $('#xboardsection').removeClass('blue green metal newspaper soft wood natural-wood');
-    $('#xboardsection').addClass(theme);
-
-    var themeLink = $('#theme-' + theme);
-    if (themeLink.length === 0) {
-        $('head').append('<link id="theme-' + theme + '" rel="stylesheet" href="/static/css/chessground/theme_' + theme.replace('-', '_') + '.css" />');
-    }
+    // Board theme is rendered server-side from picochess.ini — no client-side override needed
 }
 
 $('#flipOrientationBtn').on('click', boardFlip);

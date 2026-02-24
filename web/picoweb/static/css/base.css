@@ -385,39 +385,47 @@ td.result {
     opacity: 1;
 }
 
-.knight.white {
-    background-image: url('chessground/images/pieces/merida/wN.svg')
-}
+/* Merida pieces */
+.merida .pawn.white { background-image: url('chessground/images/pieces/merida/wP.svg') }
+.merida .knight.white { background-image: url('chessground/images/pieces/merida/wN.svg') }
+.merida .bishop.white { background-image: url('chessground/images/pieces/merida/wB.svg') }
+.merida .rook.white { background-image: url('chessground/images/pieces/merida/wR.svg') }
+.merida .queen.white { background-image: url('chessground/images/pieces/merida/wQ.svg') }
+.merida .king.white { background-image: url('chessground/images/pieces/merida/wK.svg') }
+.merida .pawn.black { background-image: url('chessground/images/pieces/merida/bP.svg') }
+.merida .knight.black { background-image: url('chessground/images/pieces/merida/bN.svg') }
+.merida .bishop.black { background-image: url('chessground/images/pieces/merida/bB.svg') }
+.merida .rook.black { background-image: url('chessground/images/pieces/merida/bR.svg') }
+.merida .queen.black { background-image: url('chessground/images/pieces/merida/bQ.svg') }
+.merida .king.black { background-image: url('chessground/images/pieces/merida/bK.svg') }
 
-.bishop.white {
-    background-image: url('chessground/images/pieces/merida/wB.svg')
-}
+/* Alpha pieces */
+.alpha .pawn.white { background-image: url('chessground/images/pieces/alpha/wP.svg') }
+.alpha .knight.white { background-image: url('chessground/images/pieces/alpha/wN.svg') }
+.alpha .bishop.white { background-image: url('chessground/images/pieces/alpha/wB.svg') }
+.alpha .rook.white { background-image: url('chessground/images/pieces/alpha/wR.svg') }
+.alpha .queen.white { background-image: url('chessground/images/pieces/alpha/wQ.svg') }
+.alpha .king.white { background-image: url('chessground/images/pieces/alpha/wK.svg') }
+.alpha .pawn.black { background-image: url('chessground/images/pieces/alpha/bP.svg') }
+.alpha .knight.black { background-image: url('chessground/images/pieces/alpha/bN.svg') }
+.alpha .bishop.black { background-image: url('chessground/images/pieces/alpha/bB.svg') }
+.alpha .rook.black { background-image: url('chessground/images/pieces/alpha/bR.svg') }
+.alpha .queen.black { background-image: url('chessground/images/pieces/alpha/bQ.svg') }
+.alpha .king.black { background-image: url('chessground/images/pieces/alpha/bK.svg') }
 
-.rook.white {
-    background-image: url('chessground/images/pieces/merida/wR.svg')
-}
-
-.queen.white {
-    background-image: url('chessground/images/pieces/merida/wQ.svg')
-}
-
-.knight.black {
-    background-image: url('chessground/images/pieces/merida/bN.svg')
-}
-
-.bishop.black {
-    background-image: url('chessground/images/pieces/merida/bB.svg')
-}
-
-.rook.black {
-    background-image: url('chessground/images/pieces/merida/bR.svg')
-}
-
-.queen.black {
-    background-image: url('chessground/images/pieces/merida/bQ.svg')
-}
-
-/* end promotion */
+/* Leipzig pieces */
+.leipzig .pawn.white { background-image: url('chessground/images/pieces/leipzig/wP.svg') }
+.leipzig .knight.white { background-image: url('chessground/images/pieces/leipzig/wN.svg') }
+.leipzig .bishop.white { background-image: url('chessground/images/pieces/leipzig/wB.svg') }
+.leipzig .rook.white { background-image: url('chessground/images/pieces/leipzig/wR.svg') }
+.leipzig .queen.white { background-image: url('chessground/images/pieces/leipzig/wQ.svg') }
+.leipzig .king.white { background-image: url('chessground/images/pieces/leipzig/wK.svg') }
+.leipzig .pawn.black { background-image: url('chessground/images/pieces/leipzig/bP.svg') }
+.leipzig .knight.black { background-image: url('chessground/images/pieces/leipzig/bN.svg') }
+.leipzig .bishop.black { background-image: url('chessground/images/pieces/leipzig/bB.svg') }
+.leipzig .rook.black { background-image: url('chessground/images/pieces/leipzig/bR.svg') }
+.leipzig .queen.black { background-image: url('chessground/images/pieces/leipzig/bQ.svg') }
+.leipzig .king.black { background-image: url('chessground/images/pieces/leipzig/bK.svg') }
 /* --- ESTILOS DEL BOTÓN MUTE (GLOBAL) --- */
 
 /* Estilo base del botón */

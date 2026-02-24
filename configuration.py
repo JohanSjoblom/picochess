@@ -404,6 +404,19 @@ class Configuration:
             help='Web theme, "light", "dark" , "time", "auto" or blank, default is "dark", leave blank for another light theme, "time" for a change according to a fixed time or "auto" for a sunrise/sunset dependent theme setting',
         )
         self.parser.add_argument(
+            "-pieces",
+            "--pieces",
+            type=str,
+            default="merida",
+            help='Web chess piece set: "alpha", "leipzig" or "merida", default is "merida"',
+        )
+        self.parser.add_argument(
+            "--board",
+            type=str,
+            default="natural_wood",
+            help='Web board theme: "blue", "darkwood", "green", "metal", "natural_wood", "newspaper", "soft" or "wood", default is "natural_wood"',
+        )
+        self.parser.add_argument(
             "-rspeed",
             "--rspeed",
             type=str,

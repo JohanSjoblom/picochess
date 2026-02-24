@@ -397,6 +397,15 @@ clockside = left
 #theme = dark
 theme = auto
 
+## Web chess piece set: 'alpha', 'leipzig' or 'merida'. Default is 'merida'.
+#pieces = merida
+pieces = merida
+
+## Web board theme: 'blue', 'darkwood', 'green', 'metal', 'natural_wood', 'newspaper', 'soft' or 'wood'.
+## Default is 'natural_wood'.
+#board = natural_wood
+board = natural_wood
+
 ## Retro-Artwork setting for MAME engines: default artwork display is off. If you want to enable it, set rdisplay = True.
 ## Only use with a Raspberry Pi 4B hardware or better. NOTE: PicoChess will crash if no desktop GUI is installed and this setting
 ## is enabled. If it does, this file will need to be manually edited to reset rdisplay to False below.

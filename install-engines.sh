@@ -100,11 +100,11 @@ if [ "$ARCH" = "aarch64" ]; then
         mkdir -p "$ENGINES_DIR/aarch64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_engines_lite.tar.gz"
-            TMPFILE="$TMP_DIR/aarch64_engines_lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-aarch64-lite.tar.gz"
+            TMPFILE="$TMP_DIR/engines-aarch64-lite.tar.gz"
             ENGINE_DESC="aarch64 lite engine package"
         else
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/engines-aarch64-small.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-aarch64-small.tar.gz"
             TMPFILE="$TMP_DIR/engines-aarch64-small.tar.gz"
             ENGINE_DESC="aarch64 small engine package"
         fi
@@ -138,8 +138,8 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_mame_lite.tar.gz"
-            MAME_TMP="$TMP_DIR/aarch64_mame_lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-mame-lite.tar.gz"
+            MAME_TMP="$TMP_DIR/engines-mame-lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then
@@ -279,8 +279,8 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_mame_lite.tar.gz"
-            MAME_TMP="$TMP_DIR/x86_64_mame_lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-mame-lite.tar.gz"
+            MAME_TMP="$TMP_DIR/engines-mame-lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then

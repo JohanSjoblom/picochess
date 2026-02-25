@@ -1,8 +1,7 @@
 #!/bin/sh
 #
-# list-git-tags.sh
-# POSIX shell script to list the latest git tags (tag name + date)
-# for PicoChess — only tags starting with "v4"
+# check-git-tags.sh
+# POSIX shell script to list the latest v4 git tags (tag name + commit date)
 #
 
 REPO_DIR="/opt/picochess"
@@ -18,10 +17,14 @@ case "$1" in
     * ) NUM_TAGS=$1 ;;
 esac
 
-# Get the most recent tags starting with "v4"
-TAG_LIST=$(git for-each-ref --sort=-creatordate \
-    --format='%(refname:short)  %(creatordate:short)' refs/tags 2>/dev/null |
-    grep '^v4' | head -n "$NUM_TAGS")
+# Get tags starting with "v4" and show the target commit date.
+# For annotated tags, use the peeled commit date (*committerdate).
+# For lightweight tags, fall back to committerdate.
+TAG_LIST=$(git for-each-ref \
+    --format='%(refname:short)  %(if)%(*committerdate:short)%(then)%(*committerdate:short)%(else)%(committerdate:short)%(end)' refs/tags 2>/dev/null |
+    grep '^v4' |
+    sort -k2,2r |
+    head -n "$NUM_TAGS")
 
 if [ -z "$TAG_LIST" ]; then
     echo "No v4 tags found"

@@ -172,8 +172,8 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
-            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/aarch64_rodent3_lite.tar.gz"
-            RODENT3_TMP="$TMP_DIR/aarch64_rodent3_lite.tar.gz"
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-rodent3-lite.tar.gz"
+            RODENT3_TMP="$TMP_DIR/engines-rodent3-lite.tar.gz"
 
             echo "Downloading Rodent III package..."
             if command -v curl >/dev/null 2>&1; then

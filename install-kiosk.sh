@@ -86,7 +86,10 @@ systemctl daemon-reload
 
 # Kiosk autostart
 AUTOSTART_DIR="$INSTALL_USER_HOME/.config/autostart"
+CONFIG_DIR="$INSTALL_USER_HOME/.config"
 mkdir -p "$AUTOSTART_DIR"
+# Ensure user-owned config dirs when created by this root-run installer.
+chown "$INSTALL_USER:$INSTALL_USER" "$CONFIG_DIR" "$AUTOSTART_DIR" 2>/dev/null || true
 if [ -f "$REPO_DIR/etc/pico-kiosk.desktop" ]; then
     cp "$REPO_DIR/etc/pico-kiosk.desktop" "$AUTOSTART_DIR/pico-kiosk.desktop"
     sed -i "s|^Exec=.*|Exec=$INSTALL_USER_HOME/kiosk.sh|" "$AUTOSTART_DIR/pico-kiosk.desktop"

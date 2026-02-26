@@ -76,7 +76,7 @@ engine = /opt/picochess/engines/aarch64/a-stockf
 
 ## What level the engine should have at startup?
 ## For a (correct) value please take a look at 'engines/<your_platform>/<engine_name>.uci'
-#engine-level= Elo@1500
+engine-level = Elo@2200
 
 ### =========================
 ### = Remote engine options =

@@ -6,12 +6,16 @@ This document explains the full move cycle inside PicoChess, including:
 
 - support for multiple electronic boards  
 - GUI/keyboard move input  
-- python‑chess legality checks  
+- python‑chess legality checks
+- special FEN positions for settings (DGT board)
 - classic + variant endings  
 - engine cycle  
 - clock management  
 - background time‑loss detection  
-- and the correct sequence for engine‑move output  
+- the tutor engine (PicoCoach / PicoWatcher / PicoExplorer)
+- alternative‑move override
+- game‑end processing (PGN writing, email, Elo update)
+- and the correct sequence for engine‑move output
 
 ---
 
@@ -53,11 +57,47 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ B. LEGALITY CHECK (python-chess, variant-aware)                            │
+│ B. FEN CLASSIFICATION + LEGALITY CHECK                                     │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
-    process_fen() checks candidate FEN in this order:
+   B-1. SPECIAL FEN PRE-FILTER  (dgt/display.py — DGT boards only)
+   ─────────────────────────────
+   Before the FEN reaches the game logic, the DGT display layer checks
+   it against predefined "settings FEN" maps.  These are ILLEGAL
+   positions: standard starting position + one extra queen placed on a
+   specific square.  The file (a–h) selects a slot; the rank selects
+   which setting category.
+
+   ┌────────────────────┬─────────┬────────────────────────────────────┐
+   │ Setting            │ Piece   │ Rank / squares                     │
+   ├────────────────────┼─────────┼────────────────────────────────────┤
+   │ Engine skill level │ black q │ rank 5 (a5–h5)  → 8 levels        │
+   │ Opening book       │ black q │ ranks 3–4 (a3–h4) → 16 books      │
+   │ Engine selection   │ black q │ rank 6 (a6–h6)  → 8 engines       │
+   │ Playing mode       │ White Q │ rank 5 (A5–H5)  → 8 modes         │
+   │ Time ctrl (fixed)  │ White Q │ dynamic map from menu              │
+   │ Time ctrl (blitz)  │ White Q │ dynamic map from menu              │
+   │ Time ctrl (Fischer)│ White Q │ dynamic map from menu              │
+   │ Shutdown           │ 2 Q's   │ d1+e1 (or d8+e8 variants)         │
+   │ Reboot             │ 2 q's   │ d8+e8 (or d1+e1 variants)         │
+   │ Draw / Resign      │ 2 kings │ adjacent kings, specific squares   │
+   └────────────────────┴─────────┴────────────────────────────────────┘
+
+   On match → fire the appropriate event (Event.LEVEL,
+   Event.SET_OPENING_BOOK, Event.NEW_ENGINE,
+   Event.SET_INTERACTION_MODE, Event.SET_TIME_CONTROL, etc.),
+   display confirmation on DGT clock, and return.
+   The FEN is NOT forwarded to the game logic.
+
+   No match → continue to B-2.
+
+   (Web/NoEBoard/non-DGT boards skip B-1; they send Event.REMOTE_MOVE
+    or Event.FEN directly to picochess.py.)
+
+   B-2. LEGALITY CHECK  (picochess.py, python-chess, variant-aware)
+   ─────────────────────
+   process_fen() checks candidate FEN in this order:
                                  │
          ┌───────────────────────┼──────────────────────────────┐
          │                       │                              │
@@ -118,7 +158,67 @@ This document explains the full move cycle inside PicoChess, including:
               │                                      │
          GAME_ENDS                                 False
               │                                      │
-   [Stop clock, show result, stop engine]      Continue to D
+   [Game-end processing → section L]      Continue to C½
+
+===============================================================================
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ C½. TUTOR ENGINE — ANALYSE USER MOVE                                      │
+│     (PicoCoach · PicoWatcher · PicoExplorer)                              │
+└────────────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+   PicoChess runs TWO independent UCI engines simultaneously:
+
+     1) Playing engine  — the opponent; produces bestmove (sections E–F).
+     2) Tutor engine    — a second engine (picotutor.py) devoted entirely
+                          to position analysis and coaching.
+
+   The tutor engine binary is configured separately (--tutor-engine).
+   Internally it spawns two search instances from the same binary:
+     • best_engine   (deep search, DEEP_DEPTH ≈ 17 plies, more threads)
+     • obvious_engine (shallow search, LOW_DEPTH ≈ 5 plies, fewer threads)
+   These run on separate UciEngine objects so they can search concurrently.
+
+   Three independently toggleable features use the tutor engine:
+
+   ┌──────────────┬────────────────────────────────────────────────────────┐
+   │ PicoCoach    │ Evaluates the user's move immediately after push.     │
+   │ (coach_on)   │ Compares the move to the tutor engine's best line.    │
+   │              │ Assigns a NAG symbol: !! / ! / !? / ?! / ? / ??       │
+   │              │ On blunder/mistake: displays threat + hint move on    │
+   │              │ the DGT clock and web GUI.                            │
+   │              │ Three sub-modes: OFF, ON, LIFT (analyse on piece      │
+   │              │ lift — physical board only).                           │
+   ├──────────────┼────────────────────────────────────────────────────────┤
+   │ PicoWatcher  │ Continuously evaluates ALL legal moves in the         │
+   │ (watcher_on) │ current position while the user is thinking.          │
+   │              │ Feeds eval/score/depth into the DGT display rotation  │
+   │              │ and the web GUI.                                      │
+   │              │ Binary on/off.                                        │
+   ├──────────────┼────────────────────────────────────────────────────────┤
+   │ PicoExplorer │ Looks up the current position in the opening book     │
+   │ (explorer_on)│ (chess-eco_pos.txt, opening_name_fen.txt).            │
+   │              │ Displays ECO code, opening name, and book moves.      │
+   │              │ Also surfaces alternative best moves from the tutor   │
+   │              │ engine (within ALTERNATIVE_TH centipawns of best).    │
+   │              │ Binary on/off.                                        │
+   └──────────────┴────────────────────────────────────────────────────────┘
+
+   These features are NOT mutually exclusive — any combination can be
+   active at the same time.  They are toggled from the DGT menu or web
+   settings; set_status() activates/deactivates them on the PicoTutor
+   instance.
+
+   After the user move is pushed (step B):
+     • PicoCoach: picotutor.push_move() → get_user_move_eval()
+       → display PICOTUTOR_MSG with NAG + optional threat/hint.
+     • PicoWatcher: eval_legal_moves() runs in the background,
+       updating displayed scores each second.
+     • PicoExplorer: opening book lookup + alt-move list updated.
+                                │
+                                ▼
+                          Continue to D
 
 ===============================================================================
 
@@ -199,6 +299,7 @@ This document explains the full move cycle inside PicoChess, including:
 
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ H. EXECUTE engine_move INTERNALLY (python-chess)                           │
+│    — or user overrides with an ALTERNATIVE MOVE                            │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -217,6 +318,36 @@ This document explains the full move cycle inside PicoChess, including:
                                  │
                                  ▼
 
+   ALTERNATIVE MOVE (physical board only, when altmove is enabled):
+   ────────────────
+   Instead of executing the announced engine_move, the user may play
+   a DIFFERENT legal move on behalf of the engine (e.g. to explore a
+   different continuation).
+
+   Conditions (all must be true):
+     • The resulting FEN is in legal_fens_pico (legal from engine's turn)
+     • The FEN ≠ done_computer_fen (it is not the announced move)
+     • Mode is NORMAL or BRAIN
+     • altmove is enabled in the DGT menu / settings
+     • Not in online, emulation, or PGN mode
+
+   What happens:
+     1. Display "ALTERNATIVE MOVE" on clock / web
+     2. Pop the announced engine move from PicoTutor
+        (keeps tutor board in sync)
+     3. board.push(alternative_move) instead
+     4. Check for game end
+     5. If game continues → engine searches again from
+        the new position (back to E)
+
+   The alternative-move button (DGT play/pause while engine move
+   is pending, or web menu button) can also fire
+   Event.ALTERNATIVE_MOVE explicitly.  This cancels the announced
+   engine move and triggers a fresh engine search from the current
+   position (back to E).
+                                 │
+                                 ▼
+
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -229,7 +360,24 @@ This document explains the full move cycle inside PicoChess, including:
                │                                      │
              Yes                                     No
                │                                      │
-  [Stop clock, show result, stop engine]        Continue to J
+  [Game-end processing → section L]        Continue to I½
+
+===============================================================================
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ I½. TUTOR ENGINE — ANALYSE ENGINE MOVE                                    │
+└────────────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+   Same tutor engine hooks as C½, now for the engine's move:
+     • PicoCoach:    picotutor.push_move() → evaluate engine's move
+                     (if analyse_both_sides is True, or always_run_tutor).
+     • PicoWatcher:  eval_legal_moves() re-runs for the new position,
+                     updating displayed scores for the user's upcoming turn.
+     • PicoExplorer: opening book re-lookup for new position.
+                                │
+                                ▼
+                          Continue to J
 
 ===============================================================================
 
@@ -250,6 +398,115 @@ This document explains the full move cycle inside PicoChess, including:
                                  │
                                  ▼
                                Back to A
+
+===============================================================================
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ L. GAME-END PROCESSING (when check_game_state() returns GAME_ENDS,       │
+│    Event.DRAWRESIGN fires, or Event.OUT_OF_TIME fires)                    │
+└────────────────────────────────────────────────────────────────────────────┘
+
+   Steps C and I can end the game (checkmate, stalemate, variant win,
+   insufficient material, repetition, 75-move rule).  Flag-fall
+   (Event.OUT_OF_TIME) and user resignation/draw (Event.DRAWRESIGN)
+   also land here.  The following happens in order:
+
+   1. STOP ENGINE + CLOCK
+   ──────────────────────
+      stop_search_and_clock()  (picochess.py)
+        → stop_search():  send UCI "stop" to playing engine
+        → stop_clock():
+            • time_control.stop_internal()
+              (freezes the internal timer for that player)
+            • Message.CLOCK_STOP broadcast to DGT clock + web
+
+   2. MAP GameResult → PGN RESULT STRING
+   ──────────────────────────────────────
+      GameResult enum is translated to one of "1-0", "0-1", "1/2-1/2":
+
+        DRAW / STALEMATE / INSUFFICIENT_MATERIAL /
+          FIVEFOLD_REPETITION / SEVENTYFIVE_MOVES        → "1/2-1/2"
+        WIN_WHITE / THREE_CHECK_WHITE / KOTH_WHITE /
+          ATOMIC_WHITE / RK_WHITE / ANTICHESS_WHITE      → "1-0"
+        WIN_BLACK / THREE_CHECK_BLACK / KOTH_BLACK /
+          ATOMIC_BLACK / RK_BLACK / ANTICHESS_BLACK      → "0-1"
+        MATE / OUT_OF_TIME                               → depends on
+                                                           game.turn
+                                                           (loser's turn)
+
+      Stored via ModeInfo.set_game_ending(result=<string>).
+
+   3. BROADCAST Message.GAME_ENDS
+   ──────────────────────────────
+      DisplayMsg.show(Message.GAME_ENDS(...)) delivers the result to
+      every registered display consumer.  Each handles it:
+
+      a) DGT Display (dgt/display.py):
+         • Show translated result text on DGT clock (1 s).
+         • Reset time counter and last-player tracking.
+
+      b) Web Display (server.py):
+         • Store result_sav, push updated PGN + result to web
+           clients via EventHandler.write_to_clients().
+         • Update shared["headers"]["Result"].
+
+      c) PGN Display (pgn.py) — THE MAIN FILE-WRITING STEP:
+         Conditions: game has ≥ 1 move, not PGN-replay mode,
+                     not PONDER mode.
+         → _save_and_email_pgn(message):
+
+           i.   Build chess.pgn.Game from board + move_stack.
+           ii.  Populate PGN headers (see header table below).
+           iii. add_picotutor_evaluation():
+                  Annotate moves with PicoTutor NAGs and comments
+                  (e.g. "! Best: Nf3  Score: +0.5  CPL: 12").
+           iv.  Merge with shared["headers"] + ensure_important_headers().
+           v.   Write games/last_game.pgn   (overwrite — always the
+                                              most recent game).
+           vi.  Append to games/games.pgn   (cumulative log of all
+                                              games played).
+           vii. emailer.send():
+                  If configured, email the PGN via Mailgun API or
+                  SMTP with the PGN file attached.
+
+         Special case: in PGNREPLAY mode, saves to
+         games/last_replay.pgn instead.
+
+      d) PicoTalker (picotalker.py):
+         • Speak the result (if speech enabled).
+
+   4. PGN HEADER TABLE
+   ───────────────────
+      Header              Source
+      ───────────────── ──────────────────────────────────────────
+      Event               "PicoChess Game" (or + engine for online)
+      Site                 geo-IP location string
+      Date / Time          date & clock at game start
+      Result               ModeInfo.get_game_ending()
+      White / Black        user_name vs. engine_name (± level)
+      WhiteElo / BlackElo  user Elo & engine Elo (adaptive if applicable)
+      PicoTimeControl      time control string (e.g. "300 5")
+      PicoRemTimeW/B       remaining seconds per side at game end
+      PicoDepth            fixed depth (if depth mode)
+      PicoNode             node limit (if node mode)
+      PicoRSpeed           emulation speed (if emulation mode)
+      PicoOpeningBook      book filename
+      Opening              opening name from PicoExplorer
+      ECO                  ECO code from PicoExplorer
+      Variant              set for non-standard variants:
+                             "Atomic", "Three-Check", "Crazyhouse",
+                             "King of the Hill", "Antichess", "Horde",
+                             "Racing Kings"
+      (move comments)      PicoTutor NAGs + eval text per move
+
+   5. POST-GAME CLEANUP
+   ────────────────────
+      • game_declared = True       (prevents duplicate end processing)
+      • stop_fen_timer()           (cancel any pending 4 s FEN timer)
+      • legal_fens_after_cmove = [] (clear stale legal-FEN lists)
+      • update_elo(result):
+          If the engine is adaptive, recalculate the user's
+          rating via engine.update_rating() (Elo adjustment).
 
 ===============================================================================
 
@@ -279,8 +536,10 @@ Timers (all use AsyncRepeatingTimer from utilities.py):
       "set pieces" error on the DGT display.
 
    6) Background Analysis Timer (picochess.py, 1 s repeating)
-      Periodically triggers engine analysis (PicoTutor / PicoCoach)
-      while a game is in progress.
+      Periodically triggers the TUTOR ENGINE analysis
+      (PicoCoach / PicoWatcher / PicoExplorer) while a game is
+      in progress.  This is NOT the playing engine — it is the
+      second engine managed by picotutor.py (see C½ / I½ above).
 
    7) DGT Display Timer (dgt/display.py, 1 s repeating)
       Rotates ponder info, depth/score readouts on the DGT clock.
@@ -318,6 +577,14 @@ Other:
   25) Continuous Analysis loop (uci/engine.py) — infinite analysis stream
   26) Board Connection Waiter (picochess.py) — startup synchronisation
   27) Pairing Bridge IPC server (pairing_ipc.py) — Unix socket server
+
+Tutor engine (picotutor.py) — second UCI engine:
+
+  28) best_engine (UciEngine)    — deep search (≈ 17 plies, more threads)
+  29) obvious_engine (UciEngine) — shallow search (≈ 5 plies, fewer threads)
+      Both run the same tutor engine binary (--tutor-engine) but as
+      independent UciEngine instances so they can search concurrently.
+      They serve PicoCoach, PicoWatcher, and PicoExplorer (see C½/I½).
 ===============================================================================
 ```
 

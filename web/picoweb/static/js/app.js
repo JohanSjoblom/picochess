@@ -2260,7 +2260,7 @@ function getAllInfo() {
     });
 }
 
-var boardThemes = ['blue', 'darkwood', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
+var boardThemes = ['blue', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
 
 function getCurrentBoardTheme() {
     var section = $('#xboardsection');

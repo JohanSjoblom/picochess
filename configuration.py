@@ -414,7 +414,7 @@ class Configuration:
             "--web-board-theme",
             type=str,
             default="natural_wood",
-            help='Web board theme: "blue", "darkwood", "green", "metal", "natural_wood", "newspaper", "soft" or "wood", default is "natural_wood"',
+            help='Web board theme: "blue", "green", "metal", "natural_wood", "newspaper", "soft" or "wood", default is "natural_wood"',
         )
         self.parser.add_argument(
             "-rspeed",

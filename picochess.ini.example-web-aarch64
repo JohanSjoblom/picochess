@@ -401,7 +401,7 @@ theme = auto
 #pieces = merida
 pieces = merida
 
-## Web board theme: 'blue', 'darkwood', 'green', 'metal', 'natural_wood', 'newspaper', 'soft' or 'wood'.
+## Web board theme: 'blue', 'green', 'metal', 'natural_wood', 'newspaper', 'soft' or 'wood'.
 ## Default is 'natural_wood'.
 #web-board-theme = natural_wood
 web-board-theme = natural_wood

@@ -7,6 +7,7 @@
 ===============================================================================
 
 A. Startup and Initialization
+A+. Interaction Modes (how modes affect the cycle)
 B. User Makes a Move
 C. FEN Classification + Legality Check
 D. Game-Over Check
@@ -37,6 +38,9 @@ This document explains the full move cycle inside PicoChess, including:
 - background time‑loss detection
 - the tutor engine (PicoCoach / PicoWatcher / PicoExplorer)
 - alternative‑move override
+- king‑lift hint (PicoCoach COACH_LIFT)
+- interaction modes (NORMAL, BRAIN, ANALYSIS, KIBITZ, OBSERVE,
+  REMOTE, PONDER, TRAINING, PGNREPLAY)
 - game‑end processing (PGN writing, email, Elo update)
 - startup and initialisation sequence
 - and the correct sequence for engine‑move output
@@ -169,7 +173,92 @@ This document explains the full move cycle inside PicoChess, including:
          – Start the background analysis timer (1 s repeating).
      • All async tasks (display consumers, board pollers, event
        loop, board-wait) are gathered with asyncio.gather().
-     • PicoChess is now ready for the first move → section B.
+     • PicoChess is now ready for the first move → section A+/B.
+
+                                │
+                                ▼
+
+===============================================================================
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ A+. INTERACTION MODES  (how modes affect the move cycle)                   │
+└────────────────────────────────────────────────────────────────────────────┘
+
+   PicoChess supports nine interaction modes.  The mode determines WHO
+   plays (engine vs. user), whether the engine searches or analyses,
+   whether the clock runs, and which parts of the move cycle are active.
+   The mode is set via the DGT menu, web GUI, or special FEN (section C-1).
+
+   ┌────────────┬───────────────────────────────────────────────────────────┐
+   │ Mode       │ Description                                              │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ NORMAL     │ Standard play.  Engine is the opponent.  Clock runs.     │
+   │            │ Engine produces bestmove → sections G–J apply.           │
+   │            │ Ponder is OFF.                                           │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ BRAIN      │ Like NORMAL, but with permanent pondering enabled.       │
+   │            │ After the engine's move, it starts pondering (speculative│
+   │            │ search on the expected reply).  If the user plays the    │
+   │            │ predicted move → "ponderhit" (engine keeps searching     │
+   │            │ with confirmed time).  Otherwise → "pondermiss" (engine  │
+   │            │ restarts from scratch).  Clock runs.                     │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ ANALYSIS   │ User plays BOTH sides.  Engine continuously analyses     │
+   │            │ the position (infinite search).  Displays best move +    │
+   │            │ principal variation on DGT clock and web GUI.            │
+   │            │ No bestmove is produced — sections G–J are SKIPPED.     │
+   │            │ Clock does NOT run.                                      │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ KIBITZ     │ Like ANALYSIS, but shows eval score + depth instead of   │
+   │            │ best move.  User plays both sides.  Continuous analysis. │
+   │            │ No bestmove — sections G–J SKIPPED.  No clock.          │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ OBSERVE    │ User plays both sides.  Engine analyses on demand (not   │
+   │            │ continuously).  Analysis results displayed when ready.   │
+   │            │ No bestmove — sections G–J SKIPPED.  Clock does NOT run.│
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ REMOTE     │ Two humans play against each other (via network or       │
+   │            │ shared board).  NO engine at all — sections E–L are     │
+   │            │ largely skipped.  Clock runs.  PicoChess only validates  │
+   │            │ moves and manages the clock.                             │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ PONDER     │ Flexible analysis mode.  User can play moves for either  │
+   │            │ side, set up arbitrary positions, and explore lines.     │
+   │            │ Engine analyses continuously.  No clock.  PGN is NOT    │
+   │            │ saved at game end.                                       │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ TRAINING   │ Engine plays as opponent (like NORMAL), but with         │
+   │            │ automatic blunder detection + takeback.  If the user     │
+   │            │ plays a bad move (above blunder threshold), the move is  │
+   │            │ taken back automatically and the user must try again.    │
+   │            │ "Wrong move" / "try again" is displayed.  Clock runs.   │
+   ├────────────┼───────────────────────────────────────────────────────────┤
+   │ PGNREPLAY  │ Step through a loaded PGN file move by move.  Optional  │
+   │            │ autoplay at configurable speed.  No engine search.      │
+   │            │ Sections G–J are SKIPPED.  Saves to last_replay.pgn.   │
+   └────────────┴───────────────────────────────────────────────────────────┘
+
+   Which modes use the engine as opponent?
+     eng_plays() returns True for: NORMAL, BRAIN, TRAINING.
+     Only these three modes execute the full G → H → I → J cycle.
+
+   Which modes run the clock?
+     NORMAL, BRAIN, TRAINING, REMOTE.
+     ANALYSIS, KIBITZ, OBSERVE, PONDER, PGNREPLAY do NOT run the clock.
+
+   Simplified cycle per mode:
+
+     NORMAL / BRAIN / TRAINING:
+       B → C → D → E → F → G → H → I → J → K → L → M → N → (back to B)
+
+     ANALYSIS / KIBITZ / OBSERVE / PONDER:
+       B → C → D → [engine analyses, no bestmove] → N → (back to B)
+
+     REMOTE:
+       B → C → D → [no engine] → F → N → (back to B)
+
+     PGNREPLAY:
+       [step through PGN moves] → B → C → D → N → (back to B)
                                  │
                                  ▼
 
@@ -202,6 +291,11 @@ This document explains the full move cycle inside PicoChess, including:
                                  ▼
          PicoChess matches FEN against pre-computed legal_fens
                   → candidate_move (abstracted input)
+
+   Mode note: In NORMAL, BRAIN, TRAINING the user plays one side only.
+   In ANALYSIS, KIBITZ, OBSERVE, PONDER the user plays BOTH sides.
+   In REMOTE both players are human.  In PGNREPLAY moves come from the
+   loaded PGN file (user steps forward/back or autoplay advances).
 
 ===============================================================================
 
@@ -272,6 +366,13 @@ This document explains the full move cycle inside PicoChess, including:
          │                       │
          │              Back to B (wait for next move)
          │
+   TRAINING mode note: if the user's move is legal but is judged a
+   blunder by the tutor engine (score drop exceeds threshold), PicoChess
+   automatically takes it back and displays "wrong move" / "try again".
+   The user must play a different (better) move before the cycle
+   continues.  This check happens after the move is pushed but before
+   the engine searches.
+         │
          ▼
 
 ===============================================================================
@@ -337,8 +438,8 @@ This document explains the full move cycle inside PicoChess, including:
    │              │ Assigns a NAG symbol: !! / ! / !? / ?! / ? / ??       │
    │              │ On blunder/mistake: displays threat + hint move on    │
    │              │ the DGT clock and web GUI.                            │
-   │              │ Three sub-modes: OFF, ON, LIFT (analyse on piece      │
-   │              │ lift — physical board only).                           │
+   │              │ Three sub-modes: OFF, ON, LIFT.                        │
+   │              │ COACH_LIFT: "King-lift hint" — see below.              │
    ├──────────────┼────────────────────────────────────────────────────────┤
    │ PicoWatcher  │ Continuously evaluates ALL legal moves in the         │
    │ (watcher_on) │ current position while the user is thinking.          │
@@ -358,6 +459,34 @@ This document explains the full move cycle inside PicoChess, including:
    active at the same time.  They are toggled from the DGT menu or web
    settings; set_status() activates/deactivates them on the PicoTutor
    instance.
+
+   KING-LIFT HINT (PicoCoach COACH_LIFT mode, physical board only)
+   ────────────────
+   During the user's turn, lifting the king off the board requests a
+   position analysis — a "hint" — without making a move.
+
+   Trigger sequence:
+     1. User lifts king → board FEN changes (king disappears).
+     2. Board fires Event.FEN → process_fen() starts the 4 s FEN timer
+        (the position is not legal, so no move is matched).
+     3. expired_fen_timer() fires after 4 s → compare_fen() detects
+        that exactly one king is missing from its home square
+        → sets coach_triggered = True.
+     4. User places king back → board FEN matches the pre-lift position
+        → process_fen() sees a valid position AND coach_triggered is set.
+     5. call_pico_coach() is invoked → picotutor.get_pos_analysis():
+          • Tutor engine analyses the current position (deep search).
+          • Returns: best move, score (centipawns), and up to 3
+            alternative moves within ALTERNATIVE_TH of best.
+     6. Results are displayed on the DGT clock (scrolling text) and
+        web GUI: "Hint: Nf3  Score: +0.42".
+     7. coach_triggered is reset to False.
+
+   Conditions:
+     • PicoCoach sub-mode must be COACH_LIFT (not OFF or ON).
+     • Physical DGT board only (king lift is not detected on web/GUI).
+     • Must be the user's turn.
+     • Only works when a game is in progress (not during setup).
 
    After the user move is pushed (step C):
      • PicoCoach: picotutor.push_move() → get_user_move_eval()
@@ -385,6 +514,31 @@ This document explains the full move cycle inside PicoChess, including:
                                  │
                                  ▼
          Build UCI time dict from internal_time → wtime/btime/winc/binc
+
+   Mode note: Clock management (F) only applies to modes that run the
+   clock: NORMAL, BRAIN, TRAINING, REMOTE.  In clockless modes
+   (ANALYSIS, KIBITZ, OBSERVE, PONDER, PGNREPLAY) this step is skipped.
+
+   ── MODE BRANCH POINT ──────────────────────────────────────────────
+   After section F (or D if clock is skipped), the cycle diverges:
+
+     • eng_plays() modes (NORMAL, BRAIN, TRAINING):
+         → Continue to G (UCI engine communication).
+         → Full cycle: G → H → I → J → K → L → M → N.
+
+     • Analysis modes (ANALYSIS, KIBITZ, OBSERVE, PONDER):
+         → Engine runs analyse() — infinite search, displays eval/PV.
+         → No bestmove is produced.  Sections G–J are SKIPPED.
+         → Jump directly to N (wait for next user move).
+
+     • REMOTE:
+         → No engine at all.  Sections G–L are SKIPPED.
+         → Jump directly to N (wait for next user move from opponent).
+
+     • PGNREPLAY:
+         → No engine search.  Next move comes from the PGN file.
+         → Jump directly to N.
+   ────────────────────────────────────────────────────────────────────
 
 ===============================================================================
 
@@ -421,6 +575,15 @@ This document explains the full move cycle inside PicoChess, including:
                                  │
                                  ▼
              engine_move = chess.Move.from_uci(X)
+
+   BRAIN mode: after producing bestmove, the engine also returns
+   "bestmove X ponder Y".  PicoChess immediately starts a speculative
+   search on move Y ("go ponder ...").  When the user's next move
+   arrives (section B):
+     • If user plays Y → "ponderhit" — engine continues its search
+       with confirmed time parameters (very fast response).
+     • If user plays anything else → "pondermiss" — engine stops the
+       speculative search and restarts from the new position.
 
 ===============================================================================
 
@@ -476,7 +639,7 @@ This document explains the full move cycle inside PicoChess, including:
    Conditions (all must be true):
      • The resulting FEN is in legal_fens_pico (legal from engine's turn)
      • The FEN ≠ done_computer_fen (it is not the announced move)
-     • Mode is NORMAL or BRAIN
+     • Mode is NORMAL or BRAIN  (not available in other modes)
      • altmove is enabled in the DGT menu / settings
      • Not in online, emulation, or PGN mode
 
@@ -620,6 +783,7 @@ This document explains the full move cycle inside PicoChess, including:
 
          Special case: in PGNREPLAY mode, saves to
          games/last_replay.pgn instead.
+         In PONDER mode, PGN is NOT saved at all (analysis only).
 
       d) PicoTalker (picotalker.py):
          • Speak the result (if speech enabled).

@@ -2261,6 +2261,7 @@ function getAllInfo() {
 }
 
 var boardThemes = ['blue', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
+var pieceSets = ['merida', 'alpha', 'leipzig'];
 
 function getCurrentBoardTheme() {
     var section = $('#xboardsection');
@@ -2299,9 +2300,37 @@ function loadSavedTheme() {
     // Board theme is rendered server-side from picochess.ini — no client-side override needed
 }
 
+function getCurrentPieceSet() {
+    var section = $('#xboardsection');
+    for (var i = 0; i < pieceSets.length; i++) {
+        if (section.hasClass(pieceSets[i])) {
+            return i;
+        }
+    }
+    return pieceSets.indexOf('merida');
+}
+
+function changePieceSet() {
+    var currentIndex = getCurrentPieceSet();
+    var newIndex = (currentIndex + 1) % pieceSets.length;
+    var pieces = pieceSets[newIndex];
+
+    $('#xboardsection').removeClass(pieceSets.join(' '));
+    $('#xboardsection').addClass(pieces);
+
+    // Persist to server so the choice survives page reloads
+    $.ajax({
+        url: '/settings/save',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({entries: [{key: 'pieces', value: pieces, enabled: true}]})
+    });
+}
+
 $('#flipOrientationBtn').on('click', boardFlip);
 $('#DgtSyncBtn').on('click', goToDGTFen);
 $('#colorBtn').on('click', changeBoardTheme);
+$('#piecesBtn').on('click', changePieceSet);
 $('#backBtn').on('click', goBack);
 $('#fwdBtn').on('click', goForward);
 $('#startBtn').on('click', goToStart);

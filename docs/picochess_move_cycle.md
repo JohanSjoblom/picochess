@@ -2,19 +2,43 @@
 ### Current active development repository: https://github.com/JohanSjoblom/picochess
 ### February 2026
 
+===============================================================================
+           TABLE OF CONTENTS
+===============================================================================
+
+A. Startup and Initialization
+B. User Makes a Move
+C. FEN Classification + Legality Check
+D. Game-Over Check
+E. Tutor Engine – Analyse User Move
+F. Clock Management After User Move
+G. UCI Engine Communication
+H. Engine Thinks
+I. Announce Engine Move to User Before Push
+J. Execute Engine Move Internally
+K. Game-Over Check After Engine Move
+L. Tutor Engine – Analyse Engine Move
+M. Clock Management After Engine Move is Executed
+N. Loop Back (Next User Move)
+O. Game-End Processing
+P. Background Processes - Always Running
+
+===============================================================================
+
 This document explains the full move cycle inside PicoChess, including:
 
-- support for multiple electronic boards  
-- GUI/keyboard move input  
+- support for multiple electronic boards
+- GUI/keyboard move input
 - python‑chess legality checks
 - special FEN positions for settings (DGT board)
-- classic + variant endings  
-- engine cycle  
-- clock management  
-- background time‑loss detection  
+- classic + variant endings
+- engine cycle
+- clock management
+- background time‑loss detection
 - the tutor engine (PicoCoach / PicoWatcher / PicoExplorer)
 - alternative‑move override
 - game‑end processing (PGN writing, email, Elo update)
+- startup and initialisation sequence
 - and the correct sequence for engine‑move output
 
 ---
@@ -27,7 +51,132 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ A. USER MAKES A MOVE (via ANY supported input source)                      │
+│ A. STARTUP AND INITIALISATION  (runs once before the first move)          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+   The startup sequence is executed by main() → MainLoop.__init__() →
+   MainLoop.initialise() before the main event loop begins.
+
+   A-1. CONFIGURATION
+   ──────────────────
+     • Parse picochess.ini + command-line args (configargparse).
+     • Read engines.ini, retro.ini, favorites.ini via EngineProvider.init()
+       → builds the installed_engines list.
+     • Each engine entry references a .uci file that stores its levels
+       and UCI option defaults.
+     • Read books.ini → builds the all_books list of Polyglot books.
+
+   A-2. E-BOARD DETECTION
+   ──────────────────────
+     Board type is selected via --board-type (default: DGT).
+     Exactly one driver is instantiated:
+
+       DGT        → DgtBoard   (dgt/board.py)    — serial / Bluetooth
+       CERTABO    → CertaboBoard (eboard/certabo/)
+       CHESSNUT   → ChessnutBoard (eboard/chessnut/)
+       CHESSLINK  → ChessLinkBoard (eboard/chesslink/)
+       ICHESSONE  → IChessOneBoard (eboard/ichessone/)
+       NOEBOARD   → no hardware (web / GUI only)
+
+     The board driver starts its polling task (e.g. DgtBoard.run()).
+
+   A-3. DISPLAY SYSTEM
+   ───────────────────
+     Display handlers are created and their async message_consumer()
+     tasks are launched.  Each handler registers with DisplayMsg so
+     that every Message.show() call fans out to all of them:
+
+       • DgtDisplay      — DGT clock text + LEDs (ser / i2c)
+       • PicoTalkerDisplay — speech output
+       • WebDisplay       — web browser GUI  (if --web-server-port)
+       • PgnDisplay       — PGN file recording
+       • Dispatcher       — DGT API message routing
+
+     Supporting infrastructure:
+       • DgtTranslate  — translates display texts to chosen language
+       • DgtMenu       — manages the on-clock menu system
+       • WebVr         — web clock + virtual DGT bridge
+       • PairingBridge — IPC server for external pairing tools
+
+   A-4. TIME CONTROL
+   ─────────────────
+     Parse --time string → create initial TimeControl object.
+     Mode is one of FIXED (per-move), BLITZ (game total), or
+     FISCHER (game total + increment).
+
+   A-5. PLAYING ENGINE
+   ───────────────────
+     a) Create UciEngine with the configured engine file path.
+        If --engine-remote-server is set, connect via SSH (UciShell).
+     b) engine.open_engine():
+          • Spawn the UCI process (local: popen_uci; remote: SSH).
+          • Engine responds to "uci" with its id + option list.
+          • "isready" / "readyok" handshake.
+     c) engine.startup(options):
+          • Read the engine's .uci file (ConfigParser format).
+            Extracts UCI options, PicoChess-specific flags
+            (Variant, UCI_Variant, Analysis), and level settings.
+          • Send "setoption name X value Y" for each option.
+          • Send "isready" / "readyok" to confirm.
+     d) Validate engine loaded successfully; exit on failure.
+
+   A-6. TUTOR ENGINE
+   ─────────────────
+     a) Create PicoTutor instance with tutor engine path
+        (--tutor-engine, typically Stockfish).
+     b) picotutor.open_engine():
+          • Spawns TWO independent UciEngine instances from the
+            same binary:
+              best_engine    (deep, DEEP_DEPTH ≈ 17, more threads)
+              obvious_engine (shallow, LOW_DEPTH ≈ 5, fewer threads)
+          • Each goes through the same uci → isready → setoption
+            → isready cycle.
+     c) Load opening-book data files:
+          chess-eco_pos.txt     (ECO positions)
+          opening_name_fen.txt  (opening names by FEN)
+     d) Load comment files for PicoComment (language-specific).
+
+   A-7. INITIAL GAME STATE
+   ───────────────────────
+     • game = chess.Board()          (standard starting position)
+     • legal_fens = compute_legal_fens(game)
+         Pre-computes the board_fen() for every legal move from the
+         starting position — used by process_fen() in step C-2.
+     • ModeInfo.set_game_ending("*")  (no result yet)
+
+   A-8. OPENING BOOK
+   ─────────────────
+     The Polyglot .bin book selected by --book is opened via
+     chess.polyglot.open_reader().  python-chess memory-maps the
+     file for fast lookup during play.
+
+   A-9. DISPLAY STARTUP MESSAGES
+   ─────────────────────────────
+     Broadcast to all displays:
+       • Message.SYSTEM_INFO   — version, engine name, user name, Elo
+       • Message.STARTUP_INFO  — interaction mode, time control,
+                                  book name, engine level
+       • Message.ENGINE_STARTUP — engine name + level text
+     The DGT clock shows the engine name; the web GUI refreshes.
+
+   A-10. BOARD CONNECTION + EVENT LOOP
+   ───────────────────────────────────
+     • Launch event_consumer() — the main game event loop (processes
+       events from evt_queue).
+     • Launch wait_for_board_connection() — polls until the e-board
+       is detected (or skips for NoEBoard).  Once connected:
+         – Display "ok" confirmation.
+         – Start the background analysis timer (1 s repeating).
+     • All async tasks (display consumers, board pollers, event
+       loop, board-wait) are gathered with asyncio.gather().
+     • PicoChess is now ready for the first move → section B.
+                                 │
+                                 ▼
+
+===============================================================================
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ B. USER MAKES A MOVE (via ANY supported input source)                      │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -57,11 +206,11 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ B. FEN CLASSIFICATION + LEGALITY CHECK                                     │
+│ C. FEN CLASSIFICATION + LEGALITY CHECK                                     │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
-   B-1. SPECIAL FEN PRE-FILTER  (dgt/display.py — DGT boards only)
+   C-1. SPECIAL FEN PRE-FILTER  (dgt/display.py — DGT boards only)
    ─────────────────────────────
    Before the FEN reaches the game logic, the DGT display layer checks
    it against predefined "settings FEN" maps.  These are ILLEGAL
@@ -90,12 +239,12 @@ This document explains the full move cycle inside PicoChess, including:
    display confirmation on DGT clock, and return.
    The FEN is NOT forwarded to the game logic.
 
-   No match → continue to B-2.
+   No match → continue to C-2.
 
-   (Web/NoEBoard/non-DGT boards skip B-1; they send Event.REMOTE_MOVE
+   (Web/NoEBoard/non-DGT boards skip C-1; they send Event.REMOTE_MOVE
     or Event.FEN directly to picochess.py.)
 
-   B-2. LEGALITY CHECK  (picochess.py, python-chess, variant-aware)
+   C-2. LEGALITY CHECK  (picochess.py, python-chess, variant-aware)
    ─────────────────────
    process_fen() checks candidate FEN in this order:
                                  │
@@ -121,14 +270,14 @@ This document explains the full move cycle inside PicoChess, including:
          │                (FEN can match any earlier
          │                 position in game history).
          │                       │
-         │              Back to A (wait for next move)
+         │              Back to B (wait for next move)
          │
          ▼
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ C. GAME-OVER CHECK (classic + variant rules via python-chess)              │
+│ D. GAME-OVER CHECK (classic + variant rules via python-chess)              │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -158,19 +307,19 @@ This document explains the full move cycle inside PicoChess, including:
               │                                      │
          GAME_ENDS                                 False
               │                                      │
-   [Game-end processing → section L]      Continue to C½
+   [Game-end processing → section O]      Continue to E
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ C½. TUTOR ENGINE — ANALYSE USER MOVE                                      │
-│     (PicoCoach · PicoWatcher · PicoExplorer)                              │
+│ E. TUTOR ENGINE — ANALYSE USER MOVE                                       │
+│    (PicoCoach · PicoWatcher · PicoExplorer)                               │
 └────────────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
    PicoChess runs TWO independent UCI engines simultaneously:
 
-     1) Playing engine  — the opponent; produces bestmove (sections E–F).
+     1) Playing engine  — the opponent; produces bestmove (sections G–H).
      2) Tutor engine    — a second engine (picotutor.py) devoted entirely
                           to position analysis and coaching.
 
@@ -210,7 +359,7 @@ This document explains the full move cycle inside PicoChess, including:
    settings; set_status() activates/deactivates them on the PicoTutor
    instance.
 
-   After the user move is pushed (step B):
+   After the user move is pushed (step C):
      • PicoCoach: picotutor.push_move() → get_user_move_eval()
        → display PICOTUTOR_MSG with NAG + optional threat/hint.
      • PicoWatcher: eval_legal_moves() runs in the background,
@@ -218,12 +367,12 @@ This document explains the full move cycle inside PicoChess, including:
      • PicoExplorer: opening book lookup + alt-move list updated.
                                 │
                                 ▼
-                          Continue to D
+                          Continue to F
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ D. CLOCK MANAGEMENT (after USER move)                                      │
+│ F. CLOCK MANAGEMENT (after USER move)                                      │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -240,15 +389,15 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ E. UCI ENGINE COMMUNICATION                                                │
+│ G. UCI ENGINE COMMUNICATION                                                │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
    python-chess engine.play() sends position via UCI protocol.
    Format chosen automatically by python-chess:
-      • “position startpos moves <…>”
+      • "position startpos moves <…>"
             when root position == standard starting FEN
-      • “position fen <FEN> moves <…>”
+      • "position fen <FEN> moves <…>"
             for any other position (setup, variant, or 960)
    Move history always appended from board.move_stack.
    For variants the variant board (e.g. AtomicBoard, ThreeCheckBoard)
@@ -256,19 +405,19 @@ This document explains the full move cycle inside PicoChess, including:
    the main game board via push_move()/pop_move().
                                  │
                                  ▼
-        Send engine search command:  “go wtime … btime …”
+        Send engine search command:  "go wtime … btime …"
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ F. ENGINE THINKS                                                           │
+│ H. ENGINE THINKS                                                           │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
-                    Engine → “info depth ... score ...”
+                    Engine → "info depth ... score ..."
                                  │
                                  ▼
-                     Engine → “bestmove X”
+                     Engine → "bestmove X"
                                  │
                                  ▼
              engine_move = chess.Move.from_uci(X)
@@ -276,7 +425,7 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ G. ANNOUNCE ENGINE MOVE TO USER (BEFORE push)                              │
+│ I. ANNOUNCE ENGINE MOVE TO USER (BEFORE push)                              │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -298,7 +447,7 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ H. EXECUTE engine_move INTERNALLY (python-chess)                           │
+│ J. EXECUTE engine_move INTERNALLY (python-chess)                           │
 │    — or user overrides with an ALTERNATIVE MOVE                            │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
@@ -338,20 +487,20 @@ This document explains the full move cycle inside PicoChess, including:
      3. board.push(alternative_move) instead
      4. Check for game end
      5. If game continues → engine searches again from
-        the new position (back to E)
+        the new position (back to G)
 
    The alternative-move button (DGT play/pause while engine move
    is pending, or web menu button) can also fire
    Event.ALTERNATIVE_MOVE explicitly.  This cancels the announced
    engine move and triggers a fresh engine search from the current
-   position (back to E).
+   position (back to G).
                                  │
                                  ▼
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ I. GAME-OVER CHECK (after engine move is pushed)                           │
+│ K. GAME-OVER CHECK (after engine move is pushed)                           │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -360,16 +509,16 @@ This document explains the full move cycle inside PicoChess, including:
                │                                      │
              Yes                                     No
                │                                      │
-  [Game-end processing → section L]        Continue to I½
+  [Game-end processing → section O]        Continue to L
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ I½. TUTOR ENGINE — ANALYSE ENGINE MOVE                                    │
+│ L. TUTOR ENGINE — ANALYSE ENGINE MOVE                                     │
 └────────────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
-   Same tutor engine hooks as C½, now for the engine's move:
+   Same tutor engine hooks as E, now for the engine's move:
      • PicoCoach:    picotutor.push_move() → evaluate engine's move
                      (if analyse_both_sides is True, or always_run_tutor).
      • PicoWatcher:  eval_legal_moves() re-runs for the new position,
@@ -377,12 +526,12 @@ This document explains the full move cycle inside PicoChess, including:
      • PicoExplorer: opening book re-lookup for new position.
                                 │
                                 ▼
-                          Continue to J
+                          Continue to M
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ J. CLOCK MANAGEMENT (after engine move is executed)                        │
+│ M. CLOCK MANAGEMENT (after engine move is executed)                        │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -393,20 +542,20 @@ This document explains the full move cycle inside PicoChess, including:
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ K. LOOP BACK (next user move)                                              │
+│ N. LOOP BACK (next user move)                                              │
 └────────────────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
-                               Back to A
+                               Back to B
 
 ===============================================================================
 
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ L. GAME-END PROCESSING (when check_game_state() returns GAME_ENDS,       │
-│    Event.DRAWRESIGN fires, or Event.OUT_OF_TIME fires)                    │
+│ O. GAME-END PROCESSING (when check_game_state() returns GAME_ENDS,        │
+│    Event.DRAWRESIGN fires, or Event.OUT_OF_TIME fires)                     │
 └────────────────────────────────────────────────────────────────────────────┘
 
-   Steps C and I can end the game (checkmate, stalemate, variant win,
+   Steps D and K can end the game (checkmate, stalemate, variant win,
    insufficient material, repetition, 75-move rule).  Flag-fall
    (Event.OUT_OF_TIME) and user resignation/draw (Event.DRAWRESIGN)
    also land here.  The following happens in order:
@@ -510,8 +659,10 @@ This document explains the full move cycle inside PicoChess, including:
 
 ===============================================================================
 
-BACKGROUND PROCESSES — ALWAYS RUNNING
-─────────────────────────────────────
+┌────────────────────────────────────────────────────────────────────────────┐
+│ P. BACKGROUND PROCESSES (always running)                                   │
+└────────────────────────────────────────────────────────────────────────────┘
+
 Timers (all use AsyncRepeatingTimer from utilities.py):
 
    1) Flag-Fall Timer (timecontrol.py, one-shot)
@@ -539,7 +690,7 @@ Timers (all use AsyncRepeatingTimer from utilities.py):
       Periodically triggers the TUTOR ENGINE analysis
       (PicoCoach / PicoWatcher / PicoExplorer) while a game is
       in progress.  This is NOT the playing engine — it is the
-      second engine managed by picotutor.py (see C½ / I½ above).
+      second engine managed by picotutor.py (see E / L above).
 
    7) DGT Display Timer (dgt/display.py, 1 s repeating)
       Rotates ponder info, depth/score readouts on the DGT clock.
@@ -584,7 +735,7 @@ Tutor engine (picotutor.py) — second UCI engine:
   29) obvious_engine (UciEngine) — shallow search (≈ 5 plies, fewer threads)
       Both run the same tutor engine binary (--tutor-engine) but as
       independent UciEngine instances so they can search concurrently.
-      They serve PicoCoach, PicoWatcher, and PicoExplorer (see C½/I½).
+      They serve PicoCoach, PicoWatcher, and PicoExplorer (see E/L).
 ===============================================================================
 ```
 

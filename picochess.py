@@ -1110,8 +1110,8 @@ async def main() -> None:
         dgtdispatcher.register("web")
         theme: str = calc_theme(args.theme, state.set_location)
         shared["pieces"] = args.pieces
-        shared["board"] = args.board
-        web_app = my_web_server.make_app(theme, args.pieces, args.board, shared)
+        shared["web-board-theme"] = args.web_board_theme
+        web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
         try:
             web_app.listen(args.web_server_port)
         except PermissionError:

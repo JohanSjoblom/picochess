@@ -631,7 +631,7 @@ class ChessBoardHandler(ServerRequestHandler):
                 web_speech = False
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
-        board = self.shared.get("board", self.board) if self.shared else self.board
+        board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
@@ -778,10 +778,13 @@ class SettingsSaveHandler(ServerRequestHandler):
 
         # Update shared state for settings that take effect without restart
         if self.shared is not None:
-            for key in ("pieces", "board"):
-                entry = entries_by_key.get(key)
-                if entry and entry["enabled"]:
-                    self.shared[key] = entry["value"]
+            pieces_entry = entries_by_key.get("pieces")
+            if pieces_entry and pieces_entry["enabled"]:
+                self.shared["pieces"] = pieces_entry["value"]
+
+            web_board_theme_entry = entries_by_key.get("web-board-theme")
+            if web_board_theme_entry and web_board_theme_entry["enabled"]:
+                self.shared["web-board-theme"] = web_board_theme_entry["value"]
 
         self.set_header("Content-Type", "application/json")
         self.write({"status": "ok"})

@@ -2291,7 +2291,7 @@ function changeBoardTheme() {
         url: '/settings/save',
         type: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({entries: [{key: 'board', value: boardValue, enabled: true}]})
+        data: JSON.stringify({entries: [{key: 'web-board-theme', value: boardValue, enabled: true}]})
     });
 }
 

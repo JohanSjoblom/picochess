@@ -2532,6 +2532,11 @@ $(function () {
         };
     }
 
+    if (navigator.mimeTypes['application/x-pnacl'] !== undefined) {
+        $('#analyzeBtn').prop('disabled', true);
+        loadNaclStockfish();
+    }
+
     $.fn.dataTable.ext.errMode = 'throw';
 
     $('#bookPrev').on('click', function () { changeWebBook(-1); });

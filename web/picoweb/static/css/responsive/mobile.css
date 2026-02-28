@@ -82,14 +82,9 @@
         font-size: 0.65rem !important;
     }
 
-    /* Hide button text on small screens - EXCEPT for download button */
+    /* Hide button text on small screens */
     .btn-text {
         display: none;
-    }
-
-    /* Show button text specifically for download button */
-    #downloadBtn .btn-text {
-        display: inline !important;
     }
 
 
@@ -295,19 +290,24 @@
     }
 
     #boardControlButtons button {
-        font-size: 0.7rem !important;
-        padding: 0.2rem 0.35rem !important;
-        min-width: unset !important;
-        flex: 1 1 auto;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        font-size: 0.8rem !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 38px !important;
         white-space: nowrap;
     }
 
     #btn-mute {
-        width: auto !important;
+        width: 38px !important;
         height: 38px !important;
         font-size: 16px !important;
-        padding: 0 6px !important;
-        flex: 0 0 auto;
+        padding: 0 !important;
+        flex: 0 0 38px !important;
     }
 
     #btn-mute span {
@@ -318,10 +318,9 @@
         display: none !important;
     }
 
-    #downloadBtn .btn-text {
-        display: inline !important;
-    }
-}@media (max-width: 768px) {
+}
+
+@media (max-width: 768px) {
     .analysis-line-compact {
         font-size: 0.8rem;
         gap: 4px;

@@ -300,7 +300,7 @@ class ContinuousAnalysis:
                 self._running = False
             except chess.engine.AnalysisComplete:
                 logger.debug("%s ran out of information", self.whoami)
-                asyncio.sleep(self.delay * 2)  # maybe it helps to wait some extra?
+                await asyncio.sleep(self.delay * 2)  # maybe it helps to wait some extra?
 
     async def _analyse_forever(self, limit: Limit | None, multipv: int | None) -> None:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""

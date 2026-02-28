@@ -349,16 +349,12 @@ class EventHandler(WebSocketHandler):
         pass
 
     def real_ip(self):
-        x_real_ip = self.request.headers.get("X-Real-IP")
-        real_ip = x_real_ip if x_real_ip else self.request.remote_ip
-        return real_ip
+        return self.request.remote_ip or ""
 
     @classmethod
     def has_remote_clients(cls) -> bool:
         for client in cls.clients:
-            x_real_ip = client.request.headers.get("X-Real-IP")
-            real_ip = x_real_ip if x_real_ip else client.request.remote_ip
-            if real_ip not in ("127.0.0.1", "::1"):
+            if (client.request.remote_ip or "") not in ("127.0.0.1", "::1"):
                 return True
         return False
 

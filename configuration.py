@@ -347,7 +347,7 @@ class Configuration:
             "-coan",
             "--coach-analyser",
             action="store_true",
-            help="Pico Watcher: use tutor-coach as an analyser instead of the engine you are playing against",
+            help="deprecated compatibility option (no-op): kept so legacy configs continue to parse",
         )
         self.parser.add_argument(
             "-open",

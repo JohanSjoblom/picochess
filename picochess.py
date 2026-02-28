@@ -1257,7 +1257,6 @@ async def main() -> None:
                     self.state.book_in_use = ""
             self.state.searchmoves = AlternativeMover()
             self.state.artwork_in_use = False
-            self.always_run_tutor = self.args.coach_analyser if self.args.coach_analyser else False
 
             # Register signal handlers for kill signal
             signal.signal(signal.SIGTERM, self.exit_sigterm)
@@ -1432,7 +1431,6 @@ async def main() -> None:
                     i_engine_path=tutor_engine,
                     i_comment_file=self.state.comment_file,
                     i_lang=self.args.language,
-                    i_always_run_tutor=self.always_run_tutor,
                     loop=self.loop,
                     remote_binary_override=remote_tutor_override,
                 )
@@ -1454,7 +1452,6 @@ async def main() -> None:
                     i_engine_path=tutor_engine,
                     i_comment_file=self.state.comment_file,
                     i_lang=self.args.language,
-                    i_always_run_tutor=self.always_run_tutor,
                     loop=self.loop,
                 )
                 await self.state.picotutor.set_status(
@@ -2411,8 +2408,6 @@ async def main() -> None:
                 if self.picotutor_mode():
                     if valid:
                         valid = await self.state.picotutor.push_move(self.state.done_move, self.state.game)
-                    if valid and self.always_run_tutor:
-                        self.state.picotutor.get_user_move_eval()  # eval engine forced move
                     if not valid:
                         await self.set_picotutor_position()
                 self.state.done_computer_fen = None
@@ -3107,8 +3102,7 @@ async def main() -> None:
         # C. engine PlayingContinuousAnalysis
 
         def is_coach_analyser(self) -> bool:
-            """should coach-analyser override make us use tutor score-depth-hint analysis"""
-            # no read from ini file - auto-True if tutor and main engine same (long name)
+            """Return True when tutor analysis should replace engine analysis."""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 result = True  # PGN Replay and mame engines always use tutor analysis only
             else:
@@ -5621,8 +5615,6 @@ async def main() -> None:
                                         )
 
                                 valid = await self.state.picotutor.push_move(event.move, game_copy)
-                                if valid and self.always_run_tutor:
-                                    self.state.picotutor.get_user_move_eval()  # eval engine move
                                 if not valid:
                                     await self.set_picotutor_position()
                             # For atomic variant, use atomic board to get FEN with explosions applied

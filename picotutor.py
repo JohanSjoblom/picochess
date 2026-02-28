@@ -106,7 +106,9 @@ class PicoTutor:
         # the following setting can be True if engine is not playing
         # or if you want to analyse also engine moves (like pgn_engine)
         self.analyse_both_sides = False  # analyse only user side as default
-        self.always_run_tutor = i_always_run_tutor  # force deep tutor to always run
+        # Legacy compatibility option (coach-analyser) is intentionally ignored.
+        # Keep parameter acceptance so older configs/CLI wrappers do not break.
+        _ = i_always_run_tutor
         # new feature to be able to step through a PGN game
         self.pgn_game: chess.pgn.Game | None = None
 
@@ -534,12 +536,7 @@ class PicoTutor:
         else:
             # we are not analysing both sides or engine just made a move
             try:
-                if self.always_run_tutor:
-                    # @todo this is intermediate solution for #49, we evaluate engine moves
-                    await self.eval_legal_moves(self.board.turn)  # take snapshot of current evaluation
-                    self.eval_user_move(i_uci_move)  # determine & save evaluation of user move
-                else:
-                    self._eval_engine_move(i_uci_move)  # add "dummy" engine move to history
+                self._eval_engine_move(i_uci_move)  # add "dummy" engine move to history
             except IndexError:
                 logger.debug("program internal error - no move pushed before storing engine move")
         await self._start_or_stop_as_needed()  # new common code to start or stop analysers
@@ -679,9 +676,6 @@ class PicoTutor:
         # determine if tutor should run and start if it should, pause if not
         if self._should_run_tutor():
             await self.start()  # normal both deep and obvious analysis
-        elif self.always_run_tutor:
-            # @todo intermediate solution #49 forcing deep tutor to run anyway
-            await self.start()
         else:
             self.stop()
 

@@ -64,27 +64,18 @@ class ModeInfo:
     eboard_type = dgt.util.EBoard.DGT
     variant = "chess"
 
+    @staticmethod
+    def _sanitize(text: str) -> str:
+        """Strip whitespace and remove characters that break PGN headers."""
+        for char in ["\n", "\r", "\t", "[", "]", "(", ")"]:
+            text = text.replace(char, "")
+        return text.strip()
+
     @classmethod
     def set_opening(cls, book_in_use, op_name, op_eco):
-        ModeInfo.opening_name = op_name
-        ModeInfo.opening_eco = op_eco
+        ModeInfo.opening_name = cls._sanitize(op_name)
+        ModeInfo.opening_eco = cls._sanitize(op_eco)
         ModeInfo.book_in_use = book_in_use
-        ModeInfo.opening_name = ModeInfo.opening_name.strip()
-        ModeInfo.opening_name.replace("\n", "")
-        ModeInfo.opening_name.replace("\r", "")
-        ModeInfo.opening_name.replace("\t", "")
-        ModeInfo.opening_name.replace("[", "")
-        ModeInfo.opening_name.replace("]", "")
-        ModeInfo.opening_name.replace("(", "")
-        ModeInfo.opening_name.replace(")", "")
-        ModeInfo.opening_name = ModeInfo.opening_name.strip()
-        ModeInfo.opening_eco.replace("\n", "")
-        ModeInfo.opening_eco.replace("\r", "")
-        ModeInfo.opening_eco.replace("\t", "")
-        ModeInfo.opening_eco.replace("[", "")
-        ModeInfo.opening_eco.replace("]", "")
-        ModeInfo.opening_eco.replace("(", "")
-        ModeInfo.opening_eco.replace(")", "")
 
     @classmethod
     def reset_opening(cls):
@@ -172,14 +163,7 @@ class ModeInfo:
 
     @classmethod
     def set_online_opponent(cls, name):
-        ModeInfo.online_opponent = name
-        ModeInfo.online_opponent.replace("[", "")
-        ModeInfo.online_opponent.replace("]", "")
-        ModeInfo.online_opponent.replace("(", "")
-        ModeInfo.online_opponent.replace(")", "")
-        ModeInfo.online_opponent.replace("\n", "")
-        ModeInfo.online_opponent.replace("\r", "")
-        ModeInfo.online_opponent.replace("\t", "")
+        ModeInfo.online_opponent = cls._sanitize(name)
 
     @classmethod
     def get_online_opponent(cls):
@@ -187,21 +171,10 @@ class ModeInfo:
 
     @classmethod
     def set_online_own_user(cls, name):
-        ModeInfo.online_own_user = name
-        ModeInfo.online_own_user.replace("[", "")
-        ModeInfo.online_own_user.replace("]", "")
-        ModeInfo.online_own_user.replace("(", "")
-        ModeInfo.online_own_user.replace(")", "")
-        ModeInfo.online_own_user.replace("\n", "")
-        ModeInfo.online_own_user.replace("\r", "")
-        ModeInfo.online_own_user.replace("\t", "")
+        ModeInfo.online_own_user = cls._sanitize(name)
 
     @classmethod
     def get_online_own_user(cls):
-        if ModeInfo.online_own_user != "":
-            pass
-        else:
-            ModeInfo.online_own_user = cls.get_online_own_user()
         return ModeInfo.online_own_user
 
 
@@ -239,7 +212,7 @@ class Emailer(object):
         else:
             # lib without encryption (SMTP-port 21)
             logger.debug("SMTP Mail delivery: Import standard SMTP Lib (no SSL encryption)")
-        conn = False
+        conn = None
         try:
             outer = MIMEMultipart()
             outer["Subject"] = subject  # put subject to mail
@@ -299,7 +272,7 @@ class Emailer(object):
             logger.error("SMTP Mail delivery: Failed")
             logger.error("SMTP Mail delivery: " + str(smtp_exc))
         finally:
-            if conn:
+            if conn is not None:
                 conn.close()
             logger.debug("SMTP Mail delivery: Ended")
 

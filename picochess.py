@@ -566,7 +566,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=result,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
 
@@ -581,7 +581,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=GameResult.KOTH_WHITE,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
             if black_king in koth_center:
@@ -589,7 +589,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=GameResult.KOTH_BLACK,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
 
@@ -602,7 +602,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=GameResult.ATOMIC_BLACK,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
             if black_king is None:
@@ -610,7 +610,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=GameResult.ATOMIC_WHITE,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
 
@@ -628,7 +628,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=result,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
 
@@ -646,7 +646,7 @@ class PicochessState:
                     tc_init=self.time_control.get_parameters(),
                     result=result,
                     play_mode=self.play_mode,
-                    game=self.game.copy(),
+                    game=self.game_copy(),
                     mode=self.interaction_mode,
                 )
 
@@ -684,7 +684,7 @@ class PicochessState:
             tc_init=self.time_control.get_parameters(),
             result=result,
             play_mode=self.play_mode,
-            game=self.game.copy(),
+            game=self.game_copy(),
             mode=self.interaction_mode,
         )
 
@@ -782,60 +782,57 @@ def read_online_result():
     winner = ""
 
     try:
-        log_u = open("online_game.txt", "r")
-    except Exception:
-        log_u = ""
-        logger.error("Could not read online game file")
-        return
+        with open("online_game.txt", "r") as log_u:
+            lines = log_u.readlines()
+            for i, line in enumerate(lines, start=1):
+                if i == 9:
+                    result_line = line[12:].strip()
+                elif i == 10:
+                    winner = line[7:].strip()
+    except FileNotFoundError:
+        logger.error("Could not read online game file: file not found")
+    except OSError as e:
+        logger.error("Could not read online game file: %s", e)
 
-    if log_u:
-        i = 0
-        lines = log_u.readlines()
-        for line in lines:
-            i += 1
-            if i == 9:
-                result_line = line[12:].strip()
-            elif i == 10:
-                winner = line[7:].strip()
-    else:
-        result_line = ""
-
-    log_u.close()
     return (str(result_line), str(winner))
 
 
 def read_online_user_info() -> Tuple[str, str, str, str, int, int]:
-    own_user = "unknown"
-    opp_user = "unknown"
-    login = "failed"
-    own_color = ""
-    game_time = 0
-    fischer_inc = 0
+    own_user, opp_user = "unknown", "unknown"
+    login, own_color = "failed", ""
+    game_time, fischer_inc = 0, 0
 
     try:
-        log_u = open("online_game.txt", "r")
-        lines = log_u.readlines()
-        for line in lines:
-            key, value = line.split("=")
-            if key == "LOGIN":
-                login = value.strip()
-            elif key == "COLOR":
-                own_color = value.strip()
-            elif key == "OWN_USER":
-                own_user = value.strip()
-            elif key == "OPPONENT_USER":
-                opp_user = value.strip()
-            elif key == "GAME_TIME":
-                game_time = int(value.strip())
-            elif key == "FISCHER_INC":
-                fischer_inc = int(value.strip())
-    except Exception:
-        logger.error("Could not read online game file")
-        return login, own_color, own_user, opp_user, 0, 0
+        with open("online_game.txt", "r") as log_u:
+            for line in log_u:
+                if "=" not in line:
+                    continue
+                key, value = line.strip().split("=", 1)
 
-    log_u.close()
+                if key == "LOGIN":
+                    login = value
+                elif key == "COLOR":
+                    own_color = value
+                elif key == "OWN_USER":
+                    own_user = value
+                elif key == "OPPONENT_USER":
+                    opp_user = value
+                elif key == "GAME_TIME":
+                    try:
+                        game_time = int(value)
+                    except ValueError:
+                        logger.warning("Invalid GAME_TIME value: %s", value)
+                elif key == "FISCHER_INC":
+                    try:
+                        fischer_inc = int(value)
+                    except ValueError:
+                        logger.warning("Invalid FISCHER_INC value: %s", value)
+    except FileNotFoundError:
+        logger.warning("Online game file not found")
+    except Exception as e:
+        logger.error("Error reading online game file: %s", e)
+
     logger.debug("online game_time %s fischer_inc: %s", game_time, fischer_inc)
-
     return login, own_color, own_user, opp_user, game_time, fischer_inc
 
 

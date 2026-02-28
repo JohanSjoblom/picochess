@@ -3125,6 +3125,16 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
+            # Save CPU at game start: in normal engine-play modes, skip analyser on the
+            # untouched standard starting position (no moves played yet).
+            if (
+                self.eng_plays()
+                and self.state.variant == "chess"
+                and self.state.game is not None
+                and not self.state.game.move_stack
+                and self.state.game.fen() == chess.STARTING_FEN
+            ):
+                return False
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())

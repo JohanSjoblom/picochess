@@ -682,8 +682,7 @@ This document explains the full move cycle inside PicoChess, including:
                                 |
                                 V
    Same tutor engine hooks as E, now for the engine's move:
-     * PicoCoach:    picotutor.push_move() -> evaluate engine's move
-                     (if analyse_both_sides is True, or always_run_tutor).
+     * PicoCoach:    picotutor.push_move() -> track engine's move in tutor history.
      * PicoWatcher:  eval_legal_moves() re-runs for the new position,
                      updating displayed scores for the user's upcoming turn.
      * PicoExplorer: opening book re-lookup for new position.

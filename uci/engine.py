@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 from asyncio import CancelledError
 import os
@@ -41,6 +42,52 @@ from uci.rating import Rating, Result
 from utilities import write_picochess_ini
 
 FLOAT_ANALYSIS_WAIT = 0.1  # save CPU in ContinuousAnalysis
+
+# Safe math operations allowed in UCI_Elo expressions (e.g. "max(auto, 800)")
+_SAFE_OPERATORS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.FloorDiv: lambda a, b: a // b,
+    ast.USub: lambda a: -a,
+}
+_SAFE_FUNCTIONS = {"max": max, "min": min, "abs": abs}
+
+
+def safe_eval_elo(expr: str) -> int:
+    """Evaluate a simple math expression safely (no arbitrary code execution).
+
+    Supports: integers, +, -, *, //, max(), min(), abs().
+    Raises ValueError on anything else.
+    """
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(f"invalid expression: {expr}") from e
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return int(node.value)
+        if isinstance(node, ast.BinOp):
+            op_fn = _SAFE_OPERATORS.get(type(node.op))
+            if op_fn is None:
+                raise ValueError(f"unsupported operator: {type(node.op).__name__}")
+            return op_fn(_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp):
+            op_fn = _SAFE_OPERATORS.get(type(node.op))
+            if op_fn is None:
+                raise ValueError(f"unsupported unary operator: {type(node.op).__name__}")
+            return op_fn(_eval(node.operand))
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id not in _SAFE_FUNCTIONS:
+                raise ValueError(f"unsupported function call: {ast.dump(node.func)}")
+            args = [_eval(a) for a in node.args]
+            return _SAFE_FUNCTIONS[node.func.id](*args)
+        raise ValueError(f"unsupported expression node: {type(node).__name__}")
+
+    return int(_eval(tree))
 
 # Seconds to wait for an engine to exit before escalating.
 ENGINE_QUIT_TIMEOUT = 3.0  # waiting seconds for a normal engine to quit
@@ -1595,14 +1642,11 @@ class UciEngine(object):
             elif "auto" in uci_elo_option and rating is not None:
                 uci_elo_with_rating = uci_elo_option.replace("auto", str(int(rating.rating)))
                 try:
-                    evaluated = eval(uci_elo_with_rating)
-                    if str(evaluated).isnumeric():
-                        self._set_rating(int(evaluated))
-                        self.uci_elo_eval_fn = uci_elo_option  # save evaluation function for updating engine ELO later
-                    else:
-                        del self.options[uci_elo_option_string]
-                except Exception as e:  # noqa - catch all exceptions for eval()
-                    logger.error(f"invalid option set for {uci_elo_option_string}={uci_elo_with_rating}, exception={e}")
+                    evaluated = safe_eval_elo(uci_elo_with_rating)
+                    self._set_rating(evaluated)
+                    self.uci_elo_eval_fn = uci_elo_option  # save evaluation function for updating engine ELO later
+                except (ValueError, ZeroDivisionError) as e:
+                    logger.error("invalid option set for %s=%s, exception=%s", uci_elo_option_string, uci_elo_with_rating, e)
                     del self.options[uci_elo_option_string]
             else:
                 del self.options[uci_elo_option_string]
@@ -1623,7 +1667,7 @@ class UciEngine(object):
         new_rating = rating.rate(Rating(self.engine_rating, 0), result)
         if self.uci_elo_eval_fn is not None:
             # evaluation function instead of auto?
-            self.engine_rating = eval(self.uci_elo_eval_fn.replace("auto", str(int(new_rating.rating))))
+            self.engine_rating = safe_eval_elo(self.uci_elo_eval_fn.replace("auto", str(int(new_rating.rating))))
         else:
             self.engine_rating = self._round_engine_rating(int(new_rating.rating))
         self._save_rating(new_rating)

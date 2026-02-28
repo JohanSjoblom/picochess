@@ -51,7 +51,7 @@ class UploadHandler(tornado.web.RequestHandler):
             return
 
         fileinfo = self.request.files["file"][0]
-        original_name = fileinfo["filename"]
+        original_name = os.path.basename(fileinfo["filename"])  # strip path components to prevent traversal
 
         # Check if uploaded file is a PGN file (by name)
         if not original_name.lower().endswith(".pgn"):
@@ -59,7 +59,15 @@ class UploadHandler(tornado.web.RequestHandler):
             self.finish("Only .pgn files are allowed.")
             return
 
-        upload_file = os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR, original_name)
+        upload_dir = os.path.join(UPLOAD_BASE_DIR, UPLOAD_DIR)
+        upload_file = os.path.join(upload_dir, original_name)
+
+        # Verify resolved path stays inside the upload directory
+        if not os.path.realpath(upload_file).startswith(os.path.realpath(upload_dir) + os.sep):
+            self.set_status(400)
+            self.finish("Invalid filename.")
+            return
+
         file_rel_path = os.path.join(UPLOAD_DIR, original_name)
 
         try:

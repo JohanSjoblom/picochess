@@ -140,15 +140,15 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         await eng.startup({UCI_ELO: "auto + 100"}, Rating(850.5, 123.0))
         self.assertEqual(950, eng.engine_rating)
 
-    async def test_fancy_eval(self):
+    async def test_fancy_eval_rejects_code_injection(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()
-        await eng.startup(
-            {UCI_ELO: 'exec("import random; random.seed();") or max(800, (auto + random.randint(10,80)))'},
-            Rating(850.5, 123.0),
-        )
-        self.assertGreater(eng.engine_rating, 859)
-        self.assertLess(eng.engine_rating, 931)
+        with self.assertLogs("uci.engine", level="ERROR"):
+            await eng.startup(
+                {UCI_ELO: 'exec("import random; random.seed();") or max(800, (auto + random.randint(10,80)))'},
+                Rating(850.5, 123.0),
+            )
+        self.assertEqual(-1, eng.engine_rating)  # rejected, not evaluated
 
     async def test_eval_syntax_error(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

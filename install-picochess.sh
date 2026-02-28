@@ -174,9 +174,9 @@ if [ -d "$REPO_DIR" ]; then
 
         # Create required directories
         mkdir -p "$WORKING_COPY_DIR" "$UNTRACKED_DIR"
-        # Ensure backup directory is writable by install user
-        chown "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE"
-        chown "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR"
+        # Ensure backup tree is writable by install user before rsync.
+        # This avoids rsync/chgrp errors when previous runs created root-owned paths.
+        chown -R "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE"
         echo "Creating backup in: $BACKUP_DIR"
 
         # === Save Git diff of local changes ===

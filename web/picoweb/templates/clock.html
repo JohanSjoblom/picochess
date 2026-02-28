@@ -251,6 +251,14 @@
             color: #495057 !important;
         }
 
+        /* Board controls: keep Get PGN / Upload labels non-bold */
+        #uploadBtn,
+        #downloadBtn,
+        #uploadBtn .btn-text,
+        #downloadBtn .btn-text {
+            font-weight: 400 !important;
+        }
+
         @media (max-width: 768px) and (orientation: portrait) {
 
             #uploadBtn,
@@ -294,6 +302,8 @@
             text-overflow: ellipsis;
             margin-bottom: 8px;
             min-height: 60px;
+            font-family: Roboto, FreeSerif, sans-serif;
+            font-weight: 400 !important;
         }
 
         .menu-button-compact {
@@ -321,7 +331,8 @@
             font-size: 0.8em;
             line-height: 1.1;
             word-wrap: break-word;
-            font-weight: 600;
+            font-family: Roboto, FreeSerif, sans-serif;
+            font-weight: 400 !important;
         }
 
         /* Active state for menu buttons */
@@ -826,8 +837,9 @@
                                                         </button>
                                                     </div>
                                                     <div class="col-4 menu-col">
-                                                        <a href="/settings" class="btn menu-button menu-button-compact">
+                                                        <a href="/settings" class="btn menu-button">
                                                             <i class="fa fa-cog"></i>
+                                                            <span>Config</span>
                                                         </a>
                                                     </div>
                                                 </div>
@@ -975,6 +987,11 @@
                                                     <div class="col-12">
                                                     </div>
 
+                                                    <div id="listener">
+                                                        <embed name="nacl_module" id='stockfish_module' width="0"
+                                                            height="0" src='/static/stockfish/stockfish.nmf'
+                                                            type='application/x-pnacl' />
+                                                    </div>
                                                     <div id="engineStatus"></div>
                                                 </div>
                                                 <div class="row">

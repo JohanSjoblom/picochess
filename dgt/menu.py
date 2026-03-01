@@ -20,6 +20,7 @@ import subprocess
 import logging
 import dgt.util
 import asyncio
+import time
 from configobj import ConfigObj  # type: ignore
 from collections import OrderedDict
 from typing import Dict, List, Set
@@ -85,6 +86,8 @@ from uci.engine_provider import EngineProvider
 
 
 logger = logging.getLogger(__name__)
+
+IP_INFO_NO_EBOARD_SUPPRESS_SECS = 3.0
 
 
 class MenuState(object):
@@ -663,6 +666,7 @@ class DgtMenu(object):
 
         self.battery = "-NA"  # standard value: NotAvailable (discharging)
         self.inside_room = False
+        self.no_eboard_spinner_suppress_until = 0.0
 
     def set_state_current_engine(self, current_engine_file_name: str):
         """Set engine menu index to the one that contains the current engine file name"""
@@ -718,6 +722,15 @@ class DgtMenu(object):
     def inside_picochess_time(self, dev):
         """Picochess displayed on clock."""
         return dev in self.picochess_displayed
+
+    def suppress_no_eboard_spinner(self, seconds: float):
+        """Temporarily suppress no-eBoard spinner refreshes."""
+        hold_until = time.time() + max(0.0, seconds)
+        self.no_eboard_spinner_suppress_until = max(self.no_eboard_spinner_suppress_until, hold_until)
+
+    def is_no_eboard_spinner_suppressed(self):
+        """Return True while no-eBoard spinner refreshes should stay muted."""
+        return time.time() < self.no_eboard_spinner_suppress_until
 
     def save_choices(self):
         """Save the user choices to the result vars."""
@@ -2985,6 +2998,7 @@ class DgtMenu(object):
                     text.wait = True
             else:
                 text = self.dgttranslate.text("B10_noipadr")
+            self.suppress_no_eboard_spinner(IP_INFO_NO_EBOARD_SUPPRESS_SECS)
             text = await self._fire_dispatchdgt(text)
 
         elif self.state == MenuState.SYS_INFO_BATTERY:

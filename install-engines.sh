@@ -279,8 +279,8 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-mame-lite.tar.gz"
-            MAME_TMP="$TMP_DIR/engines-mame-lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_mame_lite.tar.gz"
+            MAME_TMP="$TMP_DIR/x86_64_mame_lite.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then

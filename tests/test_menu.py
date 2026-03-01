@@ -457,6 +457,21 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("192.168.0.9", dispatch_fire.await_args_list[0].args[0].large_text.strip())
 
     @patch("platform.machine")
+    async def test_sys_info_ip_temporarily_suppresses_no_eboard_spinner(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        menu.state = MenuState.SYS_INFO_IP
+
+        with patch("dgt.menu.get_internal_ip", return_value="10.20.30.40"), patch(
+            "dgt.menu.Rev2Info.get_web_only", return_value=True
+        ), patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock), patch("dgt.menu.time.time", return_value=100.0):
+            await menu.main_down()
+
+        with patch("dgt.menu.time.time", return_value=102.0):
+            self.assertTrue(menu.is_no_eboard_spinner_suppressed())
+        with patch("dgt.menu.time.time", return_value=103.1):
+            self.assertFalse(menu.is_no_eboard_spinner_suppressed())
+
+    @patch("platform.machine")
     async def test_node_menu(self, machine_mock):
         menu = self.create_menu(machine_mock)
         menu.set_state_current_engine("")

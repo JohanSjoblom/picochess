@@ -1502,7 +1502,11 @@ class DgtDisplay(DisplayMsg):
                 await self._exit_display(devs={"i2c", "web"})  # ser is done, when clock found
 
         elif isinstance(message, Message.DGT_NO_EBOARD_ERROR):
-            if self.dgtmenu.inside_updt_menu() or self.dgtmenu.inside_main_menu():
+            if (
+                self.dgtmenu.inside_updt_menu()
+                or self.dgtmenu.inside_main_menu()
+                or self.dgtmenu.is_no_eboard_spinner_suppressed()
+            ):
                 pass  # avoid filling logbook with DGT search
                 # logger.debug("inside menu => board error not displayed")
             else:

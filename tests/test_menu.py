@@ -431,12 +431,12 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         with patch("dgt.menu.get_internal_ip", return_value="10.20.30.40"), patch(
             "dgt.menu.Rev2Info.get_web_only", return_value=False
         ), patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock) as dispatch_fire:
-            await menu.main_down()
+            text = await menu.main_down()
 
         self.assertEqual("10.20.30.40", menu.int_ip)
-        self.assertEqual(2, dispatch_fire.await_count)
+        self.assertEqual(1, dispatch_fire.await_count)
         self.assertEqual("10 20", dispatch_fire.await_args_list[0].args[0].large_text.strip())
-        self.assertEqual("30 40", dispatch_fire.await_args_list[1].args[0].large_text.strip())
+        self.assertEqual("30 40", text.large_text.strip())
 
     @patch("platform.machine")
     async def test_sys_info_ip_falls_back_to_cached_ip(self, machine_mock):
@@ -449,12 +449,12 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "dgt.menu.DispatchDgt.fire", new_callable=AsyncMock
         ) as dispatch_fire:
-            await menu.main_down()
+            text = await menu.main_down()
 
         self.assertEqual("192.168.0.99", menu.int_ip)
-        self.assertEqual(1, dispatch_fire.await_count)
-        self.assertEqual("192.168.0.99", dispatch_fire.await_args_list[0].args[0].web_text.strip())
-        self.assertEqual("192.168.0.9", dispatch_fire.await_args_list[0].args[0].large_text.strip())
+        self.assertEqual(0, dispatch_fire.await_count)
+        self.assertEqual("192.168.0.99", text.web_text.strip())
+        self.assertEqual("192.168.0.9", text.large_text.strip())
 
     @patch("platform.machine")
     async def test_sys_info_ip_temporarily_suppresses_no_eboard_spinner(self, machine_mock):

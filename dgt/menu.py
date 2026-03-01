@@ -2999,7 +2999,7 @@ class DgtMenu(object):
             else:
                 text = self.dgttranslate.text("B10_noipadr")
             self.suppress_no_eboard_spinner(IP_INFO_NO_EBOARD_SUPPRESS_SECS)
-            text = await self._fire_dispatchdgt(text)
+            self.save_choices()
 
         elif self.state == MenuState.SYS_INFO_BATTERY:
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_bat_percent", self.battery))

@@ -49,7 +49,6 @@ class PicoTutor:
         i_fen="",
         i_comment_file="",
         i_lang="en",
-        i_always_run_tutor=False,
         loop=None,
         remote_binary_override: str | None = None,
     ):
@@ -106,9 +105,6 @@ class PicoTutor:
         # the following setting can be True if engine is not playing
         # or if you want to analyse also engine moves (like pgn_engine)
         self.analyse_both_sides = False  # analyse only user side as default
-        # Legacy compatibility option (coach-analyser) is intentionally ignored.
-        # Keep parameter acceptance so older configs/CLI wrappers do not break.
-        _ = i_always_run_tutor
         # new feature to be able to step through a PGN game
         self.pgn_game: chess.pgn.Game | None = None
 

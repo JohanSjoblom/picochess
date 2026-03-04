@@ -823,6 +823,17 @@ class DgtDisplay(DisplayMsg):
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: atomic replay failed: %s", exc)
 
+        # For 3check variant with a standard chess.Board, replay on ThreeCheckBoard
+        # to include the check-count suffix (e.g. +3+2) in the FEN.
+        if variant_name == "3check" and game.move_stack:
+            try:
+                tcb = chess.variant.ThreeCheckBoard()
+                for move in game.move_stack:
+                    tcb.push(move)
+                return variant_name, tcb.fen()
+            except Exception as exc:
+                logger.warning("_variant_fen_from_game: 3check replay failed: %s", exc)
+
         # For racingkings variant with a standard chess.Board, replay on RacingKingsBoard
         if variant_name == "racingkings" and game.move_stack:
             try:

@@ -357,7 +357,15 @@ class PgnDisplay(DisplayMsg):
         Using the variant board ensures correct SAN notation (e.g. no + in antichess).
         """
         variant = self.shared.get("variant", "chess") if self.shared else "chess"
-        if variant == "antichess" and game.move_stack:
+        if variant == "atomic" and game.move_stack:
+            try:
+                atm = chess.variant.AtomicBoard()
+                for move in game.move_stack:
+                    atm.push(move)
+                return chess.pgn.Game().from_board(atm)
+            except Exception:
+                pass
+        elif variant == "antichess" and game.move_stack:
             try:
                 acb = chess.variant.AntichessBoard()
                 for move in game.move_stack:
@@ -508,7 +516,6 @@ class PgnDisplay(DisplayMsg):
             variant_map = {
                 "atomic": "Atomic",
                 "3check": "Three-Check",
-                "crazyhouse": "Crazyhouse",
                 "kingofthehill": "King of the Hill",
                 "antichess": "Antichess",
                 "horde": "Horde",

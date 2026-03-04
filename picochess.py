@@ -2905,6 +2905,8 @@ async def main() -> None:
                             if not self.state.check_game_state():
                                 # molli: automatic takeback of blunder moves for mame engines
                                 if self.emulation_mode() and eval_str == "??" and self.state.last_move != move:
+                                    # Ensure tutor feedback is shown before takeback prompt/move display.
+                                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
                                     # molli: do not send move to engine
                                     # wait for take back or lever button in case of no takeback
                                     if self.board_type == dgt.util.EBoard.NOEBOARD:

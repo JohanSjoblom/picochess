@@ -18,6 +18,7 @@
 import logging
 import os
 import platform
+import shutil
 import urllib.request
 import socket
 import json
@@ -444,10 +445,80 @@ _WINDOW_COMMANDS = {
 }
 
 
+_WAYLAND_SWAY_COMMANDS = {
+    "toggle_fullscreen": "swaymsg --quiet fullscreen toggle",
+    "switch_window": "swaymsg --quiet focus next",
+    "switch_window_toggle_fullscreen": (
+        "swaymsg --quiet focus next; sleep 0.2; swaymsg --quiet fullscreen toggle"
+    ),
+}
+
+
+# evdev keycodes used by ydotool key injection.
+_YDOTOOL_ALT_TAB = "ydotool key 56:1 15:1 15:0 56:0"
+_YDOTOOL_ALT_F11 = "ydotool key 56:1 87:1 87:0 56:0"
+_WAYLAND_YDOTOOL_COMMANDS = {
+    "toggle_fullscreen": _YDOTOOL_ALT_F11,
+    "switch_window": _YDOTOOL_ALT_TAB,
+    "switch_window_toggle_fullscreen": f"{_YDOTOOL_ALT_TAB}; sleep 0.2; {_YDOTOOL_ALT_F11}",
+}
+
+
+def _choose_wayland_backend() -> Optional[str]:
+    """Pick the best available Wayland window-control backend."""
+    requested_backend = os.environ.get("PICOCHESS_WAYLAND_WINDOW_BACKEND", "").strip().lower()
+    session_desktop = os.environ.get("XDG_SESSION_DESKTOP", "").lower()
+    current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+
+    if requested_backend in {"none", "off", "disabled"}:
+        return None
+
+    if requested_backend in {"sway", "swaymsg"}:
+        if shutil.which("swaymsg"):
+            return "swaymsg"
+        logger.warning("PICOCHESS_WAYLAND_WINDOW_BACKEND=swaymsg but swaymsg is not available")
+        return None
+
+    if requested_backend == "ydotool":
+        if shutil.which("ydotool"):
+            return "ydotool"
+        logger.warning("PICOCHESS_WAYLAND_WINDOW_BACKEND=ydotool but ydotool is not available")
+        return None
+
+    if shutil.which("swaymsg") and (
+        os.environ.get("SWAYSOCK") or "sway" in session_desktop or "sway" in current_desktop
+    ):
+        return "swaymsg"
+
+    if shutil.which("ydotool"):
+        return "ydotool"
+
+    return None
+
+
+def _get_wayland_window_command(action: str) -> Optional[str]:
+    """Resolve a window action command for Wayland sessions."""
+    backend = _choose_wayland_backend()
+    if backend == "swaymsg":
+        cmd = _WAYLAND_SWAY_COMMANDS.get(action)
+    elif backend == "ydotool":
+        cmd = _WAYLAND_YDOTOOL_COMMANDS.get(action)
+    else:
+        logger.warning(
+            "Wayland window backend unavailable for action '%s' (looked for swaymsg/ydotool)", action
+        )
+        return None
+
+    if cmd is None:
+        logger.warning("Unknown window action '%s' for Wayland backend '%s'", action, backend)
+    else:
+        logger.debug("Wayland window action '%s' via backend '%s'", action, backend)
+    return cmd
+
+
 def get_window_command(action: str) -> Optional[str]:
     if is_wayland_session():
-        logger.info("Wayland session detected; skipping window action '%s'", action)
-        return None
+        return _get_wayland_window_command(action)
     cmd = _WINDOW_COMMANDS.get(action)
     if cmd is None:
         logger.warning("Unknown window action '%s'", action)

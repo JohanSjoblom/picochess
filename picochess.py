@@ -426,9 +426,9 @@ class PicochessState:
         elif self.variant == "atomic" and self._atomic_board is not None:
             self._atomic_board.reset()
         elif self.variant == "racingkings" and self._racingkings_board is not None:
-            self._racingkings_board = chess.variant.RacingKingsBoard()
+            self._racingkings_board.reset()
         elif self.variant == "antichess" and self._antichess_board is not None:
-            self._antichess_board = chess.variant.AntichessBoard()
+            self._antichess_board.reset()
 
     def get_move_check_board(self):
         """Return the board to use for move legality checks.
@@ -663,7 +663,7 @@ class PicochessState:
         if check_board.is_stalemate():
             if self.variant == "antichess":
                 # In antichess, the stalemated player wins
-                if self.game.turn == chess.BLACK:
+                if check_board.turn == chess.BLACK:
                     result = GameResult.ANTICHESS_BLACK
                 else:
                     result = GameResult.ANTICHESS_WHITE
@@ -1820,6 +1820,8 @@ async def main() -> None:
                     self.state._atomic_board.set_fen(bit_board.fen())
                 elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
                     self.state._racingkings_board.set_fen(bit_board.fen())
+                elif self.state.variant == "antichess" and self.state._antichess_board is not None:
+                    self.state._antichess_board.set_fen(bit_board.fen())
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.searchmoves.reset()
@@ -1973,6 +1975,25 @@ async def main() -> None:
                 else:
                     self.shared.pop("checks_remaining", None)
 
+        def _prepare_engine_move(self, game_copy: chess.Board, move: chess.Move, pb_move: chess.Move = None) -> None:
+            """Record an announced engine move: set done_computer_fen, done_move, pb_move, legal_fens_after_cmove.
+
+            game_copy must already have move pushed onto it.
+            For variant boards a copy at N+1 (move applied) is used so that FENs reflect
+            the correct post-move position rather than the live board still at N.
+            """
+            if pb_move is None:
+                pb_move = chess.Move.null()
+            vb = self.state.get_variant_board()
+            vb_after = None
+            if vb is not None:
+                vb_after = vb.copy()
+                vb_after.push(move)
+            self.state.done_computer_fen = vb_after.board_fen() if vb_after is not None else game_copy.board_fen()
+            self.state.done_move = move
+            self.state.pb_move = pb_move
+            self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, vb_after)
+
         async def set_wait_state(self, msg: Message, start_search=True):
             """Enter engine waiting (normal mode) and maybe (by parameter) start pondering."""
             if not self.state.done_computer_fen:
@@ -2070,10 +2091,7 @@ async def main() -> None:
                             if self.state.no_guess_black > self.state.max_guess_black:
                                 await self.get_next_pgn_move()
 
-                if self.state.game.board_fen() == chess.STARTING_BOARD_FEN or (
-                    self.state.variant == "racingkings"
-                    and self.state.game.board_fen() == RK_STARTING_BOARD_FEN
-                ):
+                if self.state.game.board_fen() == chess.STARTING_BOARD_FEN:
                     pos960 = 518
                     await Observable.fire(Event.NEW_GAME(pos960=pos960))
 
@@ -2647,6 +2665,7 @@ async def main() -> None:
                             self.state.done_move = self.state.pb_move = chess.Move.null()
                             self.state.searchmoves.reset()
                             self.state.takeback_active = True
+                            self._update_variant_shared()  # sync check counts etc. after multi-pop
                             await self.set_wait_state(
                                 Message.TAKE_BACK(game=self.state.game.copy())
                             )  # new: force stop no matter if picochess turn
@@ -3744,6 +3763,7 @@ async def main() -> None:
             # maybe there is a smarter way to do this?
             if not fen_header and l_move and l_stop_at_halfmove != 0:
                 self.state.pop_move()
+                self._update_variant_shared()
 
             # issue #72 - newgame sends a ucinewgame unless stopped
             await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
@@ -5304,16 +5324,7 @@ async def main() -> None:
                         )
                         game_copy = self.state.game.copy()
                         game_copy.push(event.move)
-                        # For atomic variant, use atomic board to get FEN with explosions applied
-                        if self.state.variant == "atomic" and self.state._atomic_board is not None:
-                            atomic_copy = self.state._atomic_board.copy()
-                            atomic_copy.push(event.move)
-                            self.state.done_computer_fen = atomic_copy.board_fen()
-                        else:
-                            self.state.done_computer_fen = game_copy.board_fen()
-                        self.state.done_move = event.move
-                        self.state.pb_move = chess.Move.null()
-                        self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, self.state.get_variant_board())
+                        self._prepare_engine_move(game_copy, event.move)
                     else:
                         logger.warning(
                             "wrong function call [remote]! mode: %s turn: %s",
@@ -5635,19 +5646,11 @@ async def main() -> None:
                                 valid = await self.state.picotutor.push_move(event.move, game_copy)
                                 if not valid:
                                     await self.set_picotutor_position()
-                            # For atomic variant, use atomic board to get FEN with explosions applied
-                            if self.state.variant == "atomic" and self.state._atomic_board is not None:
-                                atomic_copy = self.state._atomic_board.copy()
-                                atomic_copy.push(event.move)
-                                self.state.done_computer_fen = atomic_copy.board_fen()
-                            else:
-                                self.state.done_computer_fen = game_copy.board_fen()
-                            self.state.done_move = event.move
-
-                            self.state.pb_move = (
-                                event.ponder if event.ponder and not event.inbook else chess.Move.null()
+                            self._prepare_engine_move(
+                                game_copy,
+                                event.move,
+                                event.ponder if event.ponder and not event.inbook else chess.Move.null(),
                             )
-                            self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, self.state.get_variant_board())
 
                             if self.pgn_mode():
                                 # molli pgn: reset pgn guess counters

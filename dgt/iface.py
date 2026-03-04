@@ -108,10 +108,18 @@ class DgtIface(DisplayDgt):
             return chess.variant.AntichessBoard(fen)
 
         # Fallback: message has no variant attribute (e.g. DISPLAY_MOVE).
-        # Only use ModeInfo for antichess where suppressing '+' matters;
-        # other variants either don't need it or have FEN incompatibilities
-        # (e.g. atomic board FEN differs from standard board FEN).
-        if ModeInfo.get_variant() == "antichess":
+        # Must use the correct variant board here — 3check FENs contain "+N+N"
+        # which standard chess.Board cannot parse and will raise ValueError.
+        fallback_variant = ModeInfo.get_variant()
+        if fallback_variant == "atomic":
+            return chess.variant.AtomicBoard(fen)
+        elif fallback_variant == "kingofthehill":
+            return chess.variant.KingOfTheHillBoard(fen)
+        elif fallback_variant == "3check":
+            return chess.variant.ThreeCheckBoard(fen)
+        elif fallback_variant == "racingkings":
+            return chess.variant.RacingKingsBoard(fen)
+        elif fallback_variant == "antichess":
             return chess.variant.AntichessBoard(fen)
 
         return Board(fen)

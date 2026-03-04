@@ -3078,28 +3078,31 @@ async def main() -> None:
             # self.engine.position(copy.deepcopy(game))
 
 
-        # There are four case in the boolean table for is_coach_analyser and need_engine_analyser
-        # This logic is used by analyse to get the correct get_analysis
-        # I used this text to let AI review that the truth table is always working
+        # Analysis routing has four main cases.
+        # IMPORTANT: `analyse()` has two outputs:
+        # 1) clock/DGT output via send_analyse() (depth-gated by best_sent_depth)
+        # 2) web client output via send_web_analysis() (source-tagged engine/tutor).
+        #
         # 1. Engine is playing and tutor is on:
-        #   For user turn the tutor should be analysing, and
-        #   for engine turn the new PlayingContinuousAnalysis should be running so no analysis needed as
-        #       PlayingContinuousAnalysis provides analysis from engine while engine is thinking.
+        #   - Engine turn: use engine PlayingContinuousAnalysis (engine-thinking info).
+        #   - User turn: keep clock hint/value engine-driven (do NOT overwrite with tutor info);
+        #     tutor info may still be sent to web client output.
         # 2. Engine is playing and tutor is off:
-        #   For user turn engine ContinuousAnalysis should run, and
-        #   for engine turn the new PlayingContinuousAnalysis is running so no analysis needed.
+        #   - User turn: use engine ContinuousAnalysis for clock updates.
+        #   - Engine turn: use engine PlayingContinuousAnalysis.
         # 3. Engine is not playing and tutor is on:
-        #   Always use tutor, which is the best engine ContinuousAnalysis running.
-        #       Its an analysis situation and user is making moves for both sides.
+        #   - Tutor (best engine ContinuousAnalysis) drives clock and web client output.
         # 4. Engine is not playing and tutor is off:
-        #   Always use engine ContinuousAnalysis to analyse both sides.
-
-        # Goal is that in all these 4 cases we always only run one analyser at any point in time
-        # Dont care about the self.obvious_engine in picotutor because that one is limited to a depth of 5 only
-        # Only one of the following should run at any time in these 4 cases above.
-        # A. picotutor self.best_engine using ContinuousAnalysis
+        #   - Engine ContinuousAnalysis drives clock and web client output.
+        #
+        # Goal: for clock-driving analysis we run only one deep analyser at a time:
+        # A. picotutor best_engine ContinuousAnalysis
+        #    - tutor-on analysis paths when it's user turn
         # B. engine ContinuousAnalysis
+        #    - tutor-off analysis paths, especially when engine is not playing and we analyse both sides
         # C. engine PlayingContinuousAnalysis
+        #    - engine-thinking path when it's engine's turn (used regardless of tutor on/off)
+        # (ignore picotutor obvious_engine here; it is shallow helper analysis)
 
         def is_coach_analyser(self) -> bool:
             """Return True when tutor analysis should replace engine analysis."""
@@ -3230,6 +3233,8 @@ async def main() -> None:
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
+                            # In engine-play mode this tutor snapshot is intentionally web-only.
+                            # Clock +/- remains engine-driven (ponder/engine analysis path).
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None

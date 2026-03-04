@@ -423,7 +423,7 @@ class BookHandler(ServerRequestHandler):
     async def _get_obooksrv_moves(self, fen: str):
         # Opening books contain standard chess positions only
         variant = self.shared.get("variant", "chess")
-        if variant not in ("chess", "3check"):
+        if variant not in ("chess", "3check", "kingofthehill"):
             return []
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._get_obooksrv_moves_sync, fen)
@@ -467,7 +467,7 @@ class BookHandler(ServerRequestHandler):
     def _get_polyglot_moves(self, book_file: str, fen: str):
         # Opening books contain standard chess positions only
         variant = self.shared.get("variant", "chess")
-        if variant not in ("chess", "3check"):
+        if variant not in ("chess", "3check", "kingofthehill"):
             return []
         moves_data = []
         try:
@@ -1297,6 +1297,14 @@ class WebDisplay(DisplayMsg):
                     return atm.fen()
                 except Exception:
                     pass  # fall through to standard
+            elif variant == "racingkings":
+                try:
+                    rkb = chess.variant.RacingKingsBoard()
+                    for move in game.move_stack:
+                        rkb.push(move)
+                    return rkb.fen()
+                except Exception:
+                    pass  # fall through to standard
             builder = []
             builder.append(_variant_board_fen(game))
             builder.append("w" if game.turn == chess.WHITE else "b")
@@ -1377,6 +1385,22 @@ class WebDisplay(DisplayMsg):
                     for move in game.move_stack:
                         acb.push(move)
                     pgn_game = pgn.Game.from_board(acb)
+                except Exception:
+                    pgn_game = pgn.Game().from_board(game)
+            elif variant == "racingkings":
+                try:
+                    rkb = chess.variant.RacingKingsBoard()
+                    for move in game.move_stack:
+                        rkb.push(move)
+                    pgn_game = pgn.Game.from_board(rkb)
+                except Exception:
+                    pgn_game = pgn.Game().from_board(game)
+            elif variant == "3check" and game.move_stack:
+                try:
+                    tcb = chess.variant.ThreeCheckBoard()
+                    for move in game.move_stack:
+                        tcb.push(move)
+                    pgn_game = pgn.Game.from_board(tcb)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)
             else:

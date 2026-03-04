@@ -806,8 +806,8 @@ This document explains the full move cycle inside PicoChess, including:
       Opening              opening name from PicoExplorer
       ECO                  ECO code from PicoExplorer
       Variant              set for non-standard variants:
-                             "Atomic", "Three-Check", "Crazyhouse",
-                             "King of the Hill", "Antichess", "Horde",
+                             "Atomic", "Three-Check",
+                             "King of the Hill", "Antichess",
                              "Racing Kings"
       (move comments)      PicoTutor NAGs + eval text per move
 

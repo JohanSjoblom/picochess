@@ -251,6 +251,60 @@
             color: #495057 !important;
         }
 
+        #pico-version-text {
+            white-space: nowrap;
+        }
+
+        .pico-ip-subtle {
+            font-size: 0.68em;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+
+        {% try %}
+        {% if theme=='light' %}
+        .pico-ip-subtle {
+            color: #9aa0a6;
+        }
+        {% end %}
+        {% if theme=='dark' %}
+        .pico-ip-subtle {
+            color: #6b7280;
+        }
+        {% end %}
+        {% except %}
+        .pico-ip-subtle {
+            color: #6b7280;
+        }
+        {% end %}
+
+        .pico-header-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        .pico-header-left,
+        .pico-header-center,
+        .pico-header-right {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .pico-header-left {
+            text-align: left;
+        }
+
+        .pico-header-center {
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .pico-header-right {
+            text-align: right;
+            white-space: nowrap;
+        }
+
         /* Board controls: keep Get PGN / Upload labels non-bold */
         #uploadBtn,
         #downloadBtn,
@@ -690,21 +744,28 @@
                         <div class="row">
                             <div class="card">
                                 <div class="card-header"
-                                    style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center;">
-                                    <span>PicoChess Version 4.2.2</span>
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <form id="moveForm" autocomplete="off" style="margin: 0;">
-                                            <input id="moveInput" type="text" inputmode="none" value="" style="
-                                                position:absolute;
-                                                left:0; top:0;
-                                                opacity:0;
-                                                caret-color:transparent;
-                                                border:none;
-                                                outline:none;
-                                                width:1px; height:1px;" maxlength="5" autocomplete="off"
-                                                autocorrect="off" autocapitalize="off" spellcheck="false" title="Move"
-                                                data-bs-toggle="" />
-                                        </form>
+                                    style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center; position: relative;">
+                                    <div class="pico-header-row">
+                                        <div class="pico-header-left">
+                                            <form id="moveForm" autocomplete="off" style="margin: 0;">
+                                                <input id="moveInput" type="text" inputmode="none" value="" style="
+                                                    position:absolute;
+                                                    left:0; top:0;
+                                                    opacity:0;
+                                                    caret-color:transparent;
+                                                    border:none;
+                                                    outline:none;
+                                                    width:1px; height:1px;" maxlength="5" autocomplete="off"
+                                                    autocorrect="off" autocapitalize="off" spellcheck="false"
+                                                    title="Move" data-bs-toggle="" />
+                                            </form>
+                                        </div>
+                                        <div class="pico-header-center">
+                                            <span id="pico-version-text">PicoChess Version 4.2.2</span>
+                                        </div>
+                                        <div class="pico-header-right">
+                                            <span id="pico-ip-text" class="pico-ip-subtle"></span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="card-body">

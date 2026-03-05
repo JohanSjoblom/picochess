@@ -20,7 +20,6 @@ import subprocess
 import logging
 import dgt.util
 import asyncio
-import time
 from configobj import ConfigObj  # type: ignore
 from collections import OrderedDict
 from typing import Dict, List, Set
@@ -86,8 +85,6 @@ from uci.engine_provider import EngineProvider
 
 
 logger = logging.getLogger(__name__)
-
-IP_INFO_NO_EBOARD_SUPPRESS_SECS = 3.0
 
 
 class MenuState(object):
@@ -666,7 +663,6 @@ class DgtMenu(object):
 
         self.battery = "-NA"  # standard value: NotAvailable (discharging)
         self.inside_room = False
-        self.no_eboard_spinner_suppress_until = 0.0
 
     def set_state_current_engine(self, current_engine_file_name: str):
         """Set engine menu index to the one that contains the current engine file name"""
@@ -722,15 +718,6 @@ class DgtMenu(object):
     def inside_picochess_time(self, dev):
         """Picochess displayed on clock."""
         return dev in self.picochess_displayed
-
-    def suppress_no_eboard_spinner(self, seconds: float):
-        """Temporarily suppress no-eBoard spinner refreshes."""
-        hold_until = time.time() + max(0.0, seconds)
-        self.no_eboard_spinner_suppress_until = max(self.no_eboard_spinner_suppress_until, hold_until)
-
-    def is_no_eboard_spinner_suppressed(self):
-        """Return True while no-eBoard spinner refreshes should stay muted."""
-        return time.time() < self.no_eboard_spinner_suppress_until
 
     def save_choices(self):
         """Save the user choices to the result vars."""
@@ -2986,20 +2973,36 @@ class DgtMenu(object):
                     msg = display_int_ip
                     text = self.dgttranslate.text("N07_default", msg)
                 else:
-                    msg = " ".join(display_int_ip.split(".")[:2])
-                    text = self.dgttranslate.text("B07_default", msg)
-                    if len(msg) == 7:  # delete the " " for XL incase its "123 456"
-                        text.s = msg[:3] + msg[4:]
-                    await DispatchDgt.fire(text)
-                    msg = " ".join(display_int_ip.split(".")[2:])
-                    text = self.dgttranslate.text("N07_default", msg)
-                    if len(msg) == 7:  # delete the " " for XL incase its "123 456"
-                        text.s = msg[:3] + msg[4:]
-                    text.wait = True
+                    octets = display_int_ip.split(".")
+                    if len(octets) >= 4:
+                        first_part = ".".join(octets[:2])
+                        second_part = ".".join(octets[2:4])
+                    else:
+                        # Fallback for unexpected address formats.
+                        first_part = display_int_ip
+                        second_part = ""
+
+                    # Repeat the two-part IP presentation three times on DGT clock.
+                    for _ in range(3):
+                        first_msg = f"IP: {first_part}"
+                        text = self.dgttranslate.text("B10_default", first_msg)
+                        text.web_text = display_int_ip
+                        text.wait = False
+                        await DispatchDgt.fire(text)
+                        await asyncio.sleep(2.0)
+
+                        if second_part:
+                            text = self.dgttranslate.text("N10_default", second_part)
+                            text.web_text = display_int_ip
+                            text.wait = False
+                            await DispatchDgt.fire(text)
+                            await asyncio.sleep(2.0)
+
+                    # Return automatically to the normal Information menu.
+                    text = self.enter_sys_info_menu()
             else:
                 text = self.dgttranslate.text("B10_noipadr")
-            self.suppress_no_eboard_spinner(IP_INFO_NO_EBOARD_SUPPRESS_SECS)
-            self.save_choices()
+            text = await self._fire_dispatchdgt(text)
 
         elif self.state == MenuState.SYS_INFO_BATTERY:
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_bat_percent", self.battery))

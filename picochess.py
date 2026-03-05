@@ -2465,6 +2465,8 @@ async def main() -> None:
                 self.state.best_move_posted = False
                 self.state.push_move(self.state.done_move)
                 self._update_variant_shared()
+                # Keep this clear after push_move(): analysis gating uses done_computer_fen
+                # to block stale analysis while waiting for the engine move to be executed.
                 self.state.done_computer_fen = None
                 self.state.done_move = chess.Move.null()
 
@@ -3133,6 +3135,11 @@ async def main() -> None:
                 and not self.state.game.move_stack
                 and self.state.game.fen() == chess.STARTING_FEN
             ):
+                return False
+            # Engine move has already been selected/displayed but not pushed on the game yet.
+            # In this waiting window the old position is stale, so avoid launching the
+            # engine ContinuousAnalysis sister for it.
+            if self.eng_plays() and self.state.done_computer_fen is not None:
                 return False
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis

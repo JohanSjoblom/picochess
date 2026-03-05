@@ -1318,7 +1318,7 @@ async def main() -> None:
             if self.args.engine_level == '""':
                 self.args.engine_level = None
             engine_opt, level_index = await self.get_engine_level_dict(args.engine_level)
-            await self.engine.startup(engine_opt, self.state.rating)
+            startup_ok = await self.engine.startup(engine_opt, self.state.rating)
 
             # Initialize variant support from engine settings
             self._init_variant_from_engine()
@@ -1394,6 +1394,10 @@ async def main() -> None:
                 )
             )
             await DisplayMsg.show(Message.ENGINE_SETUP())
+            if startup_ok:
+                # Confirm startup after startup announcements to keep spoken order:
+                # "picochess", "engine setup", "ok".
+                await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
             # update_elo_display sends "rspeed", "user_elo", "engine_elo" in SYSTEM_INFO
             await self.update_elo_display()
 
@@ -6356,16 +6360,9 @@ async def main() -> None:
             # Wait for eBoard connection unless we are in no-eboards mode
             if self.board_type != dgt.util.EBoard.NOEBOARD:
                 board_connected = getattr(self.dgtboard, "is_connected", None)
-                board_ready = True
                 if callable(board_connected):
-                    board_ready = board_connected()
-                    while not board_ready:
+                    while not board_connected():
                         await asyncio.sleep(0.2)
-                        board_ready = board_connected()
-                if board_ready:
-                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
-            else:
-                await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
 
             await self._start_or_stop_analysis_as_needed()  # start analysis if needed
             self.background_analyse_timer.start()  # always run background analyser

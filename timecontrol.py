@@ -19,7 +19,6 @@ import asyncio
 import time
 import logging
 import copy
-from math import ceil
 import chess  # type: ignore
 from utilities import Observable, hms_time, AsyncRepeatingTimer
 from dgt.board import Rev2Info
@@ -337,7 +336,7 @@ class TimeControl(object):
                 self.timer.stop()
             else:
                 logger.warning("time=%s", self.internal_time)
-            used_time = ceil((time.time() - self.start_time) * 10) / 10
+            used_time = time.time() - self.start_time
             if log:
                 logger.debug("used time: %s secs", used_time)
             self.internal_time[self.active_color] -= used_time

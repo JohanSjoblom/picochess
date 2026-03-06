@@ -18,6 +18,7 @@
 
 import base64
 import datetime
+import time
 import json
 import logging
 import os
@@ -939,6 +940,7 @@ class WebVr(DgtIface):
         self.virtual_timer = AsyncRepeatingTimer(1, self._runclock, self.loop)
         self.enable_dgtpi = dgtboard.is_pi
         self.clock_show_time = True
+        self._last_runclock_time = 0.0  # wall-clock time of last _runclock tick
 
         # keep the last time to find out errorous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -957,15 +959,18 @@ class WebVr(DgtIface):
         """callback from AsyncRepeatingTimer once every second"""
         # this is probably only to show a running web clock
         # the clock time is handled by TimeControl class
+        now = time.time()
+        elapsed = round(now - self._last_runclock_time) if self._last_runclock_time else 1
+        self._last_runclock_time = now
         if self.side_running == ClockSide.LEFT:
-            time_left = self.l_time - 1
+            time_left = max(0, self.l_time - elapsed)
             if time_left <= 0:
                 logger.info("negative/zero time left: %s", time_left)
                 self.virtual_timer.stop()
                 time_left = 0
             self.l_time = time_left
         if self.side_running == ClockSide.RIGHT:
-            time_right = self.r_time - 1
+            time_right = max(0, self.r_time - elapsed)
             if time_right <= 0:
                 logger.info("negative/zero time right: %s", time_right)
                 self.virtual_timer.stop()
@@ -1078,6 +1083,7 @@ class WebVr(DgtIface):
         if self.virtual_timer.is_running():
             self.virtual_timer.stop()
         if side != ClockSide.NONE:
+            self._last_runclock_time = time.time()
             self.virtual_timer.start()
         self._resume_clock(side)
         self.clock_show_time = True

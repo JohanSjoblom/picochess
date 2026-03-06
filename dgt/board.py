@@ -274,7 +274,7 @@ class DgtBoard(EBoard):
                 logger.debug("(ser) clock is locked now")
             self.clock_lock = time.time()
             self.clock_resend_attempts = 0
-        else:
+        elif mes != DgtCmd.DGT_RETURN_SERIALNR:
             time.sleep(0.1)  # give the board some time to process the command
         return True
 

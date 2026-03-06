@@ -1653,7 +1653,7 @@ async def main() -> None:
 
         async def stop_search(self):
             """Stop current search."""
-            self.engine.stop()
+            await self.engine.stop()
             if not self.emulation_mode():
                 while not self.engine.is_waiting():
                     await asyncio.sleep(0.05)
@@ -3184,7 +3184,7 @@ async def main() -> None:
                     analysis_board = self.state.get_move_check_board()
                     await self.engine.start_analysis(analysis_board, limit=limit)
                 else:
-                    self.engine.stop_analysis()
+                    await self.engine.stop_analysis()
 
         def debug_pv_info(self, info: InfoDict):
             if info and "pv" in info and info["pv"]:
@@ -3783,7 +3783,7 @@ async def main() -> None:
             # restore picotutor flag to previous state
             self.state.flag_picotutor = old_flag_picotutor
             # always fix the picotutor if-to-analyse both sides and depth
-            self.engine.stop_analysis()  # stop possible engine analyser
+            await self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
                 self.state.picotutor.stop()  # stop possible old tutor analysers
             await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())

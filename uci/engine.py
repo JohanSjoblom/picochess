@@ -300,6 +300,37 @@ class ContinuousAnalysis:
         """return True if limit was reached for position being analysed"""
         return self.limit_reached
 
+    async def _wait_for_engine_ready(self, timeout: float = 1.0) -> bool:
+        """Wait until engine responds to a ping without raising (engine 'ready')."""
+        if not self.engine:
+            return False
+        try:
+            await asyncio.wait_for(self.engine.ping(), timeout=timeout)
+            return True
+        except Exception as e:
+            logger.debug("%s engine not ready: %s", self.whoami, e)
+            return False
+
+    async def _safe_stop(self, analysis, guard_window: float = 0.20) -> None:
+        """
+        Safely stop analysis and wait for teardown to avoid CommandState.NEW:
+        - small guard window lets python-chess activate the command (NEW->ACTIVE)
+        - stop() is wrapped in try/except so an AssertionError on NEW state never
+          prevents analysis.wait() from being called for a clean teardown
+        """
+        try:
+            await asyncio.sleep(guard_window)
+            try:
+                analysis.stop()
+            except Exception as e:
+                logger.debug("%s analysis.stop() raised (CommandState not ready?): %s", self.whoami, e)
+            try:
+                await analysis.wait()
+            except Exception as e:
+                logger.debug("%s analysis.wait() raised: %s", self.whoami, e)
+        except Exception as e:
+            logger.debug("%s safe_stop failed: %s", self.whoami, e)
+
     async def _watching_analyse(self):
         """Internal function for continuous analysis in the background."""
         debug_once_limit = True
@@ -353,15 +384,17 @@ class ContinuousAnalysis:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""
         await self.engine_lease.acquire(owner="continuous")
         try:
+            # Wait briefly until the engine is ready before starting analysis
+            ready = await self._wait_for_engine_ready(timeout=0.5)
+            if not ready:
+                logger.warning("%s engine not ready, analysis may fail", self.whoami)
+
             with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
             ) as analysis:
                 async for info in analysis:
                     if self.engine_lease.interrupt_requested("continuous"):
-                        try:
-                            analysis.stop()
-                        except Exception:
-                            logger.debug("failed sending stop in infinite analysis")
+                        await self._safe_stop(analysis)
                         return
 
                     async with self.lock:
@@ -372,10 +405,7 @@ class ContinuousAnalysis:
                             or self.engine_lease.interrupt_requested("continuous")
                         ):
                             self._analysis_data = None  # drop ref into library
-                            try:
-                                analysis.stop()  # ask engine to stop analysing
-                            except Exception:
-                                logger.debug("failed sending stop in infinite analysis")
+                            await self._safe_stop(analysis)
                             return  # quit analysis
                         updated = self._update_analysis_data(analysis)  # update to latest
                     if updated:
@@ -467,6 +497,21 @@ class ContinuousAnalysis:
         if self._running:
             self._running = False  # causes infinite analysis loop to send stop to engine
             logging.debug("%s asking to stop running", self.whoami)
+
+    async def stop_async(self):
+        """Stop analyser cleanly and wait until the task has finished."""
+        if not self._running:
+            return
+        self._running = False
+        task = self._task
+        if task:
+            try:
+                await asyncio.wait_for(task, timeout=1.0)
+            except Exception:
+                try:
+                    task.cancel()
+                except Exception:
+                    pass
 
     def cancel(self):
         """force the analyser to stop by cancelling the async task"""
@@ -1242,6 +1287,15 @@ class UciEngine(object):
         """Stop background ContinuousAnalyser (soft-stop, then force-cancel if needed)."""
         if self.analyser and self.analyser.is_running():
             self.analyser.stop()
+
+            async def _await_orderly_stop():
+                try:
+                    await self.analyser.stop_async()
+                except Exception:
+                    pass
+
+            if self.loop:
+                self.loop.create_task(_await_orderly_stop())
 
             async def _force_cancel_if_hung():
                 await asyncio.sleep(0.5)

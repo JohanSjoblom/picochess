@@ -1271,39 +1271,27 @@ class UciEngine(object):
             logger.debug("could not read returncode for %s", self.engine_name, exc_info=True)
             return True
 
-    def stop(self):
-        """Stop background ContinuousAnalyser and/or force engine to move"""
+    async def stop(self):
+        """Stop background ContinuousAnalyser and/or force engine to move."""
         logger.debug(
             "engine.stop called (thinking=%s, waiting=%s)\n%s",
             self.is_thinking(),
             self.is_waiting(),
             "".join(traceback.format_stack(limit=6)),
         )
-        self.stop_analysis()
+        await self.stop_analysis()
         if not self.is_waiting():
             self.force_move()
 
-    def stop_analysis(self):
-        """Stop background ContinuousAnalyser (soft-stop, then force-cancel if needed)."""
+    async def stop_analysis(self):
+        """Stop background ContinuousAnalyser and wait until it has fully stopped.
+
+        Awaiting this method guarantees the analyser task has released the engine
+        lease before returning, so a subsequent send() → configure() call will not
+        race against an in-flight stop/bestmove exchange.
+        """
         if self.analyser and self.analyser.is_running():
-            self.analyser.stop()
-
-            async def _await_orderly_stop():
-                try:
-                    await self.analyser.stop_async()
-                except Exception:
-                    pass
-
-            if self.loop:
-                self.loop.create_task(_await_orderly_stop())
-
-            async def _force_cancel_if_hung():
-                await asyncio.sleep(0.5)
-                if self.analyser and self.analyser.is_running():
-                    self.analyser.cancel()
-
-            if self.loop:
-                self.loop.create_task(_force_cancel_if_hung())
+            await self.analyser.stop_async()
 
     def force_move(self, timeout: float = 2.0):
         """

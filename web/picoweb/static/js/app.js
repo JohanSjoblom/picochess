@@ -2261,7 +2261,7 @@ function getAllInfo() {
 }
 
 var boardThemes = ['blue', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
-var pieceSets = ['merida', 'alpha', 'leipzig'];
+var pieceSets = ['alpha', 'berlin', 'leipzig', 'merida'];
 
 function getCurrentBoardTheme() {
     var section = $('#xboardsection');

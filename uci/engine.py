@@ -284,6 +284,7 @@ class ContinuousAnalysis:
         self.whoami = engine_debug_name  # picotutor or engine
         self.limit = None  # limit for analysis - set in start
         self.multipv = None  # multipv for analysis - set in start
+        self._analysis_started_ts: float | None = None
         self.lock = asyncio.Lock()
         self.engine: UciProtocol = engine
         self.set_game_id(1)  # initial game identifier
@@ -314,12 +315,16 @@ class ContinuousAnalysis:
     async def _safe_stop(self, analysis, guard_window: float = 0.20) -> None:
         """
         Safely stop analysis and wait for teardown to avoid CommandState.NEW:
-        - small guard window lets python-chess activate the command (NEW->ACTIVE)
+        - use a small guard window only when the analysis command was started very recently
         - stop() is wrapped in try/except so an AssertionError on NEW state never
           prevents analysis.wait() from being called for a clean teardown
         """
         try:
-            await asyncio.sleep(guard_window)
+            if self._analysis_started_ts is not None and self.loop:
+                elapsed = self.loop.time() - self._analysis_started_ts
+                remaining = guard_window - elapsed
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
             try:
                 analysis.stop()
             except Exception as e:
@@ -389,6 +394,7 @@ class ContinuousAnalysis:
             if not ready:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
+            self._analysis_started_ts = self.loop.time() if self.loop else None
             with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
             ) as analysis:
@@ -420,6 +426,7 @@ class ContinuousAnalysis:
                                     return  # limit reached
                     await asyncio.sleep(self.delay)  # save cpu
         finally:
+            self._analysis_started_ts = None
             self.engine_lease.release("continuous")
 
     def debug_analyser(self):

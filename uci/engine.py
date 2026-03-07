@@ -312,12 +312,13 @@ class ContinuousAnalysis:
             logger.debug("%s engine not ready: %s", self.whoami, e)
             return False
 
-    async def _safe_stop(self, analysis, guard_window: float = 0.20) -> None:
+    async def _safe_stop(self, analysis, guard_window: float = 0.20, wait_timeout: float = 1.0) -> None:
         """
         Safely stop analysis and wait for teardown to avoid CommandState.NEW:
         - use a small guard window only when the analysis command was started very recently
         - stop() is wrapped in try/except so an AssertionError on NEW state never
           prevents analysis.wait() from being called for a clean teardown
+        - bound analysis.wait() so lease preemption cannot hang forever on a bad engine
         """
         try:
             if self._analysis_started_ts is not None and self.loop:
@@ -330,7 +331,9 @@ class ContinuousAnalysis:
             except Exception as e:
                 logger.debug("%s analysis.stop() raised (CommandState not ready?): %s", self.whoami, e)
             try:
-                await analysis.wait()
+                await asyncio.wait_for(analysis.wait(), timeout=wait_timeout)
+            except asyncio.TimeoutError:
+                logger.warning("%s analysis.wait() timed out after %.1fs", self.whoami, wait_timeout)
             except Exception as e:
                 logger.debug("%s analysis.wait() raised: %s", self.whoami, e)
         except Exception as e:

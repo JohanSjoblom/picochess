@@ -941,6 +941,7 @@ class WebVr(DgtIface):
         self.enable_dgtpi = dgtboard.is_pi
         self.clock_show_time = True
         self._last_runclock_time = 0.0  # wall-clock time of last _runclock tick
+        self._runclock_elapsed_carry = 0.0  # keep sub-second drift until it adds up to a full second
 
         # keep the last time to find out errorous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -960,8 +961,13 @@ class WebVr(DgtIface):
         # this is probably only to show a running web clock
         # the clock time is handled by TimeControl class
         now = time.time()
-        elapsed = round(now - self._last_runclock_time) if self._last_runclock_time else 1
+        if self._last_runclock_time:
+            self._runclock_elapsed_carry += max(0.0, now - self._last_runclock_time)
+        else:
+            self._runclock_elapsed_carry += 1.0
         self._last_runclock_time = now
+        elapsed = int(self._runclock_elapsed_carry)
+        self._runclock_elapsed_carry -= elapsed
         if self.side_running == ClockSide.LEFT:
             time_left = max(0, self.l_time - elapsed)
             if time_left <= 0:
@@ -1084,6 +1090,7 @@ class WebVr(DgtIface):
             self.virtual_timer.stop()
         if side != ClockSide.NONE:
             self._last_runclock_time = time.time()
+            self._runclock_elapsed_carry = 0.0
             self.virtual_timer.start()
         self._resume_clock(side)
         self.clock_show_time = True

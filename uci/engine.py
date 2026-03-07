@@ -172,6 +172,14 @@ class EngineLease:
         """Return True if ``owner`` has been asked to release the lease."""
         return self._owner == owner and self._interrupt_event.is_set()
 
+    async def wait_for_interrupt(self, owner: str, poll_interval: float = 0.02) -> bool:
+        """Wait until ``owner`` is asked to release the lease or stops owning it."""
+        while self._owner == owner:
+            if self._interrupt_event.is_set():
+                return True
+            await asyncio.sleep(poll_interval)
+        return False
+
     def owner(self) -> str | None:
         """Return the current lease owner (if any)."""
         return self._owner
@@ -324,15 +332,7 @@ class ContinuousAnalysis:
         """
         clean_stop = True
         try:
-            if self._analysis_started_ts is not None and self.loop:
-                elapsed = self.loop.time() - self._analysis_started_ts
-                remaining = guard_window - elapsed
-                if remaining > 0:
-                    await asyncio.sleep(remaining)
-            try:
-                analysis.stop()
-            except Exception as e:
-                logger.debug("%s analysis.stop() raised (CommandState not ready?): %s", self.whoami, e)
+            await self._send_guarded_stop(analysis, guard_window=guard_window)
             try:
                 await asyncio.wait_for(analysis.wait(), timeout=wait_timeout)
             except asyncio.TimeoutError:
@@ -345,6 +345,24 @@ class ContinuousAnalysis:
             logger.debug("%s safe_stop failed: %s", self.whoami, e)
             clean_stop = False
         return clean_stop
+
+    async def _send_guarded_stop(self, analysis, guard_window: float = 0.20) -> None:
+        """Send stop after a small post-start guard window if needed."""
+        if self._analysis_started_ts is not None and self.loop:
+            elapsed = self.loop.time() - self._analysis_started_ts
+            remaining = guard_window - elapsed
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+        try:
+            analysis.stop()
+        except Exception as e:
+            logger.debug("%s analysis.stop() raised (CommandState not ready?): %s", self.whoami, e)
+
+    async def _stop_when_preempted(self, analysis, guard_window: float = 0.20) -> None:
+        """Send stop even before the first info packet when the lease is preempted."""
+        interrupted = await self.engine_lease.wait_for_interrupt("continuous")
+        if interrupted:
+            await self._send_guarded_stop(analysis, guard_window=guard_window)
 
     async def _watching_analyse(self):
         """Internal function for continuous analysis in the background."""
@@ -409,35 +427,44 @@ class ContinuousAnalysis:
             with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
             ) as analysis:
-                async for info in analysis:
-                    if self.engine_lease.interrupt_requested("continuous"):
-                        if not await self._safe_stop(analysis):
-                            recovery_reason = "continuous analysis stop timed out after preemption"
-                        return
-
-                    async with self.lock:
-                        if (
-                            not self._running
-                            or self.current_game_id != self.game_id
-                            or self.current_game.fen() != self.game.fen()
-                            or self.engine_lease.interrupt_requested("continuous")
-                        ):
-                            self._analysis_data = None  # drop ref into library
+                interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
+                try:
+                    async for info in analysis:
+                        if self.engine_lease.interrupt_requested("continuous"):
                             if not await self._safe_stop(analysis):
-                                recovery_reason = "continuous analysis stop timed out while switching position"
-                            return  # quit analysis
-                        updated = self._update_analysis_data(analysis)  # update to latest
-                    if updated:
-                        #  self._analysis data got a value
-                        #  self.debug_analyser()  # normally commented out
-                        if limit:
-                            # @todo change 0 to -1 to get all multipv finished
-                            info_limit: InfoDict = self._analysis_data[0]
-                            if "depth" in info_limit and limit.depth:
-                                if info_limit.get("depth") >= limit.depth:
-                                    self.limit_reached = True
-                                    return  # limit reached
-                    await asyncio.sleep(self.delay)  # save cpu
+                                recovery_reason = "continuous analysis stop timed out after preemption"
+                            return
+
+                        async with self.lock:
+                            if (
+                                not self._running
+                                or self.current_game_id != self.game_id
+                                or self.current_game.fen() != self.game.fen()
+                                or self.engine_lease.interrupt_requested("continuous")
+                            ):
+                                self._analysis_data = None  # drop ref into library
+                                if not await self._safe_stop(analysis):
+                                    recovery_reason = "continuous analysis stop timed out while switching position"
+                                return  # quit analysis
+                            updated = self._update_analysis_data(analysis)  # update to latest
+                        if updated:
+                            #  self._analysis data got a value
+                            #  self.debug_analyser()  # normally commented out
+                            if limit:
+                                # @todo change 0 to -1 to get all multipv finished
+                                info_limit: InfoDict = self._analysis_data[0]
+                                if "depth" in info_limit and limit.depth:
+                                    if info_limit.get("depth") >= limit.depth:
+                                        self.limit_reached = True
+                                        return  # limit reached
+                        await asyncio.sleep(self.delay)  # save cpu
+                finally:
+                    if interrupt_task:
+                        interrupt_task.cancel()
+                        try:
+                            await interrupt_task
+                        except CancelledError:
+                            pass
         finally:
             self._analysis_started_ts = None
             if recovery_reason and self._recover_engine_cb:

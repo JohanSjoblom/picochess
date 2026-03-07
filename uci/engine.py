@@ -24,7 +24,7 @@ from asyncio import CancelledError
 import os
 import platform
 import traceback
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Awaitable, Callable
 import logging
 import configparser
 import copy
@@ -267,6 +267,7 @@ class ContinuousAnalysis:
         loop: asyncio.AbstractEventLoop,
         engine_debug_name: str,
         engine_lease: EngineLease,
+        recover_engine_cb: Callable[[str], Awaitable[bool]] | None = None,
     ):
         """
         A continuous analysis generator that runs as a background async task.
@@ -289,6 +290,7 @@ class ContinuousAnalysis:
         self.engine: UciProtocol = engine
         self.set_game_id(1)  # initial game identifier
         self.engine_lease = engine_lease
+        self._recover_engine_cb = recover_engine_cb
         if not self.engine:
             logger.error("%s ContinuousAnalysis initialised without engine", self.whoami)
 
@@ -312,7 +314,7 @@ class ContinuousAnalysis:
             logger.debug("%s engine not ready: %s", self.whoami, e)
             return False
 
-    async def _safe_stop(self, analysis, guard_window: float = 0.20, wait_timeout: float = 1.0) -> None:
+    async def _safe_stop(self, analysis, guard_window: float = 0.20, wait_timeout: float = 1.0) -> bool:
         """
         Safely stop analysis and wait for teardown to avoid CommandState.NEW:
         - use a small guard window only when the analysis command was started very recently
@@ -320,6 +322,7 @@ class ContinuousAnalysis:
           prevents analysis.wait() from being called for a clean teardown
         - bound analysis.wait() so lease preemption cannot hang forever on a bad engine
         """
+        clean_stop = True
         try:
             if self._analysis_started_ts is not None and self.loop:
                 elapsed = self.loop.time() - self._analysis_started_ts
@@ -334,10 +337,14 @@ class ContinuousAnalysis:
                 await asyncio.wait_for(analysis.wait(), timeout=wait_timeout)
             except asyncio.TimeoutError:
                 logger.warning("%s analysis.wait() timed out after %.1fs", self.whoami, wait_timeout)
+                clean_stop = False
             except Exception as e:
                 logger.debug("%s analysis.wait() raised: %s", self.whoami, e)
+                clean_stop = False
         except Exception as e:
             logger.debug("%s safe_stop failed: %s", self.whoami, e)
+            clean_stop = False
+        return clean_stop
 
     async def _watching_analyse(self):
         """Internal function for continuous analysis in the background."""
@@ -391,6 +398,7 @@ class ContinuousAnalysis:
     async def _analyse_forever(self, limit: Limit | None, multipv: int | None) -> None:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""
         await self.engine_lease.acquire(owner="continuous")
+        recovery_reason = ""
         try:
             # Wait briefly until the engine is ready before starting analysis
             ready = await self._wait_for_engine_ready(timeout=0.5)
@@ -403,7 +411,8 @@ class ContinuousAnalysis:
             ) as analysis:
                 async for info in analysis:
                     if self.engine_lease.interrupt_requested("continuous"):
-                        await self._safe_stop(analysis)
+                        if not await self._safe_stop(analysis):
+                            recovery_reason = "continuous analysis stop timed out after preemption"
                         return
 
                     async with self.lock:
@@ -414,7 +423,8 @@ class ContinuousAnalysis:
                             or self.engine_lease.interrupt_requested("continuous")
                         ):
                             self._analysis_data = None  # drop ref into library
-                            await self._safe_stop(analysis)
+                            if not await self._safe_stop(analysis):
+                                recovery_reason = "continuous analysis stop timed out while switching position"
                             return  # quit analysis
                         updated = self._update_analysis_data(analysis)  # update to latest
                     if updated:
@@ -430,6 +440,10 @@ class ContinuousAnalysis:
                     await asyncio.sleep(self.delay)  # save cpu
         finally:
             self._analysis_started_ts = None
+            if recovery_reason and self._recover_engine_cb:
+                recovered = await self._recover_engine_cb(recovery_reason)
+                if not recovered:
+                    logger.error("%s failed to recover engine after dirty analysis stop", self.whoami)
             self.engine_lease.release("continuous")
 
     def debug_analyser(self):
@@ -976,6 +990,21 @@ class UciEngine(object):
         self.loop.create_task(self._log_remote_exit(channel))
         self.transport, self.engine = channel, engine
 
+    async def _start_engine_process(self):
+        """Start the configured engine process."""
+        if self.is_remote:
+            await self._open_remote_engine()
+        else:
+            await self._open_local_engine()
+
+    def _attach_engine_to_sisters(self):
+        """Point existing helper objects at the current engine process."""
+        if self.analyser and self.playing:
+            self.analyser.engine = self.engine
+            self.playing.engine = self.engine
+            self.analyser.set_game_id(self.game_id)
+            self.playing.set_game_id(self.game_id)
+
     async def _log_remote_exit(self, channel):
         """Log remote exit status when the SSH subprocess ends."""
         try:
@@ -995,6 +1024,7 @@ class UciEngine(object):
             loop=self.loop,
             engine_debug_name=self.whoami,
             engine_lease=self.engine_lease,
+            recover_engine_cb=self._recover_from_failed_analyser_stop,
         )
         self.playing = PlayingContinuousAnalysis(
             engine=self.engine,
@@ -1014,10 +1044,7 @@ class UciEngine(object):
     async def open_engine(self):
         """Open engine. Call after __init__"""
         try:
-            if self.is_remote:
-                await self._open_remote_engine()
-            else:
-                await self._open_local_engine()
+            await self._start_engine_process()
             await self._after_engine_started()
         except OSError:
             logger.exception("OS error in starting engine %s", self.file)
@@ -1046,17 +1073,11 @@ class UciEngine(object):
             await self.quit()
             logger.info("re-opening engine %s", self.file)
 
-            # Re-open using the same path (local or remote)
-            if self.is_remote:
-                await self._open_remote_engine()
-            else:
-                mfile = [self.file, self.mame_par] if self.is_mame else [self.file]
-                self.transport, self.engine = await chess.engine.popen_uci(mfile)
+            await self._start_engine_process()
 
             # Reuse existing sisters if present, otherwise create them
             if self.analyser and self.playing and self.engine_lease:
-                self.analyser.engine = self.engine
-                self.playing.engine = self.engine
+                self._attach_engine_to_sisters()
             else:
                 await self._after_engine_started()
 
@@ -1070,6 +1091,35 @@ class UciEngine(object):
             self.transport = None
             self.engine = None
             await self._close_remote_connection()
+        return False
+
+    async def _recover_from_failed_analyser_stop(self, reason: str) -> bool:
+        """Restart the engine before releasing the lease after a dirty analysis stop."""
+        logger.warning("%s - restarting engine %s", reason, self.engine_name)
+        should_send_options = False
+        async with self.engine_lock:
+            try:
+                await self._shutdown_standard_engine()
+                await self._start_engine_process()
+
+                if self.analyser and self.playing and self.engine_lease:
+                    self._attach_engine_to_sisters()
+                else:
+                    await self._after_engine_started()
+
+                if self.engine and "name" in self.engine.id:
+                    self.engine_name = self.engine.id["name"]
+                    self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
+                    should_send_options = True
+            except Exception:
+                logger.exception("failed to recover engine after dirty analyser stop")
+                self.transport = None
+                self.engine = None
+                await self._close_remote_connection()
+                return False
+        if should_send_options:
+            await self.send()
+            return True
         return False
 
     def loaded_ok(self) -> bool:

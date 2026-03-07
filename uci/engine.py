@@ -508,20 +508,45 @@ class ContinuousAnalysis:
             self._running = False  # causes infinite analysis loop to send stop to engine
             logging.debug("%s asking to stop running", self.whoami)
 
-    async def stop_async(self):
+    async def stop_async(self, timeout: float = 1.0, cancel_timeout: float = 1.0) -> bool:
         """Stop analyser cleanly and wait until the task has finished."""
-        if not self._running:
-            return
-        self._running = False
         task = self._task
-        if task:
-            try:
-                await asyncio.wait_for(task, timeout=1.0)
-            except Exception:
-                try:
-                    task.cancel()
-                except Exception:
-                    pass
+        if not self._running and not task:
+            return True
+
+        self._running = False
+        if not task:
+            self._task = None
+            return True
+        if task.done():
+            self._task = None
+            return True
+
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+            self._task = None
+            return True
+        except asyncio.TimeoutError:
+            logger.warning("%s analyser stop timed out after %.1fs - cancelling task", self.whoami, timeout)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("%s analyser stop failed before cancellation: %s", self.whoami, e)
+
+        task.cancel()
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=cancel_timeout)
+        except asyncio.CancelledError:
+            pass
+        except asyncio.TimeoutError:
+            logger.error("%s analyser task did not finish %.1fs after cancellation", self.whoami, cancel_timeout)
+            return False
+        except Exception as e:
+            logger.warning("%s analyser task failed while cancelling: %s", self.whoami, e)
+            return False
+
+        self._task = None
+        return True
 
     def cancel(self):
         """force the analyser to stop by cancelling the async task"""

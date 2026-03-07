@@ -115,3 +115,41 @@
 .leipzig .cg-board piece.king.black {
   background-image: url('images/pieces/leipzig/bK.svg');
 }
+
+/* Berlin pieces */
+.berlin .cg-board piece.pawn.white {
+  background-image: url('images/pieces/berlin/wP.svg');
+}
+.berlin .cg-board piece.bishop.white {
+  background-image: url('images/pieces/berlin/wB.svg');
+}
+.berlin .cg-board piece.knight.white {
+  background-image: url('images/pieces/berlin/wN.svg');
+}
+.berlin .cg-board piece.rook.white {
+  background-image: url('images/pieces/berlin/wR.svg');
+}
+.berlin .cg-board piece.queen.white {
+  background-image: url('images/pieces/berlin/wQ.svg');
+}
+.berlin .cg-board piece.king.white {
+  background-image: url('images/pieces/berlin/wK.svg');
+}
+.berlin .cg-board piece.pawn.black {
+  background-image: url('images/pieces/berlin/bP.svg');
+}
+.berlin .cg-board piece.bishop.black {
+  background-image: url('images/pieces/berlin/bB.svg');
+}
+.berlin .cg-board piece.knight.black {
+  background-image: url('images/pieces/berlin/bN.svg');
+}
+.berlin .cg-board piece.rook.black {
+  background-image: url('images/pieces/berlin/bR.svg');
+}
+.berlin .cg-board piece.queen.black {
+  background-image: url('images/pieces/berlin/bQ.svg');
+}
+.berlin .cg-board piece.king.black {
+  background-image: url('images/pieces/berlin/bK.svg');
+}

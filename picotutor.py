@@ -407,18 +407,18 @@ class PicoTutor:
         """main program can check if tutor game is still in sync with same move stacks"""
         return self.board.fen() == game.fen()
 
-    def newgame(self):
+    async def newgame(self):
         """reset everything - game board becomes starting position
         analyser is stopped"""
-        self._reset_to_new_position(chess.Board(), new_game=True)
+        await self._reset_to_new_position(chess.Board(), new_game=True)
         self.expl_start_position = True  # make sure opening moves are explored
 
-    def _reset_to_new_position(self, game: chess.Board, new_game: bool = False):
+    async def _reset_to_new_position(self, game: chess.Board, new_game: bool = False):
         """update position and delete history - re-sync position
         the engine analyser will be stopped, start it again if needed
         you can indicate that this is a new game
         eval comments to PGN will reset if new_game is True"""
-        self.stop()
+        await self.stop()
         if new_game:
             self.evaluated_moves = {}  # forget evals from last game
             self.pgn_game = None  # forget loaded PGN game
@@ -436,13 +436,13 @@ class PicoTutor:
         else:
             self.expl_start_position = False
 
-    def _reset_history_vars(self, game: chess.Board):
+    async def _reset_history_vars(self, game: chess.Board):
         """reset and forget history only - needed when history is out of sync
         this is a lighter version of _reset_to_new_position
         it leaves analyser running - caller must check board sync
         if you send a different game board analyser is stopped and board copied"""
         if game.fen() != self.board.fen():
-            self.stop()  # only stop analysing if its wrong game
+            await self.stop()  # only stop analysing if its wrong game
             self.board = game.copy()
         self._reset_color_coded_vars()  # all has to go? analysis starts over?
         self.op = []  # unfortunatly pop is out of sync so we lose this
@@ -494,7 +494,7 @@ class PicoTutor:
         this re-synchronizes the main chess board with tutors own
         it is not a newgame - for newgame call reset or send new_game True"""
         logger.debug("set_position called")
-        self._reset_to_new_position(game, new_game)
+        await self._reset_to_new_position(game, new_game)
 
         if not (self.coach_on or self.watcher_on):
             return
@@ -592,11 +592,11 @@ class PicoTutor:
                     if not history_ok:
                         # result is still True, boards are in sync, history is not
                         logger.warning("picotutor eval for next move must be done without history")
-                        self._reset_history_vars(game)  # same game - no re-sync
+                        await self._reset_history_vars(game)  # same game - no re-sync
                 else:
                     result = False
                     logger.debug("picotutor board not in sync after takeback")
-                    self._reset_history_vars(game)  # re-sync new game board
+                    await self._reset_history_vars(game)  # re-sync new game board
             else:
                 # result is still True, boards have same fen already before pop
                 logger.debug("strange - picotutor board already poped - boards are in sync")
@@ -645,18 +645,18 @@ class PicoTutor:
             else:
                 logger.error("obvious engine has terminated in picotutor?")
 
-    def stop(self):
+    async def stop(self):
         """stop the engine analyser"""
         # during thinking time of opponent tutor should be paused
         # after the user move has been pushed
         if self.best_engine:
-            self.best_engine.stop()
+            await self.best_engine.stop()
         if self.obvious_engine:
-            self.obvious_engine.stop()
+            await self.obvious_engine.stop()
 
     async def exit_or_reboot_cleanups(self):
         """close the tutor engines and cleanup"""
-        self.stop()  # stop engines if running
+        await self.stop()  # stop engines if running
         if self.best_engine:
             if self.best_engine.loaded_ok():
                 await self.best_engine.quit()
@@ -673,7 +673,7 @@ class PicoTutor:
         if self._should_run_tutor():
             await self.start()  # normal both deep and obvious analysis
         else:
-            self.stop()
+            await self.stop()
 
     def _should_run_tutor(self) -> bool:
         """return True if tutor should run"""

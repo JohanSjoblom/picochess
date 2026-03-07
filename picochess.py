@@ -3678,7 +3678,7 @@ async def main() -> None:
             # forget possible previously loaded PGN game
             self.state.picotutor.set_pgn_game_to_step(None)
             if self.picotutor_mode():
-                self.state.picotutor.newgame()
+                await self.state.picotutor.newgame()
 
             fen_header_raw = l_game_pgn.headers.get("FEN") if l_game_pgn.headers else None
             fen_header = str(fen_header_raw).strip() if fen_header_raw else ""
@@ -3805,7 +3805,7 @@ async def main() -> None:
             # always fix the picotutor if-to-analyse both sides and depth
             await self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
-                self.state.picotutor.stop()  # stop possible old tutor analysers
+                await self.state.picotutor.stop()  # stop possible old tutor analysers
             await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
 
             await self.stop_search_and_clock()
@@ -4876,7 +4876,7 @@ async def main() -> None:
                     if "no_player" not in self.opp_user and "no_user" not in self.own_user:
                         await self.switch_online()
                     if self.picotutor_mode():
-                        self.state.picotutor.newgame()
+                        await self.state.picotutor.newgame()
                         if not self.state.flag_startup:
                             if self.state.play_mode == PlayMode.USER_BLACK:
                                 await self.state.picotutor.set_user_color(
@@ -4978,7 +4978,7 @@ async def main() -> None:
                             await DisplayMsg.show(self.state.new_game_msg(newgame=newgame))
 
                 if self.picotutor_mode():
-                    self.state.picotutor.newgame()
+                    await self.state.picotutor.newgame()
                     if not self.state.flag_startup:
                         if self.state.play_mode == PlayMode.USER_BLACK:
                             await self.state.picotutor.set_user_color(

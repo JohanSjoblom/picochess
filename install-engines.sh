@@ -241,7 +241,7 @@ if [ "$ARCH" = "x86_64" ]; then
         mkdir -p "$ENGINES_DIR/x86_64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "lite" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_engines_lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/x86_64_engines_lite.tar.gz"
             TMPFILE="$TMP_DIR/x86_64_engines_lite.tar.gz"
             ENGINE_DESC="x86_64 lite engine package"
         else

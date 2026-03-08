@@ -198,10 +198,10 @@ volume-voice = 14
 ## Each step is 5% starting from 90% towards 135%. Sets factor for both voices (user/computer)
 #speed-voice = 2
 speed-voice = 2
-## Select audio backend for voice playback: sox (default) or native
-## Set to native to avoid PulseAudio dependency
-#audio-backend = sox
-audio-backend = native
+## Select audio backend for voice playback: sox (default on DGTPi) or native
+## Use native on desktop PipeWire setups; DGTPi defaults to sox for ALSA-only systems
+audio-backend = sox
+#audio-backend = native
 ## Speak last computer move again when 'set pieces' displayed
 #enable-setpieces-voice = True
 enable-setpieces-voice = True

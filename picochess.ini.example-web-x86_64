@@ -198,8 +198,8 @@ volume-voice = 14
 ## Each step is 5% starting from 90% towards 135%. Sets factor for both voices (user/computer)
 #speed-voice = 2
 speed-voice = 2
-## Select audio backend for voice playback: sox (default) or native
-## Set to native to avoid PulseAudio dependency
+## Select audio backend for voice playback: native (default on web/desktop installs) or sox
+## Set to sox for ALSA-only systems or if you explicitly prefer the SoX player
 #audio-backend = sox
 audio-backend = native
 ## Speak last computer move again when 'set pieces' displayed

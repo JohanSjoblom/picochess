@@ -1208,8 +1208,30 @@ async def main() -> None:
             self.git_status = None
             ###########################################
 
-            # try the given engine first and if that fails the first from "engines.ini" then exit
-            self.state.engine_file = self.args.engine
+            # Keep the normal startup path untouched unless the configured engine has gone missing.
+            self.requested_engine_file = self.args.engine
+            self.startup_engine_fallback = False
+            self.state.engine_file = self.requested_engine_file
+            if self.state.engine_file is None:
+                resolved_engine = EngineProvider.resolve_engine(None)
+                if resolved_engine is None:
+                    logger.error("no installed engines available at startup")
+                    self.state.engine_file = ""
+                else:
+                    self.state.engine_file = resolved_engine["file"]
+            elif not EngineProvider.has_engine(self.state.engine_file):
+                resolved_engine = EngineProvider.resolve_engine(self.state.engine_file)
+                if resolved_engine is None:
+                    logger.error("no installed engines available at startup")
+                    self.state.engine_file = self.requested_engine_file or ""
+                else:
+                    self.startup_engine_fallback = True
+                    self.state.engine_file = resolved_engine["file"]
+                    logger.warning(
+                        "configured engine '%s' not found; starting with '%s'",
+                        self.requested_engine_file,
+                        self.state.engine_file,
+                    )
 
             self.engine_remote_home = self.args.engine_remote_home
 
@@ -1225,9 +1247,6 @@ async def main() -> None:
                     windows=self.remote_windows(),
                 )
             self.tutor_remote_engine = self.args.tutor_remote_engine
-
-            if self.state.engine_file is None:
-                self.state.engine_file = EngineProvider.installed_engines[0]["file"]
 
             # ensure dgtmenu knows which engine will actually be loaded so the startup
             # announcement reflects the saved configuration
@@ -1318,6 +1337,13 @@ async def main() -> None:
             if self.args.engine_level == '""':
                 self.args.engine_level = None
             engine_opt, level_index = await self.get_engine_level_dict(args.engine_level)
+            if self.startup_engine_fallback and self.args.engine_level and level_index is None:
+                logger.warning(
+                    "configured engine level '%s' not found for fallback engine '%s'; using engine default",
+                    self.args.engine_level,
+                    self.state.engine_file,
+                )
+                self.args.engine_level = None
             startup_ok = await self.engine.startup(engine_opt, self.state.rating)
 
             # Initialize variant support from engine settings

@@ -39,6 +39,8 @@ display_ready() {
 terminal_cmd() {
   if command -v lxterminal >/dev/null 2>&1; then
     echo "lxterminal --title=Updating... -e sh -c 'tail -F /var/log/picochess-update.log'"
+  elif command -v xfce4-terminal >/dev/null 2>&1; then
+    echo "xfce4-terminal --disable-server --title=Updating... -e 'sh -c \"tail -F /var/log/picochess-update.log\"'"
   elif command -v xterm >/dev/null 2>&1; then
     echo "xterm -fullscreen -bg black -fg white -title Updating... -e sh -c 'tail -F /var/log/picochess-update.log'"
   else
@@ -66,6 +68,7 @@ close_update_terminal() {
   fi
   if command -v pkill >/dev/null 2>&1; then
     pkill -u "$USER" -f "lxterminal --title=Updating..." 2>/dev/null
+    pkill -u "$USER" -f "xfce4-terminal .*--title=Updating..." 2>/dev/null
     pkill -u "$USER" -f "xterm -fullscreen.*-title Updating..." 2>/dev/null
     pkill -u "$USER" -f "tail -F /var/log/picochess-update.log" 2>/dev/null
   fi

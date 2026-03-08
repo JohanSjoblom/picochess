@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from uci.read import read_engine_ini
 
@@ -37,3 +37,25 @@ class EngineProvider(object):
         if not cls.favorite_engines:
             cls.favorite_engines = cls.modern_engines
         cls.installed_engines: List[Dict[str, str]] = cls.modern_engines + cls.retro_engines + cls.favorite_engines
+
+    @staticmethod
+    def engine_matches(installed_file: str, requested_file: Optional[str]) -> bool:
+        """Return True when a configured engine path resolves to an installed engine entry."""
+        return bool(requested_file) and (
+            installed_file == requested_file or installed_file.endswith(requested_file)
+        )
+
+    @classmethod
+    def resolve_engine(cls, requested_file: Optional[str]) -> Optional[Dict[str, str]]:
+        """Resolve a configured engine path to an installed engine, falling back to the first entry."""
+        for eng in cls.installed_engines:
+            if cls.engine_matches(eng["file"], requested_file):
+                return eng
+        if cls.installed_engines:
+            return cls.installed_engines[0]
+        return None
+
+    @classmethod
+    def has_engine(cls, requested_file: Optional[str]) -> bool:
+        """Return True if the configured engine is present in the installed engine list."""
+        return any(cls.engine_matches(eng["file"], requested_file) for eng in cls.installed_engines)

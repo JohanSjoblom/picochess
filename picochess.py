@@ -1210,7 +1210,6 @@ async def main() -> None:
 
             # Keep the normal startup path untouched unless the configured engine has gone missing.
             self.requested_engine_file = self.args.engine
-            self.startup_engine_fallback = False
             self.state.engine_file = self.requested_engine_file
             if self.state.engine_file is None:
                 resolved_engine = EngineProvider.resolve_engine(None)
@@ -1225,7 +1224,6 @@ async def main() -> None:
                     logger.error("no installed engines available at startup")
                     self.state.engine_file = self.requested_engine_file or ""
                 else:
-                    self.startup_engine_fallback = True
                     self.state.engine_file = resolved_engine["file"]
                     logger.warning(
                         "configured engine '%s' not found; starting with '%s'",
@@ -1337,9 +1335,9 @@ async def main() -> None:
             if self.args.engine_level == '""':
                 self.args.engine_level = None
             engine_opt, level_index = await self.get_engine_level_dict(args.engine_level)
-            if self.startup_engine_fallback and self.args.engine_level and level_index is None:
+            if self.args.engine_level and level_index is None:
                 logger.warning(
-                    "configured engine level '%s' not found for fallback engine '%s'; using engine default",
+                    "configured engine level '%s' not found for engine '%s'; using engine default",
                     self.args.engine_level,
                     self.state.engine_file,
                 )

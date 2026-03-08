@@ -102,24 +102,6 @@ apt -y install libffi-dev libssl-dev
 apt -y install tk tcl libtcl8.6
 # native Python sound support
 apt -y install libsndfile1 libportaudio2
-audio_backend_setting=""
-if [ -f "$REPO_DIR/picochess.ini" ]; then
-    audio_backend_setting=$(awk -F '=' '
-        /^[[:space:]]*#/ {next}
-        /^[[:space:]]*audio-backend[[:space:]]*=/ {
-            value=$2
-            gsub(/[[:space:]]/, "", value)
-            print value
-            exit
-        }
-    ' "$REPO_DIR/picochess.ini")
-    audio_backend_setting=$(printf "%s" "$audio_backend_setting" | tr '[:upper:]' '[:lower:]')
-fi
-if [ "$audio_backend_setting" = "sox" ]; then
-    echo "Skipping pipewire-alsa install because picochess.ini is configured with audio-backend=sox."
-else
-    apt -y install pipewire-alsa
-fi
 # hide mouse cursor for kiosk mode
 apt -y install unclutter
 # for mame_emulation we need xdotool (X11) and ydotool (Wayland-compatible key injection)
@@ -383,6 +365,23 @@ else
         cp "$REPO_DIR/picochess.ini.example-web-$(uname -m)" "$REPO_DIR/picochess.ini"
     fi
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
+fi
+
+# Decide on PipeWire ALSA only after picochess.ini exists so fresh-install profile defaults apply.
+audio_backend_setting=$(awk -F '=' '
+    /^[[:space:]]*#/ {next}
+    /^[[:space:]]*audio-backend[[:space:]]*=/ {
+        value=$2
+        gsub(/[[:space:]]/, "", value)
+        print value
+        exit
+    }
+' "$REPO_DIR/picochess.ini" 2>/dev/null)
+audio_backend_setting=$(printf "%s" "$audio_backend_setting" | tr '[:upper:]' '[:lower:]')
+if [ "$audio_backend_setting" = "sox" ]; then
+    echo "Skipping pipewire-alsa install because audio-backend=sox."
+else
+    apt -y install pipewire-alsa
 fi
 
 # no copying of example engines.ini - they are in resource files

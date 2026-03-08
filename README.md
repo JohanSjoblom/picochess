@@ -18,7 +18,7 @@ This fork of Picochess focuses on:
 - Ability to run both on Raspberry Pi and Linux computers.
 - Asynchronous Architecture – Replaces threads with an async-based architecture for improved performance and scalability.
 - Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
-- Wayland support with native audio backend (recommended/default; no X11/PulseAudio requirement).
+- Wayland support with native audio backend for web/desktop installs (no X11/PulseAudio requirement).
 - Engines, books, and games database are distributed as external resource packs.
 - The obooksrv dataset is now read directly in `server.py` without an external service.
 - Built-in replay mode, while preserving the original PGN Replay engine.
@@ -28,7 +28,7 @@ Requirements
 ------------
 
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
-- RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Use `audio-backend = native` in `picochess.ini` (default for new installs). If you upgraded from older versions and still use SoX, switch to native.
+- RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Web/desktop installs default to `audio-backend = native`; DGTPi clock installs default to `audio-backend = sox`. If you upgraded from older desktop installs and still use SoX, switch to native.
 
 Quick Installation
 ------------------
@@ -161,8 +161,8 @@ Installation with more detailed info
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.
 8. Boot your PI with the SD card inserted. A standard image will reboot after first start, and the second time it starts you should be able to login as user pi.
-9. Using sudo raspi-config, keep the default PipeWire setup. Set `audio-backend = native` in `picochess.ini` (default for new installs). Wayland is supported; X11 is optional.
-The install script now installs the native audio runtime libraries, including `pipewire-alsa`.
+9. Using sudo raspi-config, keep the default PipeWire setup on desktop installs. Web/desktop installs default to `audio-backend = native`; DGTPi clock installs default to `audio-backend = sox`. Wayland is supported; X11 is optional.
+The install script now installs the native audio runtime libraries, including `pipewire-alsa`, only when `audio-backend` is not set to `sox`.
 10. Get this repo. First cd /opt then do sudo git clone. This should create your /opt/picochess folder. Alternative: Download the install-picochess.sh script and run it using sudo. See quick installation above.
 11. Run the install-picochess.sh script. The script will first do a system update which may run for a while depending on how old your installation is. Then it will do git clone if you dont have the repo, and git pull if you already have the repo in /opt/picochess.
 12. Reboot when install is done. When you login again the voice should say "picochess", "engine startup", "ok".

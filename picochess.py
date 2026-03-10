@@ -2561,6 +2561,15 @@ async def main() -> None:
                         )
                         await DisplayMsg.show(msg)
 
+                    if self.state.game.fullmove_number < 1:
+                        ModeInfo.reset_opening()
+                    if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
+                        op_eco, op_name, op_moves, op_in_book = self.state.picotutor.get_opening()
+                        if op_in_book and op_name:
+                            ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
+                            await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
+                            await asyncio.sleep(0.7)
+
                     if not self.online_mode() or self.state.game.fullmove_number > 1:
                         await self.state.start_clock()
                     else:
@@ -2590,14 +2599,6 @@ async def main() -> None:
 
                 self.state.last_legal_fens = []
                 self.state.newgame_happened = False
-
-                if self.state.game.fullmove_number < 1:
-                    ModeInfo.reset_opening()
-                if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
-                    op_eco, op_name, op_moves, op_in_book = self.state.picotutor.get_opening()
-                    if op_in_book and op_name:
-                        ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
-                        await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
 
             # molli: Premove/fast move: Player has done the computer move and his own move in rapid sequence
             elif (
@@ -5750,6 +5751,16 @@ async def main() -> None:
                                         )
                                         await DisplayMsg.show(msg)
 
+                                    if self.state.game.fullmove_number < 1:
+                                        ModeInfo.reset_opening()
+                                    if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
+                                        op_eco, op_name, op_moves, op_in_book = self.state.picotutor.get_opening()
+                                        if op_in_book and op_name:
+                                            logger.debug("opening book set to %s", op_name)
+                                            ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
+                                            await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
+                                            await asyncio.sleep(0.7)
+
                                     if not self.online_mode() or self.state.game.fullmove_number > 1:
                                         await self.state.start_clock()
                                     else:
@@ -5779,20 +5790,6 @@ async def main() -> None:
 
                                 self.state.last_legal_fens = []
                                 self.state.newgame_happened = False
-
-                                if self.state.game.fullmove_number < 1:
-                                    ModeInfo.reset_opening()
-                                if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
-                                    (
-                                        op_eco,
-                                        op_name,
-                                        op_moves,
-                                        op_in_book,
-                                    ) = self.state.picotutor.get_opening()
-                                    if op_in_book and op_name:
-                                        logger.debug("opening book set to %s", op_name)
-                                        ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
-                                        await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
                             # molli end noeboard/Web-Play
                     else:
                         logger.warning(

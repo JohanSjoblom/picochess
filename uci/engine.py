@@ -980,6 +980,8 @@ class UciEngine(object):
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
         self._last_analyser_stop_was_forced = False
+        self._analysis_allowed = False
+        self._shutting_down = False
         self.game_id = 1
         self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
         self.uci_variant = None  # UCI_Variant value to send directly to engine (bypasses python-chess)
@@ -1080,6 +1082,8 @@ class UciEngine(object):
             self.playing.engine = self.engine
             self.analyser.set_game_id(self.game_id)
             self.playing.set_game_id(self.game_id)
+            self._analysis_allowed = False
+            self._shutting_down = False
 
     async def _log_remote_exit(self, channel):
         """Log remote exit status when the SSH subprocess ends."""
@@ -1112,6 +1116,8 @@ class UciEngine(object):
         self.analyser.set_game_id(self.game_id)
         self.playing.set_game_id(self.game_id)
         if self.engine:
+            self._analysis_allowed = False
+            self._shutting_down = False
             if "name" in self.engine.id:
                 self.engine_name = self.engine.id["name"]
         else:
@@ -1161,6 +1167,7 @@ class UciEngine(object):
                 self.engine_name = self.engine.id["name"]
                 self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
                 await self.send()
+                self._analysis_allowed = True
                 return True  # engine responded with its name
         except Exception:
             logger.exception("failed to reopen engine %s", self.file)
@@ -1171,6 +1178,11 @@ class UciEngine(object):
 
     async def _recover_from_failed_analyser_stop(self, reason: str) -> bool:
         """Restart the engine before releasing the lease after a dirty analysis stop."""
+        if self._shutting_down:
+            logger.debug("%s recovery skipped while engine is shutting down", reason)
+            if self.analyser:
+                self.analyser.clear_failure()
+            return True
         logger.warning("%s - restarting engine %s", reason, self.engine_name)
         should_send_options = False
         async with self.engine_lock:
@@ -1195,6 +1207,7 @@ class UciEngine(object):
                 return False
         if should_send_options:
             await self.send()
+            self._analysis_allowed = True
             return True
         return False
 
@@ -1320,8 +1333,10 @@ class UciEngine(object):
 
     async def quit(self):
         """Quit engine."""
-        if self.analyser and self.analyser.is_running():
-            self.analyser.cancel()  # quit can force full cancel
+        self._analysis_allowed = False
+        self._shutting_down = True
+        if self.analyser:
+            await self.stop_analysis()
         if self.playing and self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
         if self.is_mame:
@@ -1452,7 +1467,7 @@ class UciEngine(object):
         race against an in-flight stop/bestmove exchange.
         """
         self._last_analyser_stop_was_forced = False
-        if self.analyser and self.analyser.is_running():
+        if self.analyser:
             await self.analyser.stop_async()
             self._last_analyser_stop_was_forced = self.analyser.consume_forced_stop()
 
@@ -1625,6 +1640,12 @@ class UciEngine(object):
         limit: limit for analysis - None means forever
         multipv: multipv for analysis - None means 1"""
         result = False
+        if self._shutting_down:
+            logger.debug("%s start_analysis skipped - engine is shutting down", self.whoami)
+            return False
+        if not self._analysis_allowed:
+            logger.debug("%s start_analysis skipped - engine setup not complete", self.whoami)
+            return False
         if self.analyser and self.analyser.is_running():
             if limit and limit.depth != self.analyser.get_limit_depth():
                 logger.debug("%s picotutor limit change: %d- mode/engine switch?", self.whoami, limit.depth)
@@ -1638,6 +1659,9 @@ class UciEngine(object):
         else:
             if self.engine:
                 async with self.engine_lock:
+                    if self._shutting_down:
+                        logger.debug("%s cannot start analysis - engine is shutting down", self.whoami)
+                        return False
                     if not self.playing:
                         logger.debug("%s cannot start analysis - playing engine not initialised", self.whoami)
                     elif not self.playing.is_waiting_for_move():
@@ -1675,6 +1699,9 @@ class UciEngine(object):
         key 'fen': analysed board position fen"""
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
+        if not self._analysis_allowed:
+            logger.debug("analysis requested while engine setup is incomplete")
+            return result
         if self.analyser and self.analyser.is_running():
             if self.analyser.get_fen() == game.fen():
                 result = await self.analyser.get_analysis()
@@ -1768,9 +1795,11 @@ class UciEngine(object):
     def set_mode(self, ponder: bool = True):
         """Set engine ponder mode for a playing engine"""
         self.pondering = ponder  # True in BRAIN mode = Ponder On menu
+        self._analysis_allowed = True
 
     async def startup(self, options: dict, rating: Optional[Rating] = None) -> bool:
         """Startup engine. Returns True on success, False on invalid config."""
+        self._analysis_allowed = False
         parser = configparser.ConfigParser()
 
         if not options:

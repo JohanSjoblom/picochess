@@ -258,3 +258,86 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(eng.analyser.needs_recovery())
         self.assertEqual(2, eng.game_id)
+
+    async def test_start_analysis_skips_while_engine_is_shutting_down(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng._shutting_down = True
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = False
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+
+        started = await eng.start_analysis(chess.Board())
+
+        self.assertFalse(started)
+        eng.analyser.start.assert_not_called()
+
+    async def test_start_analysis_waits_until_mode_is_set(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = False
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+
+        started_before_mode = await eng.start_analysis(chess.Board())
+
+        self.assertFalse(started_before_mode)
+        eng.analyser.start.assert_not_called()
+
+        eng.set_mode()
+
+        started_after_mode = await eng.start_analysis(chess.Board())
+
+        self.assertFalse(started_after_mode)
+        eng.analyser.start.assert_called_once()
+
+    async def test_get_analysis_returns_empty_while_engine_setup_incomplete(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+
+        result = await eng.get_analysis(chess.Board())
+
+        self.assertEqual({"info": [], "fen": ""}, result)
+        eng.analyser.get_analysis.assert_not_called()
+
+    @patch("uci.engine.asyncio.sleep", new_callable=AsyncMock)
+    async def test_quit_awaits_stop_analysis_before_shutdown(self, _):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.analyser = Mock()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+        order = []
+
+        async def fake_stop_analysis():
+            order.append("stop_analysis")
+
+        async def fake_shutdown():
+            order.append("shutdown")
+
+        eng.stop_analysis = AsyncMock(side_effect=fake_stop_analysis)
+        eng._shutdown_standard_engine = AsyncMock(side_effect=fake_shutdown)
+        eng._close_remote_connection = AsyncMock()
+
+        await eng.quit()
+
+        self.assertEqual(["stop_analysis", "shutdown"], order)
+        self.assertTrue(eng._shutting_down)
+        eng.stop_analysis.assert_awaited_once()
+        eng._shutdown_standard_engine.assert_awaited_once()
+
+    async def test_recovery_is_skipped_while_engine_is_shutting_down(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng._shutting_down = True
+        eng.analyser = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._start_engine_process = AsyncMock()
+
+        recovered = await eng._recover_from_failed_analyser_stop("engine switch in progress")
+
+        self.assertTrue(recovered)
+        eng.analyser.clear_failure.assert_called_once()
+        eng._shutdown_standard_engine.assert_not_awaited()
+        eng._start_engine_process.assert_not_awaited()

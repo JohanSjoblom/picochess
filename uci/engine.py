@@ -294,6 +294,7 @@ class ContinuousAnalysis:
         self.limit = None  # limit for analysis - set in start
         self.multipv = None  # multipv for analysis - set in start
         self._analysis_started_ts: float | None = None
+        self._active_analysis: AnalysisResult | None = None
         self._failure_reason: str | None = None
         self._last_stop_was_forced = False
         self.lock = asyncio.Lock()
@@ -365,6 +366,14 @@ class ContinuousAnalysis:
         interrupted = await self.engine_lease.wait_for_interrupt("continuous")
         if interrupted:
             await self._send_guarded_stop(analysis, guard_window=guard_window)
+
+    async def _request_active_stop(self, guard_window: float = 0.20) -> bool:
+        """Request stop on the live analysis session without waiting for the next info packet."""
+        analysis = self._active_analysis
+        if analysis is None:
+            return False
+        await self._send_guarded_stop(analysis, guard_window=guard_window)
+        return True
 
     async def _handle_protocol_state_failure(self, exc: BaseException) -> bool:
         """Clear stale analyser state and try to restart the engine after protocol errors."""
@@ -446,6 +455,7 @@ class ContinuousAnalysis:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""
         await self.engine_lease.acquire(owner="continuous")
         recovery_reason = ""
+        analysis = None
         try:
             # Wait briefly until the engine is ready before starting analysis
             ready = await self._wait_for_engine_ready(timeout=0.5)
@@ -456,6 +466,11 @@ class ContinuousAnalysis:
             with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
             ) as analysis:
+                self._active_analysis = analysis
+                if not self._running or self.engine_lease.interrupt_requested("continuous"):
+                    if not await self._safe_stop(analysis):
+                        recovery_reason = "continuous analysis stop timed out before first info"
+                    return
                 interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
                 try:
                     async for info in analysis:
@@ -488,6 +503,8 @@ class ContinuousAnalysis:
                                         return  # limit reached
                         await asyncio.sleep(self.delay)  # save cpu
                 finally:
+                    if self._active_analysis is analysis:
+                        self._active_analysis = None
                     if interrupt_task:
                         interrupt_task.cancel()
                         try:
@@ -594,6 +611,8 @@ class ContinuousAnalysis:
         if task.done():
             self._task = None
             return True
+
+        await self._request_active_stop()
 
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
@@ -1708,8 +1727,6 @@ class UciEngine(object):
             else:
                 logger.debug("analysis for old position")
                 logger.debug("current new position is %s", game.fen())
-        else:
-            logger.debug("caller has forgot to start analysis")
         return result
 
     def is_analysis_limit_reached(self) -> bool:

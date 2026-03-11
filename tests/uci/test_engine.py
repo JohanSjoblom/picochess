@@ -237,6 +237,29 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(analyser.consume_forced_stop())
         self.assertFalse(analyser.consume_forced_stop())
 
+    async def test_continuous_analysis_stop_async_requests_active_stop(self):
+        analyser = ContinuousAnalysis(
+            engine=MockEngine(),
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+
+        async def task_body():
+            while analyser._running:
+                await asyncio.sleep(0)
+
+        analyser._active_analysis = object()
+        analyser._send_guarded_stop = AsyncMock()
+        analyser._running = True
+        analyser._task = asyncio.create_task(task_body())
+
+        stopped = await analyser.stop_async(timeout=0.1, cancel_timeout=0.1)
+
+        self.assertTrue(stopped)
+        analyser._send_guarded_stop.assert_awaited_once_with(analyser._active_analysis, guard_window=0.20)
+
     async def test_newgame_recovers_failed_analyser_state(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

@@ -153,3 +153,41 @@
 .berlin .cg-board piece.king.black {
   background-image: url('images/pieces/berlin/bK.svg');
 }
+
+/* USCF pieces */
+.uscf .cg-board piece.pawn.white {
+  background-image: url('images/pieces/uscf/wP.svg');
+}
+.uscf .cg-board piece.bishop.white {
+  background-image: url('images/pieces/uscf/wB.svg');
+}
+.uscf .cg-board piece.knight.white {
+  background-image: url('images/pieces/uscf/wN.svg');
+}
+.uscf .cg-board piece.rook.white {
+  background-image: url('images/pieces/uscf/wR.svg');
+}
+.uscf .cg-board piece.queen.white {
+  background-image: url('images/pieces/uscf/wQ.svg');
+}
+.uscf .cg-board piece.king.white {
+  background-image: url('images/pieces/uscf/wK.svg');
+}
+.uscf .cg-board piece.pawn.black {
+  background-image: url('images/pieces/uscf/bP.svg');
+}
+.uscf .cg-board piece.bishop.black {
+  background-image: url('images/pieces/uscf/bB.svg');
+}
+.uscf .cg-board piece.knight.black {
+  background-image: url('images/pieces/uscf/bN.svg');
+}
+.uscf .cg-board piece.rook.black {
+  background-image: url('images/pieces/uscf/bR.svg');
+}
+.uscf .cg-board piece.queen.black {
+  background-image: url('images/pieces/uscf/bQ.svg');
+}
+.uscf .cg-board piece.king.black {
+  background-image: url('images/pieces/uscf/bK.svg');
+}

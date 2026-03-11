@@ -408,7 +408,7 @@ class Configuration:
             "--pieces",
             type=str,
             default="merida",
-            help='Web chess piece set: "alpha", "berlin", "leipzig" or "merida", default is "merida"',
+            help='Web chess piece set: "alpha", "berlin", "leipzig", "merida" or "uscf", default is "merida"',
         )
         self.parser.add_argument(
             "--web-board-theme",

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 0 2010 2000">
+  <defs>
+    <clipPath id="c">
+      <path d="M399 608v-333h234v154h210v-155h314v155h210v-154h234v333l-156 155v659l129 132v52l106 100v226h-1360v-226l106 -100v-52l129 -132v-659z"/>
+    </clipPath>
+  </defs>
+  <rect x="-10" y="0" width="2010" height="2000" fill="#f9f9f9" clip-path="url(#c)"/>
+  <path fill="currentColor" fill-rule="evenodd" d="M399 608v-333h234v154h210v-155h314v155h210v-154h234v333l-156 155v659l129 132v52l106 100v226h-1360v-226l106 -100v-52l129 -132v-659zM635 1389h730v-603h-730v603zM476 587l130 124h784l134 -124v-239h-82v150h-363v-150h-158v150h-363v-150h-82v239zM510 1554v52
+l-107 100v148h1196v-148l-109 -100v-52l-96 -94h-788z"/>
+</svg>

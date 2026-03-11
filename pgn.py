@@ -510,18 +510,17 @@ class PgnDisplay(DisplayMsg):
             pgn_game.headers["ECO"] = ModeInfo.opening_eco
 
         # Variant tag for variant games (3check, atomic, etc.), but not for normal chess
-        if self.shared and self.shared.get("variant"):
-            variant = self.shared.get("variant")
-            if variant.lower() not in ("chess", "standard", "normal", ""):
-                variant_map = {
-                    "atomic": "Atomic",
-                    "3check": "Three-Check",
-                    "kingofthehill": "King of the Hill",
-                    "antichess": "Antichess",
-                    "horde": "Horde",
-                    "racingkings": "Racing Kings"
-                }
-                pgn_game.headers["Variant"] = variant_map.get(variant.lower(), variant.capitalize())
+        variant = self.shared.get("variant") if self.shared else None
+        if variant and variant.lower() not in ("chess", "standard", "normal", ""):
+            variant_map = {
+                "atomic": "Atomic",
+                "3check": "Three-Check",
+                "kingofthehill": "King of the Hill",
+                "antichess": "Antichess",
+                "horde": "Horde",
+                "racingkings": "Racing Kings"
+            }
+            pgn_game.headers["Variant"] = variant_map.get(variant.lower(), variant.capitalize())
 
         return pgn_game
 
@@ -602,9 +601,11 @@ class PgnDisplay(DisplayMsg):
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
-        # preserve headers
-        # no need to keep_essential_headers - we want all headers from headers
-        pgn_game.headers.update(self.shared["headers"])
+        # preserve headers, but exclude "Variant" so the value set by
+        # _generate_pgn_from_message (or deliberately omitted for normal chess)
+        # is never overwritten by a stale entry in shared["headers"]
+        shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
+        pgn_game.headers.update(shared_headers_without_variant)
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side
@@ -635,9 +636,11 @@ class PgnDisplay(DisplayMsg):
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
-        # preserve headers
-        # no need to keep_essential_headers - we want all headers from headers
-        pgn_game.headers.update(self.shared["headers"])
+        # preserve headers, but exclude "Variant" so the value set by
+        # _generate_pgn_from_message (or deliberately omitted for normal chess)
+        # is never overwritten by a stale entry in shared["headers"]
+        shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
+        pgn_game.headers.update(shared_headers_without_variant)
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side

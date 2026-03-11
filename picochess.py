@@ -1678,6 +1678,9 @@ async def main() -> None:
         async def stop_search(self):
             """Stop current search."""
             await self.engine.stop()
+            if self.engine.consume_forced_analyser_stop():
+                logger.debug("forced analyser stop detected - resetting best depth cache")
+                self.state.best_sent_depth.reset()
             if not self.emulation_mode():
                 while not self.engine.is_waiting():
                     await asyncio.sleep(0.05)
@@ -5820,6 +5823,7 @@ async def main() -> None:
                             )
                         )
                     else:
+                        self.state.best_sent_depth.reset()
                         logger.info(
                             "illegal move can not be displayed. move: %s fen: %s",
                             event.pv[0],

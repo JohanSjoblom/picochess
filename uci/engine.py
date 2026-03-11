@@ -294,6 +294,8 @@ class ContinuousAnalysis:
         self.limit = None  # limit for analysis - set in start
         self.multipv = None  # multipv for analysis - set in start
         self._analysis_started_ts: float | None = None
+        self._failure_reason: str | None = None
+        self._last_stop_was_forced = False
         self.lock = asyncio.Lock()
         self.engine: UciProtocol = engine
         self.set_game_id(1)  # initial game identifier
@@ -364,6 +366,25 @@ class ContinuousAnalysis:
         if interrupted:
             await self._send_guarded_stop(analysis, guard_window=guard_window)
 
+    async def _handle_protocol_state_failure(self, exc: BaseException) -> bool:
+        """Clear stale analyser state and try to restart the engine after protocol errors."""
+        reason = f"continuous analysis protocol failure: {type(exc).__name__}: {exc}"
+        self._failure_reason = reason
+        self.limit_reached = False
+        async with self.lock:
+            self._analysis_data = None
+        logger.warning("%s %s", self.whoami, reason)
+        if not self._recover_engine_cb:
+            return False
+        try:
+            recovered = await self._recover_engine_cb(reason)
+        except Exception:
+            logger.exception("%s failed while recovering from protocol failure", self.whoami)
+            return False
+        if recovered:
+            self.clear_failure()
+        return recovered
+
     async def _watching_analyse(self):
         """Internal function for continuous analysis in the background."""
         debug_once_limit = True
@@ -409,6 +430,14 @@ class ContinuousAnalysis:
                 # have to stop analysing
                 self._task = None
                 self._running = False
+            except (AssertionError, asyncio.InvalidStateError) as e:
+                recovered = await self._handle_protocol_state_failure(e)
+                if recovered and self._running:
+                    await asyncio.sleep(self.delay)
+                    continue
+                self._task = None
+                self._running = False
+                return
             except chess.engine.AnalysisComplete:
                 logger.debug("%s ran out of information", self.whoami)
                 await asyncio.sleep(self.delay * 2)  # maybe it helps to wait some extra?
@@ -523,6 +552,8 @@ class ContinuousAnalysis:
                 self.limit_reached = False  # True when limit reached for position
                 self.limit = limit
                 self.multipv = multipv
+                self._last_stop_was_forced = False
+                self.clear_failure()
                 self._running = True
                 self._task = self.loop.create_task(self._watching_analyse())
                 logging.debug("%s started", self.whoami)
@@ -552,6 +583,7 @@ class ContinuousAnalysis:
     async def stop_async(self, timeout: float = 1.0, cancel_timeout: float = 1.0) -> bool:
         """Stop analyser cleanly and wait until the task has finished."""
         task = self._task
+        self._last_stop_was_forced = False
         if not self._running and not task:
             return True
 
@@ -569,6 +601,7 @@ class ContinuousAnalysis:
             return True
         except asyncio.TimeoutError:
             logger.warning("%s analyser stop timed out after %.1fs - cancelling task", self.whoami, timeout)
+            self._last_stop_was_forced = True
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -634,6 +667,20 @@ class ContinuousAnalysis:
         :return: True if analysis is running, otherwise False.
         """
         return self._running
+
+    def needs_recovery(self) -> bool:
+        """Return True if the analyser saw a protocol-state failure."""
+        return self._failure_reason is not None
+
+    def clear_failure(self) -> None:
+        """Forget any previously recorded protocol-state failure."""
+        self._failure_reason = None
+
+    def consume_forced_stop(self) -> bool:
+        """Return whether the last stop needed forced cancellation and clear the flag."""
+        result = self._last_stop_was_forced
+        self._last_stop_was_forced = False
+        return result
 
     def get_current_game(self) -> Optional[chess.Board]:
         """
@@ -932,6 +979,7 @@ class UciEngine(object):
         self.whoami = engine_debug_name
         self.engine_lock = asyncio.Lock()
         self.engine_lease: EngineLease | None = None
+        self._last_analyser_stop_was_forced = False
         self.game_id = 1
         self.variant = "chess"  # Chess variant, read from .uci file (e.g., "3check")
         self.uci_variant = None  # UCI_Variant value to send directly to engine (bypasses python-chess)
@@ -1028,6 +1076,7 @@ class UciEngine(object):
         """Point existing helper objects at the current engine process."""
         if self.analyser and self.playing:
             self.analyser.engine = self.engine
+            self.analyser.clear_failure()
             self.playing.engine = self.engine
             self.analyser.set_game_id(self.game_id)
             self.playing.set_game_id(self.game_id)
@@ -1402,8 +1451,16 @@ class UciEngine(object):
         lease before returning, so a subsequent send() → configure() call will not
         race against an in-flight stop/bestmove exchange.
         """
+        self._last_analyser_stop_was_forced = False
         if self.analyser and self.analyser.is_running():
             await self.analyser.stop_async()
+            self._last_analyser_stop_was_forced = self.analyser.consume_forced_stop()
+
+    def consume_forced_analyser_stop(self) -> bool:
+        """Return whether the last analyser stop needed forced cancellation and clear the flag."""
+        result = self._last_analyser_stop_was_forced
+        self._last_analyser_stop_was_forced = False
+        return result
 
     def force_move(self, timeout: float = 2.0):
         """
@@ -1671,6 +1728,12 @@ class UciEngine(object):
     async def newgame(self, game: Board, send_ucinewgame: bool = True):
         """Engine sometimes need this to setup internal values.
         parameter game will not change"""
+        if self.analyser and self.analyser.needs_recovery():
+            recovered = await self._recover_from_failed_analyser_stop(
+                "new game requested after analyser protocol failure"
+            )
+            if recovered and self.analyser:
+                self.analyser.clear_failure()
         if self.engine:
             async with self.engine_lock:
                 # as seen in issue #78 need to prevent simultaneous newgame and start analysis

@@ -15,9 +15,10 @@
 
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
-from uci.engine import UciEngine, UciShell
+import chess
+from uci.engine import ContinuousAnalysis, EngineLease, UciEngine, UciShell
 from uci.rating import Rating, Result
 
 UCI_ELO = "UCI_Elo"
@@ -182,3 +183,78 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         new_rating = await eng.update_rating(Rating(850.5, 123.0), Result.WIN)
         self.assertEqual(890, int(new_rating.rating))
         self.assertEqual(901, eng.engine_rating)
+
+    async def test_continuous_analysis_recovers_after_protocol_failure(self):
+        recover = AsyncMock(return_value=True)
+        analyser = ContinuousAnalysis(
+            engine=MockEngine(),
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+            recover_engine_cb=recover,
+        )
+        analyser.game = chess.Board()
+        analyser._analysis_data = [{"depth": 8}]
+        analyser._running = True
+
+        calls = 0
+
+        async def fake_analyse_forever(limit, multipv):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise AssertionError("CommandState.NEW")
+            analyser._running = False
+
+        analyser._analyse_forever = fake_analyse_forever
+
+        await analyser._watching_analyse()
+
+        self.assertEqual(2, calls)
+        recover.assert_awaited_once()
+        self.assertFalse(analyser.needs_recovery())
+        self.assertIsNone(analyser._analysis_data)
+
+    async def test_continuous_analysis_marks_forced_stop_after_timeout(self):
+        analyser = ContinuousAnalysis(
+            engine=MockEngine(),
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+
+        async def hung_task():
+            await asyncio.sleep(60)
+
+        analyser._task = asyncio.create_task(hung_task())
+        analyser._running = True
+
+        stopped = await analyser.stop_async(timeout=0.01, cancel_timeout=0.1)
+
+        self.assertTrue(stopped)
+        self.assertTrue(analyser.consume_forced_stop())
+        self.assertFalse(analyser.consume_forced_stop())
+
+    async def test_newgame_recovers_failed_analyser_state(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.analyser = ContinuousAnalysis(
+            engine=eng.engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+        eng.playing = Mock()
+        eng.analyser._failure_reason = "continuous analysis protocol failure: AssertionError: CommandState.NEW"
+        eng._recover_from_failed_analyser_stop = AsyncMock(return_value=True)
+
+        await eng.newgame(chess.Board())
+
+        eng._recover_from_failed_analyser_stop.assert_awaited_once_with(
+            "new game requested after analyser protocol failure"
+        )
+        self.assertFalse(eng.analyser.needs_recovery())
+        self.assertEqual(2, eng.game_id)

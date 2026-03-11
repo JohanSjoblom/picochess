@@ -509,19 +509,19 @@ class PgnDisplay(DisplayMsg):
             pgn_game.headers["Opening"] = ModeInfo.opening_name
             pgn_game.headers["ECO"] = ModeInfo.opening_eco
 
-        # Variant tag for variant games (3check, atomic, etc.)
+        # Variant tag for variant games (3check, atomic, etc.), but not for normal chess
         if self.shared and self.shared.get("variant"):
             variant = self.shared.get("variant")
-            # Use proper capitalization for known variants
-            variant_map = {
-                "atomic": "Atomic",
-                "3check": "Three-Check",
-                "kingofthehill": "King of the Hill",
-                "antichess": "Antichess",
-                "horde": "Horde",
-                "racingkings": "Racing Kings"
-            }
-            pgn_game.headers["Variant"] = variant_map.get(variant.lower(), variant.capitalize())
+            if variant.lower() not in ("chess", "standard", "normal", ""):
+                variant_map = {
+                    "atomic": "Atomic",
+                    "3check": "Three-Check",
+                    "kingofthehill": "King of the Hill",
+                    "antichess": "Antichess",
+                    "horde": "Horde",
+                    "racingkings": "Racing Kings"
+                }
+                pgn_game.headers["Variant"] = variant_map.get(variant.lower(), variant.capitalize())
 
         return pgn_game
 

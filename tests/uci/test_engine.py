@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
-from uci.engine import ContinuousAnalysis, EngineLease, UciEngine, UciShell
+from uci.engine import ContinuousAnalysis, EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
 from uci.rating import Rating, Result
 
 UCI_ELO = "UCI_Elo"
@@ -259,6 +259,65 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(stopped)
         analyser._send_guarded_stop.assert_awaited_once_with(analyser._active_analysis, guard_window=0.20)
+
+    async def test_playing_force_uses_active_analysis_stop(self):
+        playing = PlayingContinuousAnalysis(
+            engine=MockEngine(),
+            loop=asyncio.get_running_loop(),
+            engine_lease=EngineLease(),
+            engine_debug_name="engine",
+            allow_info_loop=True,
+        )
+        playing.engine.send_line = Mock()
+        playing._waiting = True
+        playing._search_started.set()
+        playing._search_generation = 1
+        playing._analysis_started_ts = playing.loop.time() - 1.0
+        playing._active_analysis = Mock()
+
+        playing.force()
+
+        playing._active_analysis.stop.assert_called_once_with()
+        playing.engine.send_line.assert_not_called()
+
+    async def test_playing_force_falls_back_to_send_line_without_active_analysis(self):
+        playing = PlayingContinuousAnalysis(
+            engine=MockEngine(),
+            loop=asyncio.get_running_loop(),
+            engine_lease=EngineLease(),
+            engine_debug_name="engine",
+            allow_info_loop=False,
+        )
+        playing.engine.send_line = Mock()
+        playing._waiting = True
+        playing._search_started.set()
+        playing._search_generation = 1
+        playing._analysis_started_ts = playing.loop.time() - 1.0
+
+        playing.force()
+
+        playing.engine.send_line.assert_called_once_with("stop")
+
+    async def test_playing_delayed_stop_is_bound_to_search_generation(self):
+        playing = PlayingContinuousAnalysis(
+            engine=MockEngine(),
+            loop=asyncio.get_running_loop(),
+            engine_lease=EngineLease(),
+            engine_debug_name="engine",
+            allow_info_loop=False,
+        )
+        playing.engine.send_line = Mock()
+        playing._waiting = True
+        playing._search_started.set()
+        playing._search_generation = 1
+        playing._analysis_started_ts = playing.loop.time()
+
+        playing._request_stop_or_delay(guard_window=0.01)
+        playing._search_generation = 2
+
+        await asyncio.sleep(0.02)
+
+        playing.engine.send_line.assert_not_called()
 
     async def test_newgame_recovers_failed_analyser_state(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

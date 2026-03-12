@@ -736,6 +736,8 @@ class PlayingContinuousAnalysis:
         self._cancel_event = asyncio.Event()
         self._search_started = asyncio.Event()
         self._analysis_started_ts: float | None = None
+        self._active_analysis: AnalysisResult | None = None
+        self._search_generation = 0
         self.whoami = f"{engine_debug_name} (playing)"
         self.engine_lease = engine_lease
         self.allow_info_loop = allow_info_loop
@@ -758,6 +760,7 @@ class PlayingContinuousAnalysis:
         root_moves=None,
     ):
         """Start engine move search. Ends automatically on bestmove."""
+        self._search_generation += 1
         self._waiting = True
         self.latest_info = {}
         self.latest_fen = ""
@@ -765,6 +768,8 @@ class PlayingContinuousAnalysis:
         self._cancel_event.clear()
         self._search_started.clear()
         self._analysis_started_ts = None
+        self._active_analysis = None
+        search_generation = self._search_generation
 
         async def _engine_task():
             lease_acquired = False
@@ -796,30 +801,37 @@ class PlayingContinuousAnalysis:
                         root_moves=root_moves,
                         info=chess.engine.INFO_ALL,
                     )
-
-                    async for info in analysis:
-                        self.latest_info = info
+                    self._active_analysis = analysis
+                    try:
                         if self._force_event.is_set() or self._cancel_event.is_set():
+                            self._request_stop_or_delay(search_generation=search_generation)
+
+                        async for info in analysis:
+                            self.latest_info = info
+                            if self._force_event.is_set() or self._cancel_event.is_set():
+                                analysis.stop()
+                                break
+
+                        # Ensure the search is halted even if no info loop iterations ran
+                        try:
                             analysis.stop()
-                            break
+                        except Exception:
+                            pass
 
-                    # Ensure the search is halted even if no info loop iterations ran
-                    try:
-                        analysis.stop()
-                    except Exception:
-                        pass
+                        try:
+                            best = await analysis.wait()
+                            if best:
+                                best_move = best.move
+                                ponder_move = best.ponder
+                        except CancelledError:
+                            raise
+                        except Exception:
+                            logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
 
-                    try:
-                        best = await analysis.wait()
-                        if best:
-                            best_move = best.move
-                            ponder_move = best.ponder
-                    except CancelledError:
-                        raise
-                    except Exception:
-                        logger.debug("%s analysis.wait() failed to provide best move", self.whoami)
-
-                    info_snapshot = copy.deepcopy(analysis.info)
+                        info_snapshot = copy.deepcopy(analysis.info)
+                    finally:
+                        if self._active_analysis is analysis:
+                            self._active_analysis = None
                 else:
                     self._analysis_started_ts = self.loop.time()
                     self._search_started.set()
@@ -866,6 +878,7 @@ class PlayingContinuousAnalysis:
                 self._waiting = False
                 self._search_started.clear()
                 self._analysis_started_ts = None
+                self._active_analysis = None
                 if lease_acquired:
                     self.engine_lease.release("playing")
                     lease_acquired = False
@@ -884,13 +897,13 @@ class PlayingContinuousAnalysis:
         """Ask the engine to stop thinking and return a bestmove as soon as possible."""
         if self._waiting:
             self._force_event.set()
-            self._send_stop_or_delay()
+            self._request_stop_or_delay()
 
     def cancel(self):
         """Cancel any ongoing search (e.g., engine shutdown)."""
         self._cancel_event.set()
         self._force_event.set()
-        self._send_stop_or_delay()
+        self._request_stop_or_delay()
 
     def is_waiting_for_move(self) -> bool:
         """True if engine is currently thinking about a move."""
@@ -923,27 +936,42 @@ class PlayingContinuousAnalysis:
         if self._task and not self._task.done():
             self._task.cancel()
 
-    def _send_stop_or_delay(self, guard_window: float = 0.2) -> None:
-        """Send stop immediately unless we're within the analysis-start guard window."""
-        if not self._search_started.is_set() or not hasattr(self.engine, "send_line"):
+    def _request_stop_or_delay(self, guard_window: float = 0.2, search_generation: int | None = None) -> None:
+        """Request stop immediately unless we're within the analysis-start guard window."""
+        if not self._search_started.is_set():
             return
 
+        current_generation = self._search_generation if search_generation is None else search_generation
         if self._analysis_started_ts is None or not self.loop:
-            self.engine.send_line("stop")
+            self._stop_current_search(current_generation)
             return
 
         elapsed = self.loop.time() - self._analysis_started_ts
         remaining = guard_window - elapsed
         if remaining <= 0:
-            self.engine.send_line("stop")
+            self._stop_current_search(current_generation)
             return
 
         async def _delayed_stop():
             await asyncio.sleep(remaining)
-            if self._search_started.is_set() and hasattr(self.engine, "send_line"):
-                self.engine.send_line("stop")
+            self._stop_current_search(current_generation)
 
         self.loop.create_task(_delayed_stop())
+
+    def _stop_current_search(self, search_generation: int) -> None:
+        """Stop the currently active search if the generation still matches."""
+        if search_generation != self._search_generation or not self._search_started.is_set():
+            return
+
+        if self._active_analysis is not None:
+            try:
+                self._active_analysis.stop()
+                return
+            except Exception as e:
+                logger.debug("%s active analysis.stop() raised: %s", self.whoami, e)
+
+        if hasattr(self.engine, "send_line"):
+            self.engine.send_line("stop")
 
 
 class UciEngine(object):

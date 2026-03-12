@@ -273,6 +273,7 @@ class PicochessState:
         self.picotutor: PicoTutor | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
+        self.position_mode_switch_window = False
         self.reset_auto = False
         self.searchmoves = AlternativeMover()
         self.seeking_flag = False
@@ -1726,6 +1727,7 @@ async def main() -> None:
         async def call_pico_coach(self):
             if self.state.coach_triggered:
                 self.state.position_mode = True
+                self.state.position_mode_switch_window = False
             if (
                 (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
                 or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
@@ -2247,7 +2249,9 @@ async def main() -> None:
                     await self.call_pico_coach()
                     self.state.coach_triggered = False
                 elif self.state.position_mode:
+                    switch_window_after_position_ok = self.state.position_mode_switch_window
                     self.state.position_mode = False
+                    self.state.position_mode_switch_window = False
                     if self.state.delay_fen_error == 1:
                         # position finally alright!
                         tutor_str = "POSOK"
@@ -2258,6 +2262,22 @@ async def main() -> None:
                         if not self.state.done_computer_fen:
                             await self.state.start_clock()
                     await DisplayMsg.show(Message.EXIT_MENU())
+                    if (
+                        switch_window_after_position_ok
+                        and self.emulation_mode()
+                        and self.state.dgtmenu.get_engine_rdisplay()
+                        and self.state.artwork_in_use
+                    ):
+                        # switch windows/tasks after a non-king "set pieces" correction
+                        cmd = get_window_command("switch_window")
+                        if cmd:
+                            subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                universal_newlines=True,
+                                shell=True,
+                            )
                 elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                     # switch windows/tasks
                     cmd = get_window_command("switch_window")
@@ -2726,6 +2746,7 @@ async def main() -> None:
                         await self.state.start_clock()
                     await DisplayMsg.show(Message.EXIT_MENU())
                 self.state.position_mode = False
+                self.state.position_mode_switch_window = False
             else:
                 if fen == chess.STARTING_BOARD_FEN or (
                     self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN
@@ -2739,6 +2760,7 @@ async def main() -> None:
                         if not self.state.done_computer_fen:
                             await self.state.start_clock()
                     self.state.position_mode = False
+                    self.state.position_mode_switch_window = False
                     await Observable.fire(Event.NEW_GAME(pos960=pos960))
                 else:
                     self.state.error_fen = fen
@@ -3612,9 +3634,11 @@ async def main() -> None:
                             self.state.coach_triggered = True
                             if not self.picotutor_mode():
                                 self.state.position_mode = True
+                                self.state.position_mode_switch_window = False
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False
+                            self.state.position_mode_switch_window = True
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
@@ -4685,6 +4709,7 @@ async def main() -> None:
                 logger.debug("setting up custom fen: %s", event.fen)
                 uci960 = event.uci960
                 self.state.position_mode = False
+                self.state.position_mode_switch_window = False
 
                 if self.state.game.move_stack:
                     if not (self.state.game.is_game_over() or self.state.game_declared):
@@ -4747,6 +4772,7 @@ async def main() -> None:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                     self.engine.is_ready()
                 self.state.position_mode = False
+                self.state.position_mode_switch_window = False
                 tutor_str = "POSOK"
                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
                 await DisplayMsg.show(msg)
@@ -4768,6 +4794,7 @@ async def main() -> None:
                 
                 ModeInfo.set_game_ending(result="*")  # initialize game result for game saving status
                 self.state.position_mode = False
+                self.state.position_mode_switch_window = False
                 self.state.fen_error_occured = False
                 self.state.error_fen = None
                 self.state.newgame_happened = True

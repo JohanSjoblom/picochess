@@ -4456,7 +4456,7 @@ async def main() -> None:
                 logger.debug("keyboard move [%s]", move)
                 if move.from_square == move.to_square:
                     await self._handle_same_square_input(move.from_square)
-                    continue
+                    return
                 # Use variant board for legality check (atomic has different legal moves)
                 _check_board = self.state.get_move_check_board()
                 if move not in _check_board.legal_moves:

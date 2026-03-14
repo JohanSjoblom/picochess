@@ -1339,3 +1339,22 @@ class PicoTutor:
         if score is not None:
             score = score / 100.0
         return best_move, score, mate, self.alt_best_moves[turn]
+
+    async def get_best_move_for_piece_type(self, piece_type: chess.PieceType):
+        """Return the best engine move for the given piece type, scanning best + alt moves.
+
+        Used by COACH_HAND: the user lifted a piece of `piece_type`; find the best
+        available move for *any* piece of that type (not the specific lifted piece).
+        Returns a chess.Move, or None if no such move is available.
+        """
+        result = await self.get_pos_analysis()
+        if not result:
+            return None
+        best_move, _score, _mate, alt_best_moves = result
+        for move in [best_move] + list(alt_best_moves):
+            if move != chess.Move.null():
+                pt = self.board.piece_type_at(move.from_square)
+                if pt == piece_type:
+                    return move
+        return None
+

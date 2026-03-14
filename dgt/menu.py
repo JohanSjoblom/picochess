@@ -208,6 +208,8 @@ class MenuState(object):
     PICOTUTOR_PICOCOACH_ON = 821000
     PICOTUTOR_PICOCOACH_LIFT = 822000
     PICOTUTOR_PICOCOACH_OFF = 823000
+    PICOTUTOR_PICOCOACH_BRAIN = 824000
+    PICOTUTOR_PICOCOACH_HAND = 825000
     PICOTUTOR_PICOEXPLORER = 830000
     PICOTUTOR_PICOEXPLORER_ONOFF = 831000
     PICOTUTOR_PICOCOMMENT = 840000
@@ -1042,6 +1044,18 @@ class DgtMenu(object):
         """Set the menu state."""
         self.state = MenuState.PICOTUTOR_PICOCOACH_LIFT
         text = self.dgttranslate.text("B00_picocoach_lift")
+        return text
+
+    def enter_picotutor_picocoach_brain_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
+        text = self.dgttranslate.text("B00_picocoach_brain")
+        return text
+
+    def enter_picotutor_picocoach_hand_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
+        text = self.dgttranslate.text("B00_picocoach_hand")
         return text
 
     def enter_picotutor_picoexplorer_menu(self):
@@ -2218,6 +2232,12 @@ class DgtMenu(object):
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
             text = self.enter_picotutor_picocoach_menu()
 
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
+            text = self.enter_picotutor_picocoach_menu()
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
+            text = self.enter_picotutor_picocoach_menu()
+
         elif self.state == MenuState.PICOTUTOR_PICOEXPLORER:
             text = self.enter_picotutor_menu()
 
@@ -2501,6 +2521,10 @@ class DgtMenu(object):
                 text = self.enter_picotutor_picocoach_on_menu()
             if self.menu_picotutor_picocoach == PicoCoach.COACH_LIFT:
                 text = self.enter_picotutor_picocoach_lift_menu()
+            if self.menu_picotutor_picocoach == PicoCoach.COACH_BRAIN:
+                text = self.enter_picotutor_picocoach_brain_menu()
+            if self.menu_picotutor_picocoach == PicoCoach.COACH_HAND:
+                text = self.enter_picotutor_picocoach_hand_menu()
 
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
             l_coach_state = 0
@@ -2529,6 +2553,28 @@ class DgtMenu(object):
             write_picochess_ini("tutor-coach", "lift")
             self.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
             self.res_picotutor_picocoach = PicoCoach.COACH_LIFT
+            event = Event.PICOCOACH(picocoach=l_coach_state)
+            await Observable.fire(event)
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
+            l_coach_state = 1
+            if self.res_picotutor_picocoach == self.menu_picotutor_picocoach:
+                l_coach_state = 2
+            write_picochess_ini("tutor-coach", "brain")
+            self.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
+            self.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
+            event = Event.PICOCOACH(picocoach=l_coach_state)
+            await Observable.fire(event)
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
+            l_coach_state = 1
+            if self.res_picotutor_picocoach == self.menu_picotutor_picocoach:
+                l_coach_state = 2
+            write_picochess_ini("tutor-coach", "hand")
+            self.menu_picotutor_picocoach = PicoCoach.COACH_HAND
+            self.res_picotutor_picocoach = PicoCoach.COACH_HAND
             event = Event.PICOCOACH(picocoach=l_coach_state)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
@@ -3442,8 +3488,18 @@ class DgtMenu(object):
             self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
             self.state = MenuState.PICOTUTOR_PICOCOACH_LIFT
+            self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
+            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
+            self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
+            self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
+            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
+            self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
             self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
@@ -4098,6 +4154,16 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_LIFT:
+            self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
+            self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
+            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
+            self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
+            self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
+            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
+
+        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
             self.state = MenuState.PICOTUTOR_PICOCOACH_OFF
             self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)

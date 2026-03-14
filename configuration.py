@@ -448,5 +448,11 @@ class Configuration:
             action="store_true",
             help="en/disable retro engine artwork display (default is false)",
         )
+        self.parser.add_argument(
+            "--window-control-backend",
+            choices=["auto", "xdotool", "ydotool", "swaymsg", "none"],
+            default="auto",
+            help="runtime window control backend: auto, xdotool, ydotool, swaymsg or none",
+        )
 
         self._args, self.unknown = self.parser.parse_known_args()

@@ -23,7 +23,7 @@ import asyncio
 import chess  # type: ignore
 import chess.variant  # type: ignore
 from pgn import ModeInfo
-from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini
+from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini, get_window_command
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
 from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top, flip_board_fen
@@ -48,6 +48,7 @@ class DgtDisplay(DisplayMsg):
         self.dgtmenu = dgtmenu
         self.time_control = time_control
         self.last_pos_start = True
+        self._setpieces_restore_pending = False
 
         self.drawresign_fen = None
         self.have_seen_a_fen: bool = False  # issue #76 - avoid reboot/restart/exit looping
@@ -698,18 +699,25 @@ class DgtDisplay(DisplayMsg):
             pos960 = bit_board.chess960_pos(ignore_castling=True)
             if pos960 is not None:
                 if pos960 == 518 or self.dgtmenu.get_engine_has_960():
+                    if self._setpieces_restore_pending:
+                        logger.debug("bypassing start-position new-game map after set pieces restore")
+                        self._setpieces_restore_pending = False
+                        await Observable.fire(Event.FEN(fen=fen))
+                        self.have_seen_a_fen = True
+                        return
                     if self.last_pos_start:
                         # trigger window switch
                         if ModeInfo.get_emulation_mode() and self.dgtmenu.get_engine_rdisplay():
-                            cmd = "xdotool keydown alt key Tab; sleep 0.2; xdotool keyup alt"
-                            process = await asyncio.create_subprocess_shell(
-                                cmd,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE,
-                            )
-                            stdout, stderr = await process.communicate()
-                            if process.returncode != 0:
-                                logger.error("Command failed with error: %s", stderr.decode())
+                            cmd = get_window_command("switch_window")
+                            if cmd:
+                                process = await asyncio.create_subprocess_shell(
+                                    cmd,
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE,
+                                )
+                                stdout, stderr = await process.communicate()
+                                if process.returncode != 0:
+                                    logger.error("Command failed with error: %s", stderr.decode())
                     else:
                         self.last_pos_start = True
                     logger.debug("map: New game")
@@ -718,6 +726,7 @@ class DgtDisplay(DisplayMsg):
                     # self._reset_moves_and_score()
                     await DispatchDgt.fire(self.dgttranslate.text("Y10_error960"))
             else:
+                self._setpieces_restore_pending = False
                 await Observable.fire(Event.FEN(fen=fen))
         self.have_seen_a_fen = True  # remember that we have seen a fen for issue #76
 
@@ -1552,6 +1561,7 @@ class DgtDisplay(DisplayMsg):
             await self._exit_display()
 
         elif isinstance(message, Message.WRONG_FEN):
+            self._setpieces_restore_pending = True
             await DispatchDgt.fire(self.dgttranslate.text("C10_setpieces"))
             await asyncio.sleep(1)
 

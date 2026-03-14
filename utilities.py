@@ -45,6 +45,8 @@ version = "4.2.3"
 
 logger = logging.getLogger(__name__)
 
+_WINDOW_CONTROL_BACKEND_PREFERENCE = "auto"
+
 evt_queue: asyncio.Queue = asyncio.Queue()
 dispatch_queue: asyncio.Queue = asyncio.Queue()
 
@@ -431,7 +433,21 @@ def write_picochess_ini(key: str, value):
         logging.exception(conf_exc)
 
 
+def set_window_control_backend_preference(backend: str) -> None:
+    global _WINDOW_CONTROL_BACKEND_PREFERENCE
+    _WINDOW_CONTROL_BACKEND_PREFERENCE = (backend or "auto").strip().lower()
+
+
+def get_window_control_backend_preference() -> str:
+    return _WINDOW_CONTROL_BACKEND_PREFERENCE
+
+
 def is_wayland_session() -> bool:
+    preferred_backend = get_window_control_backend_preference()
+    if preferred_backend in {"ydotool", "sway", "swaymsg"}:
+        return True
+    if preferred_backend == "xdotool":
+        return False
     return os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(os.environ.get("WAYLAND_DISPLAY"))
 
 
@@ -466,7 +482,9 @@ _WAYLAND_YDOTOOL_COMMANDS = {
 
 def _choose_wayland_backend() -> Optional[str]:
     """Pick the best available Wayland window-control backend."""
-    requested_backend = os.environ.get("PICOCHESS_WAYLAND_WINDOW_BACKEND", "").strip().lower()
+    requested_backend = get_window_control_backend_preference()
+    if requested_backend in {"", "auto"}:
+        requested_backend = os.environ.get("PICOCHESS_WAYLAND_WINDOW_BACKEND", "").strip().lower()
     session_desktop = os.environ.get("XDG_SESSION_DESKTOP", "").lower()
     current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
 
@@ -517,6 +535,15 @@ def _get_wayland_window_command(action: str) -> Optional[str]:
 
 
 def get_window_command(action: str) -> Optional[str]:
+    preferred_backend = get_window_control_backend_preference()
+    if preferred_backend in {"none", "off", "disabled"}:
+        logger.info("Window control disabled; skipping action '%s'", action)
+        return None
+    if preferred_backend == "xdotool":
+        cmd = _WINDOW_COMMANDS.get(action)
+        if cmd is None:
+            logger.warning("Unknown window action '%s' for X11 backend", action)
+        return cmd
     if is_wayland_session():
         return _get_wayland_window_command(action)
     cmd = _WINDOW_COMMANDS.get(action)

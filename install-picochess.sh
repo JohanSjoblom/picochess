@@ -80,7 +80,7 @@ done
 
 if [ "$SKIP_UPDATE" = false ]; then
     echo "starting by upgrading system before installing picochess"
-    apt update && apt upgrade -y
+    DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y
 else
     echo "Skipping system update because 'pico' parameter was given."
     echo "Updating Picochess but not system"

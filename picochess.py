@@ -1847,10 +1847,25 @@ async def main() -> None:
                 return
             if not self.picotutor_mode():
                 return
-            result = await self.state.picotutor.get_pos_analysis()
-            if not result:
-                return
-            t_best_move, _t_best_score, _t_best_mate, _t_alt_best_moves = result
+            # Prefer opening book move; only fall back to engine analysis if not in book
+            t_best_move = None
+            if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
+                try:
+                    if self.state.variant == "3check" and self.state._threecheck_board is not None:
+                        parts = self.state._threecheck_board.fen().split()
+                        book_lookup_board = chess.Board(f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}")
+                    else:
+                        book_lookup_board = self.state.game.copy()
+                    choice = self.bookreader.weighted_choice(book_lookup_board)
+                    t_best_move = choice.move  # no side-effects: don't call searchmoves.book()
+                    logger.debug("BRAIN hint: book move %s", t_best_move)
+                except IndexError:
+                    pass  # position not in book; fall through to engine analysis
+            if t_best_move is None:
+                result = await self.state.picotutor.get_pos_analysis()
+                if not result:
+                    return
+                t_best_move, _t_best_score, _t_best_mate, _t_alt_best_moves = result
             if t_best_move == chess.Move.null():
                 return
             piece_type = self.state.game.piece_type_at(t_best_move.from_square)
@@ -1862,8 +1877,12 @@ async def main() -> None:
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
             }.get(piece_type, "PAWN")
             logger.info("BRAIN hint: use a %s", piece_name)
+            # Stop the clock display briefly so the hint is readable, then restart
+            await self.state.stop_clock()
             msg = Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name)
             await DisplayMsg.show(msg)
+            await asyncio.sleep(3.0)
+            await self.state.start_clock()
 
         def start_brain_hint_timer(self):
             """BRAIN mode: (re)start the 5-second auto-hint timer for the user's turn."""

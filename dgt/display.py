@@ -68,6 +68,10 @@ class DgtDisplay(DisplayMsg):
         self.c_time_counter = 0
         self._task = None  # task for message consumer
         self.timer = AsyncRepeatingTimer(1, self._process_once_per_second, loop=self.loop)
+        # BRAIN mode: hold the piece-type hint on the display for a few seconds
+        # so _exit_display's rolling clock update doesn't overwrite it immediately.
+        self._brain_hint_text = None   # last Dgt text fired for a BRAIN_* hint
+        self._brain_hint_until = 0.0   # loop.time() deadline; 0 = no active hint
 
     def start_once_per_second_timer(self):
         """start the once per second timer for rolling display"""
@@ -1260,6 +1264,12 @@ class DgtDisplay(DisplayMsg):
                 elif mode in (Mode.TRAINING, Mode.KIBITZ, Mode.PGNREPLAY):
                     text = self._combine_depth_and_score()
                     text.wait = True
+                elif self._brain_hint_text and self.loop.time() < self._brain_hint_until:
+                    # BRAIN mode: a piece-type hint was just shown; suppress the
+                    # clock roll-over for the remainder of the 5-second window so
+                    # the user can actually read it before the clock reappears.
+                    text = self._brain_hint_text
+                    text.wait = True
                 else:
                     text = Dgt.DISPLAY_TIME(force=True, wait=True, devs=devs)
 
@@ -1638,7 +1648,17 @@ class DgtDisplay(DisplayMsg):
         elif isinstance(message, Message.PICOTUTOR_MSG):
             if self.play_move == chess.Move.null():
                 # issue #45 - we do not want eval display while user needs to perform computer move
-                await DispatchDgt.fire(self.dgttranslate.text("C10_picotutor_msg", message.eval_str))
+                hint_text = self.dgttranslate.text("C10_picotutor_msg", message.eval_str)
+                await DispatchDgt.fire(hint_text)
+                # BRAIN mode: keep piece-type hints visible for 5 s so the
+                # rolling clock update in _exit_display doesn't overwrite them
+                # within one second.  Any non-BRAIN tutor message (score, best
+                # move, etc.) clears the hold immediately.
+                if message.eval_str.startswith("BRAIN_"):
+                    self._brain_hint_text = hint_text
+                    self._brain_hint_until = self.loop.time() + float(self.dgtmenu.get_brain_hint_duration())
+                else:
+                    self._brain_hint_until = 0.0
             if message.eval_str == "POSOK" or message.eval_str == "ANALYSIS" and self.play_move == chess.Move.null():
                 # molli: sometime if you move the pieces too quickly a LED may still flash on the rev2
                 await self.force_leds_off()

@@ -272,6 +272,7 @@ class DgtMenu(object):
         picoexplorer: bool,
         picocomment: PicoComment,
         picocomment_prob: int,
+        brain_hint_duration: int,
         contlast: bool,
         altmove: bool,
         dgttranslate: DgtTranslate,
@@ -289,6 +290,7 @@ class DgtMenu(object):
         self.menu_picotutor_picocoach = picocoach
         self.menu_picotutor_picoexplorer = picoexplorer
         self.menu_picotutor_picocomment = picocomment
+        self.menu_picotutor_brain_hint_duration = brain_hint_duration
 
         self.menu_game = Game.NEW
         self.menu_game_end = GameEnd.WHITE_WINS
@@ -765,6 +767,7 @@ class DgtMenu(object):
         self.res_picotutor_picoexplorer = self.menu_picotutor_picoexplorer
         self.res_picotutor_picocomment = self.menu_picotutor_picocomment
         self.res_picotutor_picocomment_prob = int(self.menu_picotutor_picocomment_prob_list)
+        self.res_picotutor_brain_hint_duration = self.menu_picotutor_brain_hint_duration
         self.res_picotutor = self.menu_picotutor
 
         self.res_game_game_save = self.menu_game_save
@@ -883,6 +886,10 @@ class DgtMenu(object):
     def get_picoexplorer(self):
         """Get the flag."""
         return self.res_picotutor_picoexplorer
+
+    def get_brain_hint_duration(self):
+        """BRAIN coach mode: seconds the piece-type hint stays on the DGT display."""
+        return self.res_picotutor_brain_hint_duration
 
     def get_game_altmove(self):
         """Get the flag."""

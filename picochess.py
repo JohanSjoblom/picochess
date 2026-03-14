@@ -1001,6 +1001,7 @@ async def main() -> None:
         args.tutor_explorer,
         PicoComment.from_str(args.tutor_comment),
         args.comment_factor,
+        args.tutor_brain_hint_duration,
         args.continue_game,
         args.alt_move,
         state.dgttranslate,

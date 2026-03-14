@@ -363,6 +363,14 @@ class Configuration:
             help="show game comments based on specific engines (=single) or in general (=all). Default value is off",
         )
         self.parser.add_argument(
+            "-tbhd",
+            "--tutor-brain-hint-duration",
+            type=int,
+            default=3,
+            choices=range(1, 9),
+            help="BRAIN coach mode: how long the piece-type hint stays on the DGT display before the clock reappears (1-8 secs, default=3)",
+        )
+        self.parser.add_argument(
             "-loc",
             "--location",
             type=str,

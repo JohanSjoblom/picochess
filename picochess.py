@@ -73,6 +73,7 @@ from utilities import (
     get_engine_mame_par,
     get_window_command,
     is_wayland_session,
+    set_window_control_backend_preference,
 )
 from utilities import AsyncRepeatingTimer
 from pgn import Emailer, PgnDisplay, ModeInfo
@@ -925,6 +926,7 @@ async def main() -> None:
 
     config = Configuration()
     args, unknown = config._args, config.unknown
+    set_window_control_backend_preference(args.window_control_backend)
 
     # Enable logging
     if args.log_file:
@@ -3613,7 +3615,8 @@ async def main() -> None:
                     external_fen = self.state.error_fen
                     fen_res = compare_fen(external_fen, internal_fen)
 
-                    if external_fen == self.state.last_error_fen:
+                    non_king_setpieces_correction = bool(fen_res and fen_res[4] not in ("K", "k"))
+                    if external_fen == self.state.last_error_fen and not non_king_setpieces_correction:
                         if (
                             self.emulation_mode()
                             and self.state.dgtmenu.get_engine_rdisplay()

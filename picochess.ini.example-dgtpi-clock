@@ -410,6 +410,9 @@ rdisplay = False
 ## set rwindow = False
 #rwindow = False
 rwindow = True
+## Runtime window-control backend for switching or toggling windows after startup. Use auto, xdotool, ydotool, swaymsg or none.
+## On Wayland, rdisplay and rwindow are reliable at startup; runtime menu changes may only take effect after restarting PicoChess.
+window-control-backend = auto
 
 ## Retro-Speed setting for MAME engines: rspeed defines the speed-up factor. Valid options are numbers of type float 0 to 10.0
 ## (1.0 = default original machine speed, 0.5 half of the original speed, 2.0 = double the speed, 0 for unthrottled/full speed).

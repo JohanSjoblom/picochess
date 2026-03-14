@@ -1701,6 +1701,20 @@ async def main() -> None:
             )
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 await self.state.stop_clock()
+                # Always stop the continuous analyser explicitly before handing
+                # control to play_move().  When the engine is "waiting" (no
+                # play_move in flight) stop_search() is skipped below, so the
+                # ContinuousAnalysis background loop keeps holding the
+                # EngineLease._lock.  On a slow RPi the preemption handshake
+                # inside _engine_task can time out before Stockfish replies,
+                # leaving the lock permanently held and result_queue.get() in
+                # think() blocking forever.  stop_analysis() uses stop_async()
+                # which guarantees the analyser task has finished (and the lock
+                # released) before it returns.
+                await self.engine.stop_analysis()
+                if self.engine.consume_forced_analyser_stop():
+                    logger.debug("forced analyser stop in stop_search_and_clock - resetting depth cache")
+                    self.state.best_sent_depth.reset()
                 if self.engine.is_waiting():
                     logger.debug("engine already waiting")
                 else:
@@ -1711,6 +1725,12 @@ async def main() -> None:
                         await self.stop_search()
             elif self.state.interaction_mode in (Mode.REMOTE, Mode.OBSERVE):
                 await self.state.stop_clock()
+                # Same rationale as the NORMAL/BRAIN branch above: stop the
+                # continuous analyser before stop_search() so _engine_task
+                # can acquire the EngineLease immediately.
+                await self.engine.stop_analysis()
+                if self.engine.consume_forced_analyser_stop():
+                    self.state.best_sent_depth.reset()
                 await self.stop_search()
             elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
                 await self.stop_search()
@@ -1733,8 +1753,12 @@ async def main() -> None:
                 (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
                 or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
             ) and not (self.state.game.is_checkmate() or self.state.game.is_stalemate()):
-                await self.state.stop_clock()
-                await asyncio.sleep(0.5)
+                # Do NOT call stop_clock() here.  The coach runs concurrently with
+                # normal game-flow handlers that own the clock (user_move /
+                # EVT_BEST_MOVE).  A spurious stop_clock() / start_clock() pair
+                # corrupts clock state and causes the engine to hang when it is
+                # called again mid-think – exactly the same class of bug that was
+                # fixed in _brain_hint_after_delay.
                 self.state.stop_fen_timer()
                 await asyncio.sleep(0.5)
                 eval_str = "ANALYSIS"
@@ -1744,7 +1768,6 @@ async def main() -> None:
 
                 result = await self.state.picotutor.get_pos_analysis()
                 if not result:
-                    await self.state.start_clock()
                     return
                 (
                     t_best_move,
@@ -1760,6 +1783,13 @@ async def main() -> None:
                     len(t_alt_best_moves),
                 )
 
+                # Snapshot the board NOW, before the first asyncio.sleep.
+                # The user may play a move while we are sleeping through the
+                # coach display sequence.  All SAN computations below must use
+                # this frozen copy so that alt_moves from the analysed position
+                # are not applied to a board that has already advanced.
+                game_snapshot = self.state.game.copy()
+
                 tutor_str = "POS" + str(t_best_score)
                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, score=t_best_score)
                 await DisplayMsg.show(msg)
@@ -1768,7 +1798,7 @@ async def main() -> None:
                 if t_best_mate:
                     l_mate = int(t_best_mate)
                     if t_best_move != chess.Move.null():
-                        game_tutor = self.state.game.copy()
+                        game_tutor = game_snapshot.copy()
                         san_move = game_tutor.san(t_best_move)
                         game_tutor.push(t_best_move)  # for picotalker (last move spoken)
                         tutor_str = "BEST" + san_move
@@ -1792,7 +1822,7 @@ async def main() -> None:
                     for alt_move in t_alt_best_moves:
                         l_max = l_max + 1
                         if l_max <= 3:
-                            game_tutor = self.state.game.copy()
+                            game_tutor = game_snapshot.copy()
                             san_move = game_tutor.san(alt_move)
                             game_tutor.push(alt_move)  # for picotalker (last move spoken)
 
@@ -1802,7 +1832,9 @@ async def main() -> None:
                             await asyncio.sleep(5)
                         else:
                             break
-                await self.state.start_clock()
+                # No start_clock() here – the clock was never stopped by this
+                # function, and calling it here would be a spurious extra start
+                # racing with whatever the game-flow handlers are doing.
 
         async def call_hand_coach(self, piece_type: chess.PieceType | None):
             """HAND mode: find and announce the best move for the given piece type.

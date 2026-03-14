@@ -1877,12 +1877,8 @@ async def main() -> None:
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
             }.get(piece_type, "PAWN")
             logger.info("BRAIN hint: use a %s", piece_name)
-            # Stop the clock display briefly so the hint is readable, then restart
-            await self.state.stop_clock()
             msg = Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name)
             await DisplayMsg.show(msg)
-            await asyncio.sleep(3.0)
-            await self.state.start_clock()
 
         def start_brain_hint_timer(self):
             """BRAIN mode: (re)start the 5-second auto-hint timer for the user's turn."""

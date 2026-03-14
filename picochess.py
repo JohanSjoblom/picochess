@@ -1742,12 +1742,16 @@ async def main() -> None:
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(2)
 
+                result = await self.state.picotutor.get_pos_analysis()
+                if not result:
+                    await self.state.start_clock()
+                    return
                 (
                     t_best_move,
                     t_best_score,
                     t_best_mate,
                     t_alt_best_moves,
-                ) = await self.state.picotutor.get_pos_analysis()
+                ) = result
                 logger.debug(
                     "call_pico_coach analysis result: best_move=%s best_score=%s best_mate=%s alt_moves=%d",
                     t_best_move,

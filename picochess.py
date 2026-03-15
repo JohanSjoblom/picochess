@@ -1871,16 +1871,31 @@ async def main() -> None:
             await DisplayMsg.show(msg)
 
         async def _brain_hint_after_delay(self):
-            """BRAIN mode: wait 5 seconds then reveal the required piece type to the user."""
-            await asyncio.sleep(5.0)
-            if not (
-                (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
-                or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
-            ) or (self.state.game.is_checkmate() or self.state.game.is_stalemate()):
+            """BRAIN mode: reveal the required piece type after a brief delay.
+
+            Two-phase strategy:
+              Phase 1 (1 s): try the opening book — instant result, no engine needed.
+              Phase 2 (+4 s, book only): not in book → wait another 4 s (5 s total
+                from turn start) so the tutor engine has had time to analyse, then
+                fall back to engine analysis.
+            This means book positions get a hint after ~1 s instead of the old 5 s.
+            """
+            # --- Phase 1: brief pause then try opening book ---
+            await asyncio.sleep(1.0)
+
+            def _user_turn_and_alive():
+                return (
+                    (
+                        (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
+                        or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
+                    )
+                    and not self.state.game.is_checkmate()
+                    and not self.state.game.is_stalemate()
+                )
+
+            if not _user_turn_and_alive() or not self.picotutor_mode():
                 return
-            if not self.picotutor_mode():
-                return
-            # Prefer opening book move; only fall back to engine analysis if not in book
+
             t_best_move = None
             if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
                 try:
@@ -1894,7 +1909,12 @@ async def main() -> None:
                     logger.debug("BRAIN hint: book move %s", t_best_move)
                 except IndexError:
                     pass  # position not in book; fall through to engine analysis
+
+            # --- Phase 2: not in book → wait for engine analysis ---
             if t_best_move is None:
+                await asyncio.sleep(4.0)  # total ~5 s from turn start
+                if not _user_turn_and_alive() or not self.picotutor_mode():
+                    return
                 result = await self.state.picotutor.get_pos_analysis()
                 if not result:
                     return
@@ -6263,7 +6283,14 @@ async def main() -> None:
 
                 if self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF and coach_request == 2:
                     # call pico coach in case it was already set to on
-                    await self.call_pico_coach()
+                    if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN:
+                        # BRAIN mode: a manual re-trigger should restart the
+                        # piece-type hint timer, NOT run the full call_pico_coach
+                        # analysis (which would show evaluations and alt-move
+                        # sequences that conflict with _brain_hint_after_delay).
+                        self.start_brain_hint_timer()
+                    else:
+                        await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
                 self.state.best_sent_depth.reset()

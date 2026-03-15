@@ -186,8 +186,14 @@ class PicoTutor:
             if self.obvious_engine is None:
                 logger.debug("obvious engine loading failed in Picotutor")
 
-    async def _load_engine(self, options: dict, debug_whoami: str) -> UciEngine:
-        """internal function to load each tutor engine"""
+    async def _load_engine(self, overrides: dict, debug_whoami: str) -> UciEngine:
+        """internal function to load each tutor engine
+
+        startup() is called with an empty options dict so it reads the engine's
+        .uci file first (picking up options such as 'Use NNUE = false').
+        The tutor-specific tweaks in *overrides* (Contempt, Threads) are then
+        applied on top via option() + send(), so the .uci settings are never lost.
+        """
         engine = UciEngine(
             self.engine_path,
             self.ucishell,
@@ -199,8 +205,14 @@ class PicoTutor:
         )
         await engine.open_engine()
         if engine.loaded_ok() is True:
-            await engine.startup(options=options)
-            engine.set_mode()  # not needed as we dont ponder?
+            # Pass empty options so startup() reads the .uci file for this engine.
+            await engine.startup(options={})
+            # Apply tutor-specific overrides on top of whatever the .uci file set.
+            for name, value in overrides.items():
+                engine.option(name, value)
+            if overrides:
+                await engine.send()
+            engine.set_mode()
         else:
             engine = None
         return engine

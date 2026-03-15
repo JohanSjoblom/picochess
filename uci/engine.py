@@ -463,8 +463,11 @@ class ContinuousAnalysis:
         recovery_reason = ""
         analysis = None
         try:
-            # Wait briefly until the engine is ready before starting analysis
-            ready = await self._wait_for_engine_ready(timeout=0.5)
+            # Wait until the engine is ready before starting analysis.
+            # 2 s gives the engine time to finish any residual TT.clear() that
+            # wasn't fully absorbed by the newgame() pre-warm (e.g. if the
+            # pre-warm ping timed out or the engine was restarted by recovery).
+            ready = await self._wait_for_engine_ready(timeout=2.0)
             if not ready:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
@@ -488,7 +491,11 @@ class ContinuousAnalysis:
             ) as analysis:
                 self._active_analysis = analysis
                 if not self._running or self.engine_lease.interrupt_requested("continuous"):
-                    if not await self._safe_stop(analysis):
+                    # Use a generous wait here: on cold boot the engine may still be
+                    # processing ucinewgame → TT.clear() when play_move() preempts us.
+                    # 5 s gives TT.clear() time to finish before we give up and declare
+                    # a recovery (which would restart the engine, making things worse).
+                    if not await self._safe_stop(analysis, wait_timeout=5.0):
                         recovery_reason = "continuous analysis stop timed out before first info"
                     return
                 interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
@@ -1820,6 +1827,30 @@ class UciEngine(object):
                             logger.warning("engine isready ping failed before ucinewgame: %s", exc)
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine
+                elif send_ucinewgame and not self.is_mame and "PGN Replay" not in self.engine_name:
+                    # Pre-warm: force ucinewgame NOW so Stockfish's TT.clear() (memset over all
+                    # hash-table pages) happens here during game setup rather than inside think().
+                    #
+                    # On a cold RPi5 boot all hash pages are unmapped (calloc via mmap gives
+                    # virtual-only pages).  The first memset faults every page in — up to ~500 ms
+                    # for a 128 MB hash.  If we let this happen during play_move() the result
+                    # queue never fills in time and the game hangs or the engine appears dead.
+                    #
+                    # By sending ucinewgame + isready here we absorb that latency before the
+                    # clock is running.  python-chess will still send a second ucinewgame when
+                    # play_move() uses game_id, but by then all pages are hot so TT.clear() is
+                    # O(cache-miss) fast (~50-100 ms) and the game proceeds normally.
+                    #
+                    # Safety: the analyser is stopped before newgame() is called (via
+                    # stop_search_and_clock() → stop_analysis()), so there is no concurrent
+                    # engine user that could race with our isready/readyok exchange.
+                    try:
+                        logger.debug("%s pre-warm: sending ucinewgame + isready in newgame()", self.whoami)
+                        self.engine.send_line("ucinewgame")
+                        await asyncio.wait_for(self.engine.ping(), timeout=30.0)
+                        logger.debug("%s engine ready after pre-warm ping in newgame()", self.whoami)
+                    except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
+                        logger.warning("%s pre-warm ping in newgame() failed: %s", self.whoami, exc)
         else:
             logger.error("newgame requested but no engine loaded")
 

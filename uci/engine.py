@@ -439,6 +439,12 @@ class ContinuousAnalysis:
                 # have to stop analysing
                 self._task = None
                 self._running = False
+            except chess.engine.EngineError as e:
+                # e.g. engine rejects a multipv or other option value it doesn't support.
+                # Log and stop cleanly rather than leaving the task with an unhandled exception.
+                logger.error("%s engine option/config error in analysis (stopping): %s", self.whoami, e)
+                self._task = None
+                self._running = False
             except (AssertionError, asyncio.InvalidStateError) as e:
                 recovered = await self._handle_protocol_state_failure(e)
                 if recovered and self._running:
@@ -462,9 +468,23 @@ class ContinuousAnalysis:
             if not ready:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
+            # Clamp multipv to what the engine actually advertises as its maximum.
+            # Engines like Arasan report MultiPV max=10; requesting 30 raises EngineError.
+            effective_multipv = multipv
+            if effective_multipv is not None and self.engine:
+                opt = self.engine.options.get("MultiPV")
+                if opt is not None:
+                    max_mpv = getattr(opt, "max", None)
+                    if max_mpv is not None and effective_multipv > max_mpv:
+                        logger.warning(
+                            "%s clamping multipv %d to engine max %d",
+                            self.whoami, effective_multipv, max_mpv,
+                        )
+                        effective_multipv = max_mpv
+
             self._analysis_started_ts = self.loop.time() if self.loop else None
             with await self.engine.analysis(
-                board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
+                board=self.current_game, limit=limit, multipv=effective_multipv, game=self.game_id
             ) as analysis:
                 self._active_analysis = analysis
                 if not self._running or self.engine_lease.interrupt_requested("continuous"):

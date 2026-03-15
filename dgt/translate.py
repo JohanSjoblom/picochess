@@ -1024,266 +1024,446 @@ class DgtTranslate(object):
                 estxt = entxt
             elif "BRAIN_PAWN" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a Pawn",
-                    large_text="Play Pawn  ",
-                    medium_text="Pl pawn ",
+                    web_text="Play a pawn move",
+                    large_text="Pawn       ",
+                    medium_text="Pawn    ",
                     small_text="pawn  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele Bauer",
-                    large_text="Spiel Bauer",
-                    medium_text="Sp Bauer",
+                    web_text="Spiele Bauernzug",
+                    large_text="Bauer      ",
+                    medium_text="Bauer   ",
                     small_text="bauer ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een pionzet",
+                    large_text="Pion       ",
+                    medium_text="Pion    ",
+                    small_text="pion  ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un pion",
+                    large_text="Pion       ",
+                    medium_text="Pion    ",
+                    small_text="pion  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un pedone",
+                    large_text="Pedone     ",
+                    medium_text="Pedone  ",
+                    small_text="pedone",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: juega un Peón",
-                    large_text="Juega Peon ",
-                    medium_text="Jg.Peon ",
+                    web_text="Juega un peón",
+                    large_text="Peon       ",
+                    medium_text="Peon    ",
                     small_text="peon  ",
                 )
             elif "BRAIN_KNIGHT" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a Knight",
-                    large_text="Play Knight",
-                    medium_text="Pl.Knght",
+                    web_text="Play a knight move",
+                    large_text="Knight     ",
+                    medium_text="Knight  ",
                     small_text="knight",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele Springer",
-                    large_text="Spiel Sprng",
-                    medium_text="Sp.Sprng",
+                    web_text="Spiele Springerzug",
+                    large_text="Springer   ",
+                    medium_text="Springer",
                     small_text="sprng ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een paardzet",
+                    large_text="Paard      ",
+                    medium_text="Paard   ",
+                    small_text="paard ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un cavalier",
+                    large_text="Cavalier   ",
+                    medium_text="Cavalier",
+                    small_text="caval ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un cavallo",
+                    large_text="Cavallo    ",
+                    medium_text="Cavallo ",
+                    small_text="cavall",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: juega un Caballo",
-                    large_text="Juega Cabal",
-                    medium_text="Jg.Cabl ",
+                    web_text="Juega un caballo",
+                    large_text="Caballo    ",
+                    medium_text="Caballo ",
                     small_text="caball",
                 )
             elif "BRAIN_BISHOP" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a Bishop",
-                    large_text="Play Bishop",
-                    medium_text="Pl.Bshp ",
+                    web_text="Play a bishop move",
+                    large_text="Bishop     ",
+                    medium_text="Bishop  ",
                     small_text="bishop",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele Läufer",
-                    large_text="Spiel Lauf ",
-                    medium_text="Sp.Lauf ",
+                    web_text="Spiele Läuferzug",
+                    large_text="Laufer     ",
+                    medium_text="Laufer  ",
                     small_text="laufer",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een loperzet",
+                    large_text="Loper      ",
+                    medium_text="Loper   ",
+                    small_text="loper ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un fou",
+                    large_text="Fou        ",
+                    medium_text="Fou     ",
+                    small_text="fou   ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un alfiere",
+                    large_text="Alfiere    ",
+                    medium_text="Alfiere ",
+                    small_text="alfier",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: juega un Alfil",
-                    large_text="Juega Alfil",
-                    medium_text="Jg.Alfl ",
+                    web_text="Juega un alfil",
+                    large_text="Alfil      ",
+                    medium_text="Alfil   ",
                     small_text="alfil ",
                 )
             elif "BRAIN_ROOK" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a Rook",
-                    large_text="Play Rook  ",
-                    medium_text="Pl. Rook",
+                    web_text="Play a rook move",
+                    large_text="Rook       ",
+                    medium_text="Rook    ",
                     small_text="rook  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele Turm",
-                    large_text="Spiel Turm ",
-                    medium_text="Sp. Turm",
+                    web_text="Spiele Turmzug",
+                    large_text="Turm       ",
+                    medium_text="Turm    ",
                     small_text="turm  ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een torenzet",
+                    large_text="Toren      ",
+                    medium_text="Toren   ",
+                    small_text="toren ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez une tour",
+                    large_text="Tour       ",
+                    medium_text="Tour    ",
+                    small_text="tour  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi una torre",
+                    large_text="Torre      ",
+                    medium_text="Torre   ",
+                    small_text="torre ",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: juega una Torre",
-                    large_text="Juega Torre",
-                    medium_text="Jg.Torre",
+                    web_text="Juega una torre",
+                    large_text="Torre      ",
+                    medium_text="Torre   ",
                     small_text="torre ",
                 )
             elif "BRAIN_QUEEN" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a Queen",
-                    large_text="Play Queen ",
-                    medium_text="Pl.Queen",
+                    web_text="Play a queen move",
+                    large_text="Queen      ",
+                    medium_text="Queen   ",
                     small_text="queen ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele Dame",
-                    large_text="Spiel Dame ",
-                    medium_text="Sp.Dame ",
+                    web_text="Spiele Damenzug",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
                     small_text="dame  ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een damezet",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
+                    small_text="dame  ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez la dame",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
+                    small_text="dame  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi la regina",
+                    large_text="Regina     ",
+                    medium_text="Regina  ",
+                    small_text="regina",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: juega la Dama",
-                    large_text="Juega Dama ",
-                    medium_text="Jg.Dama ",
+                    web_text="Juega la dama",
+                    large_text="Dama       ",
+                    medium_text="Dama    ",
                     small_text="dama  ",
                 )
             elif "BRAIN_KING" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: play a King move",
-                    large_text="Play King  ",
-                    medium_text="Pl. King",
+                    web_text="Play a king move",
+                    large_text="King       ",
+                    medium_text="King    ",
                     small_text="king  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: spiele König",
-                    large_text="Spiel Konig",
-                    medium_text="Sp.Konig",
-                    small_text="konig ",
+                    web_text="Spiele Königszug",
+                    large_text="Koenig     ",
+                    medium_text="Koenig  ",
+                    small_text="koenig",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een koningszet",
+                    large_text="Koning     ",
+                    medium_text="Koning  ",
+                    small_text="koning",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez le roi",
+                    large_text="Roi        ",
+                    medium_text="Roi     ",
+                    small_text="roi   ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi il re",
+                    large_text="Re         ",
+                    medium_text="Re      ",
+                    small_text="re    ",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Brain: mueve el Rey",
-                    large_text="Mueve Rey  ",
-                    medium_text="Mv. Rey ",
+                    web_text="Juega el rey",
+                    large_text="Rey        ",
+                    medium_text="Rey     ",
                     small_text="rey   ",
                 )
             elif "HAND_PAWN" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Pawn move",
-                    large_text="Pawn move  ",
-                    medium_text="Pawn mv ",
+                    web_text="Play a pawn move",
+                    large_text="Pawn       ",
+                    medium_text="Pawn    ",
                     small_text="pawn  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Bauern-Zug",
-                    large_text="Bauern-Zug ",
-                    medium_text="BaurZug ",
+                    web_text="Spiele Bauernzug",
+                    large_text="Bauer      ",
+                    medium_text="Bauer   ",
                     small_text="bauer ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een pionzet",
+                    large_text="Pion       ",
+                    medium_text="Pion    ",
+                    small_text="pion  ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un pion",
+                    large_text="Pion       ",
+                    medium_text="Pion    ",
+                    small_text="pion  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un pedone",
+                    large_text="Pedone     ",
+                    medium_text="Pedone  ",
+                    small_text="pedone",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada de Peón",
-                    large_text="Peon move  ",
-                    medium_text="Peon mv ",
+                    web_text="Juega un peón",
+                    large_text="Peon       ",
+                    medium_text="Peon    ",
                     small_text="peon  ",
                 )
             elif "HAND_KNIGHT" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Knight move",
-                    large_text="Knight move",
-                    medium_text="Kght mv ",
+                    web_text="Play a knight move",
+                    large_text="Knight     ",
+                    medium_text="Knight  ",
                     small_text="knight",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Springer-Zug",
-                    large_text="Springer Zg",
-                    medium_text="SprngZug",
+                    web_text="Spiele Springerzug",
+                    large_text="Springer   ",
+                    medium_text="Springer",
                     small_text="sprng ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een paardzet",
+                    large_text="Paard      ",
+                    medium_text="Paard   ",
+                    small_text="paard ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un cavalier",
+                    large_text="Cavalier   ",
+                    medium_text="Cavalier",
+                    small_text="caval ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un cavallo",
+                    large_text="Cavallo    ",
+                    medium_text="Cavallo ",
+                    small_text="cavall",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada de Caballo",
-                    large_text="Caball move",
-                    medium_text="Cabl mv ",
+                    web_text="Juega un caballo",
+                    large_text="Caballo    ",
+                    medium_text="Caballo ",
                     small_text="caball",
                 )
             elif "HAND_BISHOP" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Bishop move",
-                    large_text="Bishop move",
-                    medium_text="Bshp mv ",
+                    web_text="Play a bishop move",
+                    large_text="Bishop     ",
+                    medium_text="Bishop  ",
                     small_text="bishop",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Läufer-Zug",
-                    large_text="Laufer-Zug ",
-                    medium_text="LaufZug ",
+                    web_text="Spiele Läuferzug",
+                    large_text="Laufer     ",
+                    medium_text="Laufer  ",
                     small_text="laufer",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een loperzet",
+                    large_text="Loper      ",
+                    medium_text="Loper   ",
+                    small_text="loper ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez un fou",
+                    large_text="Fou        ",
+                    medium_text="Fou     ",
+                    small_text="fou   ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi un alfiere",
+                    large_text="Alfiere    ",
+                    medium_text="Alfiere ",
+                    small_text="alfier",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada de Alfil",
-                    large_text="Alfil move ",
-                    medium_text="Alfl mv ",
+                    web_text="Juega un alfil",
+                    large_text="Alfil      ",
+                    medium_text="Alfil   ",
                     small_text="alfil ",
                 )
             elif "HAND_ROOK" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Rook move",
-                    large_text="Rook move  ",
-                    medium_text="Rook mv ",
+                    web_text="Play a rook move",
+                    large_text="Rook       ",
+                    medium_text="Rook    ",
                     small_text="rook  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Turm-Zug",
-                    large_text="Turm-Zug   ",
-                    medium_text="TurmZug ",
+                    web_text="Spiele Turmzug",
+                    large_text="Turm       ",
+                    medium_text="Turm    ",
                     small_text="turm  ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een torenzet",
+                    large_text="Toren      ",
+                    medium_text="Toren   ",
+                    small_text="toren ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez une tour",
+                    large_text="Tour       ",
+                    medium_text="Tour    ",
+                    small_text="tour  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi una torre",
+                    large_text="Torre      ",
+                    medium_text="Torre   ",
+                    small_text="torre ",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada de Torre",
-                    large_text="Torre move ",
-                    medium_text="Torr mv ",
+                    web_text="Juega una torre",
+                    large_text="Torre      ",
+                    medium_text="Torre   ",
                     small_text="torre ",
                 )
             elif "HAND_QUEEN" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Queen move",
-                    large_text="Queen move ",
-                    medium_text="Quen mv ",
+                    web_text="Play a queen move",
+                    large_text="Queen      ",
+                    medium_text="Queen   ",
                     small_text="queen ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: Dame-Zug",
-                    large_text="Dame-Zug   ",
-                    medium_text="DameZug ",
+                    web_text="Spiele Damenzug",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
                     small_text="dame  ",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een damezet",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
+                    small_text="dame  ",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez la dame",
+                    large_text="Dame       ",
+                    medium_text="Dame    ",
+                    small_text="dame  ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi la regina",
+                    large_text="Regina     ",
+                    medium_text="Regina  ",
+                    small_text="regina",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada de Dama",
-                    large_text="Dama move  ",
-                    medium_text="Dama mv ",
+                    web_text="Juega la dama",
+                    large_text="Dama       ",
+                    medium_text="Dama    ",
                     small_text="dama  ",
                 )
             elif "HAND_KING" in msg:
                 entxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: King move",
-                    large_text="King move  ",
-                    medium_text="King mv ",
+                    web_text="Play a king move",
+                    large_text="King       ",
+                    medium_text="King    ",
                     small_text="king  ",
                 )
                 detxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: König-Zug",
-                    large_text="Konig-Zug  ",
-                    medium_text="KonigZug",
-                    small_text="konig ",
+                    web_text="Spiele Königszug",
+                    large_text="Koenig     ",
+                    medium_text="Koenig  ",
+                    small_text="koenig",
                 )
-                nltxt = entxt
-                ittxt = entxt
-                frtxt = entxt
+                nltxt = Dgt.DISPLAY_TEXT(
+                    web_text="Speel een koningszet",
+                    large_text="Koning     ",
+                    medium_text="Koning  ",
+                    small_text="koning",
+                )
+                frtxt = Dgt.DISPLAY_TEXT(
+                    web_text="Jouez le roi",
+                    large_text="Roi        ",
+                    medium_text="Roi     ",
+                    small_text="roi   ",
+                )
+                ittxt = Dgt.DISPLAY_TEXT(
+                    web_text="Muovi il re",
+                    large_text="Re         ",
+                    medium_text="Re      ",
+                    small_text="re    ",
+                )
                 estxt = Dgt.DISPLAY_TEXT(
-                    web_text="Hand: jugada del Rey",
-                    large_text="Rey move   ",
-                    medium_text="Rey mv  ",
+                    web_text="Juega el rey",
+                    large_text="Rey        ",
+                    medium_text="Rey     ",
                     small_text="rey   ",
                 )
             elif "HAND_NOPIECE" in msg:

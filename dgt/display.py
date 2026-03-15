@@ -49,6 +49,7 @@ class DgtDisplay(DisplayMsg):
         self.time_control = time_control
         self.last_pos_start = True
         self._setpieces_restore_pending = False
+        self._start_position_restore_pending = False
 
         self.drawresign_fen = None
         self.have_seen_a_fen: bool = False  # issue #76 - avoid reboot/restart/exit looping
@@ -702,6 +703,13 @@ class DgtDisplay(DisplayMsg):
                     if self._setpieces_restore_pending:
                         logger.debug("bypassing start-position new-game map after set pieces restore")
                         self._setpieces_restore_pending = False
+                        self._start_position_restore_pending = False
+                        await Observable.fire(Event.FEN(fen=fen))
+                        self.have_seen_a_fen = True
+                        return
+                    if self._start_position_restore_pending:
+                        logger.debug("bypassing start-position new-game map after quick restore")
+                        self._start_position_restore_pending = False
                         await Observable.fire(Event.FEN(fen=fen))
                         self.have_seen_a_fen = True
                         return
@@ -720,6 +728,7 @@ class DgtDisplay(DisplayMsg):
                                     logger.error("Command failed with error: %s", stderr.decode())
                     else:
                         self.last_pos_start = True
+                    self._start_position_restore_pending = False
                     logger.debug("map: New game")
                     await Observable.fire(Event.NEW_GAME(pos960=pos960))
                 else:
@@ -727,6 +736,7 @@ class DgtDisplay(DisplayMsg):
                     await DispatchDgt.fire(self.dgttranslate.text("Y10_error960"))
             else:
                 self._setpieces_restore_pending = False
+                self._start_position_restore_pending = self.last_pos_start
                 await Observable.fire(Event.FEN(fen=fen))
         self.have_seen_a_fen = True  # remember that we have seen a fen for issue #76
 
@@ -769,6 +779,7 @@ class DgtDisplay(DisplayMsg):
         self.c_last_player = ""
         await self.force_leds_off()
         self._reset_moves_and_score()
+        self._start_position_restore_pending = False
         # Always reset variant context for the new game.
         # If variant is not attached to the message, treat it as normal chess.
         msg_variant = getattr(message, "variant", "chess")
@@ -868,6 +879,7 @@ class DgtDisplay(DisplayMsg):
     async def _process_computer_move(self, message):
         if not message.is_user_move:
             self.last_pos_start = False  # issue 54, see below
+            self._start_position_restore_pending = False
             await self.force_leds_off(log=True)  # can happen in case of a book move
         move = message.move
         ponder = message.ponder
@@ -958,6 +970,7 @@ class DgtDisplay(DisplayMsg):
 
     async def _process_user_move_done(self, message):
         self.last_pos_start = False
+        self._start_position_restore_pending = False
         await self.force_leds_off(log=True)  # can happen in case of a sliding move
 
         if self.c_last_player == "C" or self.c_last_player == "":

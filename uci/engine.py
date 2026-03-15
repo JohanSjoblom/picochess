@@ -1887,16 +1887,32 @@ class UciEngine(object):
 
         logger.debug("Loaded engine [%s]", self.get_name())
         logger.debug("Supported options [%s]", self.get_options())
-        # Pre-warm: send isready now so the first analysis/play call in think() does not stall
-        # on a cold readyok response (especially on first cold RPi5 boot with 3 SF processes).
-        # This is safe here because _analysis_allowed=False throughout startup(), which means
-        # start_analysis() cannot have started the analyser task — no race on self.engine.
+        # Pre-warm: do a shallow dummy search so Stockfish/Arasan faults in all hash-table
+        # memory pages NOW during startup, not during the first real game.
+        #
+        # Background: calloc() on Linux uses mmap(MAP_ANONYMOUS) which gives zero-initialised
+        # *virtual* pages that are never physically faulted in.  The first ucinewgame calls
+        # TT.clear() / memset() over the entire hash, triggering all page faults at once.
+        # On a cold RPi5 with 3 engine processes starting simultaneously this takes 20-60 s,
+        # causing the first move to time out. A bare ping() only triggers TT.resize()
+        # (calloc) — it does NOT write to the pages, so it does not fix the problem.
+        #
+        # play(depth=1) sends:  ucinewgame → isready → position startpos → go depth 1
+        # This forces TT.clear() + a real 1-ply search → all hash pages land in RAM.
+        # game=0 is a safe sentinel: the real game will use game_id≥2, so python-chess
+        # will send ucinewgame again for the actual game (correctly clearing stale data).
+        #
+        # Safe here: _analysis_allowed=False means the analyser task has not been started,
+        # so self.engine is exclusively ours — no protocol race possible.
         if self.engine and not self.is_mame and "PGN Replay" not in self.engine_name:
             try:
-                await asyncio.wait_for(self.engine.ping(), timeout=30.0)
-                logger.debug("%s startup pre-warm ping OK", self.whoami)
+                await asyncio.wait_for(
+                    self.engine.play(chess.Board(), Limit(depth=1), game=0),
+                    timeout=30.0,
+                )
+                logger.debug("%s startup warm-up search OK", self.whoami)
             except Exception as e:
-                logger.warning("%s startup pre-warm ping failed: %s", self.whoami, e)
+                logger.warning("%s startup warm-up search failed: %s", self.whoami, e)
         return True
 
     @staticmethod

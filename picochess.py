@@ -1633,17 +1633,22 @@ async def main() -> None:
                         variant_board=variant_board,
                     )
                     try:
-                        engine_res: PlayResult = await asyncio.wait_for(result_queue.get(), timeout=20.0)
+                        # 120 s safety-net: the warm-up search in startup() should prevent
+                        # cold-boot hangs, but keep a generous fallback so a genuinely stuck
+                        # engine is eventually recovered without crashing the process.
+                        # force_move() is intentionally kept: it only fires after 120 s, by
+                        # which point the engine is truly unresponsive, not just cold-starting.
+                        engine_res: PlayResult = await asyncio.wait_for(result_queue.get(), timeout=120.0)
                     except asyncio.TimeoutError:
                         logger.error(
-                            "think() timed out waiting 20s for engine move "
+                            "think() timed out waiting 120s for engine move "
                             "(thinking=%s waiting=%s) — forcing move",
                             self.engine.is_thinking(),
                             self.engine.is_waiting(),
                         )
                         self.engine.force_move()
                         try:
-                            engine_res = await asyncio.wait_for(result_queue.get(), timeout=5.0)
+                            engine_res = await asyncio.wait_for(result_queue.get(), timeout=10.0)
                         except asyncio.TimeoutError:
                             logger.error("think() force_move timeout — no result from engine")
                             engine_res = None

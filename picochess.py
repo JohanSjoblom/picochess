@@ -274,6 +274,8 @@ class PicochessState:
         self.picotutor: PicoTutor | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
+        self.setpieces_switch_anchor_fen = ""
+        self.setpieces_switch_armed = False
         self.reset_auto = False
         self.searchmoves = AlternativeMover()
         self.seeking_flag = False
@@ -1799,6 +1801,22 @@ async def main() -> None:
                             break
                 await self.state.start_clock()
 
+        def reset_setpieces_window_switch(self):
+            self.state.setpieces_switch_anchor_fen = ""
+            self.state.setpieces_switch_armed = False
+
+        def switch_artwork_window(self):
+            if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
+                cmd = get_window_command("switch_window")
+                if cmd:
+                    subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        shell=True,
+                    )
+
         def calc_engine_mame_par(self):
             engine_rwindow = None
             if is_wayland_session():
@@ -2235,6 +2253,7 @@ async def main() -> None:
             if fen == self.state.get_board_fen():
                 logger.debug("Already in this fen: %s", fen)
                 self.state.flag_startup = False
+                self.reset_setpieces_window_switch()
                 # molli: Chess tutor
                 if (
                     self.picotutor_mode()
@@ -2262,15 +2281,7 @@ async def main() -> None:
                     await DisplayMsg.show(Message.EXIT_MENU())
                 elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                     # switch windows/tasks
-                    cmd = get_window_command("switch_window")
-                    if cmd:
-                        subprocess.run(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            universal_newlines=True,
-                            shell=True,
-                        )
+                    self.switch_artwork_window()
             # Check if we have to undo a previous move (sliding)
             elif fen in self.state.last_legal_fens:
                 logger.info("sliding move detected")
@@ -2719,6 +2730,7 @@ async def main() -> None:
                 self.state.flag_startup = False
                 self.state.error_fen = None
                 self.state.fen_error_occured = False
+                self.reset_setpieces_window_switch()
                 if self.state.position_mode and self.state.delay_fen_error == 1:
                     tutor_str = "POSOK"
                     msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
@@ -2734,6 +2746,7 @@ async def main() -> None:
                 ):
                     pos960 = 518
                     self.state.error_fen = None
+                    self.reset_setpieces_window_switch()
                     if self.state.position_mode and self.state.delay_fen_error == 1:
                         tutor_str = "POSOK"
                         msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
@@ -2743,6 +2756,8 @@ async def main() -> None:
                     self.state.position_mode = False
                     await Observable.fire(Event.NEW_GAME(pos960=pos960))
                 else:
+                    if self.state.setpieces_switch_anchor_fen and fen != self.state.setpieces_switch_anchor_fen:
+                        self.state.setpieces_switch_armed = True
                     self.state.error_fen = fen
                     self.start_fen_timer()
 
@@ -3593,6 +3608,14 @@ async def main() -> None:
                     external_fen = self.state.error_fen
                     fen_res = compare_fen(external_fen, internal_fen)
 
+                    if self.state.setpieces_switch_anchor_fen:
+                        if external_fen == self.state.setpieces_switch_anchor_fen:
+                            if self.state.setpieces_switch_armed:
+                                self.state.setpieces_switch_armed = False
+                                self.switch_artwork_window()
+                        else:
+                            self.state.setpieces_switch_armed = True
+
                     if (not self.state.position_mode) and fen_res:
                         if fen_res[4] == "K" or fen_res[4] == "k":
                             self.state.coach_triggered = True
@@ -3604,6 +3627,9 @@ async def main() -> None:
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
+                            if not self.state.setpieces_switch_anchor_fen:
+                                self.state.setpieces_switch_anchor_fen = external_fen
+                                self.state.setpieces_switch_armed = False
                             await DisplayMsg.show(Message.WRONG_FEN())
                             await asyncio.sleep(2)
                         self.state.delay_fen_error = 4
@@ -4671,6 +4697,7 @@ async def main() -> None:
                 logger.debug("setting up custom fen: %s", event.fen)
                 uci960 = event.uci960
                 self.state.position_mode = False
+                self.reset_setpieces_window_switch()
 
                 if self.state.game.move_stack:
                     if not (self.state.game.is_game_over() or self.state.game_declared):
@@ -4754,6 +4781,7 @@ async def main() -> None:
                 
                 ModeInfo.set_game_ending(result="*")  # initialize game result for game saving status
                 self.state.position_mode = False
+                self.reset_setpieces_window_switch()
                 self.state.fen_error_occured = False
                 self.state.error_fen = None
                 self.state.newgame_happened = True

@@ -1266,8 +1266,8 @@ class DgtDisplay(DisplayMsg):
                     text.wait = True
                 elif self._brain_hint_text and self.loop.time() < self._brain_hint_until:
                     # BRAIN mode: a piece-type hint was just shown; suppress the
-                    # clock roll-over for the remainder of the 5-second window so
-                    # the user can actually read it before the clock reappears.
+                    # clock roll-over for the remainder of the tutor-brain-hint-duration
+                    # window so the user can actually read it before the clock reappears.
                     text = self._brain_hint_text
                     text.wait = True
                 else:

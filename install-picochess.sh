@@ -114,8 +114,11 @@ if apt-cache show ydotool >/dev/null 2>&1; then
     else
         echo "Warning: failed to install package 'ydotool'; continuing without it." >&2
     fi
+elif command -v ydotool >/dev/null 2>&1 && command -v ydotoold >/dev/null 2>&1; then
+    YDOTOOL_INSTALLED=true
+    echo "Info: using existing ydotool installation from PATH."
 else
-    echo "Warning: package 'ydotool' not available in apt; skipping."
+    echo "Warning: package 'ydotool' not available in apt and no existing ydotool installation found; skipping."
 fi
 if [ "$YDOTOOL_INSTALLED" = true ]; then
     echo "Configuring ydotool for install user '$INSTALL_USER'..."

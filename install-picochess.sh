@@ -91,6 +91,8 @@ fi
 #
 echo " ------------------------- "
 echo "installing needed libraries"
+YDOTOOL_INSTALLED=false
+YDOTOOL_RELOGIN_REQUIRED=false
 apt -y install git sox unzip wget libtcl8.6 telnet libglib2.0-dev i2c-tools
 apt -y install avahi-daemon avahi-discover libnss-mdns
 apt -y install vorbis-tools
@@ -107,9 +109,43 @@ apt -y install unclutter
 # for mame_emulation we need xdotool (X11) and ydotool (Wayland-compatible key injection)
 apt -y install xdotool
 if apt-cache show ydotool >/dev/null 2>&1; then
-    apt -y install ydotool
+    if apt -y install ydotool; then
+        YDOTOOL_INSTALLED=true
+    else
+        echo "Warning: failed to install package 'ydotool'; continuing without it." >&2
+    fi
 else
     echo "Warning: package 'ydotool' not available in apt; skipping."
+fi
+if [ "$YDOTOOL_INSTALLED" = true ]; then
+    echo "Configuring ydotool for install user '$INSTALL_USER'..."
+    if getent group input >/dev/null 2>&1; then
+        case " $(id -nG "$INSTALL_USER" 2>/dev/null) " in
+            *" input "*) ;;
+            *)
+                usermod -aG input "$INSTALL_USER"
+                YDOTOOL_RELOGIN_REQUIRED=true
+                ;;
+        esac
+    else
+        echo "Warning: group 'input' not found; ydotool may not be able to access /dev/uinput." >&2
+    fi
+
+    YDOTOOL_SERVICE_FILE=""
+    if [ -f /usr/lib/systemd/user/ydotool.service ]; then
+        YDOTOOL_SERVICE_FILE=/usr/lib/systemd/user/ydotool.service
+    elif [ -f /lib/systemd/user/ydotool.service ]; then
+        YDOTOOL_SERVICE_FILE=/lib/systemd/user/ydotool.service
+    fi
+
+    if [ -n "$YDOTOOL_SERVICE_FILE" ]; then
+        sudo -u "$INSTALL_USER" mkdir -p "$INSTALL_USER_HOME/.config/systemd/user/default.target.wants"
+        sudo -u "$INSTALL_USER" ln -sf \
+            "$YDOTOOL_SERVICE_FILE" \
+            "$INSTALL_USER_HOME/.config/systemd/user/default.target.wants/ydotool.service"
+    else
+        echo "Warning: ydotool.service not found; installed ydotool without enabling its user service." >&2
+    fi
 fi
 # following lines are for running leela-chess-zero
 apt -y install libopenblas-dev
@@ -547,6 +583,9 @@ echo "Fixing ownership for backup folders - in case user has run install-engines
 chown -R "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE" 2>/dev/null || true
 
 echo "Picochess installation complete. Please reboot"
+if [ "$YDOTOOL_INSTALLED" = true ] && [ "$YDOTOOL_RELOGIN_REQUIRED" = true ]; then
+    echo "ydotool note: reboot or log out/in so user '$INSTALL_USER' picks up the new input-group membership."
+fi
 echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"
 echo "After reboot open a browser to localhost"
 echo "If you have a DGT board you need to change the board type"

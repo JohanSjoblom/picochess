@@ -27,6 +27,15 @@ class TestUtilities(unittest.TestCase):
             get_window_command("switch_window"),
         )
 
+    @patch("utilities._choose_wayland_backend", return_value="ydotool")
+    @patch("utilities.is_wayland_session", return_value=True)
+    @patch.dict("utilities.os.environ", {"YDOTOOL_SOCKET": "/home/pi/.ydotool_socket"}, clear=False)
+    def test_get_window_command_wayland_ydotool_with_socket(self, _, __):
+        self.assertEqual(
+            "YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:1 15:1 15:0 56:0",
+            get_window_command("switch_window"),
+        )
+
     @patch("utilities._choose_wayland_backend", return_value=None)
     @patch("utilities.is_wayland_session", return_value=True)
     def test_get_window_command_wayland_no_backend(self, _, __):

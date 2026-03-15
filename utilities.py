@@ -18,6 +18,7 @@
 import logging
 import os
 import platform
+import shlex
 import shutil
 import urllib.request
 import socket
@@ -470,14 +471,23 @@ _WAYLAND_SWAY_COMMANDS = {
 }
 
 
-# evdev keycodes used by ydotool key injection.
-_YDOTOOL_ALT_TAB = "ydotool key 56:1 15:1 15:0 56:0"
-_YDOTOOL_ALT_F11 = "ydotool key 56:1 87:1 87:0 56:0"
-_WAYLAND_YDOTOOL_COMMANDS = {
-    "toggle_fullscreen": _YDOTOOL_ALT_F11,
-    "switch_window": _YDOTOOL_ALT_TAB,
-    "switch_window_toggle_fullscreen": f"{_YDOTOOL_ALT_TAB}; sleep 0.2; {_YDOTOOL_ALT_F11}",
-}
+def _get_ydotool_prefix() -> str:
+    ydotool_socket = os.environ.get("YDOTOOL_SOCKET", "").strip()
+    if ydotool_socket:
+        return f"YDOTOOL_SOCKET={shlex.quote(ydotool_socket)} ydotool"
+    return "ydotool"
+
+
+def _get_wayland_ydotool_commands() -> dict[str, str]:
+    # evdev keycodes used by ydotool key injection.
+    ydotool_prefix = _get_ydotool_prefix()
+    ydotool_alt_tab = f"{ydotool_prefix} key 56:1 15:1 15:0 56:0"
+    ydotool_alt_f11 = f"{ydotool_prefix} key 56:1 87:1 87:0 56:0"
+    return {
+        "toggle_fullscreen": ydotool_alt_f11,
+        "switch_window": ydotool_alt_tab,
+        "switch_window_toggle_fullscreen": f"{ydotool_alt_tab}; sleep 0.2; {ydotool_alt_f11}",
+    }
 
 
 def _choose_wayland_backend() -> Optional[str]:
@@ -520,7 +530,7 @@ def _get_wayland_window_command(action: str) -> Optional[str]:
     if backend == "swaymsg":
         cmd = _WAYLAND_SWAY_COMMANDS.get(action)
     elif backend == "ydotool":
-        cmd = _WAYLAND_YDOTOOL_COMMANDS.get(action)
+        cmd = _get_wayland_ydotool_commands().get(action)
     else:
         logger.warning(
             "Wayland window backend unavailable for action '%s' (looked for swaymsg/ydotool)", action

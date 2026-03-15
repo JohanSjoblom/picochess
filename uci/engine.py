@@ -1789,11 +1789,12 @@ class UciEngine(object):
                     self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
                     self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop
-                # Pre-warm: send ucinewgame + isready now so the first engine.analysis() call
+                # Pre-warm: send isready now so the first engine.analysis() call
                 # in think() does not stall on a cold readyok response (especially on first boot).
-                # This is safe for standard engines; mame/PGN Replay handled separately below.
+                # We only ping (isready/readyok) — we do NOT send ucinewgame here because
+                # python-chess will send it automatically (via game_id) on the first analysis()
+                # call; a manual send_line("ucinewgame") here would corrupt protocol state.
                 if not self.is_mame and "PGN Replay" not in self.engine_name and self.engine:
-                    self.engine.send_line("ucinewgame")
                     try:
                         await asyncio.wait_for(self.engine.ping(), timeout=30.0)
                         logger.debug("%s engine pre-warm ping OK", self.whoami)

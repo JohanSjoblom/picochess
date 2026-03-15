@@ -1632,7 +1632,21 @@ async def main() -> None:
                         expected_turn=self.state.game.turn,
                         variant_board=variant_board,
                     )
-                    engine_res: PlayResult = await result_queue.get()  # on engine error its None
+                    try:
+                        engine_res: PlayResult = await asyncio.wait_for(result_queue.get(), timeout=20.0)
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "think() timed out waiting 20s for engine move "
+                            "(thinking=%s waiting=%s) — forcing move",
+                            self.engine.is_thinking(),
+                            self.engine.is_waiting(),
+                        )
+                        self.engine.force_move()
+                        try:
+                            engine_res = await asyncio.wait_for(result_queue.get(), timeout=5.0)
+                        except asyncio.TimeoutError:
+                            logger.error("think() force_move timeout — no result from engine")
+                            engine_res = None
                     if engine_res:
                         logger.debug("engine moved %s", engine_res.move.uci)
                         if self.state.ignore_next_engine_move:
@@ -5144,15 +5158,14 @@ async def main() -> None:
                         await self.switch_online()
                     if self.picotutor_mode():
                         await self.state.picotutor.newgame()
-                        if not self.state.flag_startup:
-                            if self.state.play_mode == PlayMode.USER_BLACK:
-                                await self.state.picotutor.set_user_color(
-                                    chess.BLACK, self.pgn_mode() or not self.eng_plays()
-                                )
-                            else:
-                                await self.state.picotutor.set_user_color(
-                                    chess.WHITE, self.pgn_mode() or not self.eng_plays()
-                                )
+                        if self.state.play_mode == PlayMode.USER_BLACK:
+                            await self.state.picotutor.set_user_color(
+                                chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                            )
+                        else:
+                            await self.state.picotutor.set_user_color(
+                                chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                            )
                 else:
                     if self.online_mode():
                         logger.debug("starting a new game with code: %s", event.pos960)
@@ -5246,15 +5259,14 @@ async def main() -> None:
 
                 if self.picotutor_mode():
                     await self.state.picotutor.newgame()
-                    if not self.state.flag_startup:
-                        if self.state.play_mode == PlayMode.USER_BLACK:
-                            await self.state.picotutor.set_user_color(
-                                chess.BLACK, self.pgn_mode() or not self.eng_plays()
-                            )
-                        else:
-                            await self.state.picotutor.set_user_color(
-                                chess.WHITE, self.pgn_mode() or not self.eng_plays()
-                            )
+                    if self.state.play_mode == PlayMode.USER_BLACK:
+                        await self.state.picotutor.set_user_color(
+                            chess.BLACK, self.pgn_mode() or not self.eng_plays()
+                        )
+                    else:
+                        await self.state.picotutor.set_user_color(
+                            chess.WHITE, self.pgn_mode() or not self.eng_plays()
+                        )
 
                 if self.state.interaction_mode != Mode.REMOTE and not self.online_mode():
                     if self.state.dgtmenu.get_enginename():

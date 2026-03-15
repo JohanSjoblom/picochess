@@ -1633,7 +1633,7 @@ class UciEngine(object):
 
         async with self.engine_lock:
             if self.playing.is_waiting_for_move():
-                logger.debug("%s go() skipped - engine already thinking", self.whoami)
+                logger.warning("%s go() skipped - engine already thinking", self.whoami)
                 return
             if expected_turn is not None and game.turn != expected_turn:
                 logger.warning(
@@ -1789,12 +1789,16 @@ class UciEngine(object):
                     self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
                     self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop
-                # @todo we could wait for ping() isready here - but it could break pgn_engine logic
-                # do not self.engine.send_line("ucinewgame"), see read_pgn_file in picochess.py
-                # it will confuse the engine when switching between playing/non-playing modes
-                # but: issue #72 at least mame engines need ucinewgame to be sent
-                # we force it here and to avoid breaking read_pgn_file I added a default parameter
-                # due to errors with readyok response crash issue #78 restrict to mame
+                # Pre-warm: send ucinewgame + isready now so the first engine.analysis() call
+                # in think() does not stall on a cold readyok response (especially on first boot).
+                # This is safe for standard engines; mame/PGN Replay handled separately below.
+                if not self.is_mame and "PGN Replay" not in self.engine_name and self.engine:
+                    self.engine.send_line("ucinewgame")
+                    try:
+                        await asyncio.wait_for(self.engine.ping(), timeout=30.0)
+                        logger.debug("%s engine pre-warm ping OK", self.whoami)
+                    except Exception as e:
+                        logger.warning("%s engine pre-warm ping failed: %s", self.whoami, e)
                 if (self.is_mame or "PGN Replay" in self.engine_name) and send_ucinewgame:
                     # most calls except read_pgn_file newgame, and load new engine
                     if "PGN Replay" in self.engine_name:

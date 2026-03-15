@@ -464,9 +464,9 @@ class ContinuousAnalysis:
         analysis = None
         try:
             # Wait until the engine is ready before starting analysis.
-            # 2 s gives the engine time to finish any residual TT.clear() that
-            # wasn't fully absorbed by the newgame() pre-warm (e.g. if the
-            # pre-warm ping timed out or the engine was restarted by recovery).
+            # 2 s gives the engine time to finish ucinewgame/TT.clear() triggered
+            # by the game_id change (python-chess sends ucinewgame automatically
+            # when game_id changes on the first analysis() or play() call).
             ready = await self._wait_for_engine_ready(timeout=2.0)
             if not ready:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
@@ -491,10 +491,9 @@ class ContinuousAnalysis:
             ) as analysis:
                 self._active_analysis = analysis
                 if not self._running or self.engine_lease.interrupt_requested("continuous"):
-                    # Use a generous wait here: on cold boot the engine may still be
-                    # processing ucinewgame → TT.clear() when play_move() preempts us.
-                    # 5 s gives TT.clear() time to finish before we give up and declare
-                    # a recovery (which would restart the engine, making things worse).
+                    # Use a generous wait here: the engine may still be processing
+                    # ucinewgame when play_move() preempts us immediately after analysis
+                    # starts.  5 s prevents a premature recovery/restart.
                     if not await self._safe_stop(analysis, wait_timeout=5.0):
                         recovery_reason = "continuous analysis stop timed out before first info"
                     return
@@ -1827,30 +1826,6 @@ class UciEngine(object):
                             logger.warning("engine isready ping failed before ucinewgame: %s", exc)
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine
-                elif send_ucinewgame and not self.is_mame and "PGN Replay" not in self.engine_name:
-                    # Pre-warm: force ucinewgame NOW so Stockfish's TT.clear() (memset over all
-                    # hash-table pages) happens here during game setup rather than inside think().
-                    #
-                    # On a cold RPi5 boot all hash pages are unmapped (calloc via mmap gives
-                    # virtual-only pages).  The first memset faults every page in — up to ~500 ms
-                    # for a 128 MB hash.  If we let this happen during play_move() the result
-                    # queue never fills in time and the game hangs or the engine appears dead.
-                    #
-                    # By sending ucinewgame + isready here we absorb that latency before the
-                    # clock is running.  python-chess will still send a second ucinewgame when
-                    # play_move() uses game_id, but by then all pages are hot so TT.clear() is
-                    # O(cache-miss) fast (~50-100 ms) and the game proceeds normally.
-                    #
-                    # Safety: the analyser is stopped before newgame() is called (via
-                    # stop_search_and_clock() → stop_analysis()), so there is no concurrent
-                    # engine user that could race with our isready/readyok exchange.
-                    try:
-                        logger.debug("%s pre-warm: sending ucinewgame + isready in newgame()", self.whoami)
-                        self.engine.send_line("ucinewgame")
-                        await asyncio.wait_for(self.engine.ping(), timeout=30.0)
-                        logger.debug("%s engine ready after pre-warm ping in newgame()", self.whoami)
-                    except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
-                        logger.warning("%s pre-warm ping in newgame() failed: %s", self.whoami, exc)
         else:
             logger.error("newgame requested but no engine loaded")
 
@@ -1886,6 +1861,14 @@ class UciEngine(object):
 
         self.options = options.copy()
 
+        # Normalise boolean string values to lowercase so engines that are
+        # case-sensitive (e.g. Stockfish 16 with "Use NNUE") receive the UCI-
+        # compliant form ("true"/"false") regardless of how the .uci file was
+        # written ("True", "False", "TRUE", "FALSE", …).
+        for key, value in self.options.items():
+            if isinstance(value, str) and value.lower() in ("true", "false"):
+                self.options[key] = value.lower()
+
         # Extract PicoChess-specific Variant option (not sent to engine via configure())
         # This allows .uci files to specify a chess variant like "3check"
         if "Variant" in self.options:
@@ -1918,32 +1901,6 @@ class UciEngine(object):
 
         logger.debug("Loaded engine [%s]", self.get_name())
         logger.debug("Supported options [%s]", self.get_options())
-        # Pre-warm: do a shallow dummy search so Stockfish/Arasan faults in all hash-table
-        # memory pages NOW during startup, not during the first real game.
-        #
-        # Background: calloc() on Linux uses mmap(MAP_ANONYMOUS) which gives zero-initialised
-        # *virtual* pages that are never physically faulted in.  The first ucinewgame calls
-        # TT.clear() / memset() over the entire hash, triggering all page faults at once.
-        # On a cold RPi5 with 3 engine processes starting simultaneously this takes 20-60 s,
-        # causing the first move to time out. A bare ping() only triggers TT.resize()
-        # (calloc) — it does NOT write to the pages, so it does not fix the problem.
-        #
-        # play(depth=1) sends:  ucinewgame → isready → position startpos → go depth 1
-        # This forces TT.clear() + a real 1-ply search → all hash pages land in RAM.
-        # game=0 is a safe sentinel: the real game will use game_id≥2, so python-chess
-        # will send ucinewgame again for the actual game (correctly clearing stale data).
-        #
-        # Safe here: _analysis_allowed=False means the analyser task has not been started,
-        # so self.engine is exclusively ours — no protocol race possible.
-        if self.engine and not self.is_mame and "PGN Replay" not in self.engine_name:
-            try:
-                await asyncio.wait_for(
-                    self.engine.play(chess.Board(), Limit(depth=1), game=0),
-                    timeout=30.0,
-                )
-                logger.debug("%s startup warm-up search OK", self.whoami)
-            except Exception as e:
-                logger.warning("%s startup warm-up search failed: %s", self.whoami, e)
         return True
 
     @staticmethod

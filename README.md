@@ -118,6 +118,7 @@ Additional scripts you might find useful:
 - `Fix_bluetooth.sh`, BLE reset and compatibility setup for Raspberry Pi OS Trixie (run with sudo).
 - `check-bluetooth.sh`, collect Bluetooth diagnostics into `bluetooth.txt` for troubleshooting (run with sudo).
 - `install-kiosk.sh`, enable autologin and kiosk autostart (run with sudo).
+- `install-ydotool.sh`, optional helper for Wayland users; installs and configures `ydotool`, including Trixie backports when needed (run with sudo).
 - `check-config.sh`, validate `picochess.ini` for common mistakes.
 - `pair-phone`, interactive phone pairing tool with clock prompts (run with sudo).
 - `bt-pan-connect`, Bluetooth PAN helper (run with sudo).

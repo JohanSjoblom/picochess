@@ -119,6 +119,8 @@ elif command -v ydotool >/dev/null 2>&1 && command -v ydotoold >/dev/null 2>&1; 
     echo "Info: using existing ydotool installation from PATH."
 else
     echo "Warning: package 'ydotool' not available in apt and no existing ydotool installation found; skipping."
+    echo "Info: Wayland runtime window switching may require ydotool."
+    echo "Info: If needed, run ./install-ydotool.sh"
 fi
 if [ "$YDOTOOL_INSTALLED" = true ]; then
     echo "Configuring ydotool for install user '$INSTALL_USER'..."

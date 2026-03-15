@@ -1139,6 +1139,51 @@ class PicoTalkerDisplay(DisplayMsg):
             elif "ANALYSIS" in message.eval_str:
                 await self.talk(["picotutor_notify.ogg"])
                 await self.talk(["picotutor_analysis.ogg"])
+            elif "BRAIN_WRONG" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["error.ogg"])
+            elif "BRAIN_NOPIECE" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["wrong_move.ogg"])
+            elif "BRAIN_PAWN" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["pawn.ogg"])
+            elif "BRAIN_KNIGHT" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["knight.ogg"])
+            elif "BRAIN_BISHOP" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["bishop.ogg"])
+            elif "BRAIN_ROOK" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["rook.ogg"])
+            elif "BRAIN_QUEEN" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["queen.ogg"])
+            elif "BRAIN_KING" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["king.ogg"])
+            elif "HAND_NOPIECE" in message.eval_str:
+                await self.talk(["picotutor_notify.ogg"])
+                await self.talk(["wrong_move.ogg"])
+            elif "HAND_PAWN" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["pawn.ogg"])
+            elif "HAND_KNIGHT" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["knight.ogg"])
+            elif "HAND_BISHOP" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["bishop.ogg"])
+            elif "HAND_ROOK" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["rook.ogg"])
+            elif "HAND_QUEEN" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["queen.ogg"])
+            elif "HAND_KING" in message.eval_str:
+                await self.talk(["picotutor_hintmove.ogg"])
+                await self.talk(["king.ogg"])
             elif "HINT" in message.eval_str:
                 await self.talk(["picotutor_hintmove.ogg"])
                 await self.talk(self.say_tutor_move(message.game))

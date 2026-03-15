@@ -439,6 +439,12 @@ class ContinuousAnalysis:
                 # have to stop analysing
                 self._task = None
                 self._running = False
+            except chess.engine.EngineError as e:
+                # e.g. engine rejects a multipv or other option value it doesn't support.
+                # Log and stop cleanly rather than leaving the task with an unhandled exception.
+                logger.error("%s engine option/config error in analysis (stopping): %s", self.whoami, e)
+                self._task = None
+                self._running = False
             except (AssertionError, asyncio.InvalidStateError) as e:
                 recovered = await self._handle_protocol_state_failure(e)
                 if recovered and self._running:
@@ -457,18 +463,38 @@ class ContinuousAnalysis:
         recovery_reason = ""
         analysis = None
         try:
-            # Wait briefly until the engine is ready before starting analysis
-            ready = await self._wait_for_engine_ready(timeout=0.5)
+            # Wait until the engine is ready before starting analysis.
+            # 2 s gives the engine time to finish ucinewgame/TT.clear() triggered
+            # by the game_id change (python-chess sends ucinewgame automatically
+            # when game_id changes on the first analysis() or play() call).
+            ready = await self._wait_for_engine_ready(timeout=2.0)
             if not ready:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
+            # Clamp multipv to what the engine actually advertises as its maximum.
+            # Engines like Arasan report MultiPV max=10; requesting 30 raises EngineError.
+            effective_multipv = multipv
+            if effective_multipv is not None and self.engine:
+                opt = self.engine.options.get("MultiPV")
+                if opt is not None:
+                    max_mpv = getattr(opt, "max", None)
+                    if max_mpv is not None and effective_multipv > max_mpv:
+                        logger.warning(
+                            "%s clamping multipv %d to engine max %d",
+                            self.whoami, effective_multipv, max_mpv,
+                        )
+                        effective_multipv = max_mpv
+
             self._analysis_started_ts = self.loop.time() if self.loop else None
             with await self.engine.analysis(
-                board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
+                board=self.current_game, limit=limit, multipv=effective_multipv, game=self.game_id
             ) as analysis:
                 self._active_analysis = analysis
                 if not self._running or self.engine_lease.interrupt_requested("continuous"):
-                    if not await self._safe_stop(analysis):
+                    # Use a generous wait here: the engine may still be processing
+                    # ucinewgame when play_move() preempts us immediately after analysis
+                    # starts.  5 s prevents a premature recovery/restart.
+                    if not await self._safe_stop(analysis, wait_timeout=5.0):
                         recovery_reason = "continuous analysis stop timed out before first info"
                     return
                 interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
@@ -1633,7 +1659,7 @@ class UciEngine(object):
 
         async with self.engine_lock:
             if self.playing.is_waiting_for_move():
-                logger.debug("%s go() skipped - engine already thinking", self.whoami)
+                logger.warning("%s go() skipped - engine already thinking", self.whoami)
                 return
             if expected_turn is not None and game.turn != expected_turn:
                 logger.warning(
@@ -1789,12 +1815,6 @@ class UciEngine(object):
                     self.playing.set_game_id(self.game_id)  # chess lib signals ucinewgame in next call to engine
                     self.playing.cancel()  # cancel any ongoing playing sister
                 await asyncio.sleep(0.3)  # wait for analyser to stop
-                # @todo we could wait for ping() isready here - but it could break pgn_engine logic
-                # do not self.engine.send_line("ucinewgame"), see read_pgn_file in picochess.py
-                # it will confuse the engine when switching between playing/non-playing modes
-                # but: issue #72 at least mame engines need ucinewgame to be sent
-                # we force it here and to avoid breaking read_pgn_file I added a default parameter
-                # due to errors with readyok response crash issue #78 restrict to mame
                 if (self.is_mame or "PGN Replay" in self.engine_name) and send_ucinewgame:
                     # most calls except read_pgn_file newgame, and load new engine
                     if "PGN Replay" in self.engine_name:
@@ -1840,6 +1860,14 @@ class UciEngine(object):
         self.level_support = bool(options)
 
         self.options = options.copy()
+
+        # Normalise boolean string values to lowercase so engines that are
+        # case-sensitive (e.g. Stockfish 16 with "Use NNUE") receive the UCI-
+        # compliant form ("true"/"false") regardless of how the .uci file was
+        # written ("True", "False", "TRUE", "FALSE", …).
+        for key, value in self.options.items():
+            if isinstance(value, str) and value.lower() in ("true", "false"):
+                self.options[key] = value.lower()
 
         # Extract PicoChess-specific Variant option (not sent to engine via configure())
         # This allows .uci files to specify a chess variant like "3check"

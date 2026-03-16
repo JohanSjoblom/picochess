@@ -286,6 +286,7 @@ class PicochessState:
         self.rating: Rating = None
         self.coach_triggered = False
         self.coach_triggered_piece_type: chess.PieceType | None = None  # HAND mode: piece type of lifted piece
+        self.last_hand_coach_move: chess.Move | None = None  # HAND mode: tutor's suggested move, shown after user plays
         self.brain_hint_task: asyncio.Task | None = None  # BRAIN mode: pending auto-hint task
         self.brain_required_piece_type: chess.PieceType | None = None  # BRAIN mode: enforced piece type
         self.last_error_fen = ""
@@ -1877,10 +1878,13 @@ async def main() -> None:
             if best_move is None:
                 piece_name = piece_name_map.get(piece_type, "PAWN")
                 logger.info("HAND coach: no move found for piece type %s", piece_name)
+                self.state.last_hand_coach_move = None
                 await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
                 return
             piece_name = piece_name_map.get(piece_type, "PAWN")
             logger.info("HAND coach: best move for %s is %s", piece_name, best_move)
+            # Store for TutorMove display after the user plays (shown from moment t to t+m)
+            self.state.last_hand_coach_move = best_move
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_" + piece_name))
             await asyncio.sleep(2)
             game_tutor = self.state.game.copy()
@@ -3164,6 +3168,16 @@ async def main() -> None:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                     )
+                    # HAND mode: capture the hint now so it can be queued after USER_MOVE_DONE.
+                    # (moment t → t+m: shown from user's move until engine announces its response)
+                    _hand_hint = None
+                    if (
+                        self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                        and self.picotutor_mode()
+                        and self.state.last_hand_coach_move is not None
+                    ):
+                        _hand_hint = self.state.last_hand_coach_move
+                        self.state.last_hand_coach_move = None  # consume immediately
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3225,6 +3239,10 @@ async def main() -> None:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 
                     self.state.last_move = move
+                    # HAND mode: queue HAND_COACH_HINT after USER_MOVE_DONE so the web client
+                    # receives them in order: Fen update → TutorMove green circles.
+                    if _hand_hint is not None:
+                        await DisplayMsg.show(Message.HAND_COACH_HINT(move=_hand_hint))
                 elif self.state.interaction_mode == Mode.REMOTE:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
@@ -3870,9 +3888,10 @@ async def main() -> None:
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False
-                        if external_fen != chess.STARTING_BOARD_FEN and not (
+                        if not is_hand_mode and external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
+                            # HAND mode: skip WRONG_FEN + delay so the tutor can respond instantly
                             await DisplayMsg.show(Message.WRONG_FEN())
                             await asyncio.sleep(2)
                         self.state.delay_fen_error = 4

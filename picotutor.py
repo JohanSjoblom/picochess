@@ -1353,20 +1353,66 @@ class PicoTutor:
         return best_move, score, mate, self.alt_best_moves[turn]
 
     async def get_best_move_for_piece_type(self, piece_type: chess.PieceType):
-        """Return the best engine move for the given piece type, scanning best + alt moves.
+        """Return the best engine move for the given piece type.
 
         Used by COACH_HAND: the user lifted a piece of `piece_type`; find the best
         available move for *any* piece of that type (not the specific lifted piece).
-        Returns a chess.Move, or None if no such move is available.
+
+        Three-layer strategy:
+          Layer 1+2: scan Arasan's MultiPV results (best_move + alt_best_moves).
+                     Fast and engine-quality — covers the vast majority of cases.
+          Layer 3:   heuristic fallback when no MultiPV move involves the piece type
+                     (e.g. all top-10 candidates are pawn moves but user asks for a
+                     knight).  Scores every legal move of that type by MVV-LVA,
+                     check bonus and centre bonus — no extra engine call needed.
+
+        Returns a chess.Move, or None if the piece type has no legal moves at all.
         """
+        # --- Layers 1 & 2: engine MultiPV results ---
         result = await self.get_pos_analysis()
-        if not result:
-            return None
-        best_move, _score, _mate, alt_best_moves = result
-        for move in [best_move] + list(alt_best_moves):
-            if move != chess.Move.null():
-                pt = self.board.piece_type_at(move.from_square)
-                if pt == piece_type:
-                    return move
-        return None
+        if result:
+            best_move, _score, _mate, alt_best_moves = result
+            for move in [best_move] + list(alt_best_moves):
+                if move != chess.Move.null():
+                    pt = self.board.piece_type_at(move.from_square)
+                    if pt == piece_type:
+                        return move
+
+        # --- Layer 3: heuristic fallback ---
+        # Collect all legal moves for the requested piece type.
+        candidates = [
+            m for m in self.board.legal_moves
+            if self.board.piece_type_at(m.from_square) == piece_type
+        ]
+        if not candidates:
+            return None  # no legal move exists for this piece type
+
+        _piece_values = {
+            chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3,
+            chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0,
+        }
+        _centre = {chess.D4, chess.D5, chess.E4, chess.E5}
+
+        def _score_move(m: chess.Move) -> int:
+            score = 0
+            if self.board.is_capture(m):
+                victim = self.board.piece_type_at(m.to_square)
+                # MVV-LVA: maximise captured value, penalise using a heavy piece
+                score += 10 * _piece_values.get(victim, 0) - _piece_values.get(piece_type, 0)
+            # Check bonus
+            tmp = self.board.copy()
+            tmp.push(m)
+            if tmp.is_check():
+                score += 5
+            # Centre bonus
+            if m.to_square in _centre:
+                score += 2
+            return score
+
+        candidates.sort(key=_score_move, reverse=True)
+        logger.info(
+            "HAND coach layer-3 fallback for piece type %s: returning %s",
+            piece_type, candidates[0],
+        )
+        return candidates[0]
 

@@ -295,6 +295,7 @@ function removeArrow() {
 }
 
 var _brainHintActive = false;
+var _tutorMoveActive = false;
 
 function showBrainHint(squares) {
     var shapes = (squares || []).map(function(sq) {
@@ -302,13 +303,31 @@ function showBrainHint(squares) {
     });
     chessground1.setShapes(shapes);
     _brainHintActive = shapes.length > 0;
+    _tutorMoveActive = false;  // brain hint replaces any tutor-move circles
 }
 
 function clearBrainHint() {
+    // Don't clear shapes when the tutor-move hint is showing — it must persist
+    // until the engine announces its response (moment t+m, cleared by addArrow).
+    if (_tutorMoveActive) { return; }
     if (_brainHintActive) {
         chessground1.setShapes([]);
         _brainHintActive = false;
     }
+}
+
+// HAND mode: show the tutor's recommended move as two green circles (from + to).
+// Replaces any existing brain-hint circles.  Cleared automatically when the engine
+// announces its move via the 'Light' event (addArrow calls setShapes([...]) ).
+function showTutorMove(ucimove) {
+    var sq = ucimove.match(/.{2}/g);
+    if (!sq || sq.length < 2) { return; }
+    chessground1.setShapes([
+        { orig: sq[0], brush: 'green' },
+        { orig: sq[1], brush: 'green' },
+    ]);
+    _tutorMoveActive = true;
+    _brainHintActive = false;
 }
 
 function addArrow(ucimove, play) {
@@ -2484,6 +2503,7 @@ $(function () {
                     }
                     break;
                 case 'Game':
+                    _tutorMoveActive = false;
                     clearBrainHint();
                     newBoard(data.fen);
                     updateTutorMistakes(data.mistakes);
@@ -2528,8 +2548,15 @@ $(function () {
                     }
                     // Always show highlight and arrow for computer moves,
                     // even when chess.js can't validate the move (atomic variant).
+                    // addArrow calls setShapes([...]) which implicitly clears any TutorMove circles.
+                    _tutorMoveActive = false;
                     highlightBoard(data.move, 'computer');
                     addArrow(data.move, 'computer');
+                    break;
+                case 'TutorMove':
+                    // HAND mode: show tutor's recommended move as green circles (from + to)
+                    // after the user plays, until the engine announces its response.
+                    showTutorMove(data.move);
                     break;
                 case 'Clear':
                     break;

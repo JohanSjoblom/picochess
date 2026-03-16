@@ -311,7 +311,8 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.PICOWATCHER(picowatcher=active))
             if active:
                 coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
-                if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT,
+                                      PicoCoach.COACH_BRAIN, PicoCoach.COACH_HAND):
                     coach_pref = PicoCoach.COACH_ON
                 await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
             else:
@@ -1614,19 +1615,35 @@ class WebDisplay(DisplayMsg):
             coach_value = message.picocoach
             coach_is_off = coach_value == 0 or coach_value == PicoCoach.COACH_OFF or coach_value is False
             coach_is_lift = coach_value == 2 or coach_value == PicoCoach.COACH_LIFT
+            coach_is_brain = coach_value == PicoCoach.COACH_BRAIN
+            coach_is_hand = coach_value == PicoCoach.COACH_HAND
             coach_is_on = coach_value == 1 or coach_value == PicoCoach.COACH_ON or (
                 coach_value and not coach_is_lift and not coach_is_off
+                and not coach_is_brain and not coach_is_hand
             )
-            self.shared["tutor_watch_coach"] = bool(coach_is_on or coach_is_lift)
+            self.shared["tutor_watch_coach"] = bool(coach_is_on or coach_is_lift or coach_is_brain or coach_is_hand)
+            self.shared["tutor_coach_mode"] = (
+                "brain" if coach_is_brain else "hand" if coach_is_hand else
+                "lift" if coach_is_lift else "on" if coach_is_on else "off"
+            )
             if coach_is_lift:
                 self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_LIFT
             elif coach_is_on:
                 self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_ON
+            elif coach_is_brain:
+                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_BRAIN
+            elif coach_is_hand:
+                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_HAND
+            if coach_is_off:
+                # Clear any pending brain hint when coach turns off
+                if self.shared.pop("brain_hint", None) is not None:
+                    EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
             self.shared["tutor_watch_active"] = bool(
                 self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
             )
             EventHandler.write_to_clients(
-                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"]}
+                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"],
+                 "coach_mode": self.shared.get("tutor_coach_mode", "off")}
             )
 
         elif isinstance(message, Message.WEB_ANALYSIS):
@@ -1690,6 +1707,8 @@ class WebDisplay(DisplayMsg):
             WebDisplay.result_sav = ""
             result = self.shared["last_dgt_move_msg"]
             EventHandler.write_to_clients(result)
+            if self.shared.pop("brain_hint", None) is not None:
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.DGT_FEN):
             # Update dgt_fen for board scan functionality
@@ -1705,6 +1724,14 @@ class WebDisplay(DisplayMsg):
             _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
+            if self.shared.pop("brain_hint", None) is not None:
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
+
+        elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
+            # BRAIN/HAND: reveal the tutor's full move (from+to) as green circles on the web display.
+            # Shown from user's move until the engine announces its response ('Light' clears them).
+            # The physical Revelation board LEDs are handled separately in dgt/display.py.
+            EventHandler.write_to_clients({"event": "TutorMove", "move": message.move.uci()})
 
         elif isinstance(message, Message.REVIEW_MOVE_DONE):
             pgn_str = _transfer(message.game, self.shared["headers"])  # dont remake headers every move
@@ -1749,6 +1776,33 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.PROMOTION_DIALOG):
             result = {"event": "PromotionDlg", "move": message.move}
             EventHandler.write_to_clients(result)
+
+        elif isinstance(message, Message.PICOTUTOR_MSG):
+            eval_str = message.eval_str
+            _brain_piece_map = {
+                "BRAIN_PAWN": chess.PAWN, "BRAIN_KNIGHT": chess.KNIGHT,
+                "BRAIN_BISHOP": chess.BISHOP, "BRAIN_ROOK": chess.ROOK,
+                "BRAIN_QUEEN": chess.QUEEN, "BRAIN_KING": chess.KING,
+            }
+            piece_type_val = next((v for k, v in _brain_piece_map.items() if k in eval_str), None)
+            if piece_type_val is not None:
+                # Compute squares from the last known FEN — avoids any client-side board access
+                squares = []
+                last_msg = self.shared.get("last_dgt_move_msg") or {}
+                fen_str = last_msg.get("fen", "")
+                if fen_str:
+                    try:
+                        board = chess.Board(fen_str)
+                        color_flag = chess.WHITE if board.turn == chess.WHITE else chess.BLACK
+                        squares = [chess.square_name(sq)
+                                   for sq in board.pieces(piece_type_val, color_flag)]
+                    except Exception:
+                        pass
+                self.shared["brain_hint"] = {"squares": squares}
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": squares})
+            elif any(x in eval_str for x in ("BRAIN_WRONG", "BRAIN_NOPIECE", "HAND_")):
+                if self.shared.pop("brain_hint", None) is not None:
+                    EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.GAME_ENDS):
             if message.result == GameResult.DRAW:

@@ -652,7 +652,11 @@ class DgtBoard(EBoard):
     def _watchdog(self):
         """callback by repeated timer"""
         logger.debug("running watchdog")
-        if self.clock_lock and not self.is_pi:
+        # Skip clock resend entirely when we already know no serial clock is present
+        # (enable_ser_clock=False).  Retrying into the void holds the synchronous
+        # write_command() in the asyncio event loop on every watchdog tick, which
+        # starves the engine coroutine exactly when it needs to process UCI responses.
+        if self.clock_lock and not self.is_pi and self.enable_ser_clock is not False:
             age = time.time() - self.clock_lock
             if age > 2:
                 if self.clock_resend_attempts < 3:

@@ -287,8 +287,10 @@ class PicochessState:
         self.coach_triggered = False
         self.coach_triggered_piece_type: chess.PieceType | None = None  # HAND mode: piece type of lifted piece
         self.last_hand_coach_move: chess.Move | None = None  # HAND mode: tutor's suggested move, shown after user plays
+        self.hand_coach_task: asyncio.Task | None = None  # HAND mode: running call_hand_coach() background task
         self.brain_hint_task: asyncio.Task | None = None  # BRAIN mode: pending auto-hint task
         self.brain_required_piece_type: chess.PieceType | None = None  # BRAIN mode: enforced piece type
+        self.brain_best_move: chess.Move | None = None  # BRAIN mode: tutor's move, revealed after user plays
         self.last_error_fen = ""
         self.artwork_in_use = False
         self.delay_fen_error = 4
@@ -1948,6 +1950,7 @@ async def main() -> None:
             if piece_type is None:
                 return
             self.state.brain_required_piece_type = piece_type
+            self.state.brain_best_move = t_best_move  # stored for post-move reveal
             piece_name = {
                 chess.PAWN: "PAWN", chess.KNIGHT: "KNIGHT", chess.BISHOP: "BISHOP",
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
@@ -1975,6 +1978,7 @@ async def main() -> None:
             if self.state.brain_hint_task and not self.state.brain_hint_task.done():
                 self.state.brain_hint_task.cancel()
             self.state.brain_hint_task = None
+            self.state.brain_best_move = None  # revealed move is only valid for current position
 
         async def _handle_same_square_input(self, from_square: chess.Square):
             """Handle a same-square 'move' (e.g. e2e2) as a piece-type gesture.
@@ -1993,7 +1997,14 @@ async def main() -> None:
                         "HAND mode: same-square input on %s → piece type %s",
                         chess.square_name(from_square), piece_type,
                     )
-                    asyncio.ensure_future(self.call_hand_coach(piece_type))
+                    # Explicit same-square re-request: cancel any running task and restart
+                    # so the user hears the announcement again.
+                    if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                        self.state.hand_coach_task.cancel()
+                    self.state.last_hand_coach_move = None
+                    self.state.hand_coach_task = asyncio.ensure_future(
+                        self.call_hand_coach(piece_type)
+                    )
                 else:
                     logger.info(
                         "HAND mode: same-square input on empty square %s — ignored",
@@ -2457,7 +2468,11 @@ async def main() -> None:
                     and not self.state.automatic_takeback
                 ):
                     if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
-                        await self.call_hand_coach(self.state.coach_triggered_piece_type)
+                        # call_hand_coach() was already started as a background task on piece
+                        # lift.  Skip here to avoid a double announcement; only re-trigger if
+                        # for some reason no task was started (e.g. king-lift path).
+                        if not (self.state.hand_coach_task and not self.state.hand_coach_task.done()):
+                            await self.call_hand_coach(self.state.coach_triggered_piece_type)
                         self.state.coach_triggered_piece_type = None
                     else:
                         await self.call_pico_coach()
@@ -2994,6 +3009,10 @@ async def main() -> None:
             # Cancel BRAIN timer and clear enforcement on any valid user move
             self.cancel_brain_hint_timer()
             self.state.brain_required_piece_type = None
+            # Cancel any still-running HAND coach task (move was played; task no longer needed)
+            if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                self.state.hand_coach_task.cancel()
+            self.state.hand_coach_task = None
 
             if True:  # was else: after legality check; restructured for BRAIN enforcement above
                 if self.state.interaction_mode == Mode.BRAIN:
@@ -3168,16 +3187,24 @@ async def main() -> None:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                     )
-                    # HAND mode: capture the hint now so it can be queued after USER_MOVE_DONE.
-                    # (moment t → t+m: shown from user's move until engine announces its response)
+                    # HAND/BRAIN mode: capture the tutor's move so it can be revealed as green
+                    # circles (TUTOR_MOVE_REVEAL) after USER_MOVE_DONE, until the engine responds.
+                    # HAND:  tutor's best move for the chosen piece type (computed on piece lift)
+                    # BRAIN: tutor's full best move (revealed after user plays — they only saw piece type)
                     _hand_hint = None
-                    if (
-                        self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
-                        and self.picotutor_mode()
-                        and self.state.last_hand_coach_move is not None
-                    ):
-                        _hand_hint = self.state.last_hand_coach_move
-                        self.state.last_hand_coach_move = None  # consume immediately
+                    if self.picotutor_mode():
+                        if (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                            and self.state.last_hand_coach_move is not None
+                        ):
+                            _hand_hint = self.state.last_hand_coach_move
+                            self.state.last_hand_coach_move = None  # consume immediately
+                        elif (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                            and self.state.brain_best_move is not None
+                        ):
+                            _hand_hint = self.state.brain_best_move
+                            self.state.brain_best_move = None  # consume immediately
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3239,10 +3266,11 @@ async def main() -> None:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 
                     self.state.last_move = move
-                    # HAND mode: queue HAND_COACH_HINT after USER_MOVE_DONE so the web client
-                    # receives them in order: Fen update → TutorMove green circles.
+                    # BRAIN/HAND: queue TUTOR_MOVE_REVEAL after USER_MOVE_DONE so the web client
+                    # receives them in order: Fen update → TutorMove green circles (from+to).
+                    # Cleared automatically when the engine announces its move ('Light' event).
                     if _hand_hint is not None:
-                        await DisplayMsg.show(Message.HAND_COACH_HINT(move=_hand_hint))
+                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=_hand_hint))
                 elif self.state.interaction_mode == Mode.REMOTE:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
@@ -3885,6 +3913,16 @@ async def main() -> None:
                                     "r": chess.ROOK, "q": chess.QUEEN, "k": chess.KING,
                                 }
                                 self.state.coach_triggered_piece_type = _piece_char_map.get(lifted_piece_char)
+                                # Start call_hand_coach() immediately on lift so it runs while
+                                # the user is deciding.  This ensures last_hand_coach_move is
+                                # set even when the user plays directly without returning the piece.
+                                if self.state.coach_triggered_piece_type is not None:
+                                    if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                                        self.state.hand_coach_task.cancel()
+                                    self.state.last_hand_coach_move = None  # clear stale hint
+                                    self.state.hand_coach_task = asyncio.ensure_future(
+                                        self.call_hand_coach(self.state.coach_triggered_piece_type)
+                                    )
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False

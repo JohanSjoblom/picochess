@@ -1303,8 +1303,9 @@ class DgtDisplay(DisplayMsg):
         elif isinstance(message, Message.USER_MOVE_DONE):
             await self._process_user_move_done(message)
 
-        elif isinstance(message, Message.HAND_COACH_HINT):
-            # Light the tutor's suggested from/to squares on the physical Revelation board.
+        elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
+            # BRAIN/HAND: light the tutor's full move (from+to) on the physical Revelation board.
+            # Cleared automatically when force_leds_off() fires on the next computer move.
             # The web client handles this separately via the 'TutorMove' WebSocket event in server.py.
             await DispatchDgt.fire(Dgt.LIGHT_SQUARES(uci_move=message.move.uci(), devs={"ser"}))
             self.leds_are_on = True

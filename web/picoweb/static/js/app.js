@@ -2554,8 +2554,9 @@ $(function () {
                     addArrow(data.move, 'computer');
                     break;
                 case 'TutorMove':
-                    // HAND mode: show tutor's recommended move as green circles (from + to)
-                    // after the user plays, until the engine announces its response.
+                    // BRAIN/HAND: reveal the tutor's full move as green circles (from + to).
+                    // Shown after the user plays until the engine announces its response
+                    // ('Light' event: addArrow calls setShapes([...]) which clears these circles).
                     showTutorMove(data.move);
                     break;
                 case 'Clear':

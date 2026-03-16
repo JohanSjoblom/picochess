@@ -1727,8 +1727,9 @@ class WebDisplay(DisplayMsg):
             if self.shared.pop("brain_hint", None) is not None:
                 EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
-        elif isinstance(message, Message.HAND_COACH_HINT):
-            # HAND mode: send tutor's suggested from/to squares as green circles to the web display.
+        elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
+            # BRAIN/HAND: reveal the tutor's full move (from+to) as green circles on the web display.
+            # Shown from user's move until the engine announces its response ('Light' clears them).
             # The physical Revelation board LEDs are handled separately in dgt/display.py.
             EventHandler.write_to_clients({"event": "TutorMove", "move": message.move.uci()})
 

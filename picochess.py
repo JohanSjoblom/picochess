@@ -1973,12 +1973,18 @@ async def main() -> None:
                     self._brain_hint_after_delay()
                 )
 
-        def cancel_brain_hint_timer(self):
-            """Cancel any pending BRAIN hint task."""
+        def cancel_brain_hint_timer(self, preserve_best_move: bool = False):
+            """Cancel any pending BRAIN hint task.
+
+            preserve_best_move: when True, keep brain_best_move intact so that it can
+            still be revealed (via TUTOR_MOVE_REVEAL) after the user has played their move.
+            Pass True only from the valid-move path; all other callers use the default False.
+            """
             if self.state.brain_hint_task and not self.state.brain_hint_task.done():
                 self.state.brain_hint_task.cancel()
             self.state.brain_hint_task = None
-            self.state.brain_best_move = None  # revealed move is only valid for current position
+            if not preserve_best_move:
+                self.state.brain_best_move = None  # revealed move is only valid for current position
 
         async def _handle_same_square_input(self, from_square: chess.Square):
             """Handle a same-square 'move' (e.g. e2e2) as a piece-type gesture.
@@ -3006,8 +3012,9 @@ async def main() -> None:
                     await asyncio.sleep(2)
                     return False
 
-            # Cancel BRAIN timer and clear enforcement on any valid user move
-            self.cancel_brain_hint_timer()
+            # Cancel BRAIN timer and clear enforcement on any valid user move.
+            # preserve_best_move=True so brain_best_move survives for TUTOR_MOVE_REVEAL.
+            self.cancel_brain_hint_timer(preserve_best_move=True)
             self.state.brain_required_piece_type = None
             # Cancel any still-running HAND coach task (move was played; task no longer needed)
             if self.state.hand_coach_task and not self.state.hand_coach_task.done():

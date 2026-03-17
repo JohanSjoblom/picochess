@@ -1870,6 +1870,8 @@ async def main() -> None:
                 or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
             ) or (self.state.game.is_checkmate() or self.state.game.is_stalemate()):
                 return
+            if self.state.interaction_mode != Mode.NORMAL:
+                return
             piece_name_map = {
                 chess.PAWN: "PAWN", chess.KNIGHT: "KNIGHT", chess.BISHOP: "BISHOP",
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
@@ -1974,6 +1976,7 @@ async def main() -> None:
             if (
                 self.picotutor_mode()
                 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
                 and not self.state.game.is_checkmate()
                 and not self.state.game.is_stalemate()
             ):
@@ -3008,6 +3011,7 @@ async def main() -> None:
             # BRAIN mode: enforce piece type if a hint has been displayed
             if (
                 self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
                 and self.state.brain_required_piece_type is not None
                 and not sliding
             ):
@@ -6324,6 +6328,8 @@ async def main() -> None:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
                         write_picochess_ini("tutor-coach", "brain")
+                        # Start hint timer immediately — fires after delay if it's the user's turn
+                        self.start_brain_hint_timer()
                     elif coach_request == PicoCoach.COACH_HAND:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_HAND
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND

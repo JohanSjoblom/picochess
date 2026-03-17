@@ -1899,18 +1899,15 @@ async def main() -> None:
             await DisplayMsg.show(msg)
 
         async def _brain_hint_after_delay(self):
-            """BRAIN mode: reveal the required piece type after a brief delay.
+            """BRAIN mode: reveal the required piece type as soon as possible.
 
-            Two-phase strategy:
-              Phase 1 (1 s): try the opening book — instant result, no engine needed.
-              Phase 2 (+4 s, book only): not in book → wait another 4 s (5 s total
-                from turn start) so the tutor engine has had time to analyse, then
-                fall back to engine analysis.
-            This means book positions get a hint after ~1 s instead of the old 5 s.
+            Strategy:
+              1. Check the opening book immediately — if there is a hit, show the
+                 hint right away (no delay at all).
+              2. Not in book → poll the tutor engine in 0.1 s steps until its
+                 analysis is complete (limit reached), then use the engine result.
+                 Cap at 30 × 0.1 s = 3 s to avoid hanging indefinitely.
             """
-            # --- Phase 1: brief pause then try opening book ---
-            await asyncio.sleep(1.0)
-
             def _user_turn_and_alive():
                 return (
                     (
@@ -1924,6 +1921,7 @@ async def main() -> None:
             if not _user_turn_and_alive() or not self.picotutor_mode():
                 return
 
+            # --- Step 1: opening book (instant) ---
             t_best_move = None
             if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
                 try:
@@ -1938,11 +1936,11 @@ async def main() -> None:
                 except IndexError:
                     pass  # position not in book; fall through to engine analysis
 
-            # --- Phase 2: not in book → poll until engine analysis is ready ---
+            # --- Step 2: not in book → poll until engine analysis is ready ---
             # The tutor engines started analysing when the opponent played, so they
             # have typically been running for 2-3 s already.  Poll in 0.1 s steps
             # (max 30 steps = 3 s extra) so the hint fires as soon as the analysis
-            # is complete instead of always waiting a fixed 4 extra seconds.
+            # is complete.
             if t_best_move is None:
                 for _ in range(30):
                     await asyncio.sleep(0.1)

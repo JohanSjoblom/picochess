@@ -1938,11 +1938,18 @@ async def main() -> None:
                 except IndexError:
                     pass  # position not in book; fall through to engine analysis
 
-            # --- Phase 2: not in book → wait for engine analysis ---
+            # --- Phase 2: not in book → poll until engine analysis is ready ---
+            # The tutor engines started analysing when the opponent played, so they
+            # have typically been running for 2-3 s already.  Poll in 0.1 s steps
+            # (max 30 steps = 3 s extra) so the hint fires as soon as the analysis
+            # is complete instead of always waiting a fixed 4 extra seconds.
             if t_best_move is None:
-                await asyncio.sleep(4.0)  # total ~5 s from turn start
-                if not _user_turn_and_alive() or not self.picotutor_mode():
-                    return
+                for _ in range(30):
+                    await asyncio.sleep(0.1)
+                    if not _user_turn_and_alive() or not self.picotutor_mode():
+                        return
+                    if self.state.picotutor.best_engine.is_analysis_limit_reached():
+                        break
                 result = await self.state.picotutor.get_pos_analysis()
                 if not result:
                     return

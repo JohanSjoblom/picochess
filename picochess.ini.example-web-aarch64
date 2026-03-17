@@ -371,6 +371,16 @@ tutor-watcher = False
 #tutor-coach = lift
 tutor-coach = off
 
+## In BRAIN/Hand-Brain mode: how many seconds the piece-type hint ("Knight", "Turm", …) stays
+## on the DGT clock before the clock display reappears. Range 1–8 seconds, default is 3.
+#tutor-brain-hint-duration = 3
+tutor-brain-hint-duration = 3
+
+## In BRAIN coach mode: how many seconds the clock is paused after showing the piece-type hint.
+## During this pause the user can read the hint without losing clock time. 0 = no pause. Range 0–8 seconds, default is 2.
+#tutor-brain-hint-pause = 2
+tutor-brain-hint-pause = 2
+
 ## Engine used for PicoTutor analysis. Default is /opt/picochess/engines/aarch64/a-stockf.
 tutor-engine = /opt/picochess/engines/aarch64/a-stockf
 ## Optional: use a tutor engine on a remote machine; falls back to tutor-engine if not found

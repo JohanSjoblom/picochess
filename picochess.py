@@ -3006,10 +3006,16 @@ async def main() -> None:
                 moved_piece_type = self.state.game.piece_type_at(move.from_square)
                 if moved_piece_type != self.state.brain_required_piece_type:
                     logger.info("BRAIN mode: wrong piece type (expected %s, got %s)", self.state.brain_required_piece_type, moved_piece_type)
-                    tutor_str = "BRAIN_WRONG"
-                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str)
-                    await DisplayMsg.show(msg)
+                    await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_WRONG"))
                     await asyncio.sleep(2)
+                    # Immediately re-announce the required piece type so the user
+                    # knows what to play and the green circles reappear on the board.
+                    _required = self.state.brain_required_piece_type
+                    _piece_name = {
+                        chess.PAWN: "PAWN", chess.KNIGHT: "KNIGHT", chess.BISHOP: "BISHOP",
+                        chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
+                    }.get(_required, "PAWN")
+                    await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + _piece_name))
                     return False
 
             # Cancel BRAIN timer and clear enforcement on any valid user move.

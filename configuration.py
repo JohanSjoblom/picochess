@@ -371,6 +371,14 @@ class Configuration:
             help="BRAIN coach mode: how long the piece-type hint stays on the DGT display before the clock reappears (1-8 secs, default=3)",
         )
         self.parser.add_argument(
+            "-tbhp",
+            "--tutor-brain-hint-pause",
+            type=int,
+            default=2,
+            choices=range(0, 9),
+            help="BRAIN coach mode: seconds the clock is paused after the piece-type hint (0=no pause, default=2)",
+        )
+        self.parser.add_argument(
             "-loc",
             "--location",
             type=str,

@@ -1005,6 +1005,7 @@ async def main() -> None:
         PicoComment.from_str(args.tutor_comment),
         args.comment_factor,
         args.tutor_brain_hint_duration,
+        args.tutor_brain_hint_pause,
         args.continue_game,
         args.alt_move,
         state.dgttranslate,
@@ -1956,8 +1957,15 @@ async def main() -> None:
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
             }.get(piece_type, "PAWN")
             logger.info("BRAIN hint: use a %s", piece_name)
-            msg = Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name)
-            await DisplayMsg.show(msg)
+            hint_pause = self.state.dgtmenu.get_brain_hint_pause()
+            if hint_pause > 0:
+                await self.state.stop_clock()
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name))
+            if hint_pause > 0:
+                await asyncio.sleep(hint_pause)
+                # Only restart the clock if the user hasn't already played during the pause.
+                if _user_turn_and_alive() and self.picotutor_mode():
+                    await self.state.start_clock()
 
         def start_brain_hint_timer(self):
             """BRAIN mode: (re)start the 5-second auto-hint timer for the user's turn."""
@@ -3006,16 +3014,21 @@ async def main() -> None:
                 moved_piece_type = self.state.game.piece_type_at(move.from_square)
                 if moved_piece_type != self.state.brain_required_piece_type:
                     logger.info("BRAIN mode: wrong piece type (expected %s, got %s)", self.state.brain_required_piece_type, moved_piece_type)
+                    hint_pause = self.state.dgtmenu.get_brain_hint_pause()
+                    if hint_pause > 0:
+                        await self.state.stop_clock()
                     await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_WRONG"))
-                    await asyncio.sleep(2)
-                    # Immediately re-announce the required piece type so the user
-                    # knows what to play and the green circles reappear on the board.
+                    await asyncio.sleep(max(hint_pause, 1))  # at least 1 s so user sees the message
+                    # Re-announce the required piece type: user knows what to play,
+                    # green circles reappear on the board.
                     _required = self.state.brain_required_piece_type
                     _piece_name = {
                         chess.PAWN: "PAWN", chess.KNIGHT: "KNIGHT", chess.BISHOP: "BISHOP",
                         chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
                     }.get(_required, "PAWN")
                     await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + _piece_name))
+                    if hint_pause > 0:
+                        await self.state.start_clock()  # move was rejected; user must try again
                     return False
 
             # Cancel BRAIN timer and clear enforcement on any valid user move.

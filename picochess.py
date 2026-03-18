@@ -903,6 +903,7 @@ def compute_legal_fens(game_copy: chess.Board, variant_board=None):
     return fens
 
 
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -1004,8 +1005,8 @@ async def main() -> None:
         args.tutor_explorer,
         PicoComment.from_str(args.tutor_comment),
         args.comment_factor,
-        args.tutor_brain_hint_duration,
-        args.tutor_brain_hint_pause,
+        {"short": 2, "medium": 4, "long": 6}.get(args.tutor_brain_hint_speed, args.tutor_brain_hint_duration),
+        {"short": 1, "medium": 3, "long": 6}.get(args.tutor_brain_hint_speed, args.tutor_brain_hint_pause),
         args.continue_game,
         args.alt_move,
         state.dgttranslate,

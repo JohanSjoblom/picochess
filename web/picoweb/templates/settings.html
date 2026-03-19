@@ -113,6 +113,78 @@
             <button type="button" id="saveBtn">Save</button>
             <a href="/" class="back-link">Back to game</a>
         </div>
+
+        <hr style="margin-top: 24px;">
+        <h2>BRAIN Coach settings</h2>
+        <p class="help-row">These settings are stored in picochess.ini and take effect after the next restart.</p>
+        <table border="0" cellpadding="4" cellspacing="0" style="width:100%;">
+            <tr>
+                <td style="width:40%;"><label for="bc-coach">Coach mode</label></td>
+                <td>
+                    <select id="bc-coach">
+                        <option value="off">off — no coach</option>
+                        <option value="brain">brain — BRAIN coach (enforce correct piece type)</option>
+                        <option value="hand">hand — HAND coach (suggest best move on piece lift)</option>
+                        <option value="on">on — legacy alias for brain</option>
+                        <option value="lift">lift — legacy alias for hand</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <td><label for="bc-hint-speed">Hint display speed</label></td>
+                <td>
+                    <select id="bc-hint-speed" onchange="bcSpeedChanged()">
+                        <option value="short">short — faster games (DGT clock: 2 s, clock pause: 1 s)</option>
+                        <option value="medium">medium — standard games (DGT clock: 4 s, clock pause: 3 s)</option>
+                        <option value="long">long — leisurely / study play (DGT clock: 6 s, clock pause: 6 s)</option>
+                        <option value="manual">manual — set duration and pause individually</option>
+                    </select>
+                </td>
+            </tr>
+            <tr id="bc-manual-rows" style="display:none;">
+                <td colspan="2">
+                    <table border="0" cellpadding="4" cellspacing="0" style="width:100%; margin-top:2px;">
+                        <tr>
+                            <td style="width:40%; padding-left:1.5em;"><label for="bc-hint-duration">Hint display duration</label></td>
+                            <td>
+                                <select id="bc-hint-duration">
+                                    <option value="1">1 s</option>
+                                    <option value="2">2 s</option>
+                                    <option value="3">3 s (default)</option>
+                                    <option value="4">4 s</option>
+                                    <option value="5">5 s</option>
+                                    <option value="6">6 s</option>
+                                    <option value="7">7 s</option>
+                                    <option value="8">8 s</option>
+                                </select>
+                                <span style="font-size:0.9em; color:#555; margin-left:6px;">How long the piece-type hint stays on the DGT clock display</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding-left:1.5em;"><label for="bc-hint-pause">Clock pause after hint</label></td>
+                            <td>
+                                <select id="bc-hint-pause">
+                                    <option value="0">0 s — no pause</option>
+                                    <option value="1">1 s</option>
+                                    <option value="2">2 s (default)</option>
+                                    <option value="3">3 s</option>
+                                    <option value="4">4 s</option>
+                                    <option value="5">5 s</option>
+                                    <option value="6">6 s</option>
+                                    <option value="7">7 s</option>
+                                    <option value="8">8 s</option>
+                                </select>
+                                <span style="font-size:0.9em; color:#555; margin-left:6px;">Clock is paused while the piece-type hint is displayed</span>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top: 10px;">
+            <button type="button" id="bc-save-btn">Save BRAIN Coach settings</button>
+            <a href="/" class="back-link" style="margin-left: 8px;">Back to game</a>
+        </div>
     </div>
 
     <div id="wifi-panel" class="tab-panel">
@@ -178,10 +250,19 @@
                 return ["debug", "info", "warning", "error"];
             }
             if (normalized === "tutor-coach") {
-                return ["off", "on", "lift"];
+                return ["off", "brain", "hand", "on", "lift"];
             }
             if (normalized === "tutor-comment") {
                 return ["single", "all", "off"];
+            }
+            if (normalized === "tutor-brain-hint-speed") {
+                return ["short", "medium", "long", "manual"];
+            }
+            if (normalized === "tutor-brain-hint-pause") {
+                return ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
+            }
+            if (normalized === "tutor-brain-hint-duration") {
+                return ["1", "2", "3", "4", "5", "6", "7", "8"];
             }
             if (normalized === "board-type") {
                 return ["dgt", "certabo", "chesslink", "chessnut", "ichessone", "noeboard"];
@@ -243,6 +324,69 @@
         function updateBluetoothTab(entries) {
             document.getElementById("web-audio-backend-remote-toggle").checked =
                 getWebAudioBackendRemoteEnabled(entries);
+        }
+
+        // ---- BRAIN Coach section ----
+        function getIniValue(entries, key, fallback) {
+            var found = null;
+            (entries || []).forEach(function (entry) {
+                if (((entry.key || "").trim().toLowerCase()) === key.toLowerCase()) {
+                    found = entry;
+                }
+            });
+            if (!found || !found.enabled) { return fallback; }
+            return (found.value || fallback).trim().toLowerCase();
+        }
+
+        function bcSpeedChanged() {
+            var isManual = document.getElementById("bc-hint-speed").value === "manual";
+            document.getElementById("bc-manual-rows").style.display = isManual ? "" : "none";
+        }
+
+        function updateBrainCoachSection(entries) {
+            document.getElementById("bc-coach").value =
+                getIniValue(entries, "tutor-coach", "off");
+            var speed = getIniValue(entries, "tutor-brain-hint-speed", null);
+            var dur   = getIniValue(entries, "tutor-brain-hint-duration", "3");
+            var pause = getIniValue(entries, "tutor-brain-hint-pause", "2");
+            if (!speed || speed === "manual") {
+                // Manual mode: show individual inputs
+                document.getElementById("bc-hint-speed").value = "manual";
+                document.getElementById("bc-hint-duration").value = dur;
+                document.getElementById("bc-hint-pause").value = pause;
+            } else {
+                document.getElementById("bc-hint-speed").value = speed;
+            }
+            bcSpeedChanged();
+        }
+
+        function saveBrainCoachSettings() {
+            var speed = document.getElementById("bc-hint-speed").value;
+            var entries = [
+                { key: "tutor-coach", value: document.getElementById("bc-coach").value, enabled: true },
+            ];
+            if (speed === "manual") {
+                entries.push({ key: "tutor-brain-hint-speed",    value: "manual", enabled: true });
+                entries.push({ key: "tutor-brain-hint-duration", value: document.getElementById("bc-hint-duration").value, enabled: true });
+                entries.push({ key: "tutor-brain-hint-pause",    value: document.getElementById("bc-hint-pause").value,    enabled: true });
+            } else {
+                entries.push({ key: "tutor-brain-hint-speed", value: speed, enabled: true });
+            }
+            setStatus("Saving BRAIN Coach settings...", false);
+            fetch("/settings/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ entries: entries })
+            })
+                .then(function (response) {
+                    if (!response.ok) { throw new Error("Failed to save BRAIN Coach settings"); }
+                    return response.json();
+                })
+                .then(function () {
+                    setStatus("BRAIN Coach settings saved. Restart Picochess to apply.", false);
+                    loadSettings();
+                })
+                .catch(function (error) { setStatus(error.message, true); });
         }
 
         function saveWebAudioBackendSetting() {
@@ -423,6 +567,7 @@
                         body.appendChild(renderEntry(entry));
                     });
                     updateBluetoothTab(data.entries || []);
+                    updateBrainCoachSection(data.entries || []);
                     if (!data.entries || data.entries.length === 0) {
                         setStatus("No settings found in picochess.ini", true);
                     } else {
@@ -532,6 +677,10 @@
 
         document.getElementById("web-audio-backend-save-btn").addEventListener("click", function () {
             saveWebAudioBackendSetting();
+        });
+
+        document.getElementById("bc-save-btn").addEventListener("click", function () {
+            saveBrainCoachSettings();
         });
 
         loadSettings();

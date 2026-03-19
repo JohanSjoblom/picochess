@@ -3290,7 +3290,7 @@ async def main() -> None:
             else:
                 logger.debug("empty InfoDict")
 
-        async def analyse(self, triggered_by_timer: bool = False) -> InfoDict | None:
+        async def analyse(self, triggered_by_timer: bool = False, allow_autoplay: bool = True) -> InfoDict | None:
             """analyse, observe etc depening on mode - create analysis info
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
@@ -3380,7 +3380,7 @@ async def main() -> None:
                 await self.send_analyse(info, analysed_fen)
             # autoplay is temporarily piggybacking on this once-a-second analyse call
             # @todo give it a separate timer task when this is stable
-            if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
+            if allow_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 next_move = self._get_cached_pgn_next_move()
                 if self._pgn_next_move_in_book(next_move):
                     await asyncio.sleep(1.0)
@@ -4373,6 +4373,7 @@ async def main() -> None:
                 # if we are waiting for an engine move, get rid of that first
                 await self.get_rid_of_engine_move()
                 self.state.best_sent_depth.reset()
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "engine", "clear": True}))
                 old_file = self.state.engine_file
                 old_options = {}
                 old_options = self.engine.get_pgn_options()
@@ -4726,6 +4727,8 @@ async def main() -> None:
                 await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 # also state of main analyser might have changed
                 await self._start_or_stop_analysis_as_needed()
+                if not self.eng_plays():
+                    await self.analyse(allow_autoplay=False)
                 # end of NEW_ENGINE
 
             elif isinstance(event, Event.SETUP_POSITION):

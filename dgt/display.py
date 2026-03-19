@@ -1623,6 +1623,9 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text("C10_seeking"))
 
         elif isinstance(message, Message.ENGINE_SETUP):
+            self._reset_moves_and_score()
+            self.c_last_player = ""
+            self.c_time_counter = 0
             await DispatchDgt.fire(self.dgttranslate.text("C20_enginesetup"))
 
         elif isinstance(message, Message.MOVE_RETRY):

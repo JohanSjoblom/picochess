@@ -1158,6 +1158,15 @@ class WebDisplay(DisplayMsg):
             "fen": None,
         }
 
+    def _reset_analysis_state(self) -> None:
+        self.analysis_state = {
+            "depth": None,
+            "score": None,
+            "mate": None,
+            "pv": None,
+            "fen": None,
+        }
+
     def _create_game_info(self):
         if "game_info" not in self.shared:
             self.shared["game_info"] = {}
@@ -1638,6 +1647,8 @@ class WebDisplay(DisplayMsg):
                     self.shared.pop("analysis_state_tutor", None)
                 else:
                     self.shared.pop("analysis_state_engine", None)
+                    self.shared.pop("analysis_state", None)
+                    self._reset_analysis_state()
             else:
                 if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
                     analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")

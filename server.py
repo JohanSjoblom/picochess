@@ -1633,12 +1633,18 @@ class WebDisplay(DisplayMsg):
             analysis_payload = message.analysis or {}
             source = analysis_payload.get("source", "engine")
             self.shared["suppress_engine_analysis"] = bool(analysis_payload.get("suppress_engine_line"))
-            if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
-                analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
-            if source == "tutor":
-                self.shared["analysis_state_tutor"] = analysis_payload
+            if analysis_payload.get("clear"):
+                if source == "tutor":
+                    self.shared.pop("analysis_state_tutor", None)
+                else:
+                    self.shared.pop("analysis_state_engine", None)
             else:
-                self.shared["analysis_state_engine"] = analysis_payload
+                if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
+                    analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
+                if source == "tutor":
+                    self.shared["analysis_state_tutor"] = analysis_payload
+                else:
+                    self.shared["analysis_state_engine"] = analysis_payload
             self.shared["analysis_web_enabled"] = True
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 

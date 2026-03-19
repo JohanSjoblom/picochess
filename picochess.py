@@ -900,6 +900,30 @@ def compute_legal_fens(game_copy: chess.Board, variant_board=None):
     return fens
 
 
+def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
+    """PONDER must always show analysis from the selected engine, never from tutor."""
+    return interaction_mode != Mode.PONDER
+
+
+def should_use_tutor_analysis(
+    interaction_mode: Mode,
+    pgn_mode: bool,
+    engine_should_skip_analyser: bool,
+    engine_is_playing: bool,
+    engine_move_was_book: bool,
+    is_user_turn: bool,
+) -> bool:
+    """Return True when tutor analysis should replace engine analysis."""
+    if not tutor_analysis_allowed_in_mode(interaction_mode):
+        return False
+    if pgn_mode or engine_should_skip_analyser:
+        return True
+    result = not engine_is_playing
+    if not result:
+        result = engine_is_playing and engine_move_was_book and is_user_turn
+    return result
+
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -1466,6 +1490,9 @@ async def main() -> None:
                     loop=self.loop,
                     remote_binary_override=remote_tutor_override,
                 )
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
+                )
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
                     self.state.dgtmenu.get_picocoach(),
@@ -1485,6 +1512,9 @@ async def main() -> None:
                     i_comment_file=self.state.comment_file,
                     i_lang=self.args.language,
                     loop=self.loop,
+                )
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
                 )
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -1728,6 +1758,8 @@ async def main() -> None:
                 return ""
 
         async def call_pico_coach(self):
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                return
             if self.state.coach_triggered:
                 self.state.position_mode = True
             if (
@@ -3178,17 +3210,14 @@ async def main() -> None:
 
         def is_coach_analyser(self) -> bool:
             """Return True when tutor analysis should replace engine analysis."""
-            if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
-                result = True  # PGN Replay and mame engines always use tutor analysis only
-            else:
-                # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
-                # this saves a lot of CPU on Raspberry Pi
-                # issue# 128 save even more cpu - always use tutor for all analysis modes
-                result = not self.eng_plays()
-                # special case - when playing opening book we need to use tutor when playing engine
-                if not result:
-                    result = self.eng_plays() and self.state.engine_move_was_book and self.state.is_user_turn()
-            return result
+            return should_use_tutor_analysis(
+                interaction_mode=self.state.interaction_mode,
+                pgn_mode=self.pgn_mode(),
+                engine_should_skip_analyser=bool(self.engine and self.engine.should_skip_engine_analyser()),
+                engine_is_playing=self.eng_plays(),
+                engine_move_was_book=self.state.engine_move_was_book,
+                is_user_turn=self.state.is_user_turn(),
+            )
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
@@ -4059,6 +4088,12 @@ async def main() -> None:
 
         async def engine_mode(self):
             """call when engine mode is changed"""
+            if self.state.picotutor is not None:
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
+                )
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 # optimisation, dont ask for ponder unless needed
                 ponder_mode = True if self.state.interaction_mode == Mode.BRAIN else False

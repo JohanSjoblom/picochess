@@ -4903,6 +4903,8 @@ async def main() -> None:
                     await self.engine.newgame(self.state.engine_board_copy())
 
                     self.state.best_sent_depth.reset()
+                    await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "engine", "clear": True}))
+                    await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.time_control.reset()

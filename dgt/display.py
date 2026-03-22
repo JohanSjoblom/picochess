@@ -642,6 +642,9 @@ class DgtDisplay(DisplayMsg):
             if mode_map[fen] == Mode.BRAIN and not self.dgtmenu.get_engine_has_ponder():
                 await DispatchDgt.fire(self.dgttranslate.text("Y10_erroreng"))
             else:
+                # Treat a temporary queen-on-5th-rank mode command from the start
+                # position like a quick restore when the extra queen is removed.
+                self._start_position_restore_pending = self.last_pos_start
                 self.dgtmenu.set_mode(mode_map[fen])
                 text = self.dgttranslate.text(mode_map[fen].value)
                 text.beep = self.dgttranslate.bl(BeepLevel.MAP)

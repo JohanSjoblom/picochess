@@ -1603,7 +1603,7 @@
                         itemEl && itemEl.classList.add('active');
                         var modeSub = document.getElementById('ovl-mode-sub');
                         if (modeSub && itemEl) modeSub.textContent = itemEl.querySelector('.pico-subpanel-label').textContent;
-                        // TODO: post mode change to /channel
+                        post('action=set_mode&mode=' + action.replace('mode-', ''));
                         close(); break;
                     // TIME — handled by time picker (see overlay click handler above)
                     // TUTOR

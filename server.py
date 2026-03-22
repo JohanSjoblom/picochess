@@ -53,7 +53,8 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, flip_board_fen
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, flip_board_fen
+from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
 from pgn import ModeInfo
@@ -363,6 +364,126 @@ class ChannelHandler(ServerRequestHandler):
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
             self.set_header("Content-Type", "application/json")
+        elif action == "new_time":
+            try:
+                mode_id = int(self.get_argument("time_mode", "0"))
+            except (TypeError, ValueError):
+                mode_id = 0
+            try:
+                time_val = int(self.get_argument("time", "0") or "0")
+            except (TypeError, ValueError):
+                time_val = 0
+            try:
+                fischer_val = int(self.get_argument("fischer", "0") or "0")
+            except (TypeError, ValueError):
+                fischer_val = 0
+            tournament_str = self.get_argument("tournament", "") or ""
+
+            _mode_map = {
+                0: TimeMode.FIXED,
+                1: TimeMode.BLITZ,
+                2: TimeMode.FISCHER,
+                3: TimeMode.TOURN,
+                4: TimeMode.DEPTH,
+                5: TimeMode.NODE,
+            }
+            tc_mode = _mode_map.get(mode_id, TimeMode.FIXED)
+
+            if mode_id == 3 and tournament_str:  # tournament: "moves_to_go blitz blitz2 fischer"
+                parts = tournament_str.split()
+                _mtg   = int(parts[0]) if len(parts) > 0 else 0
+                _blitz = int(parts[1]) if len(parts) > 1 else 0
+                _blitz2 = int(parts[2]) if len(parts) > 2 else 0
+                _fisc  = int(parts[3]) if len(parts) > 3 else 0
+                tc_init = {
+                    "mode": TimeMode.TOURN, "fixed": 0, "blitz": _blitz,
+                    "fischer": _fisc, "moves_to_go": _mtg, "blitz2": _blitz2,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 4:  # depth
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": time_val, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 5:  # nodes
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": time_val, "internal_time": None,
+                }
+            elif mode_id == 0:  # fixed seconds/move
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": time_val, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 1:  # blitz
+                tc_init = {
+                    "mode": TimeMode.BLITZ, "fixed": 0, "blitz": time_val,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            else:  # fischer (mode_id == 2)
+                tc_init = {
+                    "mode": TimeMode.FISCHER, "fixed": 0, "blitz": time_val,
+                    "fischer": fischer_val, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+
+            tc = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
+            time_text = tc.get_list_text()
+            logger.info("web new_time: mode_id=%d tc_init=%s time_text=%r", mode_id, tc_init, time_text)
+            await Observable.fire(Event.SET_TIME_CONTROL(tc_init=tc_init, time_text=time_text, show_ok=True))
+        elif action == "picotutor":
+            tutor = self.get_argument("tutor", "")
+            val   = self.get_argument("val", "0")
+            if tutor == "watcher":
+                active = val not in ("0", "false", "off")
+                await Observable.fire(Event.PICOWATCHER(picowatcher=active))
+                if active:
+                    coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
+                    if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                        coach_pref = PicoCoach.COACH_ON
+                    await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
+                else:
+                    await Observable.fire(Event.PICOCOACH(picocoach=0))
+            elif tutor == "coach":
+                _coach_map = {
+                    "on":   PicoCoach.COACH_ON,
+                    "lift": PicoCoach.COACH_LIFT,
+                    "off":  PicoCoach.COACH_OFF,
+                }
+                coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
+                await Observable.fire(Event.PICOCOACH(picocoach=coach_val))
+            elif tutor == "explorer":
+                active = val not in ("0", "false", "off")
+                await Observable.fire(Event.PICOEXPLORER(picoexplorer=active))
+            elif tutor == "comment":
+                _comment_map = {
+                    "engine": PicoComment.COM_ON_ENG,
+                    "all":    PicoComment.COM_ON_ALL,
+                    "off":    PicoComment.COM_OFF,
+                }
+                comment_val = _comment_map.get(val.lower(), PicoComment.COM_OFF)
+                await Observable.fire(Event.PICOCOMMENT(picocomment=comment_val))
+            elif tutor == "prob":
+                try:
+                    self.shared["tutor_prob"] = max(0, min(100, int(val)))
+                except (TypeError, ValueError):
+                    pass
+            else:
+                logger.warning("web picotutor: unknown tutor=%r", tutor)
+        elif action == "set_mode":
+            _mode_map = {
+                "normal":   (Mode.NORMAL,   "Normal"),
+                "observe":  (Mode.OBSERVE,  "Observe"),
+                "brain":    (Mode.BRAIN,    "Brain"),
+                "analysis": (Mode.ANALYSIS, "Analysis"),
+            }
+            mode_name = self.get_argument("mode", "normal").lower()
+            mode_val, mode_text = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
+            await Observable.fire(Event.SET_INTERACTION_MODE(mode=mode_val, mode_text=mode_text, show_ok=True))
 
 
 class EventHandler(WebSocketHandler):

@@ -1208,6 +1208,13 @@
                         var link = document.createElement('link');
                         link.rel = 'stylesheet';
                         link.href = val === 'light' ? '/static/css/mdb.min.css' : '/static/css/mdb.dark.min.css';
+                        // After the new stylesheet is applied, Chessground must
+                        // recalculate piece positions because the layout reflowed.
+                        link.onload = function() {
+                            if (window.chessground1) {
+                                window.chessground1.redrawAll();
+                            }
+                        };
                         document.head.appendChild(link);
                         // Persist for next server start
                         fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},

@@ -15,9 +15,15 @@
         min-height: 0;
     }
 
-    /* Left column: board fills available height */
+    /* Left column: board column.
+       Must have an explicit width so that the svg-container's width:100%
+       (used for the padding-bottom:100% square trick) has a definite
+       reference and doesn't inflate to fill the whole flex container.
+       min(50vw, 96vh): at most half the viewport width, and at most the
+       viewport height (keeping the square board fully visible). */
     .container-fluid>.row>.col:first-child {
-        flex: 0 0 auto;
+        flex: 0 0 min(50vw, 96vh);
+        width: min(50vw, 96vh);
     }
 
     /* Right column: flex column, fills remaining height */

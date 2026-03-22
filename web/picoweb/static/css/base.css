@@ -209,10 +209,24 @@ div.dataTables_wrapper div.dataTables_length select {
     padding: 5px;
 }
 
-.nav-pills .nav-link {
-    margin-top: 0px;
-    margin-bottom: 0px;
-    padding: 14px;
+/* Nav-pills tab bar: distribute buttons evenly across the full available
+   width so they never overflow on narrow windows (right column). */
+#pills-tab {
+    flex-wrap: nowrap;      /* keep all four tabs on one line */
+}
+#pills-tab .nav-item {
+    flex: 1 1 0;            /* equal share of available width */
+    min-width: 0;           /* allow shrinking below content size */
+}
+#pills-tab .nav-link {
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Replace the fixed 14px padding with a fluid value that shrinks on
+       narrow containers while still looking comfortable when wide. */
+    padding: 8px max(4px, 1vw);
 }
 
 .nav-link.engine-mode-button {

@@ -210,9 +210,13 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 /* Nav-pills tab bar: distribute buttons evenly across the full available
-   width so they never overflow on narrow windows (right column). */
+   width so they never overflow on narrow windows (right column).
+   min-width:0 + overflow:hidden prevent the <ul> from growing wider than
+   its flex slot in the card-header, which would make it overlap the gear. */
 #pills-tab {
     flex-wrap: nowrap;      /* keep all four tabs on one line */
+    min-width: 0;           /* allow the <ul> to shrink below content size */
+    overflow: hidden;       /* clip any overflow so the gear is never covered */
 }
 #pills-tab .nav-item {
     flex: 1 1 0;            /* equal share of available width */
@@ -1240,6 +1244,9 @@ piece {
     -webkit-backdrop-filter: blur(14px);
     border-radius: 14px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    /* The panel backdrop is always dark (rgba 30,30,46) regardless of the
+       page theme. Force light text so it stays legible in light mode. */
+    color: rgba(255, 255, 255, 0.92);
     overflow: hidden;
     display: flex;
     flex-direction: column;

@@ -329,16 +329,7 @@
         overflow-y: hidden;
     }
     
-    /* Layout de columnas */
-    .container-fluid > .row > .col:first-child {
-        flex: 0 0 48% !important;
-        max-width: 48% !important;
-    }
-    
-    .container-fluid > .row > .col:last-child {
-        flex: 0 0 52% !important;
-        max-width: 52% !important;
-    }
+    /* Column widths handled by desktop.css (min(60vw, calc(98vh - 80px))) */
 }
 
 /* Prevenir desbordamiento de piezas */
@@ -391,17 +382,8 @@ piece {
         margin-top: 10px;
     }
     
-    /* Asegurar que las columnas se distribuyan correctamente */
-    .container-fluid > .row > .col:first-child {
-        flex: 0 0 48% !important;
-        max-width: 48% !important;
-    }
-    
-    .container-fluid > .row > .col:last-child {
-        flex: 0 0 52% !important;
-        max-width: 52% !important;
-    }
-    
+    /* Column widths handled by desktop.css */
+
     /* Ajustar altura de cards */
     .card {
         margin-bottom: 3px;

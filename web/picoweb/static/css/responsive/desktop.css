@@ -19,11 +19,17 @@
        Must have an explicit width so that the svg-container's width:100%
        (used for the padding-bottom:100% square trick) has a definite
        reference and doesn't inflate to fill the whole flex container.
-       min(50vw, 96vh): at most half the viewport width, and at most the
-       viewport height (keeping the square board fully visible). */
+
+       Formula: min(60vw, calc(98vh - 80px))
+         - 98vh - 80px: the row is 98vh tall; ~80px is reserved for the
+           card-body padding and the board-control buttons below the board,
+           so the board square fills the remaining vertical space exactly.
+         - 60vw: caps the board column on very wide monitors so the right
+           column always gets at least 40% of the viewport width.
+       The right column (flex: 1 1 0) takes whatever is left. */
     .container-fluid>.row>.col:first-child {
-        flex: 0 0 min(50vw, 96vh);
-        width: min(50vw, 96vh);
+        flex: 0 0 min(60vw, calc(98vh - 80px));
+        width: min(60vw, calc(98vh - 80px));
     }
 
     /* Right column: flex column, fills remaining height */

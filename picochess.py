@@ -4728,6 +4728,8 @@ async def main() -> None:
                 # also state of main analyser might have changed
                 await self._start_or_stop_analysis_as_needed()
                 if not self.eng_plays():
+                    if self.need_engine_analyser():
+                        await asyncio.sleep(0.2)
                     await self.analyse(allow_autoplay=False)
                 # end of NEW_ENGINE
 

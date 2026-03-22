@@ -930,20 +930,23 @@ piece {
 
 /* ═══════════════════════════════════════════════════
    VERTICAL EVALUATION BAR (left of board, like Lichess)
+   Uses position:relative wrapper so the svg-container
+   padding-bottom:100% square trick keeps working.
    ═══════════════════════════════════════════════════ */
 .board-eval-wrapper {
-    display: flex;
-    align-items: stretch;
-    gap: 6px;
+    position: relative;   /* establishes containing block for the eval bar */
+    padding-left: 16px;   /* reserve space for the 10px bar + 6px gap */
 }
 
 .pico-eval-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
     width: 10px;
-    flex-shrink: 0;
     border-radius: 3px;
     overflow: hidden;
     background: #ffffff;
-    position: relative;
 }
 
 #evaluationFill {

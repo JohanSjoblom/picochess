@@ -927,3 +927,623 @@ piece {
 
     min-height: 30px !important;
 }
+
+/* ═══════════════════════════════════════════════════
+   VERTICAL EVALUATION BAR (left of board, like Lichess)
+   ═══════════════════════════════════════════════════ */
+.board-eval-wrapper {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.pico-eval-bar {
+    width: 10px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    overflow: hidden;
+    background: #ffffff;
+    position: relative;
+}
+
+#evaluationFill {
+    background: #000000;
+    width: 100%;
+    height: 50%;   /* updated by JS; 0.00 = 50% black on top */
+    position: absolute;
+    top: 0;
+    transition: height 0.4s ease;
+}
+
+/* ═══════════════════════════════════════════════════
+   CLOCK HEADER
+   ═══════════════════════════════════════════════════ */
+.pico-clock-header {
+    padding: 0.5rem 0.75rem 0.4rem;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.clock-label-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.15rem;
+}
+
+.clock-label-left,
+.clock-label-right {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: opacity 0.4s ease;
+}
+
+.clock-label-right-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pico-gear-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem 0.4rem;
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: 0.55;
+    cursor: pointer;
+    color: inherit;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.pico-gear-btn:hover {
+    opacity: 1;
+}
+
+.clock-label-inactive {
+    opacity: 0.35;
+}
+
+.clock-time-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+}
+
+.clock-time-row .ctime-l,
+.clock-time-row .ctime-r {
+    flex: 1;
+    text-align: center;
+    transition: opacity 0.4s ease;
+}
+
+.clock-time-row .ctime-inactive {
+    opacity: 0.35;
+}
+
+.clock-time-row .fa {
+    flex: 0 0 2rem;
+    text-align: center;
+    font-size: 1.1rem;
+    opacity: 0.45;
+}
+
+.clock-status-row {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color, #6c757d);
+    min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   REMOTE CONTROL BAR
+   ═══════════════════════════════════════════════════ */
+#row-remote {
+    /* remote bar removed; hidden placeholder kept for JS button IDs */
+}
+
+.pico-remote-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.pico-remote-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 52px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    border-radius: 6px;
+    line-height: 1.2;
+}
+
+.pico-remote-btn i {
+    font-size: 1rem;
+    display: block;
+}
+
+.pico-remote-btn span {
+    font-size: 0.65rem;
+    font-weight: 400;
+}
+
+/* ═══════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════ */
+#pico-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.2rem 0.75rem;
+    font-size: 0.75rem;
+    border-top: 1px solid rgba(128, 128, 128, 0.25);
+    color: var(--bs-secondary-color, #6c757d);
+    flex-shrink: 0;
+}
+
+.footer-status {
+    font-size: 0.75rem;
+}
+
+.footer-version {
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+.footer-mute {
+    position: relative;
+    font-size: 18px;
+    cursor: pointer;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    background-color: transparent;
+    width: 36px;
+    height: 28px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.footer-mute.is-muted {
+    background-color: #ffb3b3;
+    border-color: #ff0000;
+}
+
+.footer-mute.is-muted::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60%;
+    height: 3px;
+    background-color: white;
+    border: 1px solid #cc0000;
+    border-radius: 2px;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   RIGHT PANEL FLEX LAYOUT
+   ═══════════════════════════════════════════════════ */
+#right-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+#row-clock   { flex: 0 0 auto; }
+#row-tabs    { flex: 1 1 35%; min-height: 0; display: flex; flex-direction: column; }
+#row-remote  { flex: 0 0 auto; }
+
+#row-movelist {
+    flex: 1 1 40%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-movelist .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-movelist .scroll_movelist {
+    flex: 1;
+    min-height: 0;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto;
+}
+
+#row-tabs .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-tabs .card-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#row-tabs .tab-content,
+#row-tabs .tab-pane.show.active {
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* ── PICO CONTEXT MENU OVERLAY ─────────────────────────────── */
+#pico-menu-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+}
+
+#pico-menu-overlay.open {
+    display: block;
+}
+
+.pico-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+}
+
+.pico-overlay-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(580px, 96vw);
+    max-height: 90vh;
+    background: rgba(30, 30, 46, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Content wrapper: grows below header, clips sub-panels */
+.pico-overlay-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.pico-overlay-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pico-overlay-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex: 1;
+}
+
+.pico-overlay-state {
+    font-size: 0.78rem;
+    opacity: 0.75;
+}
+
+.pico-overlay-close {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    opacity: 0.7;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    line-height: 1;
+    color: inherit;
+}
+
+.pico-overlay-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* 2-column tile grid (4 rows × 2 cols, 7th tile spans full width) */
+.pico-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+.pico-tile.pico-tile-wide {
+    grid-column: 1 / -1;
+}
+
+.pico-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 1.4rem 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.12s;
+}
+
+.pico-tile:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: inherit;
+    text-decoration: none;
+}
+
+.pico-tile:active {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.pico-tile-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.pico-tile-label {
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.pico-tile-sub {
+    font-size: 0.7rem;
+    opacity: 0.58;
+    text-align: center;
+    line-height: 1.3;
+}
+
+/* DGT scan sub-panel inside overlay */
+#overlay-scan {
+    padding: 1rem 0;
+}
+
+/* ── ENGINE / LEVEL PICKER ──────────────────────────── */
+#overlay-engine {
+    display: none;          /* shown as flex by JS */
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0.75rem 1rem 0.75rem;
+}
+
+.pico-picker-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+}
+
+.pico-picker-title {
+    font-weight: 600;
+    font-size: 0.88rem;
+    flex: 1;
+}
+
+.pico-overlay-back {
+    background: none;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 5px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: inherit;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.pico-overlay-back:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Category tab strip (Engine modern/retro/favorites) */
+.pico-cat-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 0 8px 0;
+    flex-shrink: 0;
+}
+.pico-cat-tab {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid rgba(128,128,128,0.25);
+    background: rgba(128,128,128,0.06);
+    color: inherit;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+.pico-cat-tab.selected {
+    border-color: rgba(13,110,253,0.5);
+    background: rgba(13,110,253,0.15);
+}
+.pico-cat-tab:hover:not(.selected) {
+    background: rgba(128,128,128,0.14);
+}
+
+.pico-picker-columns {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.pico-picker-col {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.pico-picker-col + .pico-picker-col {
+    border-left: 1px solid rgba(128, 128, 128, 0.2);
+    padding-left: 10px;
+}
+
+.pico-picker-col-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.pico-picker-item {
+    padding: 0.42rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid transparent;
+    text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+    width: 100%;
+    color: inherit;
+    flex-shrink: 0;
+    line-height: 1.35;
+}
+
+.pico-picker-item:hover {
+    background: rgba(128, 128, 128, 0.2);
+}
+
+.pico-picker-item.selected {
+    border-color: rgba(13, 110, 253, 0.55);
+    background: rgba(13, 110, 253, 0.12);
+}
+
+.pico-picker-item .picker-sub {
+    font-size: 0.7em;
+    opacity: 0.55;
+    display: block;
+}
+
+/* ── GATEWAY SUB-PANEL ITEMS ────────────────────────── */
+.pico-subpanel {
+    display: none;          /* shown as flex by JS */
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0.6rem 1rem 0.75rem;
+}
+
+.pico-subpanel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.pico-subpanel-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    width: 100%;
+    transition: background 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+}
+
+.pico-subpanel-item:hover {
+    background: rgba(128, 128, 128, 0.18);
+}
+
+.pico-subpanel-item.active {
+    border-color: rgba(13, 110, 253, 0.5);
+    background: rgba(13, 110, 253, 0.12);
+}
+
+.pico-subpanel-item:disabled,
+.pico-subpanel-item[disabled] {
+    cursor: default;
+}
+
+.pico-subpanel-icon {
+    font-size: 1.35rem;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 1.8rem;
+    text-align: center;
+}
+
+.pico-subpanel-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.pico-subpanel-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: block;
+}
+
+.pico-subpanel-desc {
+    font-size: 0.72rem;
+    opacity: 0.55;
+    display: block;
+}
+
+.pico-subpanel-badge {
+    font-size: 0.72rem;
+    opacity: 0.65;
+    flex-shrink: 0;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+}
+
+/* Menu trigger button — slightly highlighted */
+.pico-menu-trigger {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}

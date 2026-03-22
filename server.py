@@ -329,6 +329,36 @@ class ChannelHandler(ServerRequestHandler):
             )
         elif action == "save_game":
             await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
+        elif action == "new_engine":
+            from uci.engine_provider import EngineProvider
+            file  = self.get_argument("file")
+            level = self.get_argument("level", "")
+            eng   = EngineProvider.resolve_engine(file)
+            if eng:
+                options = eng.get("level_dict", {}).get(level, {}) if level else {}
+                await Observable.fire(Event.NEW_ENGINE(
+                    eng=eng,
+                    eng_text=eng.get("text", ""),
+                    options=options,
+                    show_ok=True,
+                ))
+        elif action == "new_book":
+            try:
+                index = int(self.get_argument("index", "0"))
+            except (TypeError, ValueError):
+                index = 0
+            library = get_opening_books()
+            if index == 0:
+                # Index 0 = online book server (obooksrv)
+                book = {"file": OBOOKSRV_BOOK_FILE, "text": None}
+                book_text = None
+            elif 1 <= index <= len(library):
+                book = library[index - 1]
+                book_text = book.get("text")
+            else:
+                book = library[0] if library else {"file": "", "text": None}
+                book_text = book.get("text")
+            await Observable.fire(Event.SET_OPENING_BOOK(book=book, book_text=book_text, show_ok=True))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
@@ -417,6 +447,23 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
+        if action == "get_engines":
+            from uci.engine_provider import EngineProvider
+            engines = []
+            def _add(eng_list, category):
+                for eng in eng_list:
+                    engines.append({
+                        "name":     eng.get("name", ""),
+                        "file":     eng.get("file", ""),
+                        "elo":      eng.get("elo",  ""),
+                        "levels":   list(eng.get("level_dict", {}).keys()),
+                        "category": category,
+                    })
+            _add(EngineProvider.modern_engines,   "modern")
+            _add(EngineProvider.retro_engines,    "retro")
+            _add(EngineProvider.favorite_engines, "favorites")
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"engines": engines}))
 
 
 class BookHandler(ServerRequestHandler):
@@ -783,6 +830,10 @@ class SettingsSaveHandler(ServerRequestHandler):
             if web_board_theme_entry and web_board_theme_entry["enabled"]:
                 self.shared["web-board-theme"] = web_board_theme_entry["value"]
 
+            theme_entry = entries_by_key.get("theme")
+            if theme_entry and theme_entry["enabled"]:
+                self.shared["theme"] = theme_entry["value"]
+
         self.set_header("Content-Type", "application/json")
         self.write({"status": "ok"})
 
@@ -1000,13 +1051,21 @@ class WebVr(DgtIface):
                 text_l = "{}:{:02d}.{:02d}".format(l_hms[0], l_hms[1], l_hms[2])
                 text_r = "{}:{:02d}.{:02d}".format(r_hms[0], r_hms[1], r_hms[2])
                 icon_d = "fa-caret-right" if self.side_running == ClockSide.RIGHT else "fa-caret-left"
+                left_running = self.side_running == ClockSide.LEFT
             else:
                 text_r = "{}:{:02d}.{:02d}".format(l_hms[0], l_hms[1], l_hms[2])
                 text_l = "{}:{:02d}.{:02d}".format(r_hms[0], r_hms[1], r_hms[2])
                 icon_d = "fa-caret-right" if self.side_running == ClockSide.LEFT else "fa-caret-left"
+                left_running = self.side_running == ClockSide.RIGHT
             if self.side_running == ClockSide.NONE:
                 icon_d = "fa-sort"
-            text = text_l + '&nbsp;<i class="fa ' + icon_d + '"></i>&nbsp;' + text_r
+                l_cls, r_cls = "ctime-l", "ctime-r"
+            else:
+                l_cls = "ctime-l ctime-active" if left_running else "ctime-l ctime-inactive"
+                r_cls = "ctime-r ctime-active" if not left_running else "ctime-r ctime-inactive"
+            text = (f'<span class="{l_cls}">{text_l}</span>'
+                    f'<i class="fa {icon_d}"></i>'
+                    f'<span class="{r_cls}">{text_r}</span>')
             self._create_clock_text()
             self.shared["clock_text"] = text
             result = {"event": "Clock", "msg": text}

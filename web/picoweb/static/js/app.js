@@ -1569,7 +1569,8 @@ function formatEngineOutput(line) {
     }
 }
 
-// Función para actualizar la barra de evaluación horizontal
+// Update vertical evaluation bar (black on top, white on bottom, like Lichess)
+// +1.00 = one square shift; 0.00 = 50/50 split at mid-board
 function updateEvaluationBar(score) {
     if (!score || score === '?') return;
 
@@ -1579,56 +1580,23 @@ function updateEvaluationBar(score) {
     if (String(score).includes('#')) {
         isMate = true;
         var mateIn = parseInt(score.replace('#', ''));
-        numericScore = mateIn > 0 ? 50 : -50; // Valor completo para mate
+        numericScore = mateIn > 0 ? 50 : -50;
     } else {
         numericScore = parseFloat(score);
     }
 
     var fillElement = $('#evaluationFill');
-    var valueElement = $('#evaluationValue');
 
+    var blackPct;
     if (isMate) {
-        // Para mate, llenar completamente la barra
-        if (numericScore > 0) {
-            fillElement.removeClass('negative');
-            fillElement.css({
-                'left': '50%',
-                'width': '50%'
-            });
-        } else {
-            fillElement.addClass('negative');
-            fillElement.css({
-                'left': '0%',
-                'width': '50%'
-            });
-        }
+        blackPct = numericScore > 0 ? 0 : 100;
     } else {
         numericScore = Math.max(-8, Math.min(8, numericScore));
-
-        if (numericScore >= 0) {
-            // Ventaja blancas - llenar hacia la derecha desde el centro
-            fillElement.removeClass('negative');
-            fillElement.css({
-                'left': '50%',
-                'width': ((numericScore / 8) * 50) + '%'
-            });
-        } else {
-            // Ventaja negras - llenar hacia la izquierda desde el centro
-            fillElement.addClass('negative');
-            fillElement.css({
-                'left': (50 + (numericScore / 8) * 50) + '%',
-                'width': ((-numericScore / 8) * 50) + '%'
-            });
-        }
+        // Each pawn = 1/8 of bar height; 0.00 → 50%, +8 → 0%, -8 → 100%
+        blackPct = (4 - numericScore) / 8 * 100;
     }
 
-    // Mostrar el valor original del motor, no el limitado
-    var originalScore = parseFloat(score);
-    if (isMate) {
-        valueElement.text(score);
-    } else {
-        valueElement.text(originalScore.toFixed(1));
-    }
+    fillElement.css('height', blackPct + '%');
 }
 
 function multiPvIncrease() {

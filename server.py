@@ -48,12 +48,13 @@ from utilities import (
     keep_essential_headers,
     ensure_important_headers,
     get_opening_books,
+    write_picochess_ini,
 )
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, flip_board_fen
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
@@ -484,6 +485,38 @@ class ChannelHandler(ServerRequestHandler):
             mode_name = self.get_argument("mode", "normal").lower()
             mode_val, mode_text = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
             await Observable.fire(Event.SET_INTERACTION_MODE(mode=mode_val, mode_text=mode_text, show_ok=True))
+        elif action == "lang":
+            _valid_langs = {"en", "de", "nl", "fr", "es", "it"}
+            lang_code = self.get_argument("val", "en").lower()
+            if lang_code not in _valid_langs:
+                logger.warning("web lang: unknown language code %r", lang_code)
+            else:
+                dgttranslate = self.shared.get("dgttranslate")
+                if dgttranslate:
+                    dgttranslate.set_language(lang_code)
+                    write_picochess_ini("language", lang_code)
+                    logger.info("web lang: language set to %r", lang_code)
+                else:
+                    logger.warning("web lang: dgttranslate not available in shared")
+        elif action == "beep":
+            _beep_map = {
+                "off":    Beep.OFF,
+                "some":   Beep.SOME,
+                "on":     Beep.ON,
+                "sample": Beep.SAMPLE,
+            }
+            beep_val_str = self.get_argument("val", "some").lower()
+            beep_val = _beep_map.get(beep_val_str)
+            if beep_val is None:
+                logger.warning("web beep: unknown beep value %r", beep_val_str)
+            else:
+                dgttranslate = self.shared.get("dgttranslate")
+                if dgttranslate:
+                    dgttranslate.set_beep(beep_val)
+                    write_picochess_ini("beep-config", dgttranslate.beep_to_config(beep_val))
+                    logger.info("web beep: beep set to %r", beep_val_str)
+                else:
+                    logger.warning("web beep: dgttranslate not available in shared")
 
 
 class EventHandler(WebSocketHandler):

@@ -1112,6 +1112,7 @@ async def main() -> None:
         theme: str = calc_theme(args.theme, state.set_location)
         shared["pieces"] = args.pieces
         shared["web-board-theme"] = args.web_board_theme
+        shared["dgttranslate"] = state.dgttranslate
         web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
         try:
             web_app.listen(args.web_server_port)

@@ -2413,91 +2413,124 @@ $(function () {
         alert('No WebSocket Support');
     }
     else {
-        var ws = new WebSocket('ws://' + location.host + '/event');
-        // Process messages from picochess
-        ws.onmessage = function (e) {
-            var data = JSON.parse(e.data);
-            switch (data.event) {
-                case 'Fen':
-                    pickPromotion(null) // reset promotion dialog if still showing
-                    updateDGTPosition(data);
-                    updateTutorMistakes(data.mistakes);
-                    updateCheckCounters(data.variant, data.checks);
-                    if (data.play === 'reload') {
-                        removeHighlights();
-                    }
-                    if (data.play === 'user') {
-                        highlightBoard(data.move, 'user');
-                    }
-                    if (data.play === 'review') {
-                        highlightBoard(data.move, 'review');
-                    }
-                    break;
-                case 'Game':
-                    newBoard(data.fen);
-                    updateTutorMistakes(data.mistakes);
-                    updateCheckCounters(data.variant, data.checks);
-                    break;
-                case 'Analysis':
-                    updateBackendAnalysis(data.analysis);
-                    break;
-                case 'Message':
-                    boardStatusEl.html(data.msg);
-                    break;
-                case 'Clock':
-                    dgtClockTextEl.html(data.msg);
-                    break;
-                case 'WebAudio':
-                    queueBackendAudio(data.audio);
-                    break;
-                case 'Status':
-                    // dgtClockStatusEl.html(data.msg);
-                    break;
-                case 'TutorWatch':
-                    if (window.setTutorWatchState) {
-                        window.setTutorWatchState(Boolean(data.active));
-                    }
-                    break;
-                case 'Light':
-                    var tmp_board = new Chess(currentPosition.fen, chessGameType);
-                    var tmp_move = tmp_board.move(data.move, { sloppy: true });
-                    if (tmp_move !== null) {
-                        computerside = tmp_move.color;
-                        saymove(tmp_move, tmp_board);
-                    }
-                    // Always show highlight and arrow for computer moves,
-                    // even when chess.js can't validate the move (atomic variant).
-                    highlightBoard(data.move, 'computer');
-                    addArrow(data.move, 'computer');
-                    break;
-                case 'Clear':
-                    break;
-                case 'Header':
-                    setHeaders(data['headers']);
-                    break;
-                case 'Title':
-                    setTitle(data['ip_info']);
-                    break;
-                case 'Broadcast':
-                    boardStatusEl.html(data.msg);
-                    break;
-                case 'PromotionDlg':
-                    // for e-boards that do not feature piece recognition
-                    promotionDialog(data.move);
-                default:
-                    console.warn(data);
-            }
-        };
-        ws.onclose = function () {
-            dgtClockStatusEl.html('closed');
-            if (window.analysis || window.stockfish) {
-                window.analysis = false;
-                $('#AnalyzeText').text('Web Analysis');
-                stopAnalysis();
-                $('#engineStatus').html('');
-                updateEngineControlsVisibility();
-            }
-        };
+        // WebSocket with automatic reconnect.
+        // The server syncs board state and last analysis on every new
+        // connection (server.py EventHandler.open), so reconnecting
+        // restores the analysis display without any extra client logic.
+        var wsReconnectDelay = 2000; // start at 2 s, doubles each attempt
+        var wsReconnectTimer = null;
+
+        function connectWebSocket() {
+            var ws = new WebSocket('ws://' + location.host + '/event');
+
+            ws.onopen = function () {
+                // Reset backoff on successful connection.
+                wsReconnectDelay = 2000;
+            };
+
+            // Process messages from picochess
+            ws.onmessage = function (e) {
+                var data = JSON.parse(e.data);
+                switch (data.event) {
+                    case 'Fen':
+                        pickPromotion(null) // reset promotion dialog if still showing
+                        updateDGTPosition(data);
+                        updateTutorMistakes(data.mistakes);
+                        updateCheckCounters(data.variant, data.checks);
+                        if (data.play === 'reload') {
+                            removeHighlights();
+                        }
+                        if (data.play === 'user') {
+                            highlightBoard(data.move, 'user');
+                        }
+                        if (data.play === 'review') {
+                            highlightBoard(data.move, 'review');
+                        }
+                        break;
+                    case 'Game':
+                        newBoard(data.fen);
+                        updateTutorMistakes(data.mistakes);
+                        updateCheckCounters(data.variant, data.checks);
+                        break;
+                    case 'Analysis':
+                        updateBackendAnalysis(data.analysis);
+                        break;
+                    case 'Message':
+                        boardStatusEl.html(data.msg);
+                        break;
+                    case 'Clock':
+                        dgtClockTextEl.html(data.msg);
+                        break;
+                    case 'WebAudio':
+                        queueBackendAudio(data.audio);
+                        break;
+                    case 'Status':
+                        // dgtClockStatusEl.html(data.msg);
+                        break;
+                    case 'TutorWatch':
+                        if (window.setTutorWatchState) {
+                            window.setTutorWatchState(Boolean(data.active));
+                        }
+                        break;
+                    case 'Light':
+                        var tmp_board = new Chess(currentPosition.fen, chessGameType);
+                        var tmp_move = tmp_board.move(data.move, { sloppy: true });
+                        if (tmp_move !== null) {
+                            computerside = tmp_move.color;
+                            saymove(tmp_move, tmp_board);
+                        }
+                        // Always show highlight and arrow for computer moves,
+                        // even when chess.js can't validate the move (atomic variant).
+                        highlightBoard(data.move, 'computer');
+                        addArrow(data.move, 'computer');
+                        break;
+                    case 'Clear':
+                        break;
+                    case 'Header':
+                        setHeaders(data['headers']);
+                        break;
+                    case 'Title':
+                        setTitle(data['ip_info']);
+                        break;
+                    case 'Broadcast':
+                        boardStatusEl.html(data.msg);
+                        break;
+                    case 'PromotionDlg':
+                        // for e-boards that do not feature piece recognition
+                        promotionDialog(data.move);
+                    default:
+                        console.warn(data);
+                }
+            };
+
+            ws.onclose = function () {
+                dgtClockStatusEl.html('connecting…');
+                // Stop client-side web analysis (in-browser Stockfish).
+                // Server-side analysis display is preserved; the server will
+                // re-send the cached analysis payload on reconnect.
+                if (window.analysis || window.stockfish) {
+                    window.analysis = false;
+                    $('#AnalyzeText').text('Web Analysis');
+                    stopAnalysis();
+                    $('#engineStatus').html('');
+                    updateEngineControlsVisibility();
+                }
+                // Schedule reconnect with exponential backoff (max 30 s).
+                if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+                wsReconnectTimer = setTimeout(function () {
+                    wsReconnectTimer = null;
+                    connectWebSocket();
+                }, wsReconnectDelay);
+                wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+            };
+
+            ws.onerror = function (e) {
+                // Log WS errors; onclose will fire afterward and handle reconnect.
+                console.warn('WebSocket error', e);
+            };
+        }
+
+        connectWebSocket();
     }
 
     if (navigator.mimeTypes['application/x-pnacl'] !== undefined) {

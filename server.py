@@ -1490,6 +1490,12 @@ class WebDisplay(DisplayMsg):
 
         # switch-case
         if isinstance(message, Message.START_NEW_GAME):
+            # Clear stale analysis so clients don't keep showing the previous
+            # position's engine lines while waiting for fresh analysis output.
+            self.analysis_state = {"depth": None, "score": None, "mate": None, "pv": None, "fen": None}
+            for key in ("analysis_state", "analysis_state_engine", "analysis_state_tutor"):
+                self.shared.pop(key, None)
+            EventHandler.write_to_clients({"event": "Analysis", "analysis": None})
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
             if ModeInfo.get_pgn_mode():

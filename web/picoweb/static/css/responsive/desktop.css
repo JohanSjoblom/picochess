@@ -20,16 +20,19 @@
        (used for the padding-bottom:100% square trick) has a definite
        reference and doesn't inflate to fill the whole flex container.
 
-       Formula: min(60vw, calc(98vh - 80px))
-         - 98vh - 80px: the row is 98vh tall; ~80px is reserved for the
-           card-body padding and the board-control buttons below the board,
-           so the board square fills the remaining vertical space exactly.
+       Formula: min(60vw, calc(98vh - 48px))
+         - The board square is (column-width − 48px) tall: the card-body
+           has 16px padding on each side (32px) plus the eval-bar takes
+           16px of padding-left on .board-eval-wrapper.  The remaining
+           vertical overhead (card borders ~2px + board-controls ~38px +
+           safety ~8px = ~48px) means the correct deduction is 48px, not
+           the old 80px that under-counted the horizontal reduction.
          - 60vw: caps the board column on very wide monitors so the right
            column always gets at least 40% of the viewport width.
        The right column (flex: 1 1 0) takes whatever is left. */
     .container-fluid>.row>.col:first-child {
-        flex: 0 0 min(60vw, calc(98vh - 80px));
-        width: min(60vw, calc(98vh - 80px));
+        flex: 0 0 min(60vw, calc(98vh - 48px));
+        width: min(60vw, calc(98vh - 48px));
     }
 
     /* Right column: flex column, fills remaining height */

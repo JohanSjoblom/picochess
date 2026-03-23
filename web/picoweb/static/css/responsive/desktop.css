@@ -1,6 +1,6 @@
 @media (min-width: 769px) {
 
-    .container-fluid>.row {
+    .scroll-portrait>.container-fluid>.row {
         display: flex;
         align-items: stretch;
         flex-wrap: nowrap;
@@ -8,7 +8,7 @@
         max-height: 98vh;
     }
 
-    .container-fluid>.row>.col {
+    .scroll-portrait>.container-fluid>.row>.col {
         display: flex;
         flex-direction: column;
         min-width: 0;
@@ -30,7 +30,7 @@
          - 60vw: caps the board column on very wide monitors so the right
            column always gets at least 40% of the viewport width.
        The right column (flex: 1 1 0) takes whatever is left. */
-    .container-fluid>.row>.col:first-child {
+    .scroll-portrait>.container-fluid>.row>.col:first-child {
         flex: 0 0 min(60vw, calc(98vh - 48px));
         width: min(60vw, calc(98vh - 48px));
     }

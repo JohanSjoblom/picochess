@@ -1246,6 +1246,7 @@
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
                         dc.apply(val);
+                        setTimeout(close, 180);
                     });
                     listEl.appendChild(btn);
                 });

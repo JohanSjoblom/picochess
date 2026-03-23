@@ -330,7 +330,30 @@ class ChannelHandler(ServerRequestHandler):
                 Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False)
             )
         elif action == "save_game":
-            await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
+            try:
+                slot = int(self.get_argument("slot", "1"))
+                if slot not in (1, 2, 3):
+                    slot = 1
+            except (ValueError, TypeError):
+                slot = 1
+            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"saved_game_{slot}.pgn"))
+        elif action == "load_game":
+            try:
+                slot = int(self.get_argument("slot", "1"))
+                if slot not in (1, 2, 3):
+                    slot = 1
+            except (ValueError, TypeError):
+                slot = 1
+            await Observable.fire(Event.READ_GAME(pgn_filename=f"saved_game_{slot}.pgn"))
+        elif action == "game_end":
+            _result_map = {
+                "white": GameResult.WIN_WHITE,
+                "black": GameResult.WIN_BLACK,
+                "draw":  GameResult.DRAW,
+            }
+            result = _result_map.get(self.get_argument("result", "").strip())
+            if result is not None:
+                await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "new_engine":
             from uci.engine_provider import EngineProvider
             file  = self.get_argument("file")

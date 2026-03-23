@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ 'light' if theme=='light' else 'dark' }}">
 
 <head>
     <meta charset="utf-8">
@@ -678,7 +678,7 @@
                                         <button class="d-none" id="pills-menu-tab" data-bs-toggle="pill"
                                             data-bs-target="#engine" type="button"></button>
                                         <span id="engine-version-text"
-                                            style="display: none; font-weight: bold; color: #666;">Stockfish 18 </span>
+                                            style="display: none; font-weight: bold; opacity: 0.55;">Stockfish 18 </span>
                                     </div>
                                 </div>
                                 <div class="card-body">
@@ -1208,6 +1208,7 @@
                         var link = document.createElement('link');
                         link.rel = 'stylesheet';
                         link.href = val === 'light' ? '/static/css/mdb.min.css' : '/static/css/mdb.dark.min.css';
+                        document.documentElement.setAttribute('data-theme', val === 'light' ? 'light' : 'dark');
                         // After the new stylesheet is applied, Chessground must
                         // recalculate piece positions because the layout reflowed.
                         link.onload = function() {

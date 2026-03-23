@@ -1567,3 +1567,31 @@ piece {
 .pico-menu-trigger {
     border: 1px solid rgba(255, 255, 255, 0.25);
 }
+
+/* ═══════════════════════════════════════════════════
+   DARK THEME OVERRIDES
+   Applied when html[data-theme="dark"] (set by clock.html on load and
+   updated by the JS theme-switcher when the user changes theme).
+   ═══════════════════════════════════════════════════ */
+
+/* Best-move highlight: swap light-yellow for dark-amber in dark mode */
+html[data-theme="dark"] .first-move,
+html[data-theme="dark"] #pv_output .first-move,
+html[data-theme="dark"] .analysis-sources .first-move {
+    background: rgba(255, 193, 7, 0.15) !important;
+    color: #ffc107 !important;
+    border-color: rgba(255, 193, 7, 0.35) !important;
+    text-shadow: none !important;
+}
+
+/* Mute button: replace light-grey fill with a subtle dark fill */
+html[data-theme="dark"] #btn-mute {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Promotion piece selection: lighten the dark-grey circles */
+html[data-theme="dark"] .promotion-overlay square {
+    background-color: #505050;
+    box-shadow: inset 0 0 25px 3px #1a1a1a;
+}

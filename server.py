@@ -1930,6 +1930,32 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
+            # Immediately push new clock times to web clients.
+            # The normal dispatch chain (CLOCK_SET → CLOCK_START) can be silently
+            # dropped when clock_connected["web"] is not yet set, or can be
+            # queued behind a running maxtimer that never re-shows time when
+            # side_running==NONE.  This guarantees the overlay change is visible.
+            try:
+                tc_init = message.tc_init
+                _tc = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
+                _tl, _tr = _tc.get_internal_time()
+                if _tl < 3600 * 10 and _tr < 3600 * 10:
+                    _l = hms_time(_tl)
+                    _r = hms_time(_tr)
+                    if ModeInfo.get_clock_side() == "left":
+                        _tl_str = "{}:{:02d}.{:02d}".format(_l[0], _l[1], _l[2])
+                        _tr_str = "{}:{:02d}.{:02d}".format(_r[0], _r[1], _r[2])
+                    else:
+                        _tr_str = "{}:{:02d}.{:02d}".format(_l[0], _l[1], _l[2])
+                        _tl_str = "{}:{:02d}.{:02d}".format(_r[0], _r[1], _r[2])
+                    _text = (f'<span class="ctime-l">{_tl_str}</span>'
+                             f'<i class="fa fa-sort"></i>'
+                             f'<span class="ctime-r">{_tr_str}</span>')
+                    self._create_clock_text()
+                    self.shared["clock_text"] = _text
+                    EventHandler.write_to_clients({"event": "Clock", "msg": _text})
+            except Exception:
+                pass  # non-fatal; normal dispatch chain remains the fallback
 
         elif isinstance(message, Message.LEVEL):
             self._create_game_info()

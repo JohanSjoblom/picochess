@@ -536,6 +536,61 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.ALTERNATIVE_MOVE())
         elif action == "contlast":
             await Observable.fire(Event.CONTLAST(contlast=True))
+        elif action == "sys_shutdown":
+            await Observable.fire(Event.SHUTDOWN(dev="web"))
+        elif action == "sys_reboot":
+            await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "sys_exit":
+            await Observable.fire(Event.EXIT(dev="web"))
+        elif action == "sys_update":
+            await Observable.fire(Event.UPDATE_PICO(tag=""))
+            await asyncio.sleep(1)
+            await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "sys_update_engines":
+            await Observable.fire(Event.UPDATE_ENGINES())
+            await asyncio.sleep(1)
+            await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "display":
+            side = self.get_argument("side", "")
+            notation = self.get_argument("notation", "")
+            ponder = self.get_argument("ponder", "")
+            if side in ("left", "right"):
+                ModeInfo.set_clock_side(side)
+                write_picochess_ini("clockside", side)
+            if notation == "short":
+                write_picochess_ini("disable-short-notation", False)
+            elif notation == "long":
+                write_picochess_ini("disable-short-notation", True)
+            if ponder == "on":
+                write_picochess_ini("ponder-interval", 1)
+            elif ponder == "off":
+                write_picochess_ini("ponder-interval", 0)
+        elif action == "eboard":
+            eboard_type = self.get_argument("type", "").strip()
+            _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "none"}
+            if eboard_type in _valid_eboards:
+                write_picochess_ini("board-type", eboard_type)
+                await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "wifi_hotspot":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/wifi-hotspot-connect"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("wifi-hotspot-connect failed: %s", exc)
+        elif action == "bt_toggle":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/pair-phone"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("pair-phone failed: %s", exc)
+        elif action == "wifi_info":
+            pass  # network info is shown in System > Info sub-panel
 
 
 class EventHandler(WebSocketHandler):

@@ -1369,38 +1369,27 @@
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         listEl.innerHTML = '';
-                        var currentIdx = data.current_index || 0;
+                        var currentIdx = (data.current_index !== undefined) ? data.current_index : 0;
                         var books = data.books || [];
-                        // "Off" option first
-                        var offBtn = document.createElement('button');
-                        offBtn.className = 'pico-picker-item';
-                        offBtn.innerHTML = '<strong>Off</strong><span class="picker-sub">No opening book</span>';
-                        offBtn.classList.toggle('selected', currentIdx === -1);
-                        offBtn.addEventListener('click', function() {
-                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                            offBtn.classList.add('selected');
-                            post('action=new_book&index=0');
-                            var bookSub = document.getElementById('ovl-book-sub');
-                            if (bookSub) bookSub.textContent = 'Off';
-                            setTimeout(close, 180);
-                        });
-                        listEl.appendChild(offBtn);
-                        if (!books.length) { listEl.innerHTML += '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No books found</div>'; return; }
+                        // Build list: Obooksrv first (index 0), then real books (index >= 1)
                         books.forEach(function(b) {
                             var btn = document.createElement('button');
                             btn.className = 'pico-picker-item';
                             btn.classList.toggle('selected', b.index === currentIdx);
-                            btn.innerHTML = '<strong>' + (b.label || b.file) + '</strong>';
+                            var label = b.index === 0 ? 'Obooksrv' : (b.label || b.file || ('Book ' + b.index));
+                            var sub   = b.index === 0 ? 'Online book server' : '';
+                            btn.innerHTML = '<strong>' + label + '</strong>' + (sub ? '<span class="picker-sub">' + sub + '</span>' : '');
                             btn.addEventListener('click', function() {
                                 listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                 btn.classList.add('selected');
                                 post('action=new_book&index=' + b.index);
                                 var bookSub = document.getElementById('ovl-book-sub');
-                                if (bookSub) bookSub.textContent = b.label || b.file;
+                                if (bookSub) bookSub.textContent = label;
                                 setTimeout(close, 180);
                             });
                             listEl.appendChild(btn);
                         });
+                        if (!books.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No books found</div>'; }
                     })
                     .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
             }
@@ -1489,18 +1478,36 @@
                         '<div>Battery: ' + (si.battery || '—') + '</div></div>';
                     return;
                 }
-                // Voice: show sub-items (Speaker, Volume, Speed)
+                // Voice: fetch speakers for current language, show list
                 if (cat === 'voice') {
                     col.style.display = 'flex';
-                    lbl.textContent = 'Voice';
-                    listEl.innerHTML = '';
-                    [['🗣️ Speaker','voice&sub=comp'],['🔊 Volume','voice&sub=vol'],['⏩ Speed','voice&sub=speed']].forEach(function(pair) {
-                        var btn = document.createElement('button');
-                        btn.className = 'pico-picker-item';
-                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
-                        btn.addEventListener('click', function() { post('action=' + pair[1]); close(); });
-                        listEl.appendChild(btn);
-                    });
+                    lbl.textContent = 'Speaker';
+                    listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
+                    fetch('/info?action=get_voices')
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            listEl.innerHTML = '';
+                            var speakers = (data && data.speakers) || [];
+                            if (!speakers.length) {
+                                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No voices found for language ' + (data.lang || '') + '</div>';
+                                return;
+                            }
+                            speakers.forEach(function(sp) {
+                                var btn = document.createElement('button');
+                                btn.className = 'pico-picker-item';
+                                btn.innerHTML = '<strong>' + sp + '</strong>';
+                                btn.addEventListener('click', function() {
+                                    listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                                    btn.classList.add('selected');
+                                    post('action=set_voice&type=comp&speaker=' + encodeURIComponent(sp));
+                                    setTimeout(close, 180);
+                                });
+                                listEl.appendChild(btn);
+                            });
+                        })
+                        .catch(function() {
+                            listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load voices</div>';
+                        });
                     return;
                 }
                 var so = SYS_OPT[cat];
@@ -1572,6 +1579,11 @@
                 if (icon)  icon.textContent  = isMuted ? '🔇' : '🔊';
                 if (badge) badge.textContent = isMuted ? 'Off' : 'On';
                 if (item)  item.classList.toggle('active', isMuted);
+                // sync web-mute button label
+                var wmIcon = document.getElementById('sys-webmute-icon');
+                var wmSub  = document.getElementById('sys-webmute-sub');
+                if (wmIcon) wmIcon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
+                if (wmSub)  wmSub.textContent  = isMuted ? 'Muted' : 'Click to mute';
             }
 
             /* ── subpanel action dispatcher ──────────── */
@@ -1652,10 +1664,19 @@
                     case 'tutor-hint':
                         post('action=clockbutton&button=17'); close(); break;
                     // SYSTEM
-                    case 'sound':
+                    case 'web-mute':
                         if (typeof toggleMute === 'function') toggleMute();
-                        updateSystemSubpanel();
-                        updateTileStates();
+                        (function() {
+                            var btn = document.getElementById('btn-mute');
+                            var isMuted = btn && btn.classList.contains('is-muted');
+                            var icon = document.getElementById('sys-webmute-icon');
+                            var sub  = document.getElementById('sys-webmute-sub');
+                            if (icon) icon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
+                            if (sub)  sub.textContent  = isMuted ? 'Muted' : 'Click to mute';
+                        })();
+                        close(); break;
+                    case 'sound':
+                        // dead-code path — Sound tile uses data-sys-cat, not data-action
                         close(); break;
                     case 'dgt':
                         showScan(); break;
@@ -1728,9 +1749,7 @@
                     if (ga === 'takeback') { post('action=clockbutton&button=1'); close(); return; }
                     if (ga === 'altmove') {
                         post('action=altmove');
-                        var sub = document.getElementById('game-altmove-sub');
-                        if (sub) sub.textContent = sub.textContent === 'Off' ? 'On' : 'Off';
-                        return;
+                        close(); return;
                     }
                     if (ga === 'contlast') { post('action=contlast'); close(); return; }
                     showGameOpts(ga); return;
@@ -2233,7 +2252,8 @@
                         <div id="ovl-sys-cat-list">
                             <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
                             <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
-                            <button class="pico-picker-item" data-sys-cat="sound"><strong>🔊 Sound</strong><span class="picker-sub">Beep settings</span></button>
+                            <button class="pico-picker-item" data-action="web-mute" id="sys-webmute-btn"><strong id="sys-webmute-icon">🔊 Web Audio</strong><span class="picker-sub" id="sys-webmute-sub">Click to mute</span></button>
+                            <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
                             <button class="pico-picker-item" data-sys-cat="voice"><strong>🗣️ Voice</strong><span class="picker-sub">Speaker · Volume · Speed</span></button>
                             <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock side · Notation · Ponder</span></button>

@@ -360,6 +360,8 @@ class ChannelHandler(ServerRequestHandler):
             else:
                 book = library[0] if library else {"file": "", "text": None}
                 book_text = book.get("text")
+            # Remember which book file was selected so get_book_list returns the right current_index
+            self.shared["web_book_file"] = book.get("file", OBOOKSRV_BOOK_FILE)
             await Observable.fire(Event.SET_OPENING_BOOK(book=book, book_text=book_text, show_ok=True))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
@@ -517,6 +519,23 @@ class ChannelHandler(ServerRequestHandler):
                     logger.info("web beep: beep set to %r", beep_val_str)
                 else:
                     logger.warning("web beep: dgttranslate not available in shared")
+        elif action == "set_voice":
+            speaker = self.get_argument("speaker", "").strip()
+            voice_type = self.get_argument("type", "comp").strip()  # "user" or "comp"
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            if speaker:
+                voice_str = lang + ":" + speaker
+                ini_key = "user-voice" if voice_type == "user" else "comp-voice"
+                write_picochess_ini(ini_key, voice_str)
+                await Observable.fire(
+                    Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=1)
+                )
+                logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type, lang, speaker)
+        elif action == "altmove":
+            await Observable.fire(Event.ALTERNATIVE_MOVE())
+        elif action == "contlast":
+            await Observable.fire(Event.CONTLAST(contlast=True))
 
 
 class EventHandler(WebSocketHandler):
@@ -618,6 +637,20 @@ class InfoHandler(ServerRequestHandler):
             _add(EngineProvider.favorite_engines, "favorites")
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps({"engines": engines}))
+        if action == "get_voices":
+            # Return available speakers for the current language.
+            # Speakers are sub-directories of talker/voices/{lang}/.
+            voices_base = os.path.join(os.path.dirname(__file__), "talker", "voices")
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            lang_dir = os.path.join(voices_base, lang)
+            speakers = []
+            if os.path.isdir(lang_dir):
+                for entry in sorted(os.listdir(lang_dir)):
+                    if os.path.isdir(os.path.join(lang_dir, entry)) and not entry.startswith("."):
+                        speakers.append(entry)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"lang": lang, "speakers": speakers}))
 
 
 class BookHandler(ServerRequestHandler):
@@ -728,11 +761,11 @@ class BookHandler(ServerRequestHandler):
             books.append({"index": offset, "file": book.get("file"), "label": label})
 
         if action == "get_book_list":
-            # initial selection: try to match engine/book header once, otherwise index 0
+            # current selection: prefer web_book_file (updated on each new_book POST),
+            # fall back to PicoOpeningBook PGN header, default to index 0 (Obooksrv).
             current_index = 0
             if books:
-                headers = self.shared.get("headers") or {}
-                active_file = headers.get("PicoOpeningBook")
+                active_file = self.shared.get("web_book_file") or (self.shared.get("headers") or {}).get("PicoOpeningBook")
                 if active_file:
                     for entry in books:
                         if entry["file"] == active_file:

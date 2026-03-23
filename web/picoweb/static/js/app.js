@@ -2148,18 +2148,17 @@ function updateBackendAnalysis(analysis) {
 
 function goToDGTFen() {
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
-        if (data) {
+        if (data && data.fen) {
             updateDGTPosition(data);
+            if (window.chessground1) { window.chessground1.redrawAll(); }
             highlightBoard(data.move, data.play);
             addArrow(data.move, data.play);
             updateTutorMistakes(data.mistakes);
-        }
-        else {
-            data.fen = START_FEN
-            updateDGTPosition(data);
-            highlightBoard(data.move, data.play);
-            addArrow(data.move, data.play);
-            updateTutorMistakes([]);
+        } else {
+            // No active game: show starting position
+            newBoard(START_FEN);
+            removeHighlights();
+            removeArrow();
         }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);

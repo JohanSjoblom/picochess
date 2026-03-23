@@ -502,10 +502,15 @@ class ChannelHandler(ServerRequestHandler):
                 logger.warning("web picotutor: unknown tutor=%r", tutor)
         elif action == "set_mode":
             _mode_map = {
-                "normal":   (Mode.NORMAL,   "Normal"),
-                "observe":  (Mode.OBSERVE,  "Observe"),
-                "brain":    (Mode.BRAIN,    "Brain"),
-                "analysis": (Mode.ANALYSIS, "Analysis"),
+                "normal":    (Mode.NORMAL,    "Normal"),
+                "training":  (Mode.TRAINING,  "Training"),
+                "brain":     (Mode.BRAIN,     "Brain"),
+                "analysis":  (Mode.ANALYSIS,  "Analysis"),
+                "kibitz":    (Mode.KIBITZ,    "Kibitz"),
+                "observe":   (Mode.OBSERVE,   "Observe"),
+                "remote":    (Mode.REMOTE,    "Remote"),
+                "ponder":    (Mode.PONDER,    "Ponder"),
+                "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
             }
             mode_name = self.get_argument("mode", "normal").lower()
             mode_val, mode_text = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))

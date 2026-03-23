@@ -1517,7 +1517,7 @@
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
                         if (cat === 'power' && !confirm('Are you sure?')) return;
-                        setTimeout(function() { post('action=' + action); if (cat !== 'display') close(); }, 180);
+                        setTimeout(function() { post('action=' + action); close(); }, 180);
                     });
                     listEl.appendChild(btn);
                 });
@@ -1617,7 +1617,7 @@
                         var tutorSub = document.getElementById('ovl-tutor-sub');
                         if (tutorSub) tutorSub.textContent = isOn ? 'Watcher On' : 'Off';
                         post('action=picotutor&tutor=watcher&val=' + (isOn ? '1' : '0'));
-                        break; } // no close — show feedback
+                        close(); break; }
                     case 'tutor-coach': {
                         var coachBadge = document.getElementById('tutor-coach-badge');
                         var coachCycle = ['Off','On','Lift'];
@@ -1625,14 +1625,14 @@
                         if (coachBadge) coachBadge.textContent = coachCycle[coachIdx];
                         if (itemEl) itemEl.classList.toggle('active', coachIdx > 0);
                         post('action=picotutor&tutor=coach&val=' + coachCycle[coachIdx].toLowerCase());
-                        break; }
+                        close(); break; }
                     case 'tutor-explorer': {
                         var expBadge = document.getElementById('tutor-explorer-badge');
                         var expOn = expBadge && expBadge.textContent === 'Off';
                         if (expBadge) expBadge.textContent = expOn ? 'On' : 'Off';
                         if (itemEl) itemEl.classList.toggle('active', expOn);
                         post('action=picotutor&tutor=explorer&val=' + (expOn ? '1' : '0'));
-                        break; }
+                        close(); break; }
                     case 'tutor-comment': {
                         var comBadge = document.getElementById('tutor-comment-badge');
                         var comCycle = ['Off','Engine','All'];
@@ -1640,7 +1640,7 @@
                         if (comBadge) comBadge.textContent = comCycle[comIdx];
                         if (itemEl) itemEl.classList.toggle('active', comIdx > 0);
                         post('action=picotutor&tutor=comment&val=' + comCycle[comIdx].toLowerCase());
-                        break; }
+                        close(); break; }
                     case 'tutor-prob': {
                         var probBadge = document.getElementById('tutor-prob-badge');
                         var probSteps = [0,5,10,15,20,25,30,40,50,60,70,80,90,100];
@@ -1648,7 +1648,7 @@
                         var probNext = probSteps[(probSteps.indexOf(probCur) + 1) % probSteps.length];
                         if (probBadge) probBadge.textContent = probNext + '%';
                         post('action=picotutor&tutor=prob&val=' + probNext);
-                        break; }
+                        close(); break; }
                     case 'tutor-hint':
                         post('action=clockbutton&button=17'); close(); break;
                     // SYSTEM
@@ -1656,7 +1656,7 @@
                         if (typeof toggleMute === 'function') toggleMute();
                         updateSystemSubpanel();
                         updateTileStates();
-                        break; // no close — show feedback
+                        close(); break;
                     case 'dgt':
                         showScan(); break;
                     case 'wifi':

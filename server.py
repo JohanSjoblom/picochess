@@ -1882,6 +1882,11 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
             self.shared["system_info"].update(message.info)
+            # Let the web client know whether a physical board is connected so it
+            # can make the diagram read-only when appropriate.
+            self.shared["system_info"]["has_board"] = (
+                ModeInfo.get_eboard_type() != EBoard.NOEBOARD
+            )
             # store old/original values of everything from start
             if "engine_name" in self.shared["system_info"]:
                 WebDisplay.engine_name = self.shared["system_info"]["engine_name"]

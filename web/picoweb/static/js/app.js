@@ -987,13 +987,16 @@ async function getMove(game, source, target) {
 
 function updateChessGround() {
     var tmpGame = createGamePointer();
+    // When a physical board is connected it is the single source of truth.
+    // Lock the diagram so that accidental drags cannot desync the display.
+    var hasBoard = !!(window._picoSystemInfo && window._picoSystemInfo.has_board);
 
     chessground1.set({
         fen: currentPosition.fen,
         turnColor: toColor(tmpGame),
         movable: {
-            color: toColor(tmpGame),
-            dests: toDests(tmpGame)
+            color: hasBoard ? 'none' : toColor(tmpGame),
+            dests: hasBoard ? {} : toDests(tmpGame)
         }
     });
 }
@@ -2206,6 +2209,12 @@ function setHeaders(data) {
 function getAllInfo() {
     $.get('/info', { action: 'get_system_info' }, function (data) {
         window.system_info = data;
+        // Merge into _picoSystemInfo (used by the overlay) and refresh diagram
+        // interactivity — in particular the has_board flag locks the diagram
+        // when a physical board is the source of truth for piece positions.
+        window._picoSystemInfo = window._picoSystemInfo || {};
+        Object.assign(window._picoSystemInfo, data);
+        if (window.chessground1) { updateChessGround(); }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);
     });

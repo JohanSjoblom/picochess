@@ -1588,14 +1588,7 @@
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
-                        if (cat === 'power' && !confirm('Are you sure?')) return;
-                        // Re-use the DGT clockbutton route for shutdown/reboot so that
-                        // _power_off() / _reboot() in display.py run in full (they call
-                        // set_engine_restart(True) and show the goodbye/pleasewait text).
-                        var postBody;
-                        if (action === 'sys_shutdown') postBody = 'action=clockbutton&button=32';
-                        else if (action === 'sys_reboot') postBody = 'action=clockbutton&button=17';
-                        else postBody = 'action=' + action;
+                        var postBody = 'action=' + action;
                         setTimeout(function() { post(postBody); close(); }, 180);
                     });
                     listEl.appendChild(btn);

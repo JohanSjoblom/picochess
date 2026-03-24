@@ -2156,7 +2156,14 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
 }
 
 function updateBackendAnalysis(analysis) {
-    var source = analysis && analysis.source ? analysis.source : 'engine';
+    if (!analysis) {
+        var engineEl = document.getElementById('analysisLineEngine');
+        var tutorEl = document.getElementById('analysisLineTutor');
+        if (engineEl) engineEl.textContent = '';
+        if (tutorEl) tutorEl.textContent = '';
+        return;
+    }
+    var source = analysis.source || 'engine';
     var lineEl = source === 'tutor'
         ? document.getElementById('analysisLineTutor')
         : document.getElementById('analysisLineEngine');

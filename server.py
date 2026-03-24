@@ -626,7 +626,10 @@ class ChannelHandler(ServerRequestHandler):
             eboard_type = self.get_argument("type", "").strip()
             _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "none"}
             if eboard_type in _valid_eboards:
-                write_picochess_ini("board-type", eboard_type)
+                # "none" means no board; write "noeboard" so EBoard['NOEBOARD'] resolves correctly
+                # on next startup (EBoard has no 'NONE' member).
+                ini_value = "noeboard" if eboard_type == "none" else eboard_type
+                write_picochess_ini("board-type", ini_value)
                 await Observable.fire(Event.REBOOT(dev="web"))
         elif action == "wifi_hotspot":
             try:

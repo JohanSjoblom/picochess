@@ -5844,7 +5844,7 @@ async def main() -> None:
                         logger.info("engine status: t:%s p:%s", self.engine.is_thinking(), self.engine.is_pondering())
 
             elif isinstance(event, Event.NEW_SCORE):
-                if event.score:
+                if event.score is not None:
                     if event.score == 99999 or event.score == -99999:
                         self.state.flag_pgn_game_over = True  # molli pgn mode: signal that pgn is at end
                     else:

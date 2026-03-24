@@ -1525,7 +1525,14 @@
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
                         if (cat === 'power' && !confirm('Are you sure?')) return;
-                        setTimeout(function() { post('action=' + action); close(); }, 180);
+                        // Re-use the DGT clockbutton route for shutdown/reboot so that
+                        // _power_off() / _reboot() in display.py run in full (they call
+                        // set_engine_restart(True) and show the goodbye/pleasewait text).
+                        var postBody;
+                        if (action === 'sys_shutdown') postBody = 'action=clockbutton&button=32';
+                        else if (action === 'sys_reboot') postBody = 'action=clockbutton&button=17';
+                        else postBody = 'action=' + action;
+                        setTimeout(function() { post(postBody); close(); }, 180);
                     });
                     listEl.appendChild(btn);
                 });
@@ -1600,7 +1607,7 @@
                         post('action=resign_game'); close(); break;
                     case 'takeback':
                         if (!gameActive) return;
-                        post('action=clockbutton&button=1'); close(); break;
+                        post('action=take_back'); close(); break;
                     case 'save-game':
                         post('action=save_game&slot=1'); close(); break;
                     case 'load-game':
@@ -1668,7 +1675,7 @@
                         post('action=picotutor&tutor=prob&val=' + probNext);
                         close(); break; }
                     case 'tutor-hint':
-                        post('action=clockbutton&button=17'); close(); break;
+                        post('action=clockbutton&button=3'); close(); break;
                     // SYSTEM
                     case 'web-mute':
                         if (typeof toggleMute === 'function') toggleMute();
@@ -1752,7 +1759,7 @@
                     document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                     gameActionBtn.classList.add('selected');
                     if (ga === 'new-game') { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
-                    if (ga === 'takeback') { post('action=clockbutton&button=1'); close(); return; }
+                    if (ga === 'takeback') { post('action=take_back'); close(); return; }
                     if (ga === 'altmove') {
                         post('action=altmove');
                         close(); return;

@@ -560,6 +560,8 @@ class ChannelHandler(ServerRequestHandler):
                     Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=1)
                 )
                 logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type, lang, speaker)
+        elif action == "take_back":
+            await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":
             await Observable.fire(Event.ALTERNATIVE_MOVE())
         elif action == "contlast":

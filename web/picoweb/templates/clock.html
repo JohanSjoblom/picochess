@@ -1427,7 +1427,7 @@
             /* ── game action picker ──────────────────── */
             var GAME_OPT = {
                 'save':    { label: 'Save to Slot', items: [['Slot 1','save_game&slot=1'],['Slot 2','save_game&slot=2'],['Slot 3','save_game&slot=3']] },
-                'read':    { label: 'Load from Slot', items: [['Slot 1','load_game&slot=1'],['Slot 2','load_game&slot=2'],['Slot 3','load_game&slot=3']] },
+                'read':    { label: 'Load from Slot', items: [['Last Game','load_game&slot=0'],['Slot 1','load_game&slot=1'],['Slot 2','load_game&slot=2'],['Slot 3','load_game&slot=3']] },
                 'end':     { label: 'Set Result', items: [['White wins','game_end&result=white'],['Black wins','game_end&result=black'],['Draw','game_end&result=draw']] }
             };
             function showGameOpts(action) {
@@ -1457,9 +1457,9 @@
                 power:   { label: 'Power', items: [['Shutdown','sys_shutdown'],['Reboot','sys_reboot'],['Exit PicoChess','sys_exit'],['Update PicoChess','sys_update'],['Update Engines','sys_update_engines']] },
                 sound:   { label: 'Sound (Beep)', items: [['Off','beep&val=off'],['Some','beep&val=some'],['On','beep&val=on'],['Sample','beep&val=sample']] },
                 lang:    { label: 'Language', items: [['English','lang&val=en'],['Deutsch','lang&val=de'],['Nederlands','lang&val=nl'],['Français','lang&val=fr'],['Español','lang&val=es'],['Italiano','lang&val=it']] },
-                display: { label: 'Display', items: [['Clock Left','display&side=left'],['Clock Right','display&side=right'],['Short notation','display&notation=short'],['Long notation','display&notation=long'],['Ponder On','display&ponder=on'],['Ponder Off','display&ponder=off']] },
+                display: { label: 'Display', items: [['Clock Left','display&side=left'],['Clock Right','display&side=right'],['Short notation','display&notation=short'],['Long notation','display&notation=long'],['Ponder On','display&ponder=on'],['Ponder Off','display&ponder=off'],['Confirm On','display&confirm=on'],['Confirm Off','display&confirm=off'],['Capital On','display&capital=on'],['Capital Off','display&capital=off'],['Engine Name On','display&enginename=on'],['Engine Name Off','display&enginename=off']] },
                 eboard:  { label: 'E-Board Type', items: [['DGT','eboard&type=dgt'],['Certabo','eboard&type=certabo'],['ChessLink','eboard&type=chesslink'],['ChessNut','eboard&type=chessnut'],['iChessOne','eboard&type=ichessone'],['None','eboard&type=none']] },
-                wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Network Info','wifi_info']] }
+                wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix'],['Network Info','wifi_info']] }
             };
             function showSysCat(cat) {
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
@@ -1479,10 +1479,11 @@
                         '<div>Battery: ' + (si.battery || '—') + '</div></div>';
                     return;
                 }
-                // Voice: fetch speakers for current language, show list
-                if (cat === 'voice') {
+                // Voice (comp / user): fetch speakers for current language, show list
+                if (cat === 'comp-voice' || cat === 'user-voice') {
+                    var vtype = (cat === 'user-voice') ? 'user' : 'comp';
                     col.style.display = 'flex';
-                    lbl.textContent = 'Speaker';
+                    lbl.textContent = (cat === 'user-voice') ? 'User Speaker' : 'Comp Speaker';
                     listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
                     fetch('/info?action=get_voices')
                         .then(function(r) { return r.json(); })
@@ -1493,14 +1494,15 @@
                                 listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No voices found for language ' + (data.lang || '') + '</div>';
                                 return;
                             }
-                            speakers.forEach(function(sp) {
+                            // prepend Mute option
+                            ['mute'].concat(speakers).forEach(function(sp) {
                                 var btn = document.createElement('button');
                                 btn.className = 'pico-picker-item';
                                 btn.innerHTML = '<strong>' + sp + '</strong>';
                                 btn.addEventListener('click', function() {
                                     listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                     btn.classList.add('selected');
-                                    post('action=set_voice&type=comp&speaker=' + encodeURIComponent(sp));
+                                    post('action=set_voice&type=' + vtype + '&speaker=' + encodeURIComponent(sp));
                                     setTimeout(close, 180);
                                 });
                                 listEl.appendChild(btn);
@@ -1509,6 +1511,68 @@
                         .catch(function() {
                             listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load voices</div>';
                         });
+                    return;
+                }
+                // Voice Speed: factor 1–9
+                if (cat === 'voice-speed') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Voice Speed';
+                    listEl.innerHTML = '';
+                    [1,2,3,4,5,6,7,8,9].forEach(function(n) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + n + '</strong>';
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=voice_speed&val=' + n);
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
+                // Voice Volume: factor 1–20 (each step = 5%)
+                if (cat === 'voice-volume') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Volume (×5%)';
+                    listEl.innerHTML = '';
+                    for (var v = 1; v <= 20; v++) {
+                        (function(n) {
+                            var btn = document.createElement('button');
+                            btn.className = 'pico-picker-item';
+                            btn.innerHTML = '<strong>' + (n * 5) + '%</strong>';
+                            btn.addEventListener('click', function() {
+                                listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                                btn.classList.add('selected');
+                                post('action=voice_volume&val=' + n);
+                                setTimeout(close, 180);
+                            });
+                            listEl.appendChild(btn);
+                        })(v);
+                    }
+                    return;
+                }
+                // Retro Speed: percentage values matching dgt/menu.py retrospeed_list
+                if (cat === 'rspeed') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Retro Speed';
+                    listEl.innerHTML = '';
+                    [['25%','25'],['50%','50'],['100%','100'],['200%','200'],['300%','300'],
+                     ['400%','400'],['500%','500'],['600%','600'],['700%','700'],
+                     ['800%','800'],['900%','900'],['1000%','1000'],['Max (instant)','max']
+                    ].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=rspeed&val=' + pair[1]);
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
                     return;
                 }
                 var so = SYS_OPT[cat];
@@ -2290,8 +2354,12 @@
                             <button class="pico-picker-item" data-action="web-mute" id="sys-webmute-btn"><strong id="sys-webmute-icon">🔊 Web Audio</strong><span class="picker-sub" id="sys-webmute-sub">Click to mute</span></button>
                             <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
-                            <button class="pico-picker-item" data-sys-cat="voice"><strong>🗣️ Voice</strong><span class="picker-sub">Speaker · Volume · Speed</span></button>
-                            <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock side · Notation · Ponder</span></button>
+                            <button class="pico-picker-item" data-sys-cat="comp-voice"><strong>🎙️ Comp Voice</strong><span class="picker-sub">Computer speaker</span></button>
+                            <button class="pico-picker-item" data-sys-cat="user-voice"><strong>👤 User Voice</strong><span class="picker-sub">Human player speaker</span></button>
+                            <button class="pico-picker-item" data-sys-cat="voice-speed"><strong>⏩ Voice Speed</strong><span class="picker-sub">Playback rate 1–9</span></button>
+                            <button class="pico-picker-item" data-sys-cat="voice-volume"><strong>🔊 Volume</strong><span class="picker-sub">System volume 1–20</span></button>
+                            <button class="pico-picker-item" data-sys-cat="rspeed"><strong>🕹️ Retro Speed</strong><span class="picker-sub">Retro engine playback speed</span></button>
+                            <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock · Notation · Confirm · Engine</span></button>
                             <button class="pico-picker-item" data-sys-cat="eboard"><strong>🎲 EBoard</strong><span class="picker-sub">Hardware type</span></button>
                             <button class="pico-picker-item" data-sys-cat="wifi"><strong>📶 WiFi/BT</strong><span class="picker-sub">Connection settings</span></button>
                         </div>

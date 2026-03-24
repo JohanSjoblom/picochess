@@ -54,7 +54,7 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
@@ -336,15 +336,16 @@ class ChannelHandler(ServerRequestHandler):
                     slot = 1
             except (ValueError, TypeError):
                 slot = 1
-            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"saved_game_{slot}.pgn"))
+            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"picochess_game_{slot}.pgn"))
         elif action == "load_game":
             try:
                 slot = int(self.get_argument("slot", "1"))
-                if slot not in (1, 2, 3):
+                if slot not in (0, 1, 2, 3):
                     slot = 1
             except (ValueError, TypeError):
                 slot = 1
-            await Observable.fire(Event.READ_GAME(pgn_filename=f"saved_game_{slot}.pgn"))
+            pgn_fn = "last_game.pgn" if slot == 0 else f"picochess_game_{slot}.pgn"
+            await Observable.fire(Event.READ_GAME(pgn_filename=pgn_fn))
         elif action == "game_end":
             _result_map = {
                 "white": GameResult.WIN_WHITE,
@@ -584,6 +585,9 @@ class ChannelHandler(ServerRequestHandler):
             side = self.get_argument("side", "")
             notation = self.get_argument("notation", "")
             ponder = self.get_argument("ponder", "")
+            confirm = self.get_argument("confirm", "")
+            capital = self.get_argument("capital", "")
+            enginename = self.get_argument("enginename", "")
             if side in ("left", "right"):
                 ModeInfo.set_clock_side(side)
                 write_picochess_ini("clockside", side)
@@ -595,6 +599,29 @@ class ChannelHandler(ServerRequestHandler):
                 write_picochess_ini("ponder-interval", 1)
             elif ponder == "off":
                 write_picochess_ini("ponder-interval", 0)
+            if confirm == "on":
+                # "disable-confirm-message=False" means confirm messages ARE shown
+                write_picochess_ini("disable-confirm-message", False)
+                logger.info("web display: confirm messages enabled")
+            elif confirm == "off":
+                write_picochess_ini("disable-confirm-message", True)
+                logger.info("web display: confirm messages disabled")
+            if capital == "on":
+                write_picochess_ini("enable-capital-letters", True)
+                await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
+                logger.info("web display: capital letters enabled")
+            elif capital == "off":
+                write_picochess_ini("enable-capital-letters", False)
+                await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
+                logger.info("web display: capital letters disabled")
+            if enginename == "on":
+                write_picochess_ini("show-engine", True)
+                await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=True))
+                logger.info("web display: engine name shown")
+            elif enginename == "off":
+                write_picochess_ini("show-engine", False)
+                await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=False))
+                logger.info("web display: engine name hidden")
         elif action == "eboard":
             eboard_type = self.get_argument("type", "").strip()
             _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "none"}
@@ -619,6 +646,59 @@ class ChannelHandler(ServerRequestHandler):
                 )
             except Exception as exc:
                 logger.warning("pair-phone failed: %s", exc)
+        elif action == "bt_fix":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("Fix_bluetooth.sh failed: %s", exc)
+        elif action == "voice_speed":
+            try:
+                speed_factor = max(1, min(9, int(self.get_argument("val", "2"))))
+            except (TypeError, ValueError):
+                speed_factor = 2
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            write_picochess_ini("speed-voice", speed_factor)
+            await Observable.fire(
+                Event.SET_VOICE(type=Voice.SPEED, lang=lang, speaker="mute", speed=speed_factor)
+            )
+            logger.info("web voice_speed: factor=%d", speed_factor)
+        elif action == "voice_volume":
+            try:
+                vol_factor = max(1, min(20, int(self.get_argument("val", "10"))))
+            except (TypeError, ValueError):
+                vol_factor = 10
+            write_picochess_ini("volume-voice", str(vol_factor))
+            # Set system volume: each factor unit = 5 % (same as _set_volume_voice in menu.py)
+            pct = str(vol_factor * 5)
+            for channel in ("Headphone", "Master", "HDMI", "PCM"):
+                try:
+                    subprocess.run(
+                        ["amixer", "-M", "sset", channel, f"{pct}%"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            await Observable.fire(
+                Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=1)
+            )
+            logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, pct)
+        elif action == "rspeed":
+            val_str = self.get_argument("val", "100").strip()
+            try:
+                rspeed_factor = 0.0 if val_str == "max" else round(float(val_str) / 100, 2)
+            except (TypeError, ValueError):
+                rspeed_factor = 1.0
+            write_picochess_ini("rspeed", rspeed_factor)
+            await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
+            logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
         elif action == "wifi_info":
             pass  # network info is shown in System > Info sub-panel
 

@@ -1926,6 +1926,17 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.STARTUP_INFO):
             self.shared["game_info"] = message.info.copy()
+            # Mirror interaction_mode and play_mode into system_info so the
+            # web client can determine diagram interactivity on page load.
+            self._create_system_info()
+            _im = message.info.get("interaction_mode")
+            _pm = message.info.get("play_mode")
+            if _im is not None:
+                self.shared["system_info"]["interaction_mode"] = _im.name.lower()
+            if _pm is not None:
+                self.shared["system_info"]["play_mode"] = (
+                    "user_white" if _pm == PlayMode.USER_WHITE else "user_black"
+                )
             # change book_index to book_text
             books = message.info["books"]
             book_index = message.info["book_index"]
@@ -1955,6 +1966,12 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["interaction_mode"] = message.mode
             _set_normal_pgn()
+            # Keep system_info in sync and push live update so connected
+            # clients can immediately re-evaluate diagram interactivity.
+            self._create_system_info()
+            _im_str = message.mode.name.lower()
+            self.shared["system_info"]["interaction_mode"] = _im_str
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"interaction_mode": _im_str}})
 
             if self.shared["game_info"]["interaction_mode"] == Mode.REMOTE:
                 if self.shared["system_info"]["engine_name"] != "" and self.shared["system_info"]["old_engine"] == "":
@@ -2012,6 +2029,11 @@ class WebDisplay(DisplayMsg):
                 self.shared["game_info"]["play_mode"] = message.play_mode
                 _build_headers()
                 _send_headers()
+            # Keep system_info in sync and push live update.
+            self._create_system_info()
+            _pm_str = "user_white" if message.play_mode == PlayMode.USER_WHITE else "user_black"
+            self.shared["system_info"]["play_mode"] = _pm_str
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"play_mode": _pm_str}})
 
         elif isinstance(message, Message.TIME_CONTROL):
             self._create_game_info()

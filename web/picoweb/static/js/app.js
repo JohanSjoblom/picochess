@@ -987,16 +987,31 @@ async function getMove(game, source, target) {
 
 function updateChessGround() {
     var tmpGame = createGamePointer();
-    // When a physical board is connected it is the single source of truth.
-    // Lock the diagram so that accidental drags cannot desync the display.
-    var hasBoard = !!(window._picoSystemInfo && window._picoSystemInfo.has_board);
+    var psi = window._picoSystemInfo || {};
+    var hasBoard = !!psi.has_board;
+    var turnColor = toColor(tmpGame);
+    var movableColor;
+
+    if (!hasBoard) {
+        // No physical board: full diagram interactivity (NOEBOARD mode).
+        movableColor = turnColor;
+    } else if (psi.interaction_mode === 'remote') {
+        // REMOTE mode: local player uses the physical board; the remote
+        // opponent enters moves via the web diagram.  Only allow dragging
+        // when it is actually the remote side's turn.
+        var remoteColor = (psi.play_mode === 'user_white') ? 'black' : 'white';
+        movableColor = (turnColor === remoteColor) ? remoteColor : 'none';
+    } else {
+        // Any other mode with a board: diagram is read-only.
+        movableColor = 'none';
+    }
 
     chessground1.set({
         fen: currentPosition.fen,
-        turnColor: toColor(tmpGame),
+        turnColor: turnColor,
         movable: {
-            color: hasBoard ? 'none' : toColor(tmpGame),
-            dests: hasBoard ? {} : toDests(tmpGame)
+            color: movableColor,
+            dests: (movableColor === 'none') ? {} : toDests(tmpGame)
         }
     });
 }
@@ -2506,6 +2521,14 @@ $(function () {
                     case 'PromotionDlg':
                         // for e-boards that do not feature piece recognition
                         promotionDialog(data.move);
+                        break;
+                    case 'SystemInfo':
+                        // Live update of interaction_mode / play_mode so the
+                        // diagram immediately locks/unlocks when mode changes.
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        Object.assign(window._picoSystemInfo, data.msg);
+                        if (window.chessground1) { updateChessGround(); }
+                        break;
                     default:
                         console.warn(data);
                 }

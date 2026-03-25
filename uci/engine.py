@@ -456,6 +456,14 @@ class ContinuousAnalysis:
         await self.engine_lease.acquire(owner="continuous")
         recovery_reason = ""
         analysis = None
+        # Track whether _safe_stop() was already called for this analysis session.
+        # _safe_stop() calls analysis.wait() which transitions the command to FINISHED.
+        # If the caller then also calls analysis.stop() (as the old `with` __aexit__ did),
+        # python-chess queues a new StopCommand on the FINISHED result.  That stale command
+        # is sent to the engine on the next go(), causing the engine to hang waiting for a
+        # bestmove that never arrives.  By recording that _safe_stop was called we can skip
+        # the redundant stop in the cleanup path.
+        _already_stopped = False
         try:
             # Wait briefly until the engine is ready before starting analysis
             ready = await self._wait_for_engine_ready(timeout=0.5)
@@ -463,55 +471,70 @@ class ContinuousAnalysis:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
             self._analysis_started_ts = self.loop.time() if self.loop else None
-            with await self.engine.analysis(
+            # Avoid `with await engine.analysis() as analysis` because the context-manager
+            # __aexit__ always calls analysis.stop().  After _safe_stop() that is a
+            # double-stop on a FINISHED command → stale StopCommand → engine hang.
+            # We manage cleanup ourselves in the outer finally instead.
+            analysis = await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
-            ) as analysis:
-                self._active_analysis = analysis
-                if not self._running or self.engine_lease.interrupt_requested("continuous"):
-                    if not await self._safe_stop(analysis):
-                        recovery_reason = "continuous analysis stop timed out before first info"
-                    return
-                interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
-                try:
-                    async for info in analysis:
-                        if self.engine_lease.interrupt_requested("continuous"):
-                            if not await self._safe_stop(analysis):
-                                recovery_reason = "continuous analysis stop timed out after preemption"
-                            return
+            )
+            self._active_analysis = analysis
+            if not self._running or self.engine_lease.interrupt_requested("continuous"):
+                _already_stopped = True
+                if not await self._safe_stop(analysis):
+                    recovery_reason = "continuous analysis stop timed out before first info"
+                return
+            interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
+            try:
+                async for info in analysis:
+                    if self.engine_lease.interrupt_requested("continuous"):
+                        _already_stopped = True
+                        if not await self._safe_stop(analysis):
+                            recovery_reason = "continuous analysis stop timed out after preemption"
+                        return
 
-                        async with self.lock:
-                            if (
-                                not self._running
-                                or self.current_game_id != self.game_id
-                                or self.current_game.fen() != self.game.fen()
-                                or self.engine_lease.interrupt_requested("continuous")
-                            ):
-                                self._analysis_data = None  # drop ref into library
-                                if not await self._safe_stop(analysis):
-                                    recovery_reason = "continuous analysis stop timed out while switching position"
-                                return  # quit analysis
-                            updated = self._update_analysis_data(analysis)  # update to latest
-                        if updated:
-                            #  self._analysis data got a value
-                            #  self.debug_analyser()  # normally commented out
-                            if limit:
-                                # @todo change 0 to -1 to get all multipv finished
-                                info_limit: InfoDict = self._analysis_data[0]
-                                if "depth" in info_limit and limit.depth:
-                                    if info_limit.get("depth") >= limit.depth:
-                                        self.limit_reached = True
-                                        return  # limit reached
-                        await asyncio.sleep(self.delay)  # save cpu
-                finally:
-                    if self._active_analysis is analysis:
-                        self._active_analysis = None
-                    if interrupt_task:
-                        interrupt_task.cancel()
-                        try:
-                            await interrupt_task
-                        except CancelledError:
-                            pass
+                    async with self.lock:
+                        if (
+                            not self._running
+                            or self.current_game_id != self.game_id
+                            or self.current_game.fen() != self.game.fen()
+                            or self.engine_lease.interrupt_requested("continuous")
+                        ):
+                            self._analysis_data = None  # drop ref into library
+                            _already_stopped = True
+                            if not await self._safe_stop(analysis):
+                                recovery_reason = "continuous analysis stop timed out while switching position"
+                            return  # quit analysis
+                        updated = self._update_analysis_data(analysis)  # update to latest
+                    if updated:
+                        #  self._analysis data got a value
+                        #  self.debug_analyser()  # normally commented out
+                        if limit:
+                            # @todo change 0 to -1 to get all multipv finished
+                            info_limit: InfoDict = self._analysis_data[0]
+                            if "depth" in info_limit and limit.depth:
+                                if info_limit.get("depth") >= limit.depth:
+                                    self.limit_reached = True
+                                    return  # limit reached
+                    await asyncio.sleep(self.delay)  # save cpu
+            finally:
+                if self._active_analysis is analysis:
+                    self._active_analysis = None
+                if interrupt_task:
+                    interrupt_task.cancel()
+                    try:
+                        await interrupt_task
+                    except CancelledError:
+                        pass
         finally:
+            # Stop the analysis exactly once.  If _safe_stop() was already called it
+            # consumed the bestmove reply (analysis is FINISHED); a second stop() would
+            # queue a stale StopCommand that hangs the next engine search.
+            if not _already_stopped and analysis is not None:
+                try:
+                    analysis.stop()
+                except Exception as e:
+                    logger.debug("%s cleanup stop raised: %s", self.whoami, e)
             self._analysis_started_ts = None
             if recovery_reason and self._recover_engine_cb:
                 recovered = await self._recover_engine_cb(recovery_reason)

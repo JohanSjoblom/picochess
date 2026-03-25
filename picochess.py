@@ -3221,10 +3221,16 @@ async def main() -> None:
             # 128 - skip engine analyser when engine is thinking about its move
             # because as of 128 the engine play will get info from PlayingContinuousAnalyser
             result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
-            # Allow engine ContinuousAnalysis to run even when the tutor is active so the
-            # engine line can be shown alongside the tutor line in the web UI.
-            # (The tutor engine runs independently; the main engine is idle on the user's
-            # turn and its ContinuousAnalysis costs little extra CPU.)
+            # skip engine analyser if tutor can be used on engine waiting for user turn;
+            # the tutor's best_engine is already running analysis for this position, so
+            # there is no need to also run the main ContinuousAnalysis (saves CPU and
+            # avoids lease-contention bugs on the transition to engine-thinking).
+            result = result and not (
+                self.eng_plays()
+                and self.state.picotutor.can_use_coach_analyser()
+                and self.state.is_user_turn()
+                and not engine_thinking
+            )
             # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
 
@@ -3317,13 +3323,11 @@ async def main() -> None:
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                            # Also get engine ContinuousAnalysis for the engine line in the web UI.
-                            # need_engine_analyser() now allows the analyser to run in this path.
-                            analysis_board = self.state.get_move_check_board()
-                            eng_result = await self.engine.get_analysis(analysis_board)
-                            eng_info_list: list[InfoDict] = eng_result.get("info")
-                            info_for_web_engine = eng_info_list[0] if eng_info_list else None
-                            analysed_fen_for_web_engine = eng_result.get("fen", "")
+                            # The tutor's best_engine IS a Stockfish analysis — reuse the same
+                            # data for the engine line so the web UI shows both lines without
+                            # needing a second ContinuousAnalysis running in parallel.
+                            info_for_web_engine = info_for_web_tutor
+                            analysed_fen_for_web_engine = analysed_fen_for_web_tutor
                         else:
                             # is_coach_analyser() must be False here; otherwise the first branch above
                             # would already have routed analysis through picotutor. Only fall back to

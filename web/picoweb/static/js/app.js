@@ -2158,12 +2158,31 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     lineEl.innerHTML = output;
 }
 
+function isAnalysisSourcesVisible() {
+    var sourceBlock = document.querySelector('.analysis-sources');
+    return sourceBlock && !sourceBlock.classList.contains('d-none');
+}
+
+function setEngineLinePlaceholder() {
+    var engineEl = document.getElementById('analysisLineEngine');
+    if (!engineEl) return;
+    if (isAnalysisSourcesVisible() && !engineEl.innerHTML.trim()) {
+        engineEl.innerHTML =
+            '<div class="list-group-item">' +
+            '<div class="analysis-line-compact">' +
+            '<span class="analysis-source">Engine:</span>' +
+            '</div></div>';
+    }
+}
+
 function updateBackendAnalysis(analysis) {
     if (!analysis) {
         var engineEl = document.getElementById('analysisLineEngine');
         var tutorEl = document.getElementById('analysisLineTutor');
-        if (engineEl) engineEl.textContent = '';
+        if (engineEl) engineEl.innerHTML = '';
         if (tutorEl) tutorEl.textContent = '';
+        // Keep the Engine: label visible whenever Show Server is active.
+        setEngineLinePlaceholder();
         return;
     }
     var source = analysis.source || 'engine';
@@ -2404,6 +2423,8 @@ $(function () {
     loadSavedTheme();
     getAllInfo();
     loadWebBookList();
+    // Show Engine: label immediately on page load before any analysis arrives.
+    setEngineLinePlaceholder();
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         updateStatus();
@@ -2595,6 +2616,8 @@ $(function () {
             $('#toggleBackendAnalysisText').text('Show Server');
         } else {
             $('#toggleBackendAnalysisText').text('Hide Server');
+            // Immediately show the Engine: label if no analysis has arrived yet.
+            setEngineLinePlaceholder();
         }
         if (window.updateEngineNavLabels) {
             window.updateEngineNavLabels();

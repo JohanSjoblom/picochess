@@ -4792,6 +4792,15 @@ async def main() -> None:
                 await asyncio.sleep(1)
 
             elif isinstance(event, Event.NEW_GAME):
+                # CONCURRENCY GUARD: process_main_events runs each event as a separate
+                # asyncio.create_task, so a stale Event.FEN from the previous game can
+                # execute concurrently with this handler during await points (e.g. inside
+                # stop_search_and_clock).  Clear all legal-FEN sets NOW, before the first
+                # await, so that any concurrent process_fen call finds no matching moves
+                # and cannot apply an old-game move to the freshly-reset board.
+                self.state.legal_fens = []
+                self.state.last_legal_fens = []
+                self.state.legal_fens_after_cmove = []
                 await self.get_rid_of_engine_move()
                 self.state.autoplay_pgn_file = False  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number

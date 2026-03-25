@@ -3197,13 +3197,12 @@ async def main() -> None:
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 result = True  # PGN Replay and mame engines always use tutor analysis only
             else:
-                # the other analysis modes ie engine not playing moves: use tutor if same engine chosen
-                # this saves a lot of CPU on Raspberry Pi
-                # issue# 128 save even more cpu - always use tutor for all analysis modes
+                # In analysis modes (engine not playing moves), let the tutor handle analysis
+                # to save CPU.  When the engine IS playing moves (NORMAL/BRAIN/TRAINING) the
+                # main ContinuousAnalysis must always run so the server analysis line is
+                # populated — the tutor's best_engine produces coach/watcher output only,
+                # which never reaches the analysis line.
                 result = not self.eng_plays()
-                # special case - when playing opening book we need to use tutor when playing engine
-                if not result:
-                    result = self.eng_plays() and self.state.engine_move_was_book and self.state.is_user_turn()
             return result
 
         def need_engine_analyser(self) -> bool:
@@ -3228,20 +3227,9 @@ async def main() -> None:
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
-            # 128 - skip engine analyser when engine is thinking about its move
-            # because as of 128 the engine play will get info from PlayingContinuousAnalyser
+            # skip engine analyser when engine is thinking about its move
+            # (engine play will get info from PlayingContinuousAnalyser instead)
             result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
-            # skip engine analyser if tutor can be used on engine waiting for user turn;
-            # the tutor's best_engine is already running analysis for this position, so
-            # there is no need to also run the main ContinuousAnalysis (saves CPU and
-            # avoids lease-contention bugs on the transition to engine-thinking).
-            result = result and not (
-                self.eng_plays()
-                and self.state.picotutor.can_use_coach_analyser()
-                and self.state.is_user_turn()
-                and not engine_thinking
-            )
-            # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
 
         def eng_plays(self) -> bool:
@@ -3327,32 +3315,27 @@ async def main() -> None:
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
-                            # In engine-play mode this tutor snapshot is intentionally web-only.
-                            # Clock +/- remains engine-driven (ponder/engine analysis path).
-                            # The tutor engine (e.g. Stockfish) runs separately from the
-                            # playing engine; its output goes to the Tutor: line only.
-                            # The Engine: line is left empty on the user's turn when tutor is
-                            # active — the playing engine's ContinuousAnalysis is stopped to
-                            # save CPU, and its thinking is shown when it is the engine's turn.
+                            # Tutor output goes to the Tutor: line as before.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                        else:
-                            # is_coach_analyser() must be False here; otherwise the first branch above
-                            # would already have routed analysis through picotutor. Only fall back to
-                            # engine analysis when tutor info cannot be used.
-                            # save cpu - only run engine analysis on user turn if coach/watcher off
-                            analysis_board = self.state.get_move_check_board()
-                            result = await self.engine.get_analysis(analysis_board)
-                            info_list: list[InfoDict] = result.get("info")
-                            info_list_source = "engine"
-                            analysed_fen = result.get("fen", "")
-                            info_for_web_engine = info_list[0] if info_list else None
-                            analysed_fen_for_web_engine = analysed_fen
-                            info_candidate = info_list[0] if info_list else None
-                            if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                                info_list = None  # optimised else: prevent this info from being sent
+                        # Always read ContinuousAnalysis for the Engine: line during the user's
+                        # turn, even when the tutor is also active.  Previously only one or the
+                        # other was read; fast engines (Stockfish) that finish in < 1 s always
+                        # fell here, and with the old tutor-only branch the Engine: line was
+                        # permanently empty.  get_analysis() is a cheap buffer read — the
+                        # ContinuousAnalysis is already running (started by need_engine_analyser).
+                        analysis_board = self.state.get_move_check_board()
+                        result = await self.engine.get_analysis(analysis_board)
+                        info_list: list[InfoDict] = result.get("info")
+                        info_list_source = "engine"
+                        analysed_fen = result.get("fen", "")
+                        info_for_web_engine = info_list[0] if info_list else None
+                        analysed_fen_for_web_engine = analysed_fen
+                        info_candidate = info_list[0] if info_list else None
+                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                            info_list = None  # optimised: prevent re-sending analysis at same depth
                     await self._start_or_stop_analysis_as_needed()
             if info_for_web_engine:
                 await self.send_web_analysis(

@@ -3195,16 +3195,6 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
-            # Save CPU at game start: in normal engine-play modes, skip analyser on the
-            # untouched standard starting position (no moves played yet).
-            if (
-                self.eng_plays()
-                and self.state.variant == "chess"
-                and self.state.game is not None
-                and not self.state.game.move_stack
-                and self.state.game.fen() == chess.STARTING_FEN
-            ):
-                return False
             # Engine move has already been selected/displayed but not pushed on the game yet.
             # In this waiting window the old position is stale, so avoid launching the
             # engine ContinuousAnalysis sister for it.
@@ -3439,9 +3429,32 @@ async def main() -> None:
                 return
             depth = info.get("depth")
             pv_moves = list(info.get("pv") or [])
-            pv_to_send = [m.uci() for m in pv_moves if m] if pv_moves else []
+            # Convert PV to SAN using the analysed position so the web client can render
+            # figurine notation without needing to re-parse UCI+FEN through chess.js.
+            # (chess.js FEN loading or move application can silently fail, falling back to
+            # raw UCI coordinates.  Pre-computing SAN in Python eliminates that code path.)
+            pv_to_send = []
+            if pv_moves and analysed_fen:
+                try:
+                    san_board = chess.Board(analysed_fen)
+                    for m in pv_moves:
+                        if not m or m == chess.Move.null():
+                            break
+                        try:
+                            pv_to_send.append(san_board.san(m))
+                            san_board.push(m)
+                        except (ValueError, AssertionError):
+                            break
+                except Exception:
+                    pass
+            if not pv_to_send:
+                # Fallback: raw UCI (SAN board construction failed; JS will attempt chess.js parsing)
+                pv_to_send = [m.uci() for m in pv_moves if m and m != chess.Move.null()]
             if not pv_to_send and move and move != chess.Move.null():
-                pv_to_send = [move.uci()]
+                try:
+                    pv_to_send = [chess.Board(analysed_fen).san(move)]
+                except Exception:
+                    pv_to_send = [move.uci()]
             analysis_payload = {
                 "depth": depth,
                 "score": score,

@@ -2024,91 +2024,94 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
         return null;
     }
 
-    function applyBackendMove(game, moveText) {
-        if (!moveText) {
-            return null;
-        }
-        if (typeof moveText !== 'string') {
-            return null;
-        }
-        var cleaned = moveText.trim();
-        if (!cleaned) {
-            return null;
-        }
-        var uciMatch = cleaned.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-        if (uciMatch) {
-            var from = uciMatch[1];
-            var to = uciMatch[2];
-            var promotion = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
-            return promotion
-                ? game.move(({ from: from, to: to, promotion: promotion }))
-                : game.move(({ from: from, to: to }));
-        }
-        return game.move(cleaned, { sloppy: true });
-    }
+    // Detect whether moves are pre-computed SAN (sent by Python) or raw UCI.
+    // UCI moves match exactly: [a-h][1-8][a-h][1-8] with optional promotion letter.
+    // SAN moves (e4, Nf3, O-O, Qxd5+, e8=Q, etc.) do NOT match this pattern.
+    // Python converts to SAN before sending; UCI is only a fallback when that fails.
+    var uciPattern = /^[a-h][1-8][a-h][1-8][qrbn]?$/i;
+    var movesAreSan = !uciPattern.test(normalizedMoves[0]);
 
-    function buildFormattedPv(fen, allowCurrentFallback) {
-        var analysis_game = new Chess();
-        var start_move_num = 1;
-        if (fen) {
-            if (analysis_game.load(fen, chessGameType)) {
-                start_move_num = getStartMoveNumFromFen(fen);
-            } else if (allowCurrentFallback && currentPosition && currentPosition.fen
-                && analysis_game.load(currentPosition.fen, chessGameType)) {
-                start_move_num = getCountPrevMoves(currentPosition) + 1;
-            } else {
-                return null;
-            }
-        } else if (allowCurrentFallback && currentPosition && currentPosition.fen
-            && analysis_game.load(currentPosition.fen, chessGameType)) {
-            start_move_num = getCountPrevMoves(currentPosition) + 1;
-        }
-
-        var baseTurn = analysis_game.turn();
-        for (var i = 0; i < normalizedMoves.length; i++) {
-            var mv = applyBackendMove(analysis_game, normalizedMoves[i]);
-            if (!mv) {
-                break;
+    // Load the position FEN to determine turn (w/b) and full-move number.
+    // For SAN moves we only need this metadata; the moves themselves are already formatted.
+    // For UCI moves we also need to apply them through chess.js to obtain SAN history.
+    var startMoveNum = 1;
+    var baseTurn = 'w';
+    var fenForMeta = baseFen || (currentPosition && currentPosition.fen) || '';
+    if (fenForMeta) {
+        var metaGame = new Chess();
+        if (metaGame.load(fenForMeta, chessGameType)) {
+            startMoveNum = baseFen
+                ? getStartMoveNumFromFen(baseFen)
+                : (getCountPrevMoves(currentPosition) + 1);
+            baseTurn = metaGame.turn();
+        } else if (baseFen && currentPosition && currentPosition.fen) {
+            var metaGame2 = new Chess();
+            if (metaGame2.load(currentPosition.fen, chessGameType)) {
+                startMoveNum = getCountPrevMoves(currentPosition) + 1;
+                baseTurn = metaGame2.turn();
             }
         }
+    }
 
-        var history = analysis_game.history();
-        if (history.length === 0) {
-            return null;
-        }
-
-        var moveNumber = Math.floor((start_move_num + 1) / 2);
-        var firstMoveText = '';
-        if (baseTurn === 'w') {
-            firstMoveText += moveNumber + '. ';
-        } else {
-            firstMoveText += moveNumber + '... ';
-        }
-        firstMoveText += figurinizeMove(history[0]);
-
-        var continuationText = '';
-        var currentMoveNum = start_move_num;
-        for (i = 1; i < history.length; ++i) {
-            currentMoveNum++;
-            if (currentMoveNum % 2 === 1) {
-                continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+    var formattedMoves;
+    if (movesAreSan) {
+        // Python pre-computed SAN: figurinize each string directly.
+        // No chess.js move application needed — avoids FEN/move-application failures.
+        formattedMoves = normalizedMoves.map(function (m) { return figurinizeMove(m); });
+    } else {
+        // Raw UCI fallback: apply moves through chess.js to obtain SAN, then figurinize.
+        function applyBackendMove(game, moveText) {
+            if (!moveText || typeof moveText !== 'string') { return null; }
+            var c = moveText.trim();
+            if (!c) { return null; }
+            var uciMatch = c.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+            if (uciMatch) {
+                var from = uciMatch[1], to = uciMatch[2];
+                var promo = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
+                return promo ? game.move({ from: from, to: to, promotion: promo })
+                             : game.move({ from: from, to: to });
             }
-            continuationText += figurinizeMove(history[i]) + ' ';
+            return game.move(c, { sloppy: true });
         }
 
-        return {
-            firstMove: firstMoveText,
-            continuation: continuationText.trim()
-        };
+        var uciGame = new Chess();
+        var loaded = false;
+        if (baseFen && uciGame.load(baseFen, chessGameType)) {
+            loaded = true;
+        } else if (currentPosition && currentPosition.fen
+                   && uciGame.load(currentPosition.fen, chessGameType)) {
+            loaded = true;
+        }
+        if (!loaded) { return null; }
+
+        for (var k = 0; k < normalizedMoves.length; k++) {
+            if (!applyBackendMove(uciGame, normalizedMoves[k])) { break; }
+        }
+        var history = uciGame.history();
+        if (history.length === 0) { return null; }
+        formattedMoves = history.map(function (m) { return figurinizeMove(m); });
     }
 
-    var formatted = buildFormattedPv(baseFen, true);
-    if (!formatted && baseFen && currentPosition && currentPosition.fen
-        && currentPosition.fen !== baseFen) {
-        formatted = buildFormattedPv(currentPosition.fen, false);
+    if (!formattedMoves || formattedMoves.length === 0) { return null; }
+
+    var moveNumber = Math.floor((startMoveNum + 1) / 2);
+    var firstMoveText = (baseTurn === 'w') ? moveNumber + '. ' : moveNumber + '... ';
+    firstMoveText += formattedMoves[0];
+
+    var continuationText = '';
+    var currentMoveNum = startMoveNum;
+    for (var n = 1; n < formattedMoves.length; n++) {
+        currentMoveNum++;
+        if (currentMoveNum % 2 === 1) {
+            continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+        }
+        continuationText += formattedMoves[n] + ' ';
     }
 
-    return formatted;
+    return {
+        firstMove: firstMoveText,
+        continuation: continuationText.trim()
+    };
 }
 
 function updateBackendAnalysisLine(lineEl, analysis, labelText) {

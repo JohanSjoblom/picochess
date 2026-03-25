@@ -1666,6 +1666,11 @@ async def main() -> None:
                                     send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
+                                # Immediately push the engine's final analysis to the web Engine:
+                                # line.  The 1-second analyse() timer may never fire before a fast
+                                # engine (Stockfish) finishes its move, so do it right here while
+                                # the info is fresh.
+                                await self.send_web_analysis(info, analysed_fen, "engine")
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")

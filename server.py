@@ -2362,7 +2362,16 @@ class WebDisplay(DisplayMsg):
                 # and its most logical that WebDisplay updates the shared header
                 # now for issue #111 make sure also header has end game result
                 self.shared["headers"]["Result"] = WebDisplay.result_sav
-            # dont rebuild headers here, use existing one
+            # Rebuild PGN with result and push to all clients so the move list
+            # immediately shows "1-0", "0-1" or "1/2-1/2" appended.
+            pgn_str = _transfer(message.game)
+            fen = _oldstyle_fen(message.game)
+            mov = peek_uci(message.game)
+            end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            _attach_mistakes(end_msg)
+            _attach_variant_info(end_msg)
+            self.shared["last_dgt_move_msg"] = end_msg
+            EventHandler.write_to_clients(end_msg)
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

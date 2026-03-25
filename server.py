@@ -367,7 +367,8 @@ class ChannelHandler(ServerRequestHandler):
                 # max).  The DGT-menu path fires Event.LEVEL first which does the
                 # same; the web overlay fires only Event.NEW_ENGINE so we set it here.
                 if level:
-                    self._create_game_info()
+                    if "game_info" not in self.shared:
+                        self.shared["game_info"] = {}
                     self.shared["game_info"]["level_name"] = level
                 await Observable.fire(Event.NEW_ENGINE(
                     eng=eng,

@@ -1929,6 +1929,9 @@ class WebDisplay(DisplayMsg):
                     del self.shared["game_info"]["level_name"]
             _build_headers()
             _send_headers()
+            # Push the new engine name to connected web clients so the overlay
+            # tile subtitle stays current without requiring a page refresh.
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"engine_name": message.engine_name}})
 
         elif isinstance(message, Message.STARTUP_INFO):
             self.shared["game_info"] = message.info.copy()
@@ -1951,6 +1954,9 @@ class WebDisplay(DisplayMsg):
             else:
                 self.shared["game_info"]["book_text"] = ""
             self.shared["game_info"].pop("book_index", None)  # safer to pop not del, but never used
+            # Mirror book name into system_info so get_system_info includes it on
+            # page load (the web overlay tile subtitle reads from _picoSystemInfo).
+            self.shared["system_info"]["book_name"] = self.shared["game_info"]["book_text"] or "Off"
 
             # remove if no level_text or level_name exist, else set old/original value from start
             if self.shared["game_info"].get("level_text") is None:
@@ -1967,6 +1973,12 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()
             self.shared["game_info"]["book_text"] = message.book_text
+            # Mirror into system_info and push live update so the overlay tile
+            # subtitle shows the newly selected book without a page refresh.
+            self._create_system_info()
+            _book_name = message.book_text or "Off"
+            self.shared["system_info"]["book_name"] = _book_name
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"book_name": _book_name}})
 
         elif isinstance(message, Message.INTERACTION_MODE):
             self._create_game_info()
@@ -2045,6 +2057,18 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
+            # Mirror a plain-text time label into system_info and push a live
+            # SystemInfo event.  message.time_text may be a DGT Text object (from
+            # the DGT menu path) or a plain string (from the web handler); convert
+            # to str in both cases and strip leading/trailing whitespace.
+            try:
+                _time_label = str(message.time_text).strip()
+            except Exception:
+                _time_label = ""
+            if _time_label:
+                self._create_system_info()
+                self.shared["system_info"]["time_label"] = _time_label
+                EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"time_label": _time_label}})
             # Immediately push new clock times to web clients.
             # The normal dispatch chain (CLOCK_SET → CLOCK_START) can be silently
             # dropped when clock_connected["web"] is not yet set, or can be

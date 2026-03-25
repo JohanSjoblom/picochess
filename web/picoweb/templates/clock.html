@@ -1358,6 +1358,11 @@
                 post(body);
                 var timeSub = document.getElementById('ovl-time-sub');
                 if (timeSub) timeSub.textContent = td.values[i];
+                // Cache the human-readable label so updateTileStates() shows it
+                // when the overlay is reopened (the server's SystemInfo reply
+                // carries the raw internal text; this friendly label wins).
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.time_label = td.values[i];
                 close();
             }
 
@@ -1603,6 +1608,8 @@
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = isMuted ? 'Muted' : 'Sound On';
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
+                if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
+                if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
                 stateEl.textContent = gameActive ? '● Game in progress' : '○ No active game';
                 stateEl.style.color = gameActive ? '#4caf50' : '#888';
             }

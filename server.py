@@ -2104,6 +2104,13 @@ class WebDisplay(DisplayMsg):
             if "PGN Replay" not in WebDisplay.engine_name:
                 self._create_game_info()
                 self.shared["game_info"]["play_mode"] = message.play_mode
+                # PLAY_MODE fires in set_wait_state() before START_NEW_GAME when the
+                # user's colour changes at the start of a new game.  At that point
+                # result_sav still holds the previous game's result ("0-1" etc.).
+                # Clearing it here prevents _build_headers() from embedding the stale
+                # result in the Header event that is sent to web clients.
+                # START_NEW_GAME (which arrives next) clears it anyway; we just beat it.
+                WebDisplay.result_sav = ""
                 _build_headers()
                 _send_headers()
             # Keep system_info in sync and push live update.

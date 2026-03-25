@@ -362,6 +362,13 @@ class ChannelHandler(ServerRequestHandler):
             eng   = EngineProvider.resolve_engine(file)
             if eng:
                 options = eng.get("level_dict", {}).get(level, {}) if level else {}
+                # Persist the selected level name now so _build_game_header uses
+                # the correct Elo (e.g. "Elo@1600" → BlackElo 1600, not the engine
+                # max).  The DGT-menu path fires Event.LEVEL first which does the
+                # same; the web overlay fires only Event.NEW_ENGINE so we set it here.
+                if level:
+                    self._create_game_info()
+                    self.shared["game_info"]["level_name"] = level
                 await Observable.fire(Event.NEW_ENGINE(
                     eng=eng,
                     eng_text=eng.get("text", ""),

@@ -630,7 +630,10 @@ class ChannelHandler(ServerRequestHandler):
                 # on next startup (EBoard has no 'NONE' member).
                 ini_value = "noeboard" if eboard_type == "none" else eboard_type
                 write_picochess_ini("board-type", ini_value)
-                await Observable.fire(Event.REBOOT(dev="web"))
+                # Only reboot when the board type actually changes (mirrors DGT menu behaviour).
+                current = ModeInfo.get_eboard_type()
+                if current is None or current.name.lower() != ini_value:
+                    await Observable.fire(Event.REBOOT(dev="web"))
         elif action == "wifi_hotspot":
             try:
                 subprocess.Popen(

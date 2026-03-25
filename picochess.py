@@ -2411,19 +2411,34 @@ async def main() -> None:
 
             # standard legal move
             elif fen in self.state.legal_fens:
-                logger.debug("standard move detected")
-                self.state.newgame_happened = False
-                legal_moves = list(_move_board.legal_moves)
-                move = legal_moves[state.legal_fens.index(fen)]
-                ok = await self.user_move(move, sliding=False)
-                if ok:
-                    self.state.last_legal_fens = self.state.legal_fens
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                else:
+                # Verify the move is actually legal from the CURRENT position.
+                # legal_fens may be stale if left over from a previous game that
+                # executed concurrently (asyncio.create_task per event).
+                # legal_fens_pico is freshly computed from self.state.game at the
+                # top of this function and acts as a reliable staleness detector.
+                # Use its index to avoid stale-index mismatches too.
+                if fen not in legal_fens_pico:
+                    logger.warning(
+                        "process_fen: discarding stale legal_fens entry %s "
+                        "(not legal from current position %s)",
+                        fen,
+                        self.state.game.fen(),
+                    )
                     handled_fen = False
+                else:
+                    logger.debug("standard move detected")
+                    self.state.newgame_happened = False
+                    legal_moves = list(_move_board.legal_moves)
+                    move = legal_moves[legal_fens_pico.index(fen)]
+                    ok = await self.user_move(move, sliding=False)
+                    if ok:
+                        self.state.last_legal_fens = self.state.legal_fens
+                        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
+                            self.state.legal_fens = []
+                        else:
+                            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                    else:
+                        handled_fen = False
 
             # molli: allow direct play of an alternative move for pico
             elif (
@@ -3194,6 +3209,16 @@ async def main() -> None:
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
+                return False
+            # Save CPU at game start: in normal engine-play modes, skip analyser on the
+            # untouched standard starting position (no moves played yet).
+            if (
+                self.eng_plays()
+                and self.state.variant == "chess"
+                and self.state.game is not None
+                and not self.state.game.move_stack
+                and self.state.game.fen() == chess.STARTING_FEN
+            ):
                 return False
             # Engine move has already been selected/displayed but not pushed on the game yet.
             # In this waiting window the old position is stale, so avoid launching the
@@ -4792,15 +4817,6 @@ async def main() -> None:
                 await asyncio.sleep(1)
 
             elif isinstance(event, Event.NEW_GAME):
-                # CONCURRENCY GUARD: process_main_events runs each event as a separate
-                # asyncio.create_task, so a stale Event.FEN from the previous game can
-                # execute concurrently with this handler during await points (e.g. inside
-                # stop_search_and_clock).  Clear all legal-FEN sets NOW, before the first
-                # await, so that any concurrent process_fen call finds no matching moves
-                # and cannot apply an old-game move to the freshly-reset board.
-                self.state.legal_fens = []
-                self.state.last_legal_fens = []
-                self.state.legal_fens_after_cmove = []
                 await self.get_rid_of_engine_move()
                 self.state.autoplay_pgn_file = False  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number

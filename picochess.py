@@ -1604,6 +1604,11 @@ async def main() -> None:
                 while not self.engine.is_waiting():
                     await asyncio.sleep(0.05)
                     logger.warning("engine is still not waiting")
+                # Ensure the ContinuousAnalysis has fully stopped before sending 'go'.
+                # Without this, the context-manager exit in _analyse_forever queues a
+                # second 'stop' command (CommandState.NEW) that causes an AssertionError
+                # when play_move() calls engine.analysis() immediately afterwards.
+                await self.engine.stop_analysis()
                 uci_dict = state.time_control.uci()
                 if searchlist:
                     # molli: otherwise might lead to problems with internal books

@@ -5980,6 +5980,10 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
@@ -6026,6 +6030,10 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 if coach_request != 2:
                     coach_mode = self.state.dgtmenu.get_picocoach()
                     coach_msg = 0

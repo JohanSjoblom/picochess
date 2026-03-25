@@ -5691,6 +5691,14 @@ async def main() -> None:
                                             logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
+                        elif self.state.newgame_happened:
+                            # A new game was started while the engine was thinking.
+                            # Discard the stale move – sending MSG_COMPUTER_MOVE now
+                            # would display an illegal move on the new game's board.
+                            logger.debug(
+                                "EVT_BEST_MOVE: discarding stale engine move %s – new game started during think",
+                                event.move,
+                            )
                         else:
                             # normal computer move
                             if event.inbook:

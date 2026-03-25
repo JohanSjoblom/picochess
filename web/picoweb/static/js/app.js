@@ -2480,6 +2480,9 @@ $(function () {
             ws.onopen = function () {
                 // Reset backoff on successful connection.
                 wsReconnectDelay = 2000;
+                // Ensure Engine: label is visible while waiting for the first
+                // analysis message (server may not send one immediately).
+                setEngineLinePlaceholder();
             };
 
             // Process messages from picochess
@@ -2709,6 +2712,9 @@ $(function () {
             setEngineModeButtons(true);
             updateEngineLabels();
             setBackLabel();
+            // Show Engine: label immediately if analysis-sources is visible
+            // and no analysis has arrived yet.
+            setEngineLinePlaceholder();
         }
 
         function exitEngineMode() {

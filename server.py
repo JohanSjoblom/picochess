@@ -2250,8 +2250,12 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
             WebDisplay.result_sav = ""
-            result = self.shared["last_dgt_move_msg"]
-            EventHandler.write_to_clients(result)
+            result = self.shared.get("last_dgt_move_msg")
+            # If START_NEW_GAME already ran and set last_dgt_move_msg to play="newgame",
+            # this COMPUTER_MOVE_DONE is stale (engine moved after reset) – skip it so
+            # the new game's clean PGN isn't overwritten with the old game's result.
+            if result and result.get("play") != "newgame":
+                EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.DGT_FEN):
             # Update dgt_fen for board scan functionality

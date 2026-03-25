@@ -1385,12 +1385,21 @@
                             var label = b.index === 0 ? 'Obooksrv' : (b.label || b.file || ('Book ' + b.index));
                             var sub   = b.index === 0 ? 'Online book server' : '';
                             btn.innerHTML = '<strong>' + label + '</strong>' + (sub ? '<span class="picker-sub">' + sub + '</span>' : '');
+                            // Keep tile subtitle in sync with the current selection.
+                            if (b.index === currentIdx) {
+                                var bookSub = document.getElementById('ovl-book-sub');
+                                if (bookSub) bookSub.textContent = label;
+                                window._picoSystemInfo = window._picoSystemInfo || {};
+                                window._picoSystemInfo.book_name = label;
+                            }
                             btn.addEventListener('click', function() {
                                 listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                 btn.classList.add('selected');
                                 post('action=new_book&index=' + b.index);
                                 var bookSub = document.getElementById('ovl-book-sub');
                                 if (bookSub) bookSub.textContent = label;
+                                window._picoSystemInfo = window._picoSystemInfo || {};
+                                window._picoSystemInfo.book_name = label;
                                 setTimeout(close, 180);
                             });
                             listEl.appendChild(btn);
@@ -1767,10 +1776,20 @@
 
             /* ── open / close ────────────────────────── */
             function open() {
-                updateTileStates();
                 showTiles();
                 overlay.classList.add('open');
                 document.body.style.overflow = 'hidden';
+                // Fetch fresh system info so tile subtitles reflect current
+                // engine/book/time even if the page was loaded before these
+                // values arrived via WebSocket.
+                fetch('/info?action=get_system_info')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        Object.assign(window._picoSystemInfo, data);
+                    })
+                    .catch(function() {})
+                    .finally(function() { updateTileStates(); });
             }
 
             function close() {

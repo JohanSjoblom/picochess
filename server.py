@@ -736,7 +736,7 @@ class EventHandler(WebSocketHandler):
     def open(self, *args: str, **kwargs: str):
         EventHandler.clients.add(self)
         client_ips.append(self.real_ip())
-        # sync newly connected client with last known board state, if available
+        # Sync newly connected client with last known board state, if available.
         if self.shared and "last_dgt_move_msg" in self.shared:
             try:
                 self.write_message(self.shared["last_dgt_move_msg"])
@@ -748,6 +748,17 @@ class EventHandler(WebSocketHandler):
                     self.write_message({"event": "Analysis", "analysis": self.shared[key]})
                 except Exception as exc:  # pragma: no cover - websocket errors
                     logger.warning("failed to sync analysis to client: %s", exc)
+        # Push the current system_info so the overlay tile subtitles are correct
+        # immediately, even if the HTTP get_system_info fetch hasn't completed.
+        # Filter to only JSON-safe scalar values (plain str/int/float/bool/None).
+        if self.shared and "system_info" in self.shared:
+            try:
+                _si = {k: v for k, v in self.shared["system_info"].items()
+                       if isinstance(v, (str, int, float, bool, type(None)))}
+                if _si:
+                    self.write_message({"event": "SystemInfo", "msg": _si})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync system_info to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -1562,6 +1573,47 @@ class WebDisplay(DisplayMsg):
     result_sav = ""
     engine_name = "Picochess"
 
+    @staticmethod
+    def _text_to_label(text_obj) -> str:
+        """Extract a plain string from a DGT Text object or passthrough if already a str."""
+        if text_obj is None:
+            return ""
+        if isinstance(text_obj, str):
+            return text_obj.strip()
+        for attr in ("web_text", "large_text", "medium_text"):
+            val = getattr(text_obj, attr, None)
+            if val and str(val).strip():
+                return str(val).strip()
+        return ""
+
+    @staticmethod
+    def _tc_to_label(tc_init: dict) -> str:
+        """Derive a short human-readable time-control label from a tc_init dict."""
+        if not tc_init:
+            return ""
+        from dgt.util import TimeMode
+        mode   = tc_init.get("mode")
+        depth  = tc_init.get("depth")  or 0
+        node   = tc_init.get("node")   or 0
+        moves  = tc_init.get("moves_to_go") or 0
+        blitz  = tc_init.get("blitz")  or 0
+        fixed  = tc_init.get("fixed")  or 0
+        fisch  = tc_init.get("fischer") or 0
+        blitz2 = tc_init.get("blitz2") or 0
+        if depth:
+            return f"{depth} ply"
+        if node:
+            return f"{node}k nodes"
+        if moves:
+            return f"{moves}/{blitz}+{fisch}/{blitz2}" if fisch else f"{moves}/{blitz}/{blitz2}"
+        if mode == TimeMode.FISCHER:
+            return f"{blitz}+{fisch}"
+        if mode == TimeMode.BLITZ:
+            return f"{blitz} min"
+        if mode == TimeMode.FIXED:
+            return f"{fixed} s"
+        return ""
+
     def __init__(self, shared: dict, loop: asyncio.AbstractEventLoop):
         super(WebDisplay, self).__init__(loop)
         self.shared = shared
@@ -1954,9 +2006,16 @@ class WebDisplay(DisplayMsg):
             else:
                 self.shared["game_info"]["book_text"] = ""
             self.shared["game_info"].pop("book_index", None)  # safer to pop not del, but never used
-            # Mirror book name into system_info so get_system_info includes it on
-            # page load (the web overlay tile subtitle reads from _picoSystemInfo).
-            self.shared["system_info"]["book_name"] = self.shared["game_info"]["book_text"] or "Off"
+            # Mirror plain-string labels into system_info for get_system_info.
+            # game_info["book_text"] is a DGT Text object; extract readable text.
+            _raw_book = self.shared["game_info"].get("book_text")
+            self.shared["system_info"]["book_name"] = self._text_to_label(_raw_book) or "Off"
+            # Derive time label from tc_init (TimeMode enums are not JSON-safe).
+            _tc_init = message.info.get("tc_init")
+            if _tc_init:
+                _tc_label = self._tc_to_label(_tc_init)
+                if _tc_label:
+                    self.shared["system_info"]["time_label"] = _tc_label
 
             # remove if no level_text or level_name exist, else set old/original value from start
             if self.shared["game_info"].get("level_text") is None:
@@ -1973,10 +2032,10 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()
             self.shared["game_info"]["book_text"] = message.book_text
-            # Mirror into system_info and push live update so the overlay tile
-            # subtitle shows the newly selected book without a page refresh.
+            # Mirror plain-string book label into system_info and push live
+            # update so the overlay tile subtitle reflects the new selection.
             self._create_system_info()
-            _book_name = message.book_text or "Off"
+            _book_name = self._text_to_label(message.book_text) or "Off"
             self.shared["system_info"]["book_name"] = _book_name
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"book_name": _book_name}})
 
@@ -2057,14 +2116,10 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
-            # Mirror a plain-text time label into system_info and push a live
-            # SystemInfo event.  message.time_text may be a DGT Text object (from
-            # the DGT menu path) or a plain string (from the web handler); convert
-            # to str in both cases and strip leading/trailing whitespace.
-            try:
-                _time_label = str(message.time_text).strip()
-            except Exception:
-                _time_label = ""
+            # Derive a plain-string time label from tc_init and push it.
+            # tc_init contains TimeMode enums which are not JSON-safe, so we
+            # never put tc_init itself into system_info — only the derived label.
+            _time_label = self._tc_to_label(message.tc_init)
             if _time_label:
                 self._create_system_info()
                 self.shared["system_info"]["time_label"] = _time_label

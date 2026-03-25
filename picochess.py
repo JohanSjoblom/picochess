@@ -1604,11 +1604,6 @@ async def main() -> None:
                 while not self.engine.is_waiting():
                     await asyncio.sleep(0.05)
                     logger.warning("engine is still not waiting")
-                # Ensure the ContinuousAnalysis has fully stopped before sending 'go'.
-                # Without this, the context-manager exit in _analyse_forever queues a
-                # second 'stop' command (CommandState.NEW) that causes an AssertionError
-                # when play_move() calls engine.analysis() immediately afterwards.
-                await self.engine.stop_analysis()
                 uci_dict = state.time_control.uci()
                 if searchlist:
                     # molli: otherwise might lead to problems with internal books
@@ -3319,15 +3314,15 @@ async def main() -> None:
                         if self.state.picotutor.can_use_coach_analyser():
                             # In engine-play mode this tutor snapshot is intentionally web-only.
                             # Clock +/- remains engine-driven (ponder/engine analysis path).
+                            # The tutor engine (e.g. Stockfish) runs separately from the
+                            # playing engine; its output goes to the Tutor: line only.
+                            # The Engine: line is left empty on the user's turn when tutor is
+                            # active — the playing engine's ContinuousAnalysis is stopped to
+                            # save CPU, and its thinking is shown when it is the engine's turn.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                            # The tutor's best_engine IS a Stockfish analysis — reuse the same
-                            # data for the engine line so the web UI shows both lines without
-                            # needing a second ContinuousAnalysis running in parallel.
-                            info_for_web_engine = info_for_web_tutor
-                            analysed_fen_for_web_engine = analysed_fen_for_web_tutor
                         else:
                             # is_coach_analyser() must be False here; otherwise the first branch above
                             # would already have routed analysis through picotutor. Only fall back to
@@ -3437,8 +3432,9 @@ async def main() -> None:
                 return
             (move, score, mate) = PicoTutor.get_score(info)
             # Don't send incomplete analysis that would show "?" in the UI.
-            # Wait until the engine provides at least a score or a mate distance.
-            if score is None and mate is None:
+            # get_score() returns mate=0 (falsy) when there is no mate, so check
+            # "not mate" rather than "mate is None" to cover both None and 0.
+            if score is None and not mate:
                 logger.debug("skip web analysis for %s: no score/mate yet", source)
                 return
             depth = info.get("depth")

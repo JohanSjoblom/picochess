@@ -1073,6 +1073,7 @@ class ChessBoardHandler(ServerRequestHandler):
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
+        from utilities import version as pico_version
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
@@ -1081,6 +1082,7 @@ class ChessBoardHandler(ServerRequestHandler):
             web_speech=web_speech,
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
+            pico_version=pico_version,
         )
 
     def _get_web_speech_setting(self) -> bool:

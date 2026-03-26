@@ -1021,8 +1021,7 @@ piece {
     gap: 0.35rem;
 }
 
-.pico-gear-btn,
-.pico-copy-btn {
+.pico-gear-btn {
     background: none;
     border: none;
     padding: 0.25rem 0.4rem;
@@ -1035,8 +1034,7 @@ piece {
     flex-shrink: 0;
 }
 
-.pico-gear-btn:hover,
-.pico-copy-btn:hover {
+.pico-gear-btn:hover {
     opacity: 1;
 }
 

@@ -671,7 +671,6 @@
                                                 </button>
                                             </li>
                                         </ul>
-                                        <button class="pico-copy-btn" id="picoCopyBtn" title="Copy link to clipboard" aria-label="Copy link to this game" onclick="(function(){try{navigator.clipboard.writeText(window.location.href);var b=document.getElementById('picoCopyBtn');var t=b.textContent;b.textContent='✓';setTimeout(function(){b.textContent=t;},1500);}catch(e){}})()">🔗</button>
                                         <button class="pico-gear-btn" id="picoMenuBtn" title="Menu" aria-label="Open menu">⚙</button>
                                         <!-- Hidden: JS needs pills-menu-tab to exit engine mode → redirects to engine tab -->
                                         <button class="d-none" id="pills-menu-tab" data-bs-toggle="pill"
@@ -2489,7 +2488,7 @@
     </div>
     <footer id="pico-footer">
         <span id="picoFooterDgt" class="footer-status">● DGT</span>
-        <span class="footer-version">PicoChess 4.2.3</span>
+        <span class="footer-version">PicoChess {{ pico_version }}</span>
     </footer>
 </body>
 

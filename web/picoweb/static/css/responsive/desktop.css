@@ -1,5 +1,11 @@
 @media (min-width: 769px) {
 
+    /* Prevent the page from scrolling on fixed-display / touchscreen hardware */
+    html, body {
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
+    }
+
     .scroll-portrait>.container-fluid>.row {
         display: flex;
         align-items: stretch;

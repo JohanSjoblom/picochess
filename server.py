@@ -2296,6 +2296,10 @@ class WebDisplay(DisplayMsg):
             # this COMPUTER_MOVE_DONE is stale (engine moved after reset) – skip it so
             # the new game's clean PGN isn't overwritten with the old game's result.
             if result and result.get("play") != "newgame":
+                # Re-stamp variant info: for 3check, process_fen has already pushed
+                # the engine move onto the ThreeCheck board and updated checks_remaining,
+                # so this overwrites the stale value captured at COMPUTER_MOVE time.
+                _attach_variant_info(result)
                 EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.DGT_FEN):

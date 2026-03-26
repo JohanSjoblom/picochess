@@ -5761,11 +5761,14 @@ async def main() -> None:
                                 )
 
                                 await asyncio.sleep(0.5)
-                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
-
+                                # Push the move and sync variant boards (e.g. 3check counter)
+                                # BEFORE firing COMPUTER_MOVE_DONE so that the server-side
+                                # _attach_variant_info re-stamp in COMPUTER_MOVE_DONE reads
+                                # the freshly updated checks_remaining, not the pre-move value.
                                 self.state.best_move_posted = False
                                 self.state.push_move(self.state.done_move)  # computer move without human assistance
                                 self._update_variant_shared()
+                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
                                 self.state.done_computer_fen = None
                                 self.state.done_move = chess.Move.null()
 

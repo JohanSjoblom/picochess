@@ -1190,6 +1190,7 @@
                         if (!sec) return;
                         ['alpha','berlin','leipzig','merida','uscf'].forEach(function(p) { sec.classList.remove(p); });
                         sec.classList.add(val);
+                        syncKingBadgeIcons();
                         fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
                             body: JSON.stringify({entries:[{key:'pieces',value:val,enabled:true}]})}).catch(function(){});
                     }

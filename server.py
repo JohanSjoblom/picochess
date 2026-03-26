@@ -1085,6 +1085,7 @@ class ChessBoardHandler(ServerRequestHandler):
             _dgt_util.EBoard.NOEBOARD:  "No e-board",
         }
         eboard_name = _eboard_labels.get(ModeInfo.get_eboard_type(), "DGT")
+        variant = self.shared.get("variant", "chess") if self.shared else "chess"
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
@@ -1095,6 +1096,7 @@ class ChessBoardHandler(ServerRequestHandler):
             tutor_watch_active=tutor_watch_active,
             pico_version=pico_version,
             eboard_name=eboard_name,
+            variant=variant,
         )
 
     def _get_web_speech_setting(self) -> bool:

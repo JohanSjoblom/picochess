@@ -563,7 +563,7 @@
                                         </div>
                                     </div>
                                     <!-- 3-check counters: shown only in ThreeCheck variant -->
-                                    <div id="checkCounters" class="check-counter-row" style="display:none;" aria-label="Three-check counters" role="status">
+                                    <div id="checkCounters" class="check-counter-row" style="display:{% if variant == '3check' %}flex{% else %}none{% end %};" aria-label="Three-check counters" role="status">
                                         <span class="check-badge check-badge-white" title="Checks given by White"><img id="checkKingW" class="check-king-icon" alt="♔"> <span id="whiteChecks">0</span></span>
                                         <span class="check-badge check-badge-black" title="Checks given by Black"><img id="checkKingB" class="check-king-icon" alt="♚"> <span id="blackChecks">0</span></span>
                                     </div>

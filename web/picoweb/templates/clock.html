@@ -28,27 +28,6 @@
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
-        /* 3check variant: check counter styles */
-        .check-counter {
-            font-size: 1.1em;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin: 0 3px;
-        }
-
-        .check-counter.white-checks {
-            background: #fff;
-            color: #000;
-            border: 1px solid #000;
-        }
-
-        .check-counter.black-checks {
-            background: #333;
-            color: #fff;
-            border: 1px solid #fff;
-        }
-
         /* Enable vertical scrolling for mobile portrait mode */
         @media (max-width: 768px) {
             .scroll-portrait {
@@ -583,14 +562,15 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- boardinfo row hidden; IDs kept for JS -->
-                                    <div class="row" style="display:none" aria-hidden="true">
+                                    <!-- 3-check counters: shown only in ThreeCheck variant -->
+                                    <div id="checkCounters" class="check-counter-row" style="display:none;" aria-label="Three-check counters" role="status">
+                                        <span class="check-badge check-badge-white" title="Checks given by White"><img id="checkKingW" class="check-king-icon" alt="♔"> <span id="whiteChecks">0</span></span>
+                                        <span class="check-badge check-badge-black" title="Checks given by Black"><img id="checkKingB" class="check-king-icon" alt="♚"> <span id="blackChecks">0</span></span>
+                                    </div>
+                                    <!-- boardinfo IDs kept hidden for JS compatibility -->
+                                    <div style="display:none" aria-hidden="true">
                                         <span id="sidetomove"></span>
                                         <span id="BoardStatus"></span>
-                                        <span id="checkCounters">
-                                            <span id="whiteChecks">3</span>
-                                            <span id="blackChecks">3</span>
-                                        </span>
                                         <div id="boardControlButtons">
                                             <button id="downloadBtn"></button>
                                             <button id="uploadBtn"></button>
@@ -1933,6 +1913,9 @@
             };
 
         })();
+            // Initialise ThreeCheck king badge icons to match the current piece set
+            syncKingBadgeIcons();
+
         }); // DOMContentLoaded
         </script>
 

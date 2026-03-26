@@ -63,7 +63,7 @@ function updateCheckCounters(variant, checks) {
     if (variant === '3check' && checks) {
         document.getElementById('whiteChecks').textContent = (3 - checks.white); // checks delivered by White
         document.getElementById('blackChecks').textContent = (3 - checks.black); // checks delivered by Black
-        checkCounters.style.display = 'inline';
+        checkCounters.style.display = 'flex';
     } else {
         checkCounters.style.display = 'none';
     }
@@ -2341,6 +2341,15 @@ function getCurrentPieceSet() {
     return pieceSets.indexOf('merida');
 }
 
+function syncKingBadgeIcons() {
+    var pieces = pieceSets.find(function(p) { return $('#xboardsection').hasClass(p); }) || 'merida';
+    var base = '/static/css/chessground/images/pieces/' + pieces + '/';
+    var wImg = document.getElementById('checkKingW');
+    var bImg = document.getElementById('checkKingB');
+    if (wImg) wImg.src = base + 'wK.svg';
+    if (bImg) bImg.src = base + 'bK.svg';
+}
+
 function changePieceSet() {
     var currentIndex = getCurrentPieceSet();
     var newIndex = (currentIndex + 1) % pieceSets.length;
@@ -2348,6 +2357,7 @@ function changePieceSet() {
 
     $('#xboardsection').removeClass(pieceSets.join(' '));
     $('#xboardsection').addClass(pieces);
+    syncKingBadgeIcons();
 
     // Persist to server so the choice survives page reloads
     $.ajax({

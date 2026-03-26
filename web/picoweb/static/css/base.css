@@ -598,6 +598,40 @@ td.result {
     50% { transform: scale(1.05); }
 }
 
+/* ── ThreeCheck counters ──────────────────────────────── */
+.check-counter-row {
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.3rem 0.5rem;
+}
+
+.check-badge {
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.check-badge-white {
+    background: #f8f9fa;
+    color: #212529;
+    border: 1px solid #dee2e6;
+}
+
+.check-badge-black {
+    background: #343a40;
+    color: #f8f9fa;
+    border: 1px solid #6c757d;
+}
+
+.check-king-icon {
+    width: 1.4em;
+    height: 1.4em;
+    vertical-align: middle;
+}
+
 /* Profundidad compacta */
 .depth-display {
     background: #6c757d;

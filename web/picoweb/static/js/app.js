@@ -2533,7 +2533,14 @@ $(function () {
                         queueBackendAudio(data.audio);
                         break;
                     case 'Status':
-                        // dgtClockStatusEl.html(data.msg);
+                        var dgtEl = document.getElementById('picoFooterDgt');
+                        if (dgtEl) {
+                            if (data.eboard === 'connected') {
+                                dgtEl.classList.add('footer-connected');
+                            } else if (data.eboard === 'error' || data.eboard === 'noeboard') {
+                                dgtEl.classList.remove('footer-connected');
+                            }
+                        }
                         break;
                     case 'TutorWatch':
                         if (window.setTutorWatchState) {

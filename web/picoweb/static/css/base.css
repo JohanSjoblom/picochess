@@ -1135,6 +1135,16 @@ piece {
     font-size: 0.75rem;
 }
 
+#picoFooterDgt::before {
+    content: "●";
+    margin-right: 0.3em;
+    color: #6c757d;   /* grey: not yet confirmed connected */
+}
+
+#picoFooterDgt.footer-connected::before {
+    color: #28a745;   /* green: physical board confirmed connected */
+}
+
 .footer-version {
     font-size: 0.75rem;
     opacity: 0.7;

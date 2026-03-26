@@ -1074,6 +1074,17 @@ class ChessBoardHandler(ServerRequestHandler):
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
         from utilities import version as pico_version
+        from pgn import ModeInfo
+        import dgt.util as _dgt_util
+        _eboard_labels = {
+            _dgt_util.EBoard.DGT:       "DGT",
+            _dgt_util.EBoard.CERTABO:   "Certabo",
+            _dgt_util.EBoard.CHESSLINK: "ChessLink",
+            _dgt_util.EBoard.CHESSNUT:  "Chessnut",
+            _dgt_util.EBoard.ICHESSONE: "iChessOne",
+            _dgt_util.EBoard.NOEBOARD:  "No e-board",
+        }
+        eboard_name = _eboard_labels.get(ModeInfo.get_eboard_type(), "DGT")
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
@@ -1083,6 +1094,7 @@ class ChessBoardHandler(ServerRequestHandler):
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
             pico_version=pico_version,
+            eboard_name=eboard_name,
         )
 
     def _get_web_speech_setting(self) -> bool:
@@ -2248,9 +2260,7 @@ class WebDisplay(DisplayMsg):
             _maybe_send_analysis()
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
-            # result = {'event': 'Status', 'msg': 'Error clock'}
-            # EventHandler.write_to_clients(result)
-            pass
+            EventHandler.write_to_clients({"event": "Status", "eboard": "error"})
 
         elif isinstance(message, Message.DGT_CLOCK_VERSION):
             if message.dev == "ser":
@@ -2259,7 +2269,8 @@ class WebDisplay(DisplayMsg):
                 attached = "i2c-pi"
             else:
                 attached = "server"
-            result = {"event": "Status", "msg": "Ok clock " + attached}
+            connected = attached != "server"   # physical board, not web-only
+            result = {"event": "Status", "msg": "Ok clock " + attached, "eboard": "connected" if connected else "noeboard"}
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.COMPUTER_MOVE):

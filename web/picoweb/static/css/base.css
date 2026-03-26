@@ -621,9 +621,9 @@ td.result {
 }
 
 .check-badge-black {
-    background: #343a40;
+    background: #6c757d;
     color: #f8f9fa;
-    border: 1px solid #6c757d;
+    border: 1px solid #495057;
 }
 
 .check-king-icon {

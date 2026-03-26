@@ -550,11 +550,11 @@
                         <div id="board_panel" class="panel panel-primary">
                             <div class="card-body" style="position:relative;">
                                 <div class="board-eval-wrapper">
-                                    <div id="evaluationBar" class="pico-eval-bar" style="visibility:hidden;">
+                                    <div id="evaluationBar" class="pico-eval-bar" style="visibility:hidden;" title="" aria-label="Evaluation bar" role="meter" aria-valuemin="-8" aria-valuemax="8" aria-valuenow="0">
                                         <div id="evaluationFill"></div>
-                                        <div id="evaluationValue" style="display:none;"></div>
+                                        <div id="evaluationValue"></div>
                                     </div>
-                                    <section id="xboardsection" class="{{ board.replace('_', '-') }} {{ pieces }} svg-container">
+                                    <section id="xboardsection" class="{{ board.replace('_', '-') }} {{ pieces }} svg-container" title="Click a piece to move, or type a move (e.g. e2e4)" aria-label="Chess board">
                                         <div class="board-container">
                                             <div id="board" class="svg-content" style="margin-bottom: 10px;"></div>
                                         </div>
@@ -563,25 +563,25 @@
                                 <div class="container-fluid" id="boardcontrol" style="border-bottom-width:20px; margin-bottom: 0px;">
                                     <div class="row" id="boardButtons">
                                         <div class="text-center">
-                                            <div class="btn-group btn-group-sm d-flex" role="group">
-                                                <button type="button" id="flipOrientationBtn" class="btn btn-light">
-                                                    <i class="fa fa-refresh"></i></button>
-                                                <button type="button" id="DgtSyncBtn" class="btn btn-light">
-                                                    <i class="fa fa-delicious"></i></button>
+                                            <div class="btn-group btn-group-sm d-flex" role="group" aria-label="Board controls">
+                                                <button type="button" id="flipOrientationBtn" class="btn btn-light" aria-label="Flip board" title="Flip board">
+                                                    <i class="fa fa-refresh" aria-hidden="true"></i></button>
+                                                <button type="button" id="DgtSyncBtn" class="btn btn-light" aria-label="Sync with DGT board" title="Sync with DGT board">
+                                                    <i class="fa fa-delicious" aria-hidden="true"></i></button>
                                                 <button type="button" id="colorBtn" class="btn btn-light"
-                                                    style="font-size: 0.7em; display:none;">
+                                                    style="font-size: 0.7em; display:none;" aria-label="Board color">
                                                     CLR</button>
                                                 <button type="button" id="piecesBtn" class="btn btn-light"
-                                                    style="font-size: 0.7em; display:none;">
+                                                    style="font-size: 0.7em; display:none;" aria-label="Piece set">
                                                     PCS</button>
-                                                <button type="button" id="startBtn" class="btn btn-light">
-                                                    <i class='fa fa-fast-backward'></i></button>
-                                                <button type="button" id="backBtn" class="btn btn-light">
-                                                    <i class='fa fa-arrow-left'></i></button>
-                                                <button type="button" id="fwdBtn" class="btn btn-light">
-                                                    <i class='fa fa-arrow-right'></i></button>
-                                                <button type="button" id="endBtn" class="btn btn-light">
-                                                    <i class='fa fa-fast-forward'></i></button>
+                                                <button type="button" id="startBtn" class="btn btn-light" aria-label="First move" title="First move">
+                                                    <i class='fa fa-fast-backward' aria-hidden="true"></i></button>
+                                                <button type="button" id="backBtn" class="btn btn-light" aria-label="Previous move" title="Previous move">
+                                                    <i class='fa fa-arrow-left' aria-hidden="true"></i></button>
+                                                <button type="button" id="fwdBtn" class="btn btn-light" aria-label="Next move" title="Next move">
+                                                    <i class='fa fa-arrow-right' aria-hidden="true"></i></button>
+                                                <button type="button" id="endBtn" class="btn btn-light" aria-label="Last move" title="Last move">
+                                                    <i class='fa fa-fast-forward' aria-hidden="true"></i></button>
                                             </div>
                                         </div>
                                     </div>
@@ -615,7 +615,7 @@
                                     <span class="clock-label-left" id="clockLabelLeft">White</span>
                                     <span class="clock-label-right" id="clockLabelRight">Black</span>
                                 </div>
-                                <div class="clock-time-row" id="DGTClockText"></div>
+                                <div class="clock-time-row" id="DGTClockText" aria-live="polite" aria-label="Clock" role="timer"></div>
                                 <div class="clock-status-row d-none" id="DGTClockStatus"></div>
                             </div>
                         </div>
@@ -630,7 +630,7 @@
                         </div>
                         <!-- Hidden: moveForm for keyboard move input -->
                         <form id="moveForm" autocomplete="off">
-                            <input id="moveInput" type="text" inputmode="none" value="" style="position:absolute;left:0;top:0;opacity:0;caret-color:transparent;border:none;outline:none;width:1px;height:1px;" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Move" data-bs-toggle="" />
+                            <input id="moveInput" type="text" inputmode="none" value="" style="position:absolute;left:0;top:0;opacity:0;caret-color:transparent;border:none;outline:none;width:1px;height:1px;" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Type a move in algebraic notation, e.g. e2e4" aria-label="Move input" data-bs-toggle="" />
                         </form>
                         <!-- Hidden: menuButtons div (JS scan toggle compatibility) -->
                         <div id="menuButtons" style="display:none;"></div>
@@ -640,7 +640,7 @@
                             <div class="card h-100">
                                 <div class="scroll_movelist h-100" id="moveList">
                                     <div class="card-body">
-                                        <div id="pgn"></div>
+                                        <div id="pgn" aria-live="polite" aria-label="Move list" role="log"></div>
                                     </div>
                                 </div>
                             </div>
@@ -673,6 +673,7 @@
                                                 </button>
                                             </li>
                                         </ul>
+                                        <button class="pico-copy-btn" id="picoCopyBtn" title="Copy link to clipboard" aria-label="Copy link to this game" onclick="(function(){try{navigator.clipboard.writeText(window.location.href);var b=document.getElementById('picoCopyBtn');var t=b.textContent;b.textContent='✓';setTimeout(function(){b.textContent=t;},1500);}catch(e){}})()">🔗</button>
                                         <button class="pico-gear-btn" id="picoMenuBtn" title="Menu" aria-label="Open menu">⚙</button>
                                         <!-- Hidden: JS needs pills-menu-tab to exit engine mode → redirects to engine tab -->
                                         <button class="d-none" id="pills-menu-tab" data-bs-toggle="pill"
@@ -702,26 +703,28 @@
                                                 </div>
                                                 <div class="row">
                                                     <div class="analysis-sources">
-                                                        <div id="analysisLineEngine" class="pv-container"></div>
-                                                        <div id="analysisLineTutor" class="pv-container"></div>
+                                                        <div id="analysisLineEngine" class="pv-container" aria-live="polite" aria-label="Engine analysis" role="status"></div>
+                                                        <div id="analysisLineTutor" class="pv-container" aria-live="polite" aria-label="Tutor analysis" role="status"></div>
                                                     </div>
                                                 </div>
                                                 <div class="row">
                                                     <div class="col-12">
                                                         <div class="engine-controls">
-                                                            <div class="btn-group btn-group-xs" role="group">
+                                                            <div class="btn-group btn-group-xs" role="group" aria-label="Analysis lines">
                                                                 <button id="analyzeMinus"
                                                                     class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto">
+                                                                    data-placement="auto"
+                                                                    aria-label="Fewer analysis lines" title="Fewer analysis lines">
                                                                     <span id="analyzeMinusText">
-                                                                        <i class='fa fa-minus'></i>
+                                                                        <i class='fa fa-minus' aria-hidden="true"></i>
                                                                     </span>
                                                                 </button>
                                                                 <button id="analyzePlus"
                                                                     class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto">
+                                                                    data-placement="auto"
+                                                                    aria-label="More analysis lines" title="More analysis lines">
                                                                     <span id="analyzePlusText"><i
-                                                                            class='fa fa-plus'></i></span>
+                                                                            class='fa fa-plus' aria-hidden="true"></i></span>
                                                                 </button>
                                                             </div>
                                                             <span class="engine-version-label">Stockfish 18 js</span>
@@ -748,16 +751,18 @@
                                                     <div class="alert alert-secondary py-1 px-2 text-center mb-2">
                                                         <div class="book-header-row">
                                                             <button type="button" id="bookPrev"
-                                                                class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-left"></i>
+                                                                class="btn btn-sm btn-primary book-switch-btn"
+                                                                aria-label="Previous opening book" title="Previous book">
+                                                                <i class="fa fa-chevron-left" aria-hidden="true"></i>
                                                             </button>
                                                             <span class="book-title">
                                                                 <span class="fw-bold">Book:&nbsp;</span>
                                                                 <span id="currentBookName">No book</span>
                                                             </span>
                                                             <button type="button" id="bookNext"
-                                                                class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-right"></i>
+                                                                class="btn btn-sm btn-primary book-switch-btn"
+                                                                aria-label="Next opening book" title="Next book">
+                                                                <i class="fa fa-chevron-right" aria-hidden="true"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1873,6 +1878,7 @@
                     document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                     gameActionBtn.classList.add('selected');
                     if (ga === 'new-game') { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
+                    if (ga === 'hint')    { post('action=clockbutton&button=3'); close(); return; }
                     if (ga === 'takeback') { post('action=take_back'); close(); return; }
                     if (ga === 'altmove') {
                         post('action=altmove');
@@ -2403,6 +2409,7 @@
                         <div class="pico-picker-col-label">Action</div>
                         <div id="ovl-game-action-list">
                             <button class="pico-picker-item" data-game-action="new-game"><strong>🆕 New Game</strong><span class="picker-sub">Start fresh</span></button>
+                            <button class="pico-picker-item" data-game-action="hint"><strong>💡 Hint</strong><span class="picker-sub">Show best move suggestion</span></button>
                             <button class="pico-picker-item" data-game-action="takeback"><strong>↩️ Takeback</strong><span class="picker-sub">Undo last move</span></button>
                             <button class="pico-picker-item" data-game-action="save"><strong>💾 Save</strong><span class="picker-sub">Save to slot</span></button>
                             <button class="pico-picker-item" data-game-action="read"><strong>📂 Read</strong><span class="picker-sub">Load from slot</span></button>

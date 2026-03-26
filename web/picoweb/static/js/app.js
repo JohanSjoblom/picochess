@@ -1615,6 +1615,17 @@ function updateEvaluationBar(score) {
     }
 
     fillElement.css('height', blackPct + '%');
+
+    // Show numeric score as tooltip and small label
+    var scoreText = String(score);
+    var barEl = document.getElementById('evaluationBar');
+    var valEl = document.getElementById('evaluationValue');
+    if (barEl) {
+        barEl.setAttribute('title', scoreText);
+        barEl.setAttribute('aria-valuenow', isMate ? (numericScore > 0 ? 8 : -8) : numericScore);
+        barEl.setAttribute('aria-valuetext', scoreText);
+    }
+    if (valEl) valEl.textContent = scoreText;
 }
 
 function multiPvIncrease() {

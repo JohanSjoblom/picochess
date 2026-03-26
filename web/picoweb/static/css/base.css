@@ -1298,10 +1298,10 @@ piece {
     background: rgba(255, 255, 255, 0.12);
 }
 
-/* 2-column tile grid (4 rows × 2 cols, 7th tile spans full width) */
+/* 3-column tile grid (3 rows × 3 cols = 9 tiles) */
 .pico-tile-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1px;
     background: rgba(255, 255, 255, 0.08);
 }
@@ -1314,8 +1314,8 @@ piece {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.45rem;
-    padding: 1.4rem 0.5rem;
+    gap: 0.35rem;
+    padding: 1.0rem 0.4rem;
     background: rgba(255, 255, 255, 0.04);
     border: none;
     cursor: pointer;
@@ -1335,13 +1335,13 @@ piece {
 }
 
 .pico-tile-label {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 600;
     line-height: 1.1;
 }
 
 .pico-tile-sub {
-    font-size: 1rem;
+    font-size: 0.82rem;
     opacity: 0.70;
     text-align: center;
     line-height: 1.3;

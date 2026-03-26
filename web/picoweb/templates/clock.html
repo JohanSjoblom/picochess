@@ -1115,6 +1115,32 @@
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
             }
 
+            function showPlayer() {
+                showSubpanel('overlay-player');
+                var si = window._picoSystemInfo || {};
+                var nameEl = document.getElementById('ovl-player-name');
+                var eloEl  = document.getElementById('ovl-player-elo');
+                if (nameEl) nameEl.value = si.user_name || '';
+                if (eloEl)  eloEl.value  = (si.user_elo && si.user_elo !== '-') ? si.user_elo : '';
+                // Wire save button (once, idempotent via flag)
+                var saveBtn = document.getElementById('ovl-player-save');
+                if (saveBtn && !saveBtn._picoWired) {
+                    saveBtn._picoWired = true;
+                    saveBtn.addEventListener('click', function() {
+                        var name = (document.getElementById('ovl-player-name').value || '').trim();
+                        var elo  = (document.getElementById('ovl-player-elo').value  || '').trim();
+                        if (!name) return;
+                        post('action=set_player&name=' + encodeURIComponent(name) + '&elo=' + encodeURIComponent(elo));
+                        // Update local cache immediately
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.user_name = name;
+                        window._picoSystemInfo.user_elo  = elo || '-';
+                        updateTileStates();
+                        close();
+                    });
+                }
+            }
+
             /* ── display picker (board / pieces / theme) ─ */
             var DISPLAY_CATS = {
                 board: {
@@ -1619,6 +1645,11 @@
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
                 if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
                 if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
+                if ((el = document.getElementById('ovl-player-sub'))) {
+                    var pName = sysInfo.user_name || '';
+                    var pElo  = (sysInfo.user_elo && sysInfo.user_elo !== '-') ? sysInfo.user_elo : '';
+                    el.textContent = pName ? (pElo ? pName + ' · ' + pElo : pName) : '—';
+                }
                 stateEl.textContent = gameActive ? '● Game in progress' : '○ No active game';
                 stateEl.style.color = gameActive ? '#4caf50' : '#888';
             }
@@ -1803,8 +1834,8 @@
                 var tile = e.target.closest('.pico-tile');
                 if (!tile) return;
                 var fns = { 'ovl-mode': showMode, 'ovl-engine': showEngine, 'ovl-time': showTime,
-                            'ovl-book': showBook, 'ovl-tutor': showTutor, 'ovl-game': showGame,
-                            'ovl-system': showSystem, 'ovl-display': showDisplay };
+                            'ovl-book': showBook, 'ovl-tutor': showTutor, 'ovl-player': showPlayer,
+                            'ovl-game': showGame, 'ovl-system': showSystem, 'ovl-display': showDisplay };
                 var fn = fns[tile.id];
                 if (fn) fn();
             });
@@ -1876,8 +1907,8 @@
             window.picoOverlay = { open: open, close: close,
                 showTiles: showTiles, showScan: showScan, showEngine: showEngine,
                 showMode: showMode, showTime: showTime, showBook: showBook,
-                showTutor: showTutor, showGame: showGame, showSystem: showSystem,
-                showDisplay: showDisplay };
+                showTutor: showTutor, showPlayer: showPlayer, showGame: showGame,
+                showSystem: showSystem, showDisplay: showDisplay };
 
             window.setPicoGameActive = function(active) {
                 gameActive = Boolean(active);
@@ -2041,7 +2072,7 @@
             <!-- CONTENT AREA (tiles / sub-panels) -->
             <div class="pico-overlay-content">
 
-            <!-- TILE GRID — 8 gateway tiles (2-col × 4-row) -->
+            <!-- TILE GRID — 9 gateway tiles (3-col × 3-row) -->
             <div class="pico-tile-grid" id="overlay-tiles">
                 <button class="pico-tile" id="ovl-mode">
                     <span class="pico-tile-label">Mode</span>
@@ -2062,6 +2093,10 @@
                 <button class="pico-tile" id="ovl-tutor">
                     <span class="pico-tile-label">Tutor</span>
                     <span class="pico-tile-sub" id="ovl-tutor-sub">Off</span>
+                </button>
+                <button class="pico-tile" id="ovl-player">
+                    <span class="pico-tile-label">Player</span>
+                    <span class="pico-tile-sub" id="ovl-player-sub">—</span>
                 </button>
                 <button class="pico-tile" id="ovl-game">
                     <span class="pico-tile-label">Game</span>
@@ -2330,6 +2365,32 @@
                     </button>
                 </div>
             </div><!-- #overlay-tutor -->
+
+            <!-- PLAYER SUB-PANEL -->
+            <div id="overlay-player" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Player</span>
+                </div>
+                <div style="padding:1rem 1.2rem;">
+                    <div style="margin-bottom:1rem;">
+                        <label for="ovl-player-name" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">Name</label>
+                        <input type="text" id="ovl-player-name"
+                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
+                               maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    <div style="margin-bottom:1.4rem;">
+                        <label for="ovl-player-elo" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">ELO Rating</label>
+                        <input type="number" id="ovl-player-elo"
+                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
+                               min="100" max="3000" step="50">
+                    </div>
+                    <button id="ovl-player-save"
+                            style="width:100%;padding:0.7rem;background:rgba(76,175,80,0.55);border:none;border-radius:4px;color:inherit;font-size:1rem;font-weight:600;cursor:pointer;transition:background 0.12s;">
+                        Save
+                    </button>
+                </div>
+            </div><!-- #overlay-player -->
 
             <!-- GAME SUB-PANEL -->
             <div id="overlay-game" class="pico-subpanel">

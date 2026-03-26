@@ -569,6 +569,26 @@ class ChannelHandler(ServerRequestHandler):
                     Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=1)
                 )
                 logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type, lang, speaker)
+        elif action == "set_player":
+            name = self.get_argument("name", "").strip()
+            elo  = self.get_argument("elo",  "").strip()
+            if name:
+                if "system_info" not in self.shared:
+                    self.shared["system_info"] = {}
+                self.shared["system_info"]["user_name"] = name
+                write_picochess_ini("pgn-user", name)
+                logger.info("web set_player: name=%r", name)
+            if elo:
+                try:
+                    elo_int = int(elo)
+                    if 100 <= elo_int <= 3000:
+                        if "system_info" not in self.shared:
+                            self.shared["system_info"] = {}
+                        self.shared["system_info"]["user_elo"] = str(elo_int)
+                        write_picochess_ini("pgn-elo", str(elo_int))
+                        logger.info("web set_player: elo=%r", elo_int)
+                except (TypeError, ValueError):
+                    pass
         elif action == "take_back":
             await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":

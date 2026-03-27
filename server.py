@@ -2261,6 +2261,12 @@ class WebDisplay(DisplayMsg):
             self.analysis_state["depth"] = message.depth
             _maybe_send_analysis()
 
+        elif isinstance(message, Message.DGT_SERIAL_NR):
+            # Serial number confirms the physical board is present on the bus.
+            # Turn the footer dot green regardless of whether a clock is attached.
+            if message.number:
+                EventHandler.write_to_clients({"event": "Status", "eboard": "connected"})
+
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             EventHandler.write_to_clients({"event": "Status", "eboard": "error"})
 

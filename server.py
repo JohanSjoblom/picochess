@@ -1737,6 +1737,12 @@ class WebDisplay(DisplayMsg):
                 if level_name.startswith("Elo@"):
                     comp_elo = int(level_name[4:])
                     engine_level = ""
+                elif level_name.startswith("Level@"):
+                    try:
+                        comp_elo = "Level {}".format(int(level_name[6:]))
+                    except ValueError:
+                        comp_elo = level_name[6:]
+                    engine_level = ""
             if "play_mode" in self.shared["game_info"]:
                 if self.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE:
                     pgn_game.headers["White"] = user_name

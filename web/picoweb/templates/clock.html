@@ -832,8 +832,11 @@
                         }
                     });
                     // Mantener el foco siempre en el input de jugada
+                    // (but never steal focus away from the overlay's own inputs)
                     if (!isTouchDevice) {
                         document.addEventListener('click', function (e) {
+                            var _ovl = document.getElementById('pico-menu-overlay');
+                            if (_ovl && _ovl.contains(e.target)) return; // overlay is open and was clicked
                             if (e.target !== moveInput && moveInput) {
                                 setTimeout(focusMoveInput, 10);
                             }

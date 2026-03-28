@@ -1542,6 +1542,7 @@ piece {
     color: inherit;
     flex-shrink: 0;
     line-height: 1.35;
+    position: relative;
 }
 
 .pico-picker-item:hover {
@@ -1551,6 +1552,18 @@ piece {
 .pico-picker-item.selected {
     border-color: rgba(13, 110, 253, 0.55);
     background: rgba(13, 110, 253, 0.12);
+}
+
+.pico-picker-item.selected::after {
+    content: "✓";
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(13, 110, 253, 0.9);
+    font-weight: bold;
+    font-size: 0.95em;
+    pointer-events: none;
 }
 
 .pico-picker-item .picker-sub {

@@ -1097,6 +1097,11 @@
                 document.getElementById('ovl-sys-opt-list').innerHTML = '';
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                 updateSystemSubpanel();
+                // Pre-fetch current settings so tick marks are ready when a category is opened
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { window._picoCurrentSettings = d; })
+                    .catch(function() {});
             }
 
             function showPlayer() {
@@ -1278,6 +1283,11 @@
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 _engAllData = [];
+                // Fetch current settings (for level tick) alongside engine list
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { window._picoCurrentSettings = d; })
+                    .catch(function() {});
                 fetch('/info?action=get_engines')
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
@@ -1294,10 +1304,12 @@
                 listEl.innerHTML = '';
                 if (!levels || !levels.length) { col.style.display = 'none'; applyEngine(file, ''); return; }
                 col.style.display = 'flex';
+                var _curLevel = (window._picoCurrentSettings && window._picoCurrentSettings.engine_level) || '';
                 levels.forEach(function(level) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item';
                     btn.textContent = level;
+                    if (level === _curLevel) btn.classList.add('selected');
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
@@ -1435,11 +1447,14 @@
                 listEl.innerHTML = '';
                 var filtered = _engAllData.filter(function(e) { return !cat || cat === 'all' || (e.category || 'modern') === cat; });
                 if (!filtered.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">None</div>'; return; }
+                var _curEngineName = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
                 filtered.forEach(function(eng) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item';
-                    btn.innerHTML = '<strong>' + (eng.name || eng.file) + '</strong>' +
+                    var engName = eng.name || eng.file;
+                    btn.innerHTML = '<strong>' + engName + '</strong>' +
                         (eng.elo ? '<span class="picker-sub">Elo ' + eng.elo + '</span>' : '');
+                    if (engName === _curEngineName) btn.classList.add('selected');
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
@@ -1486,6 +1501,24 @@
                 eboard:  { label: 'E-Board Type', items: [['DGT','eboard&type=dgt'],['Certabo','eboard&type=certabo'],['ChessLink','eboard&type=chesslink'],['ChessNut','eboard&type=chessnut'],['iChessOne','eboard&type=ichessone'],['None','eboard&type=none']] },
                 wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix']] }
             };
+            // Build set of action strings matching current picochess.ini settings
+            function _activeSettingsActions(s) {
+                var a = {};
+                if (!s) return a;
+                if (s.language)    a['lang&val='     + s.language]    = true;
+                if (s.beep)        a['beep&val='     + s.beep]        = true;
+                if (s.board_type) {
+                    var bt = s.board_type === 'noeboard' ? 'none' : s.board_type;
+                    a['eboard&type=' + bt] = true;
+                }
+                if (s.clockside)   a['display&side='      + s.clockside]   = true;
+                if (s.notation)    a['display&notation='  + s.notation]    = true;
+                if (s.ponder)      a['display&ponder='    + s.ponder]      = true;
+                if (s.confirm)     a['display&confirm='   + s.confirm]     = true;
+                if (s.capital)     a['display&capital='   + s.capital]     = true;
+                if (s.show_engine) a['display&enginename='+ s.show_engine] = true;
+                return a;
+            }
             function showSysCat(cat) {
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
                     el.classList.toggle('selected', el.dataset.sysCat === cat);
@@ -1523,10 +1556,13 @@
                                 listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No voices found for language ' + (data.lang || '') + '</div>';
                                 return;
                             }
+                            var _cs = window._picoCurrentSettings || {};
+                            var _curVoice = (cat === 'user-voice') ? (_cs.user_voice || '') : (_cs.comp_voice || '');
                             // prepend Mute option
                             ['mute'].concat(speakers).forEach(function(sp) {
                                 var btn = document.createElement('button');
                                 btn.className = 'pico-picker-item';
+                                if (sp === _curVoice) btn.classList.add('selected');
                                 btn.innerHTML = '<strong>' + sp + '</strong>';
                                 btn.addEventListener('click', function() {
                                     listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
@@ -1547,10 +1583,13 @@
                     col.style.display = 'flex';
                     lbl.textContent = 'Voice Speed';
                     listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curSpeed = parseInt(_cs.speed_voice) || 2;
                     [1,2,3,4,5,6,7,8,9].forEach(function(n) {
                         var btn = document.createElement('button');
                         btn.className = 'pico-picker-item';
                         btn.innerHTML = '<strong>' + n + '</strong>';
+                        if (n === _curSpeed) btn.classList.add('selected');
                         btn.addEventListener('click', function() {
                             listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                             btn.classList.add('selected');
@@ -1566,11 +1605,14 @@
                     col.style.display = 'flex';
                     lbl.textContent = 'Volume (×5%)';
                     listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curVol = parseInt(_cs.volume_voice) || 10;
                     for (var v = 1; v <= 20; v++) {
                         (function(n) {
                             var btn = document.createElement('button');
                             btn.className = 'pico-picker-item';
                             btn.innerHTML = '<strong>' + (n * 5) + '%</strong>';
+                            if (n === _curVol) btn.classList.add('selected');
                             btn.addEventListener('click', function() {
                                 listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                 btn.classList.add('selected');
@@ -1587,6 +1629,8 @@
                     col.style.display = 'flex';
                     lbl.textContent = 'Retro Speed';
                     listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curRspeed = _cs.rspeed || '100';
                     [['25%','25'],['50%','50'],['100%','100'],['200%','200'],['300%','300'],
                      ['400%','400'],['500%','500'],['600%','600'],['700%','700'],
                      ['800%','800'],['900%','900'],['1000%','1000'],['Max (instant)','max']
@@ -1594,6 +1638,7 @@
                         var btn = document.createElement('button');
                         btn.className = 'pico-picker-item';
                         btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                        if (pair[1] === _curRspeed) btn.classList.add('selected');
                         btn.addEventListener('click', function() {
                             listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                             btn.classList.add('selected');
@@ -1609,11 +1654,13 @@
                 col.style.display = 'flex';
                 lbl.textContent = so.label;
                 listEl.innerHTML = '';
+                var _activeActions = _activeSettingsActions(window._picoCurrentSettings);
                 so.items.forEach(function(pair) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item';
                     btn.innerHTML = '<strong>' + pair[0] + '</strong>';
                     var action = pair[1];
+                    if (_activeActions[action]) btn.classList.add('selected');
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');

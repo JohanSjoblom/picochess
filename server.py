@@ -857,6 +857,58 @@ class InfoHandler(ServerRequestHandler):
                         speakers.append(entry)
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps({"lang": lang, "speakers": speakers}))
+        if action == "get_current_settings":
+            # Return current picker values so the overlay can pre-mark selections.
+            from configobj import ConfigObj as _ConfigObj
+            settings = {}
+            try:
+                config = _ConfigObj("picochess.ini", default_encoding="utf8")
+                dgttranslate = self.shared.get("dgttranslate")
+                # Language (live from dgttranslate, fallback to ini)
+                settings["language"] = (
+                    getattr(dgttranslate, "language", None)
+                    or str(config.get("language", "en")).lower()
+                )
+                # Beep (live from dgttranslate)
+                beep = getattr(dgttranslate, "beep", None)
+                _bmap = {Beep.OFF: "off", Beep.SOME: "some", Beep.ON: "on", Beep.SAMPLE: "sample"}
+                settings["beep"] = _bmap.get(beep, "some") if beep is not None else "some"
+                # Board type
+                settings["board_type"] = str(config.get("board-type", "dgt")).lower()
+                # Display settings
+                settings["clockside"] = str(config.get("clockside", "left")).lower()
+                dsn = config.get("disable-short-notation")
+                settings["notation"] = "long" if dsn in (True, "True", "true") else "short"
+                pi = config.get("ponder-interval", "1")
+                settings["ponder"] = "off" if str(pi) == "0" else "on"
+                dcm = config.get("disable-confirm-message")
+                settings["confirm"] = "off" if dcm in (True, "True", "true") else "on"
+                ecl = config.get("enable-capital-letters")
+                settings["capital"] = "on" if ecl in (True, "True", "true") else "off"
+                se = config.get("show-engine")
+                settings["show_engine"] = "on" if se in (True, "True", "true") else "off"
+                # Retro speed (stored as float 0.0–10.0; UI shows as % strings)
+                try:
+                    rspeed_f = float(config.get("rspeed", 1.0))
+                    settings["rspeed"] = "max" if rspeed_f == 0.0 else str(int(round(rspeed_f * 100)))
+                except (TypeError, ValueError):
+                    settings["rspeed"] = "100"
+                # Voice speed (1–9)
+                settings["speed_voice"] = str(config.get("speed-voice", "2"))
+                # Voice volume (1–20)
+                settings["volume_voice"] = str(config.get("volume-voice", "10"))
+                # Current voice speakers (stored as "lang:speaker")
+                for key in ("comp-voice", "user-voice"):
+                    raw = str(config.get(key, ""))
+                    settings[key.replace("-", "_")] = raw.split(":")[-1] if ":" in raw else raw
+            except Exception as exc:
+                logger.warning("get_current_settings error: %s", exc)
+            # Engine name and level come from shared (live state, not ini)
+            si = self.shared.get("system_info", {})
+            settings["engine_name"] = si.get("engine_name", "")
+            settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(settings))
 
 
 class BookHandler(ServerRequestHandler):

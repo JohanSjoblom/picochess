@@ -1096,6 +1096,7 @@
                 document.getElementById('ovl-sys-opt-col').style.display = 'none';
                 document.getElementById('ovl-sys-opt-list').innerHTML = '';
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                updateSystemSubpanel();
             }
 
             function showPlayer() {

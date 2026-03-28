@@ -1984,6 +1984,18 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.IP_INFO):
             self.shared["ip_info"] = message.info
+            # Also expose the internal IP in system_info so the overlay Info
+            # panel (which reads system_info) can display it.
+            self._create_system_info()
+            self.shared["system_info"]["ip"] = message.info.get("int_ip", "")
+
+        elif isinstance(message, Message.BATTERY):
+            self._create_system_info()
+            pct = message.percent
+            if pct == 0x7F:
+                self.shared["system_info"]["battery"] = "N/A"
+            else:
+                self.shared["system_info"]["battery"] = "{}%".format(min(pct, 99))
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()

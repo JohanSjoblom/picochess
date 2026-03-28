@@ -1493,6 +1493,26 @@ piece {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    scrollbar-width: auto;
+}
+
+/* Wide scrollbar for touch-friendly overlay columns */
+.pico-picker-col::-webkit-scrollbar {
+    width: 16px;
+}
+.pico-picker-col::-webkit-scrollbar-track {
+    background: rgba(128, 128, 128, 0.1);
+    border-radius: 8px;
+}
+.pico-picker-col::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.45);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+.pico-picker-col::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.7);
+    background-clip: content-box;
 }
 
 .pico-picker-col + .pico-picker-col {
@@ -1555,6 +1575,26 @@ piece {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+    scrollbar-width: auto;
+}
+
+/* Wide scrollbar for touch-friendly overlay sub-panels */
+.pico-subpanel-list::-webkit-scrollbar {
+    width: 16px;
+}
+.pico-subpanel-list::-webkit-scrollbar-track {
+    background: rgba(128, 128, 128, 0.1);
+    border-radius: 8px;
+}
+.pico-subpanel-list::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.45);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+.pico-subpanel-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.7);
+    background-clip: content-box;
 }
 
 .pico-subpanel-item {

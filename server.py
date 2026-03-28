@@ -731,8 +731,6 @@ class ChannelHandler(ServerRequestHandler):
             write_picochess_ini("rspeed", rspeed_factor)
             await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
             logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
-        elif action == "wifi_info":
-            pass  # network info is shown in System > Info sub-panel
 
 
 class EventHandler(WebSocketHandler):
@@ -1984,10 +1982,12 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.IP_INFO):
             self.shared["ip_info"] = message.info
-            # Also expose the internal IP in system_info so the overlay Info
-            # panel (which reads system_info) can display it.
+            # Expose network fields in system_info so the overlay Info
+            # panel (which reads system_info) can display them.
             self._create_system_info()
             self.shared["system_info"]["ip"] = message.info.get("int_ip", "")
+            self.shared["system_info"]["ext_ip"] = message.info.get("ext_ip", "")
+            self.shared["system_info"]["location"] = message.info.get("location", "")
 
         elif isinstance(message, Message.BATTERY):
             self._create_system_info()

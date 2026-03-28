@@ -1484,7 +1484,7 @@
                 lang:    { label: 'Language', items: [['English','lang&val=en'],['Deutsch','lang&val=de'],['Nederlands','lang&val=nl'],['Français','lang&val=fr'],['Español','lang&val=es'],['Italiano','lang&val=it']] },
                 display: { label: 'Display', items: [['Clock Left','display&side=left'],['Clock Right','display&side=right'],['Short notation','display&notation=short'],['Long notation','display&notation=long'],['Ponder On','display&ponder=on'],['Ponder Off','display&ponder=off'],['Confirm On','display&confirm=on'],['Confirm Off','display&confirm=off'],['Capital On','display&capital=on'],['Capital Off','display&capital=off'],['Engine Name On','display&enginename=on'],['Engine Name Off','display&enginename=off']] },
                 eboard:  { label: 'E-Board Type', items: [['DGT','eboard&type=dgt'],['Certabo','eboard&type=certabo'],['ChessLink','eboard&type=chesslink'],['ChessNut','eboard&type=chessnut'],['iChessOne','eboard&type=ichessone'],['None','eboard&type=none']] },
-                wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix'],['Network Info','wifi_info']] }
+                wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix']] }
             };
             function showSysCat(cat) {
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
@@ -1498,10 +1498,14 @@
                     col.style.display = 'flex';
                     lbl.textContent = 'System Info';
                     var si = window._picoSystemInfo || {};
-                    listEl.innerHTML = '<div style="font-size:0.8rem;line-height:2;padding:0.3rem;">' +
+                    var html = '<div style="font-size:0.8rem;line-height:2;padding:0.3rem;">' +
                         '<div>Version: ' + (si.version || '—') + '</div>' +
-                        '<div>IP: ' + (si.ip || '—') + '</div>' +
-                        '<div>Battery: ' + (si.battery || '—') + '</div></div>';
+                        '<div>IP (local): ' + (si.ip || '—') + '</div>' +
+                        '<div>IP (external): ' + (si.ext_ip || '—') + '</div>' +
+                        '<div>Location: ' + (si.location || '—') + '</div>' +
+                        '<div>Battery: ' + (si.battery || '—') + '</div>' +
+                        '</div>';
+                    listEl.innerHTML = html;
                     return;
                 }
                 // Voice (comp / user): fetch speakers for current language, show list

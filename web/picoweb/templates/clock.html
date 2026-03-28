@@ -1679,7 +1679,7 @@
                 var wmIcon = document.getElementById('sys-webmute-icon');
                 var wmSub  = document.getElementById('sys-webmute-sub');
                 if (wmIcon) wmIcon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
-                if (wmSub)  wmSub.textContent  = isMuted ? 'Muted' : 'Click to mute';
+                if (wmSub)  wmSub.textContent  = isMuted ? 'Click to unmute' : 'Click to mute';
             }
 
             /* ── subpanel action dispatcher ──────────── */
@@ -1773,7 +1773,7 @@
                             var icon = document.getElementById('sys-webmute-icon');
                             var sub  = document.getElementById('sys-webmute-sub');
                             if (icon) icon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
-                            if (sub)  sub.textContent  = isMuted ? 'Muted' : 'Click to mute';
+                            if (sub)  sub.textContent  = isMuted ? 'Click to unmute' : 'Click to mute';
                         })();
                         close(); break;
                     case 'sound':

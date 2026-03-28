@@ -2521,9 +2521,11 @@ $(function () {
                         if (data.play === 'user') {
                             highlightBoard(data.move, 'user');
                             if (window.setPicoGameActive) window.setPicoGameActive(true);
+                            if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
                         }
                         if (data.play === 'computer') {
                             if (window.setPicoGameActive) window.setPicoGameActive(true);
+                            if (window.setPicoEngineTurn) window.setPicoEngineTurn(true);
                         }
                         if (data.play === 'review') {
                             highlightBoard(data.move, 'review');
@@ -2535,6 +2537,7 @@ $(function () {
                         updateCheckCounters(data.variant, data.checks);
                         // New board = no moves played yet
                         if (window.setPicoGameActive) window.setPicoGameActive(false);
+                        if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
                         break;
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);

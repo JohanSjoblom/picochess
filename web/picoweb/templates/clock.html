@@ -1062,6 +1062,7 @@
             var menuBtn  = document.getElementById('picoMenuBtn');
 
             var gameActive = false;
+            var engineTurn = false;
 
             /* ── helpers ─────────────────────────────── */
             function post(body) {
@@ -1694,9 +1695,17 @@
             }
 
             function updateGameSubpanel() {
+                // Clear stale tick marks — game actions are commands, not persistent settings
+                document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) {
+                    el.classList.remove('selected');
+                });
                 document.querySelectorAll('[data-requires-game]').forEach(function(el) {
                     el.disabled = !gameActive;
                     el.style.opacity = gameActive ? '1' : '0.38';
+                });
+                document.querySelectorAll('[data-requires-engine-turn]').forEach(function(el) {
+                    el.disabled = !(gameActive && engineTurn);
+                    el.style.opacity = (gameActive && engineTurn) ? '1' : '0.38';
                 });
             }
 
@@ -1919,7 +1928,9 @@
                         close(); return;
                     }
                     if (ga === 'contlast') { post('action=contlast'); close(); return; }
-                    if (ga === 'switchsides') { post('action=clockbutton&button=64'); close(); return; }
+                    if (ga === 'switchsides') { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
+                    if (ga === 'resign') { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
+                    if (ga === 'move-now') { if (!engineTurn) return; post('action=move_now'); close(); return; }
                     showGameOpts(ga); return;
                 }
 
@@ -1953,7 +1964,13 @@
 
             window.setPicoGameActive = function(active) {
                 gameActive = Boolean(active);
+                if (!gameActive) engineTurn = false;
                 if (overlay.classList.contains('open')) updateTileStates();
+            };
+
+            window.setPicoEngineTurn = function(active) {
+                engineTurn = Boolean(active);
+                if (overlay.classList.contains('open')) updateGameSubpanel();
             };
 
             // Keep tutor watch state in sync with overlay
@@ -2455,6 +2472,8 @@
                             <button class="pico-picker-item" data-game-action="altmove"><strong>↔️ Alt Move</strong><span class="picker-sub" id="game-altmove-sub">Off</span></button>
                             <button class="pico-picker-item" data-game-action="contlast"><strong>▶️ Cont Last</strong><span class="picker-sub">Resume last game</span></button>
                             <button class="pico-picker-item" data-game-action="switchsides"><strong>🔄 Switch Sides</strong><span class="picker-sub">Swap colors with engine</span></button>
+                            <button class="pico-picker-item" data-game-action="resign"><strong>🏳️ Resign</strong><span class="picker-sub">Concede the game</span></button>
+                            <button class="pico-picker-item" data-game-action="move-now" data-requires-engine-turn><strong>⚡ Move Now</strong><span class="picker-sub">Force engine to move</span></button>
                         </div>
                     </div>
                     <div class="pico-picker-col" id="ovl-game-opt-col" style="display:none;">

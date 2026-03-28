@@ -2520,6 +2520,10 @@ $(function () {
                         }
                         if (data.play === 'user') {
                             highlightBoard(data.move, 'user');
+                            if (window.setPicoGameActive) window.setPicoGameActive(true);
+                        }
+                        if (data.play === 'computer') {
+                            if (window.setPicoGameActive) window.setPicoGameActive(true);
                         }
                         if (data.play === 'review') {
                             highlightBoard(data.move, 'review');
@@ -2529,6 +2533,8 @@ $(function () {
                         newBoard(data.fen);
                         updateTutorMistakes(data.mistakes);
                         updateCheckCounters(data.variant, data.checks);
+                        // New board = no moves played yet
+                        if (window.setPicoGameActive) window.setPicoGameActive(false);
                         break;
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);
@@ -2573,6 +2579,13 @@ $(function () {
                         break;
                     case 'Header':
                         setHeaders(data['headers']);
+                        // Definitive result means game ended
+                        if (window.setPicoGameActive) {
+                            var _res = data['headers'] && data['headers']['Result'];
+                            if (_res === '1-0' || _res === '0-1' || _res === '1/2-1/2') {
+                                window.setPicoGameActive(false);
+                            }
+                        }
                         break;
                     case 'Title':
                         setTitle(data['ip_info']);

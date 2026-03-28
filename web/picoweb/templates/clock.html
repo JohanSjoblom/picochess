@@ -1058,7 +1058,7 @@
             var tilesEl  = document.getElementById('overlay-tiles');
             var menuBtn  = document.getElementById('picoMenuBtn');
 
-            var gameActive = true;
+            var gameActive = false;
 
             /* ── helpers ─────────────────────────────── */
             function post(body) {
@@ -1872,6 +1872,7 @@
                 // System: category column
                 var sysCatBtn = e.target.closest('#ovl-sys-cat-list .pico-picker-item');
                 if (sysCatBtn && sysCatBtn.dataset.sysCat) { showSysCat(sysCatBtn.dataset.sysCat); return; }
+                if (sysCatBtn && sysCatBtn.dataset.action) { handleSubpanelAction(sysCatBtn.dataset.action, sysCatBtn); return; }
 
                 // Display: category column
                 var dispCatBtn = e.target.closest('#ovl-disp-cat-list .pico-picker-item');
@@ -2089,7 +2090,7 @@
                 </button>
                 <button class="pico-tile" id="ovl-game">
                     <span class="pico-tile-label">Game</span>
-                    <span class="pico-tile-sub" id="ovl-game-sub">In progress</span>
+                    <span class="pico-tile-sub" id="ovl-game-sub">No active game</span>
                 </button>
                 <button class="pico-tile" id="ovl-system">
                     <span class="pico-tile-label">System</span>

@@ -70,8 +70,16 @@ if [ -f "$FLAG" ]; then
                     touch "$FAIL_FILE"
                     exit 1
                 fi
+                # Run twice: the first pass may update the install script itself;
+                # the second pass uses the updated script to update the application.
+                echo "$(date): Running install-picochess.sh (pass 1/2)..." | tee -a "$LOGFILE"
                 sh "$PICO_SCRIPT" pico noengines >>"$LOGFILE" 2>&1
                 STATUS=$?
+                if [ "$STATUS" -eq 0 ]; then
+                    echo "$(date): Running install-picochess.sh (pass 2/2)..." | tee -a "$LOGFILE"
+                    sh "$PICO_SCRIPT" pico noengines >>"$LOGFILE" 2>&1
+                    STATUS=$?
+                fi
                 ;;
             engines)
                 if [ ! -x "$ENGINE_SCRIPT" ]; then

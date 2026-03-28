@@ -57,6 +57,7 @@ from utilities import (
     get_location,
     update_pico_v4,
     update_pico_engines,
+    update_picochess_now,
     get_opening_books,
     shutdown,
     reboot,
@@ -6418,8 +6419,9 @@ async def main() -> None:
             elif isinstance(event, Event.UPDATE_PICO):
                 await DisplayMsg.show(Message.UPDATE_PICO())
                 if not event.tag or event.tag == "":
-                    # full update at next boot for all scripts
-                    update_pico_v4()  # in utilities for now
+                    # Run install-picochess.sh twice in the background, then
+                    # restart the picochess service (no full reboot required).
+                    update_picochess_now()
                 else:
                     # only update code to a specific tag
                     checkout_tag(event.tag)

@@ -1121,6 +1121,7 @@ class ChessBoardHandler(ServerRequestHandler):
         self.shared = shared
 
     def get(self):
+        self.set_header("Cache-Control", "no-store")
         web_speech = True
         web_audio_backend = False
         tutor_watch_active = False

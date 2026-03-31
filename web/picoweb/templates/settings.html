@@ -131,53 +131,30 @@
                 </td>
             </tr>
             <tr>
-                <td><label for="bc-hint-speed">Hint display speed</label></td>
+                <td><label for="bc-hint-display">BRAIN hint display (0=until you play, 1-8 secs)</label></td>
                 <td>
-                    <select id="bc-hint-speed" onchange="bcSpeedChanged()">
-                        <option value="short">short — faster games (DGT clock: 2 s, clock pause: 1 s)</option>
-                        <option value="medium">medium — standard games (DGT clock: 4 s, clock pause: 3 s)</option>
-                        <option value="long">long — leisurely / study play (DGT clock: 6 s, clock pause: 6 s)</option>
-                        <option value="manual">manual — set duration and pause individually</option>
+                    <select id="bc-hint-display">
+                        <option value="0">0 — show until user plays (default)</option>
+                        <option value="1">1 s</option>
+                        <option value="2">2 s</option>
+                        <option value="3">3 s</option>
+                        <option value="4">4 s</option>
+                        <option value="5">5 s</option>
+                        <option value="6">6 s</option>
+                        <option value="7">7 s</option>
+                        <option value="8">8 s</option>
                     </select>
+                    <span style="font-size:0.9em; color:#555; margin-left:6px;">How long the piece-type hint stays on the DGT clock display. Clock is never paused.</span>
                 </td>
             </tr>
-            <tr id="bc-manual-rows" style="display:none;">
-                <td colspan="2">
-                    <table border="0" cellpadding="4" cellspacing="0" style="width:100%; margin-top:2px;">
-                        <tr>
-                            <td style="width:40%; padding-left:1.5em;"><label for="bc-hint-duration">Hint display duration</label></td>
-                            <td>
-                                <select id="bc-hint-duration">
-                                    <option value="1">1 s</option>
-                                    <option value="2">2 s</option>
-                                    <option value="3">3 s (default)</option>
-                                    <option value="4">4 s</option>
-                                    <option value="5">5 s</option>
-                                    <option value="6">6 s</option>
-                                    <option value="7">7 s</option>
-                                    <option value="8">8 s</option>
-                                </select>
-                                <span style="font-size:0.9em; color:#555; margin-left:6px;">How long the piece-type hint stays on the DGT clock display</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding-left:1.5em;"><label for="bc-hint-pause">Clock pause after hint</label></td>
-                            <td>
-                                <select id="bc-hint-pause">
-                                    <option value="0">0 s — no pause</option>
-                                    <option value="1">1 s</option>
-                                    <option value="2">2 s (default)</option>
-                                    <option value="3">3 s</option>
-                                    <option value="4">4 s</option>
-                                    <option value="5">5 s</option>
-                                    <option value="6">6 s</option>
-                                    <option value="7">7 s</option>
-                                    <option value="8">8 s</option>
-                                </select>
-                                <span style="font-size:0.9em; color:#555; margin-left:6px;">Clock is paused while the piece-type hint is displayed</span>
-                            </td>
-                        </tr>
-                    </table>
+            <tr>
+                <td><label for="bc-reveal-text">Show revealed move as text on clock</label></td>
+                <td>
+                    <select id="bc-reveal-text">
+                        <option value="on">on — show tutor move as text after user plays (default)</option>
+                        <option value="off">off — LEDs only, no clock text</option>
+                    </select>
+                    <span style="font-size:0.9em; color:#555; margin-left:6px;">BRAIN/HAND coach: display the tutor's move on the DGT clock when the user plays</span>
                 </td>
             </tr>
         </table>
@@ -255,14 +232,11 @@
             if (normalized === "tutor-comment") {
                 return ["single", "all", "off"];
             }
-            if (normalized === "tutor-brain-hint-speed") {
-                return ["short", "medium", "long", "manual"];
-            }
-            if (normalized === "tutor-brain-hint-pause") {
+            if (normalized === "tutor-brain-hint-display") {
                 return ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
             }
-            if (normalized === "tutor-brain-hint-duration") {
-                return ["1", "2", "3", "4", "5", "6", "7", "8"];
+            if (normalized === "tutor-brain-reveal-text") {
+                return ["on", "off"];
             }
             if (normalized === "board-type") {
                 return ["dgt", "certabo", "chesslink", "chessnut", "ichessone", "noeboard"];
@@ -338,40 +312,21 @@
             return (found.value || fallback).trim().toLowerCase();
         }
 
-        function bcSpeedChanged() {
-            var isManual = document.getElementById("bc-hint-speed").value === "manual";
-            document.getElementById("bc-manual-rows").style.display = isManual ? "" : "none";
-        }
-
         function updateBrainCoachSection(entries) {
             document.getElementById("bc-coach").value =
                 getIniValue(entries, "tutor-coach", "off");
-            var speed = getIniValue(entries, "tutor-brain-hint-speed", null);
-            var dur   = getIniValue(entries, "tutor-brain-hint-duration", "3");
-            var pause = getIniValue(entries, "tutor-brain-hint-pause", "2");
-            if (!speed || speed === "manual") {
-                // Manual mode: show individual inputs
-                document.getElementById("bc-hint-speed").value = "manual";
-                document.getElementById("bc-hint-duration").value = dur;
-                document.getElementById("bc-hint-pause").value = pause;
-            } else {
-                document.getElementById("bc-hint-speed").value = speed;
-            }
-            bcSpeedChanged();
+            document.getElementById("bc-hint-display").value =
+                getIniValue(entries, "tutor-brain-hint-display", "0");
+            document.getElementById("bc-reveal-text").value =
+                getIniValue(entries, "tutor-brain-reveal-text", "on");
         }
 
         function saveBrainCoachSettings() {
-            var speed = document.getElementById("bc-hint-speed").value;
             var entries = [
-                { key: "tutor-coach", value: document.getElementById("bc-coach").value, enabled: true },
+                { key: "tutor-coach",               value: document.getElementById("bc-coach").value,        enabled: true },
+                { key: "tutor-brain-hint-display",  value: document.getElementById("bc-hint-display").value, enabled: true },
+                { key: "tutor-brain-reveal-text",   value: document.getElementById("bc-reveal-text").value,  enabled: true },
             ];
-            if (speed === "manual") {
-                entries.push({ key: "tutor-brain-hint-speed",    value: "manual", enabled: true });
-                entries.push({ key: "tutor-brain-hint-duration", value: document.getElementById("bc-hint-duration").value, enabled: true });
-                entries.push({ key: "tutor-brain-hint-pause",    value: document.getElementById("bc-hint-pause").value,    enabled: true });
-            } else {
-                entries.push({ key: "tutor-brain-hint-speed", value: speed, enabled: true });
-            }
             setStatus("Saving BRAIN Coach settings...", false);
             fetch("/settings/save", {
                 method: "POST",

@@ -1023,6 +1023,7 @@ class DgtTranslate(object):
                 frtxt = entxt
                 estxt = entxt
             elif "BRAIN_PAWN" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a pawn move",
                     large_text="Play Pawn  ",
@@ -1060,6 +1061,7 @@ class DgtTranslate(object):
                     small_text="peon  ",
                 )
             elif "BRAIN_KNIGHT" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a knight move",
                     large_text="Play Knight",
@@ -1097,6 +1099,7 @@ class DgtTranslate(object):
                     small_text="caball",
                 )
             elif "BRAIN_BISHOP" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a bishop move",
                     large_text="Play Bishop",
@@ -1134,6 +1137,7 @@ class DgtTranslate(object):
                     small_text="alfil ",
                 )
             elif "BRAIN_ROOK" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a rook move",
                     large_text="Play Rook  ",
@@ -1171,6 +1175,7 @@ class DgtTranslate(object):
                     small_text="torre ",
                 )
             elif "BRAIN_QUEEN" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a queen move",
                     large_text="Play Queen ",
@@ -1208,6 +1213,7 @@ class DgtTranslate(object):
                     small_text="dama  ",
                 )
             elif "BRAIN_KING" in msg:
+                beep = False
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Play a king move",
                     large_text="Play King  ",

@@ -363,36 +363,20 @@ class Configuration:
             help="show game comments based on specific engines (=single) or in general (=all). Default value is off",
         )
         self.parser.add_argument(
-            "-tbhd",
-            "--tutor-brain-hint-duration",
+            "-tbh",
+            "--tutor-brain-hint-display",
             type=int,
-            default=3,
-            choices=range(1, 9),
-            help="BRAIN coach mode: how long the piece-type hint stays on the DGT display before the clock reappears (1-8 secs, default=3)",
-        )
-        self.parser.add_argument(
-            "-tbhp",
-            "--tutor-brain-hint-pause",
-            type=int,
-            default=2,
+            default=0,
             choices=range(0, 9),
-            help="BRAIN coach mode: seconds the clock is paused after the piece-type hint (0=no pause, default=2)",
+            help="BRAIN coach mode: how long the piece-type hint stays on the DGT display (0=until user plays, 1-8 secs). Clock is never paused. Default=0.",
         )
         self.parser.add_argument(
-            "-tbhs",
-            "--tutor-brain-hint-speed",
+            "-tbrt",
+            "--tutor-brain-reveal-text",
             type=str,
-            default=None,
-            choices=["short", "medium", "long", "manual"],
-            help=(
-                "BRAIN/HAND coach mode: preset for hint display speed."
-                " short=faster games (DGT clock hold 2 s, clock pause 1 s);"
-                " medium=standard games (DGT clock hold 4 s, clock pause 3 s);"
-                " long=leisurely/study play (DGT clock hold 6 s, clock pause 6 s);"
-                " manual=use tutor-brain-hint-duration and tutor-brain-hint-pause directly."
-                " Note: hint-duration only affects the DGT clock face; the web display is unaffected."
-                " Overrides tutor-brain-hint-duration and tutor-brain-hint-pause when set to a preset."
-            ),
+            default="on",
+            choices=["on", "off"],
+            help="BRAIN/HAND coach mode: show the tutor's revealed move as text on the DGT clock after the user plays (default=on).",
         )
         self.parser.add_argument(
             "-loc",

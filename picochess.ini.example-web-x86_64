@@ -371,22 +371,15 @@ tutor-watcher = False
 #tutor-coach = lift
 tutor-coach = off
 
-## BRAIN/HAND coach: hint display speed preset.
-##   short  — faster games        (DGT clock hold 2 s, clock pause 1 s)
-##   medium — standard games      (DGT clock hold 4 s, clock pause 3 s)  [default]
-##   long   — leisurely / study   (DGT clock hold 6 s, clock pause 6 s)
-##   manual — use tutor-brain-hint-duration and tutor-brain-hint-pause directly
-## Note: tutor-brain-hint-duration only affects the DGT clock face; the web display is unaffected.
-## The preset takes precedence over the two individual values below.
-## Use 'manual' (or set via the web settings page) to control duration and pause individually.
-#tutor-brain-hint-speed = medium
-tutor-brain-hint-speed = medium
+## BRAIN coach: how long the piece-type hint stays on the DGT clock display.
+##   0 = show until the user plays their move (default)
+##   1-8 = number of seconds the hint is shown; clock is never paused
+#tutor-brain-hint-display = 0
 
-## Individual values — only used when tutor-brain-hint-speed = manual:
-## How many seconds the piece-type hint stays on the DGT clock. Range 1–8, default 3.
-#tutor-brain-hint-duration = 3
-## How many seconds the clock is paused after the hint. 0 = no pause. Range 0–8, default 2.
-#tutor-brain-hint-pause = 2
+## BRAIN/HAND coach: show the tutor's revealed move as text on the DGT clock after the user plays.
+##   on  = display move text on DGT clock (default)
+##   off = LEDs only, no clock text
+#tutor-brain-reveal-text = on
 
 ## Engine used for PicoTutor analysis. Default is /opt/picochess/engines/aarch64/a-stockf.
 tutor-engine = /opt/picochess/engines/x86_64/a-stockf

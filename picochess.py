@@ -1005,8 +1005,8 @@ async def main() -> None:
         args.tutor_explorer,
         PicoComment.from_str(args.tutor_comment),
         args.comment_factor,
-        {"short": 2, "medium": 4, "long": 6}.get(args.tutor_brain_hint_speed, args.tutor_brain_hint_duration),
-        {"short": 1, "medium": 3, "long": 6}.get(args.tutor_brain_hint_speed, args.tutor_brain_hint_pause),
+        args.tutor_brain_hint_display,
+        args.tutor_brain_reveal_text == "on",
         args.continue_game,
         args.alt_move,
         state.dgttranslate,
@@ -1965,15 +1965,10 @@ async def main() -> None:
                 chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
             }.get(piece_type, "PAWN")
             logger.info("BRAIN hint: use a %s", piece_name)
-            hint_pause = self.state.dgtmenu.get_brain_hint_pause()
-            if hint_pause > 0:
-                await self.state.stop_clock()
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name))
-            if hint_pause > 0:
-                await asyncio.sleep(hint_pause)
-                # Only restart the clock if the user hasn't already played during the pause.
-                if _user_turn_and_alive() and self.picotutor_mode():
-                    await self.state.start_clock()
+            hint_display = self.state.dgtmenu.get_brain_hint_display()
+            if hint_display > 0:
+                await asyncio.sleep(hint_display)
 
         def start_brain_hint_timer(self):
             """BRAIN mode: (re)start the 5-second auto-hint timer for the user's turn."""
@@ -3024,11 +3019,8 @@ async def main() -> None:
                 moved_piece_type = self.state.game.piece_type_at(move.from_square)
                 if moved_piece_type != self.state.brain_required_piece_type:
                     logger.info("BRAIN mode: wrong piece type (expected %s, got %s)", self.state.brain_required_piece_type, moved_piece_type)
-                    hint_pause = self.state.dgtmenu.get_brain_hint_pause()
-                    if hint_pause > 0:
-                        await self.state.stop_clock()
                     await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_WRONG"))
-                    await asyncio.sleep(max(hint_pause, 1))  # at least 1 s so user sees the message
+                    await asyncio.sleep(1)  # at least 1 s so user sees the message
                     # Re-announce the required piece type: user knows what to play,
                     # green circles reappear on the board.
                     _required = self.state.brain_required_piece_type
@@ -3037,8 +3029,6 @@ async def main() -> None:
                         chess.ROOK: "ROOK", chess.QUEEN: "QUEEN", chess.KING: "KING",
                     }.get(_required, "PAWN")
                     await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + _piece_name))
-                    if hint_pause > 0:
-                        await self.state.start_clock()  # move was rejected; user must try again
                     return False
 
             # Cancel BRAIN timer and clear enforcement on any valid user move.
@@ -3241,6 +3231,8 @@ async def main() -> None:
                         ):
                             _hand_hint = self.state.brain_best_move
                             self.state.brain_best_move = None  # consume immediately
+                    if _hand_hint is not None:
+                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=_hand_hint))
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3302,11 +3294,6 @@ async def main() -> None:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 
                     self.state.last_move = move
-                    # BRAIN/HAND: queue TUTOR_MOVE_REVEAL after USER_MOVE_DONE so the web client
-                    # receives them in order: Fen update → TutorMove green circles (from+to).
-                    # Cleared automatically when the engine announces its move ('Light' event).
-                    if _hand_hint is not None:
-                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=_hand_hint))
                 elif self.state.interaction_mode == Mode.REMOTE:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()

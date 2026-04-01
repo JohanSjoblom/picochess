@@ -6098,6 +6098,9 @@ async def main() -> None:
                     await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
+                self.state.dgtmenu.menu_picotutor_picoexplorer = event.picoexplorer
+                self.state.dgtmenu.res_picotutor_picoexplorer = event.picoexplorer
+                write_picochess_ini("tutor-explorer", event.picoexplorer)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -6207,6 +6210,15 @@ async def main() -> None:
                     self.pico_talker.set_comment_factor(comment_factor=self.state.dgtmenu.get_comment_factor())
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
                 else:
+                    _comment_ini = {
+                        PicoComment.COM_OFF:    "off",
+                        PicoComment.COM_ON_ENG: "single",
+                        PicoComment.COM_ON_ALL: "all",
+                    }
+                    if event.picocomment in _comment_ini:
+                        self.state.dgtmenu.menu_picotutor_picocomment = event.picocomment
+                        self.state.dgtmenu.res_picotutor_picocomment = event.picocomment
+                        write_picochess_ini("tutor-comment", _comment_ini[event.picocomment])
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment=event.picocomment))
 
             elif isinstance(event, Event.SET_TIME_CONTROL):

@@ -1314,6 +1314,9 @@ function download() {
 function newBoard(fen) {
     stopAnalysis();
 
+    fenHash = {};
+    computerside = "";
+
     currentPosition = {};
     currentPosition.fen = fen;
 

@@ -583,14 +583,15 @@ class ChannelHandler(ServerRequestHandler):
             if elo:
                 try:
                     elo_int = int(elo)
-                    if 100 <= elo_int <= 3000:
-                        if "system_info" not in self.shared:
-                            self.shared["system_info"] = {}
-                        self.shared["system_info"]["user_elo"] = str(elo_int)
-                        write_picochess_ini("pgn-elo", str(elo_int))
-                        logger.info("web set_player: elo=%r", elo_int)
+                    if not (0 <= elo_int <= 3000):
+                        elo_int = 1500
                 except (TypeError, ValueError):
-                    pass
+                    elo_int = 1500
+                if "system_info" not in self.shared:
+                    self.shared["system_info"] = {}
+                self.shared["system_info"]["user_elo"] = str(elo_int)
+                write_picochess_ini("pgn-elo", str(elo_int))
+                logger.info("web set_player: elo=%r", elo_int)
         elif action == "take_back":
             await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":

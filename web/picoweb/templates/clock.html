@@ -1123,6 +1123,9 @@
                         var name = (document.getElementById('ovl-player-name').value || '').trim();
                         var elo  = (document.getElementById('ovl-player-elo').value  || '').trim();
                         if (!name) return;
+                        var eloNum = parseInt(elo, 10);
+                        elo = (isNaN(eloNum) || eloNum < 0 || eloNum > 3000) ? '1500' : String(eloNum);
+                        document.getElementById('ovl-player-elo').value = elo;
                         post('action=set_player&name=' + encodeURIComponent(name) + '&elo=' + encodeURIComponent(elo));
                         // Update local cache immediately
                         window._picoSystemInfo = window._picoSystemInfo || {};
@@ -2444,7 +2447,7 @@
                         <label for="ovl-player-elo" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">ELO Rating</label>
                         <input type="number" id="ovl-player-elo"
                                style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
-                               min="100" max="3000" step="50">
+                               min="0" max="3000" step="50" placeholder="1500">
                     </div>
                     <button id="ovl-player-save"
                             style="width:100%;padding:0.7rem;background:rgba(76,175,80,0.55);border:none;border-radius:4px;color:inherit;font-size:1rem;font-weight:600;cursor:pointer;transition:background 0.12s;">

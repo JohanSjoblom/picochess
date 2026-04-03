@@ -2536,6 +2536,9 @@ $(function () {
                         break;
                     case 'Game':
                         newBoard(data.fen);
+                        // Clear the move list — newBoard() resets the game tree but
+                        // does not update the DOM, leaving the previous game's moves visible.
+                        writeVariationTree(pgnEl, '', gameHistory);
                         updateTutorMistakes(data.mistakes);
                         updateCheckCounters(data.variant, data.checks);
                         // New board = no moves played yet

@@ -60,16 +60,14 @@ hciconfig hci0 up || true
 step "Aplicando capacidades a bluepy-helper..." "Applying capabilities to bluepy-helper..."
 if [[ -n "$BLUEPY_HELPER" && -f "$BLUEPY_HELPER" ]]; then
   setcap 'cap_net_raw,cap_net_admin+eip' "$BLUEPY_HELPER"
+  step "Verificando capacidades..." "Verifying capabilities..."
+  getcap "$BLUEPY_HELPER"
 else
   echo ""
-  echo "ES: No se encuentra bluepy-helper en:"
-  echo "EN: bluepy-helper not found at:"
-  echo "   $BLUEPY_HELPER"
-  exit 1
+  echo "ES: bluepy-helper no encontrado, omitiendo este paso:"
+  echo "EN: bluepy-helper not found, skipping this step:"
+  echo "   ${BLUEPY_HELPER:-<venv not found>}"
 fi
-
-step "Verificando capacidades..." "Verifying capabilities..."
-getcap "$BLUEPY_HELPER"
 
 step "Configurando bluetoothd en modo compatibilidad..." "Configuring bluetoothd in compatibility mode..."
 BLUETOOTHD_PATH=""

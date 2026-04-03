@@ -2546,7 +2546,9 @@ $(function () {
                         }
                         break;
                     case 'Game':
+                        var savedGameHeader = gameHistory.gameHeader || '';
                         newBoard(data.fen);
+                        gameHistory.gameHeader = savedGameHeader;
                         // Clear the move list — newBoard() resets the game tree but
                         // does not update the DOM, leaving the previous game's moves visible.
                         writeVariationTree(pgnEl, '', gameHistory);

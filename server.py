@@ -769,6 +769,15 @@ class EventHandler(WebSocketHandler):
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
+        # If the engine has suggested a move not yet confirmed on the board, send the
+        # arrow so this new client shows the same hint as already-connected clients.
+        if self.shared and "pending_computer_move" in self.shared:
+            pending = self.shared["pending_computer_move"]
+            if "move" in pending:
+                try:
+                    self.write_message({"event": "Light", "move": pending["move"]})
+                except Exception as exc:  # pragma: no cover - websocket errors
+                    logger.warning("failed to sync pending engine move to client: %s", exc)
         for key in ("analysis_state_engine", "analysis_state_tutor", "analysis_state"):
             if self.shared and key in self.shared:
                 try:
@@ -2032,6 +2041,7 @@ class WebDisplay(DisplayMsg):
             }
             _attach_variant_info(result)
             _attach_mistakes(result)
+            self.shared.pop("pending_computer_move", None)  # discard any pending engine move
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
             if message.newgame:
@@ -2371,19 +2381,19 @@ class WebDisplay(DisplayMsg):
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}
                 _attach_mistakes(result)
                 _attach_variant_info(result)
-                self.shared["last_dgt_move_msg"] = result  # not send => keep it for COMPUTER_MOVE_DONE
+                self.shared["pending_computer_move"] = result  # not sent => keep it for COMPUTER_MOVE_DONE
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
             WebDisplay.result_sav = ""
-            result = self.shared.get("last_dgt_move_msg")
-            # If START_NEW_GAME already ran and set last_dgt_move_msg to play="newgame",
-            # this COMPUTER_MOVE_DONE is stale (engine moved after reset) – skip it so
-            # the new game's clean PGN isn't overwritten with the old game's result.
-            if result and result.get("play") != "newgame":
+            result = self.shared.pop("pending_computer_move", None)
+            # If START_NEW_GAME already ran it cleared pending_computer_move, so result is None –
+            # skip this stale engine move so the new game's clean PGN isn't overwritten.
+            if result is not None:
                 # Re-stamp variant info: for 3check, process_fen has already pushed
                 # the engine move onto the ThreeCheck board and updated checks_remaining,
                 # so this overwrites the stale value captured at COMPUTER_MOVE time.
                 _attach_variant_info(result)
+                self.shared["last_dgt_move_msg"] = result
                 EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.DGT_FEN):

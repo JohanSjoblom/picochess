@@ -590,6 +590,18 @@ class PgnDisplay(DisplayMsg):
     def _save_and_email_pgn(self, message):
         """when game ends the pgn file is saved and emailed"""
         logger.debug("Saving game to [%s]", self.file_name)
+        # If an engine move was announced but not yet confirmed on the board
+        # (e.g. user resigned before executing it), include it in the saved PGN.
+        # Only do this at game-end (here), NOT in mid-game saves (_save_pgn).
+        if self.shared:
+            pending = self.shared.get("pending_computer_move")
+            if pending and "move" in pending:
+                try:
+                    augmented = message.game.copy()
+                    augmented.push(chess.Move.from_uci(pending["move"]))
+                    message.game = augmented
+                except Exception:
+                    pass
         pgn_game = self._pgn_game_from_message(message)
         pgn_game_last = pgn_game
 

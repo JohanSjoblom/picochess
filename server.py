@@ -2495,9 +2495,19 @@ class WebDisplay(DisplayMsg):
                 self.shared["headers"]["Result"] = WebDisplay.result_sav
             # Rebuild PGN with result and push to all clients so the move list
             # immediately shows "1-0", "0-1" or "1/2-1/2" appended.
-            pgn_str = _transfer(message.game)
-            fen = _oldstyle_fen(message.game)
-            mov = peek_uci(message.game)
+            # If an engine move was announced but not yet confirmed on the board,
+            # include it in the final PGN so the move list is complete.
+            game_for_end = message.game
+            pending = self.shared.get("pending_computer_move")
+            if pending and "move" in pending:
+                try:
+                    game_for_end = message.game.copy()
+                    game_for_end.push(chess.Move.from_uci(pending["move"]))
+                except Exception:
+                    pass
+            pgn_str = _transfer(game_for_end)
+            fen = _oldstyle_fen(game_for_end)
+            mov = peek_uci(game_for_end)
             end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(end_msg)
             _attach_variant_info(end_msg)

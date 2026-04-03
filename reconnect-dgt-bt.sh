@@ -65,18 +65,18 @@ MAC=$(bluetoothctl paired-devices 2>/dev/null \
       | head -1)
 
 if [[ -z "$MAC" ]]; then
-    echo "EN: No paired DGT board found. Use 'Pair phone' first or pair manually."
-    exit 1
+    echo "EN: No prior DGT pairing found — picochess will scan and pair automatically."
+else
+    echo "EN: Found paired DGT board: ${MAC}"
+
+    # 5. Release stale rfcomm device
+    rfcomm release 123 2>/dev/null || true
+    sleep 1
+
+    # 6. Connect in background (rfcomm connect blocks until disconnected)
+    nohup rfcomm connect 123 "${MAC}" 1 </dev/null >>/var/log/picochess-rfcomm.log 2>&1 &
+
+    echo "EN: rfcomm connect started for ${MAC} — picochess will detect /dev/rfcomm123"
 fi
 
-echo "EN: Found paired DGT board: ${MAC}"
-
-# 5. Release stale rfcomm device
-rfcomm release 123 2>/dev/null || true
-sleep 1
-
-# 6. Connect in background (rfcomm connect blocks until disconnected)
-nohup rfcomm connect 123 "${MAC}" 1 </dev/null >>/var/log/picochess-rfcomm.log 2>&1 &
-
-echo "EN: rfcomm connect started for ${MAC} — picochess will detect /dev/rfcomm123"
-echo "EN: Done. A reboot is NOT required."
+echo "EN: Bluetooth service restarted with SPP support. Connection should be restored."

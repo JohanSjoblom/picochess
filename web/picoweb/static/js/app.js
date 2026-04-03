@@ -2213,7 +2213,9 @@ function goToDGTFen() {
             if (data.play === 'newgame') {
                 // Server is at a fresh game — reset board and move list together,
                 // same as the 'Game' WebSocket event handler does.
+                var savedHeader = gameHistory.gameHeader || '';
                 newBoard(data.fen);
+                gameHistory.gameHeader = savedHeader;
                 writeVariationTree(pgnEl, '', gameHistory);
                 removeHighlights();
                 removeArrow();

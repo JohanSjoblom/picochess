@@ -2210,11 +2210,20 @@ function updateBackendAnalysis(analysis) {
 function goToDGTFen() {
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data && data.fen) {
-            updateDGTPosition(data);
-            if (window.chessground1) { window.chessground1.redrawAll(); }
-            highlightBoard(data.move, data.play);
-            addArrow(data.move, data.play);
-            updateTutorMistakes(data.mistakes);
+            if (data.play === 'newgame') {
+                // Server is at a fresh game — reset board and move list together,
+                // same as the 'Game' WebSocket event handler does.
+                newBoard(data.fen);
+                writeVariationTree(pgnEl, '', gameHistory);
+                removeHighlights();
+                removeArrow();
+            } else {
+                updateDGTPosition(data);
+                if (window.chessground1) { window.chessground1.redrawAll(); }
+                highlightBoard(data.move, data.play);
+                addArrow(data.move, data.play);
+                updateTutorMistakes(data.mistakes);
+            }
         } else {
             // No active game: show starting position
             newBoard(START_FEN);

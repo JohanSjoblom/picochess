@@ -55,6 +55,7 @@ body {
 }
 
 .figurine {
+    font-family: FreeSerif, serif;
     font-size: 1.2em;
     line-height: 1;
     margin-right: -0.05em;

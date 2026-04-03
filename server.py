@@ -1794,6 +1794,11 @@ class WebDisplay(DisplayMsg):
                     except ValueError:
                         comp_elo = level_name[6:]
                     engine_level = ""
+                elif "@" in level_name:
+                    suffix = level_name.rsplit("@", 1)[-1]
+                    if suffix.isdigit():
+                        comp_elo = int(suffix)
+                        engine_level = ""
             if "play_mode" in self.shared["game_info"]:
                 if self.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE:
                     pgn_game.headers["White"] = user_name

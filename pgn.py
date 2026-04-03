@@ -407,6 +407,13 @@ class PgnDisplay(DisplayMsg):
         if self.level_name.startswith("Elo@"):
             comp_elo = self.level_name[4:]
             engine_level = ""
+        elif "@" in self.level_name:
+            suffix = self.level_name.rsplit("@", 1)[-1]
+            if suffix.isdigit():
+                comp_elo = suffix
+                engine_level = ""
+            else:
+                comp_elo = self.engine_elo
         else:
             comp_elo = self.engine_elo
 

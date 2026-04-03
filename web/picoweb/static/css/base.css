@@ -54,6 +54,11 @@ body {
     font-family: Roboto, FreeSerif, sans-serif;
 }
 
+.figurine {
+    font-size: 1.1em;
+    line-height: 1;
+}
+
 .gameMoves .highlight {
     color: darkgreen;
     font-size: 1.4vw;

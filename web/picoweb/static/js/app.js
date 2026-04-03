@@ -309,12 +309,12 @@ function addArrow(ucimove, play) {
 
 function figurinizeMove(move) {
     if (!move) { return; }
-    move = move.replace('N', '&#9816;');
-    move = move.replace('B', '&#9815;');
-    move = move.replace('R', '&#9814;');
-    move = move.replace('K', '&#9812;');
-    move = move.replace('Q', '&#9813;');
-    move = move.replace('X', '&#9888;'); // error code
+    move = move.replace('N', '<span class="figurine">&#9816;</span>');
+    move = move.replace('B', '<span class="figurine">&#9815;</span>');
+    move = move.replace('R', '<span class="figurine">&#9814;</span>');
+    move = move.replace('K', '<span class="figurine">&#9812;</span>');
+    move = move.replace('Q', '<span class="figurine">&#9813;</span>');
+    move = move.replace('X', '<span class="figurine">&#9888;</span>'); // error code
     return move;
 }
 

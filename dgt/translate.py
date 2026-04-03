@@ -6022,6 +6022,18 @@ class DgtTranslate(object):
             nltxt = entxt
             frtxt = entxt
             estxt = entxt
+        if text_id == "bluetooth_reconnect_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Reconn DGT ",
+                medium_text="ReconDGT",
+                small_text="recon",
+            )
+            ittxt = entxt
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
         if text_id == "eboard_dgt_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

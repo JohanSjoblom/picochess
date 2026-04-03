@@ -1395,7 +1395,7 @@ class SettingsActionHandler(ServerRequestHandler):
         else:
             if not _require_auth_if_remote(self, "Settings"):
                 return
-        if action not in ("wifi-hotspot", "bt-pair", "bt-fix"):
+        if action not in ("wifi-hotspot", "bt-pair", "bt-fix", "bt-reconnect"):
             self.set_status(404)
             self.write({"error": "Unknown action"})
             return
@@ -1405,9 +1405,12 @@ class SettingsActionHandler(ServerRequestHandler):
         elif action == "bt-pair":
             cmd = ["sudo", "-n", "/opt/picochess/pair-phone"]
             timeout = 50
-        else:
+        elif action == "bt-fix":
             cmd = ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"]
             timeout = 60
+        else:  # bt-reconnect
+            cmd = ["sudo", "-n", "/opt/picochess/reconnect-dgt-bt.sh"]
+            timeout = 30
         loop = asyncio.get_event_loop()
         try:
             result = await loop.run_in_executor(
@@ -1446,7 +1449,7 @@ class WebServer:
                 (r"/settings", SettingsPageHandler),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
-                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix)", SettingsActionHandler),
+                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
                 (r"/onboard", WifiSetupPageHandler),
                 (r"/onboard/wifi", WifiSetupHandler),
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),

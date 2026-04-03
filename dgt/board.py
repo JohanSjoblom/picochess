@@ -922,6 +922,11 @@ class DgtBoard(EBoard):
                         dev = path.join("/dev", file)
                         if self._open_serial(dev):
                             return _success(dev)
+                # rfcomm123 may have been created by reconnect-dgt-bt.sh;
+                # open it directly rather than going through bluetoothctl again.
+                if path.exists("/dev/rfcomm123"):
+                    if self._open_serial("/dev/rfcomm123"):
+                        return _success("/dev/rfcomm123")
                 if self._open_bluetooth():
                     return _success("/dev/rfcomm123")
 

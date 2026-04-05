@@ -2043,7 +2043,7 @@ class WebDisplay(DisplayMsg):
                 "play": "newgame",
             }
             _attach_variant_info(result)
-            _attach_mistakes(result)
+            result["mistakes"] = []  # always empty for a new game
             self.shared.pop("pending_computer_move", None)  # discard any pending engine move
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)

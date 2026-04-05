@@ -1945,6 +1945,10 @@ function updateTutorMistakes(mistakes) {
         }
         listEl.appendChild(entry);
     });
+    var container = listEl.parentElement;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 function findFenByHalfmove(halfmove) {

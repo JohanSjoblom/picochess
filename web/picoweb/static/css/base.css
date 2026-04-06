@@ -633,7 +633,6 @@ td.result {
 .continuation-moves {
     font-size: 0.9rem;
     font-weight: normal;
-    color: var(--bs-body-color, #212529);
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -883,6 +882,13 @@ td.result {
     background: #fff3cd !important;
     color: #856404 !important;
     border-color: #ffc107 !important;
+}
+
+/* Continuation moves inherit body text colour, bypassing any grey from Bootstrap/MDB card overrides */
+#pv_output .continuation-moves,
+#engineRow .continuation-moves,
+#sf18Row .continuation-moves {
+    color: inherit !important;
 }
 
 #pv_output .depth-display,

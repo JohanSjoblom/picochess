@@ -640,6 +640,7 @@ td.result {
 .continuation-moves {
     font-size: 0.9rem;
     font-weight: normal;
+    color: inherit;
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;

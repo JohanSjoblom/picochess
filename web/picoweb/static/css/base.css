@@ -643,7 +643,6 @@ td.result {
     border-radius: 8px;
     font-size: 0.75rem;
     flex-shrink: 0;
-    order: 3;
 }
 
 /* Continuation moves — same size as first-move, slightly muted */
@@ -847,37 +846,47 @@ td.result {
 
 
 
+/* Meta containers: transparent to flexbox so score/depth join the row directly */
+#engineMeta, #sf18Meta {
+    display: contents;
+}
+
 /* Colour overrides for score / depth / first-move in all analysis containers */
 #pv_output .score-display,
-#engineAnalysisSection .score-display,
+#engineRow .score-display,
+#sf18Row .score-display,
 .analysis-sources .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3) !important;
     color: white !important;
 }
 
 #pv_output .score-positive,
-#engineAnalysisSection .score-positive,
+#engineRow .score-positive,
+#sf18Row .score-positive,
 .analysis-sources .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34) !important;
     color: white !important;
 }
 
 #pv_output .score-negative,
-#engineAnalysisSection .score-negative,
+#engineRow .score-negative,
+#sf18Row .score-negative,
 .analysis-sources .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333) !important;
     color: white !important;
 }
 
 #pv_output .score-mate,
-#engineAnalysisSection .score-mate,
+#engineRow .score-mate,
+#sf18Row .score-mate,
 .analysis-sources .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100) !important;
     color: white !important;
 }
 
 #pv_output .first-move,
-#engineAnalysisSection .first-move,
+#engineRow .first-move,
+#sf18Row .first-move,
 .analysis-sources .first-move {
     background: #fff3cd !important;
     color: #856404 !important;
@@ -885,7 +894,8 @@ td.result {
 }
 
 #pv_output .depth-display,
-#engineAnalysisSection .depth-display,
+#engineRow .depth-display,
+#sf18Row .depth-display,
 .analysis-sources .depth-display {
     background: #6c757d !important;
     color: white !important;
@@ -1691,7 +1701,8 @@ piece {
 /* Best-move highlight: swap light-yellow for dark-amber in dark mode */
 html[data-theme="dark"] .first-move,
 html[data-theme="dark"] #pv_output .first-move,
-html[data-theme="dark"] #engineAnalysisSection .first-move,
+html[data-theme="dark"] #engineRow .first-move,
+html[data-theme="dark"] #sf18Row .first-move,
 html[data-theme="dark"] .analysis-sources .first-move {
     background: rgba(255, 193, 7, 0.15) !important;
     color: #ffc107 !important;

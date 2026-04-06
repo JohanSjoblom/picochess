@@ -670,15 +670,39 @@
                                                 </div>
                                                 <div id="engineStatus"></div>
 
-                                                <!-- Server engine analysis section (JS renders content) -->
-                                                <div id="engineAnalysisSection" aria-live="polite" aria-label="Server engine analysis" role="status"></div>
+                                                <!-- Server engine analysis (static structure, JS updates content) -->
+                                                <div class="pv-two-row" id="engineRow" aria-live="polite">
+                                                    <div class="pv-header">
+                                                        <span class="engine-name-badge">Engine</span>
+                                                        <div id="engineMeta"></div>
+                                                        <div class="pv-spacer"></div>
+                                                        <button id="engineToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
+                                                    </div>
+                                                    <div id="enginePvBody" class="pv-body"></div>
+                                                </div>
 
                                                 <hr class="my-1">
 
-                                                <!-- SF18 analysis section (JS renders header + PV lines) -->
-                                                <div id="pv_output" class="gameMoves list-group">
-                                                    <div id="pv_1" class="pv-container"></div>
+                                                <!-- SF18 analysis (static header, JS updates content + extra PVs) -->
+                                                <div class="pv-two-row" id="sf18Row">
+                                                    <div class="pv-header">
+                                                        <span class="engine-name-badge">Stockfish 18</span>
+                                                        <div id="sf18Meta"></div>
+                                                        <div class="pv-spacer"></div>
+                                                        <div class="btn-group btn-group-xs" id="sf18PmGroup">
+                                                            <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn" aria-label="Fewer lines">
+                                                                <i class="fa fa-minus" aria-hidden="true"></i>
+                                                            </button>
+                                                            <button id="analyzePlus" class="btn btn-sm btn-primary book-switch-btn" aria-label="More lines">
+                                                                <i class="fa fa-plus" aria-hidden="true"></i>
+                                                            </button>
+                                                        </div>
+                                                        <button id="sf18ToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
+                                                    </div>
+                                                    <div id="sf18Pv1Body" class="pv-body"></div>
                                                 </div>
+                                                <!-- Extra SF18 PV lines (pv_2, pv_3 ...) -->
+                                                <div id="pv_output" class="gameMoves"></div>
                                             </div>
                                         </div>
                                         <div class="tab-pane fade" id="tutor" role="tabpanel">

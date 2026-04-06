@@ -1525,29 +1525,15 @@ function formatEngineOutput(line) {
             scoreClass += ' score-negative';
         }
 
-        output = '<div class="list-group-item pv-two-row">';
-
-        // Row 1: header — label + score + depth [+ spacer + ± + HIDE on first PV]
-        output += '<div class="pv-header">';
-        output += '<span class="engine-name-badge">Stockfish 18</span>';
+        // Build score+depth meta HTML (shared for pv_1 update and pv_2+ header)
+        var metaHtml = '';
         if (score !== null) {
-            output += '<span class="' + scoreClass + '">' + score + '</span>';
+            metaHtml += '<span class="' + scoreClass + '">' + score + '</span>';
         }
-        output += '<span class="depth-display">d' + depth + '</span>';
-        if (multipv === 1) {
-            output += '<div class="pv-spacer"></div>';
-            if (allowMultiPvControls) {
-                output += '<div class="btn-group btn-group-xs">' +
-                    '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-minus-btn" aria-label="Fewer lines"><i class="fa fa-minus"></i></button>' +
-                    '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-plus-btn" aria-label="More lines"><i class="fa fa-plus"></i></button>' +
-                    '</div>';
-            }
-            output += '<button class="btn btn-sm btn-primary pv-sf18-toggle-btn">HIDE</button>';
-        }
-        output += '</div>';
+        metaHtml += '<span class="depth-display">d' + depth + '</span>';
 
-        // Row 2: body — first move + continuation
-        output += '<div class="pv-body">';
+        // Build PV body HTML
+        var bodyHtml = '';
         if (history.length > 0) {
             var firstMoveText = '';
             var tempGame = new Chess();
@@ -1562,7 +1548,7 @@ function formatEngineOutput(line) {
                 firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
-            output += '<span class="first-move">' + firstMoveText + '</span>';
+            bodyHtml += '<span class="first-move">' + firstMoveText + '</span>';
         }
         if (history.length > 1) {
             var continuationText = '';
@@ -1574,19 +1560,25 @@ function formatEngineOutput(line) {
                 }
                 continuationText += figurinizeMove(history[i]) + ' ';
             }
-            output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
+            bodyHtml += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-        output += '</div>';
-
-        output += '</div>';
 
         analysis_game = null;
 
-        // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
         if (multipv === 1) {
+            // First PV: update the static SF18 row elements directly
             updateEvaluationBar(score);
+            return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
+        // Extra PV lines (pv_2+): render a full two-row block
+        output = '<div class="pv-two-row">';
+        output += '<div class="pv-header">';
+        output += '<span class="engine-name-badge">Stockfish 18</span>';
+        output += metaHtml;
+        output += '</div>';
+        output += '<div class="pv-body">' + bodyHtml + '</div>';
+        output += '</div>';
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
@@ -1712,10 +1704,9 @@ function analyzePressed() {
         $('#evaluationBar').css('visibility', 'visible');
     } else {
         $('#evaluationBar').css('visibility', 'hidden');
-        // Limpiar contenedor de análisis al detener
+        // Clear extra PV lines; pv_1 body is static HTML in sf18Row
         $('#pv_output').empty();
-        // Recrear los contenedores según el multipv actual
-        for (var i = 1; i <= window.multipv; i++) {
+        for (var i = 2; i <= window.multipv; i++) {
             $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
         }
     }
@@ -1743,7 +1734,13 @@ function handleCrash(event) {
 function handleMessage(event) {
     if (!event || !event.data) return;
     var output = formatEngineOutput(event.data);
-    if (output && output.pv_index && output.pv_index > 0) {
+    if (output && output.pv_index === 1) {
+        // Update the static SF18 first-PV row
+        var metaEl = document.getElementById('sf18Meta');
+        var bodyEl = document.getElementById('sf18Pv1Body');
+        if (metaEl) metaEl.innerHTML = output.meta || '';
+        if (bodyEl) bodyEl.innerHTML = output.body || '';
+    } else if (output && output.pv_index > 1) {
         $('#pv_' + output.pv_index).html(output.line);
     }
         var multiPvStatusEl = $('#engineMultiPVStatus');
@@ -1778,10 +1775,9 @@ function stopAnalysis() {
         }
     }
 
-    // Limpiar todas las líneas de análisis
+    // Clear extra PV lines (pv_2+); pv_1 is now static HTML in sf18Row
     $('#pv_output').empty();
-    // Recrear los contenedores según el multipv actual
-    for (var i = 1; i <= window.multipv; i++) {
+    for (var i = 2; i <= window.multipv; i++) {
         $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
     }
 
@@ -1823,6 +1819,8 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
+            var sf18Btn = document.getElementById('sf18ToggleBtn');
+            if (sf18Btn) sf18Btn.textContent = 'HIDE';
         }
         else {
             window.analysis = false;
@@ -2109,12 +2107,10 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
     };
 }
 
-function updateBackendAnalysisLine(lineEl, analysis, labelText) {
-    if (!lineEl) {
-        return;
-    }
+// Update the static engine-row elements with live analysis data.
+function updateBackendAnalysisLine(analysis) {
     if (!analysis) {
-        lineEl.textContent = '';
+        setEngineLinePlaceholder();
         return;
     }
     var scoreText = '?';
@@ -2134,87 +2130,75 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
-    var output = '<div class="list-group-item pv-two-row">';
-    // Row 1: label + score + depth + spacer + HIDE
-    output += '<div class="pv-header">';
-    output += '<span class="engine-name-badge">' + labelText + '</span>';
-    output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
-    if (typeof analysis.depth === 'number') {
-        output += '<span class="depth-display">d' + analysis.depth + '</span>';
-    }
-    output += '<div class="pv-spacer"></div>';
-    output += '<button class="btn btn-sm btn-primary pv-hide-engine-btn">HIDE</button>';
-    output += '</div>';
-    // Row 2: PV moves
-    output += '<div class="pv-body">';
-    if (pvFormatted) {
-        output += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
-        if (pvFormatted.continuation) {
-            output += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+
+    // Update score+depth in #engineMeta
+    var metaEl = document.getElementById('engineMeta');
+    if (metaEl) {
+        var metaHtml = '<span class="' + scoreClass + '">' + scoreText + '</span>';
+        if (typeof analysis.depth === 'number') {
+            metaHtml += '<span class="depth-display">d' + analysis.depth + '</span>';
         }
-    } else if (pvMoves.length > 0) {
-        output += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+        metaEl.innerHTML = metaHtml;
     }
-    output += '</div>';
-    output += '</div>';
-    lineEl.innerHTML = output;
+    // Update PV moves in #enginePvBody
+    var bodyEl = document.getElementById('enginePvBody');
+    if (bodyEl) {
+        var bodyHtml = '';
+        if (pvFormatted) {
+            bodyHtml += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
+            if (pvFormatted.continuation) {
+                bodyHtml += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+            }
+        } else if (pvMoves.length > 0) {
+            bodyHtml += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+        }
+        bodyEl.innerHTML = bodyHtml;
+    }
+    // Button text: HIDE (analysis is showing)
+    var btn = document.getElementById('engineToggleBtn');
+    if (btn) btn.textContent = 'HIDE';
 }
 
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 
-// Render the server-engine row.  When visible but no analysis yet: label + HIDE.
-// When hidden: label + SHOW.
+// Clear engine analysis content; reset button to SHOW.
 function setEngineLinePlaceholder() {
-    var el = document.getElementById('engineAnalysisSection');
-    if (!el) return;
-    var btn = analysisDisplayVisible
-        ? '<button class="btn btn-sm btn-primary pv-hide-engine-btn">HIDE</button>'
-        : '<button class="btn btn-sm btn-primary pv-show-engine-btn">SHOW</button>';
-    el.innerHTML =
-        '<div class="list-group-item pv-two-row">' +
-        '<div class="pv-header">' +
-        '<span class="engine-name-badge">Engine</span>' +
-        '<div class="pv-spacer"></div>' +
-        btn +
-        '</div>' +
-        '</div>';
+    var metaEl = document.getElementById('engineMeta');
+    var bodyEl = document.getElementById('enginePvBody');
+    var btn    = document.getElementById('engineToggleBtn');
+    if (metaEl) metaEl.innerHTML = '';
+    if (bodyEl) bodyEl.innerHTML = '';
+    if (btn)    btn.textContent = 'SHOW';
 }
 
-// Render the SF18 placeholder row in pv_1 (engine not running).
+// Clear SF18 first-PV content; reset button to SHOW.
 function setSF18Placeholder() {
-    var pv1 = document.getElementById('pv_1');
-    if (!pv1) return;
-    var plusMinus = allowMultiPvControls
-        ? '<div class="btn-group btn-group-xs">' +
-          '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-minus-btn" aria-label="Fewer lines"><i class="fa fa-minus"></i></button>' +
-          '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-plus-btn" aria-label="More lines"><i class="fa fa-plus"></i></button>' +
-          '</div>'
-        : '';
-    pv1.innerHTML =
-        '<div class="list-group-item pv-two-row">' +
-        '<div class="pv-header">' +
-        '<span class="engine-name-badge">Stockfish 18</span>' +
-        '<div class="pv-spacer"></div>' +
-        plusMinus +
-        '<button class="btn btn-sm btn-primary pv-sf18-toggle-btn">SHOW</button>' +
-        '</div>' +
-        '</div>';
+    var metaEl = document.getElementById('sf18Meta');
+    var bodyEl = document.getElementById('sf18Pv1Body');
+    var btn    = document.getElementById('sf18ToggleBtn');
+    if (metaEl) metaEl.innerHTML = '';
+    if (bodyEl) bodyEl.innerHTML = '';
+    if (btn)    btn.textContent = 'SHOW';
+    // Clear extra PV lines
+    $('#pv_output').empty();
 }
 
 function updateBackendAnalysis(analysis) {
-    var serverEl = document.getElementById('engineAnalysisSection');
     if (!analysis) {
         lastServerAnalysis = null;
-        setEngineLinePlaceholder();
+        // Clear content but keep button state
+        var metaEl = document.getElementById('engineMeta');
+        var bodyEl = document.getElementById('enginePvBody');
+        if (metaEl) metaEl.innerHTML = '';
+        if (bodyEl) bodyEl.innerHTML = '';
         return;
     }
     lastServerAnalysis = analysis;
     if (!analysisDisplayVisible) {
         return;
     }
-    var labelText = analysis.source === 'tutor' ? 'Tutor' : 'Engine';
-    updateBackendAnalysisLine(serverEl, analysis, labelText);
+    updateBackendAnalysisLine(analysis);
 }
 
 function goToDGTFen() {
@@ -2668,26 +2652,30 @@ $(function () {
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
 
-    // Event delegation for dynamically-rendered SHOW/HIDE and SF18 ± buttons.
-    $(document).on('click', '.pv-show-engine-btn', function () {
-        analysisDisplayVisible = true;
-        var serverEl = document.getElementById('engineAnalysisSection');
-        if (lastServerAnalysis) {
-            var labelText = lastServerAnalysis.source === 'tutor' ? 'Tutor' : 'Engine';
-            updateBackendAnalysisLine(serverEl, lastServerAnalysis, labelText);
-        } else {
+    // Static bindings for persistent SHOW/HIDE and ± buttons.
+    $('#engineToggleBtn').on('click', function () {
+        if (analysisDisplayVisible) {
+            analysisDisplayVisible = false;
             setEngineLinePlaceholder();
+        } else {
+            analysisDisplayVisible = true;
+            if (lastServerAnalysis) {
+                updateBackendAnalysisLine(lastServerAnalysis);
+            } else {
+                // No data yet — show HIDE so user knows it's active
+                var btn = document.getElementById('engineToggleBtn');
+                if (btn) btn.textContent = 'HIDE';
+            }
         }
     });
-    $(document).on('click', '.pv-hide-engine-btn', function () {
-        analysisDisplayVisible = false;
-        setEngineLinePlaceholder();
-    });
-    $(document).on('click', '.pv-sf18-toggle-btn', function () {
-        analyzePressed();
-    });
-    $(document).on('click', '.pv-sf18-minus-btn', multiPvDecrease);
-    $(document).on('click', '.pv-sf18-plus-btn', multiPvIncrease);
+    $('#sf18ToggleBtn').on('click', analyzePressed);
+
+    if (!allowMultiPvControls) {
+        $('#sf18PmGroup').hide();
+    } else {
+        $('#analyzeMinus').on('click', multiPvDecrease);
+        $('#analyzePlus').on('click', multiPvIncrease);
+    }
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

@@ -1627,13 +1627,14 @@ function updateEvaluationBar(score) {
 function multiPvIncrease() {
     window.multipv += 1;
 
-    // Add container for the new PV line
-    var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
-    $("#pv_output").append(new_div_str);
-
-    // Restart analysis with updated multipv (position + setoption + go infinite)
     if (window.analysis) {
+        // stopAnalysis() terminates the Worker and recreates pv_2..pv_N containers,
+        // then analyze(true) creates a fresh Worker and restarts with new multipv.
+        stopAnalysis();
         analyze(true);
+    } else {
+        var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
+        $("#pv_output").append(new_div_str);
     }
 
     updateSF18PmButtons();
@@ -1641,13 +1642,13 @@ function multiPvIncrease() {
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
-        // Remove the last PV container
-        $('#pv_' + window.multipv).remove();
         window.multipv -= 1;
 
-        // Restart analysis with updated multipv (position + setoption + go infinite)
         if (window.analysis) {
+            stopAnalysis();
             analyze(true);
+        } else {
+            $('#pv_' + (window.multipv + 1)).remove();
         }
 
         updateSF18PmButtons();

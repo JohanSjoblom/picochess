@@ -2188,6 +2188,11 @@ function updateBackendAnalysis(analysis) {
         if (bodyEl) bodyEl.innerHTML = '';
         return;
     }
+    // Upstream: explicit clear signal resets the engine line to placeholder state.
+    if (analysis.clear) {
+        setEngineLinePlaceholder();
+        return;
+    }
     lastServerAnalysis = analysis;
     if (!analysisDisplayVisible) {
         return;

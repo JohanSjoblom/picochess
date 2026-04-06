@@ -90,6 +90,7 @@ class PicoTutor:
         self.expl_start_position = True
         self.watcher_on = False
         self.coach_on = False
+        self.analysis_enabled = True
         self.explorer_on = False
         self.comments_on = False
         self.mame_par = ""  # @todo create this info?
@@ -221,6 +222,12 @@ class PicoTutor:
             self.analyse_both_sides = analyse_both_sides
         await self._start_or_stop_as_needed()
 
+    async def set_analysis_enabled(self, enabled: bool):
+        """Temporarily enable or suspend tutor engine analysis without changing menu state."""
+        if self.analysis_enabled != enabled:
+            self.analysis_enabled = enabled
+            await self._start_or_stop_as_needed()
+
     async def get_latest_seen_depth(self) -> int:
         """return the latest depth seen in analysis info"""
         result = 0
@@ -233,6 +240,8 @@ class PicoTutor:
         """is the tutor active and analysing with either coach or watcher on
         - if yes InfoDicts can be used"""
         result = False
+        if not self.analysis_enabled:
+            return False
         # most analysing functions are skipped if neither coach nor watcher is on
         if self.best_engine:
             if self.best_engine.loaded_ok() and (self.coach_on or self.watcher_on):
@@ -677,6 +686,8 @@ class PicoTutor:
 
     def _should_run_tutor(self) -> bool:
         """return True if tutor should run"""
+        if not self.analysis_enabled:
+            return False
         if not (self.coach_on or self.watcher_on):
             return False  # user has turned tutor off
         # run tutor if we are analysing both sides, or if it is user turn
@@ -933,6 +944,8 @@ class PicoTutor:
         the fen element is board position that was analysed"""
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
+        if not self.analysis_enabled:
+            return result
         if self.best_engine:
             if self.best_engine.is_analyser_running():
                 result = await self.best_engine.get_analysis(self.board)
@@ -1319,7 +1332,7 @@ class PicoTutor:
         return self.hint_move[self.board.turn], self.pv_user_move[self.board.turn]
 
     async def get_pos_analysis(self):
-        if not (self.coach_on or self.watcher_on):
+        if not self.analysis_enabled or not (self.coach_on or self.watcher_on):
             return
         # calculate material / position / mobility / development / threats / best move / best score
         # call a picotalker method with these information

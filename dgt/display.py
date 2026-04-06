@@ -48,6 +48,8 @@ class DgtDisplay(DisplayMsg):
         self.dgtmenu = dgtmenu
         self.time_control = time_control
         self.last_pos_start = True
+        self._current_game_has_moves = False
+        self._current_game_start_pos960 = 518
         self._setpieces_restore_pending = False
         self._start_position_restore_pending = False
 
@@ -640,6 +642,9 @@ class DgtDisplay(DisplayMsg):
             if mode_map[fen] == Mode.BRAIN and not self.dgtmenu.get_engine_has_ponder():
                 await DispatchDgt.fire(self.dgttranslate.text("Y10_erroreng"))
             else:
+                # Treat a temporary queen-on-5th-rank mode command from the start
+                # position like a quick restore when the extra queen is removed.
+                self._start_position_restore_pending = self.last_pos_start
                 self.dgtmenu.set_mode(mode_map[fen])
                 text = self.dgttranslate.text(mode_map[fen].value)
                 text.beep = self.dgttranslate.bl(BeepLevel.MAP)
@@ -713,6 +718,13 @@ class DgtDisplay(DisplayMsg):
                         await Observable.fire(Event.FEN(fen=fen))
                         self.have_seen_a_fen = True
                         return
+                    if self._current_game_has_moves and self._current_game_start_pos960 == pos960:
+                        logger.debug("routing start-position board scan through Event.FEN for takeback handling")
+                        self.last_pos_start = True
+                        self._start_position_restore_pending = False
+                        await Observable.fire(Event.FEN(fen=fen))
+                        self.have_seen_a_fen = True
+                        return
                     if self.last_pos_start:
                         # trigger window switch
                         if ModeInfo.get_emulation_mode() and self.dgtmenu.get_engine_rdisplay():
@@ -780,6 +792,7 @@ class DgtDisplay(DisplayMsg):
         await self.force_leds_off()
         self._reset_moves_and_score()
         self._start_position_restore_pending = False
+        self._current_game_has_moves = bool(message.game.move_stack)
         # Always reset variant context for the new game.
         # If variant is not attached to the message, treat it as normal chess.
         msg_variant = getattr(message, "variant", "chess")
@@ -789,10 +802,12 @@ class DgtDisplay(DisplayMsg):
 
         if message.newgame:
             self.last_pos_start = True
-            pos960 = message.game.chess960_pos()
+            pos960 = message.game.chess960_pos(ignore_castling=True)
+            self._current_game_start_pos960 = pos960
             self.uci960 = pos960 is not None and pos960 != 518
             await DispatchDgt.fire(self.dgttranslate.text("C10_ucigame" if self.uci960 else "C10_newgame", str(pos960)))
         else:
+            self._current_game_start_pos960 = message.game.chess960_pos(ignore_castling=True)
             self.last_pos_start = True
         if self.dgtmenu.get_mode() in (
             Mode.NORMAL,
@@ -945,6 +960,7 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text(text_key))
 
     async def _process_computer_move_done(self):
+        self._current_game_has_moves = True
         self.c_last_player = "C"
         self.c_time_counter = 0
         await self.force_leds_off()
@@ -969,6 +985,7 @@ class DgtDisplay(DisplayMsg):
             await self._display_confirm("K05_okpico")
 
     async def _process_user_move_done(self, message):
+        self._current_game_has_moves = bool(message.game.move_stack)
         self.last_pos_start = False
         self._start_position_restore_pending = False
         await self.force_leds_off(log=True)  # can happen in case of a sliding move
@@ -997,6 +1014,7 @@ class DgtDisplay(DisplayMsg):
             await self._display_confirm("K05_okuser")
 
     async def _process_review_move_done(self, message):
+        self._current_game_has_moves = bool(message.game.move_stack)
         await self.force_leds_off(log=True)  # can happen in case of a sliding move
         self.last_move = message.move
         self.last_fen = message.fen
@@ -1338,6 +1356,7 @@ class DgtDisplay(DisplayMsg):
                     await DispatchDgt.fire(message.book_text)
 
         elif isinstance(message, Message.TAKE_BACK):
+            self._current_game_has_moves = bool(message.game.move_stack)
             self.take_back_move: chess.Move = chess.Move.null()
             game_copy: chess.Board = message.game.copy()
             # Preserve _variant_name which chess.Board.copy() does not copy
@@ -1623,6 +1642,9 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text("C10_seeking"))
 
         elif isinstance(message, Message.ENGINE_SETUP):
+            self._reset_moves_and_score()
+            self.c_last_player = ""
+            self.c_time_counter = 0
             await DispatchDgt.fire(self.dgttranslate.text("C20_enginesetup"))
 
         elif isinstance(message, Message.MOVE_RETRY):

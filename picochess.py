@@ -901,6 +901,30 @@ def compute_legal_fens(game_copy: chess.Board, variant_board=None):
     return fens
 
 
+def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
+    """PONDER must always show analysis from the selected engine, never from tutor."""
+    return interaction_mode != Mode.PONDER
+
+
+def should_use_tutor_analysis(
+    interaction_mode: Mode,
+    pgn_mode: bool,
+    engine_should_skip_analyser: bool,
+    engine_is_playing: bool,
+    engine_move_was_book: bool,
+    is_user_turn: bool,
+) -> bool:
+    """Return True when tutor analysis should replace engine analysis."""
+    if not tutor_analysis_allowed_in_mode(interaction_mode):
+        return False
+    if pgn_mode or engine_should_skip_analyser:
+        return True
+    result = not engine_is_playing
+    if not result:
+        result = engine_is_playing and engine_move_was_book and is_user_turn
+    return result
+
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -1468,6 +1492,9 @@ async def main() -> None:
                     loop=self.loop,
                     remote_binary_override=remote_tutor_override,
                 )
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
+                )
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
                     self.state.dgtmenu.get_picocoach(),
@@ -1487,6 +1514,9 @@ async def main() -> None:
                     i_comment_file=self.state.comment_file,
                     i_lang=self.args.language,
                     loop=self.loop,
+                )
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
                 )
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -1735,6 +1765,8 @@ async def main() -> None:
                 return ""
 
         async def call_pico_coach(self):
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                return
             if self.state.coach_triggered:
                 self.state.position_mode = True
             if (
@@ -2144,10 +2176,6 @@ async def main() -> None:
                         if self.state.game.turn == chess.BLACK:
                             if self.state.no_guess_black > self.state.max_guess_black:
                                 await self.get_next_pgn_move()
-
-                if self.state.game.board_fen() == chess.STARTING_BOARD_FEN:
-                    pos960 = 518
-                    await Observable.fire(Event.NEW_GAME(pos960=pos960))
 
         async def get_next_pgn_move(self):
             log_pgn(self.state)
@@ -3200,16 +3228,14 @@ async def main() -> None:
 
         def is_coach_analyser(self) -> bool:
             """Return True when tutor analysis should replace engine analysis."""
-            if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
-                result = True  # PGN Replay and mame engines always use tutor analysis only
-            else:
-                # In analysis modes (engine not playing moves), let the tutor handle analysis
-                # to save CPU.  When the engine IS playing moves (NORMAL/BRAIN/TRAINING) the
-                # main ContinuousAnalysis must always run so the server analysis line is
-                # populated — the tutor's best_engine produces coach/watcher output only,
-                # which never reaches the analysis line.
-                result = not self.eng_plays()
-            return result
+            return should_use_tutor_analysis(
+                interaction_mode=self.state.interaction_mode,
+                pgn_mode=self.pgn_mode(),
+                engine_should_skip_analyser=bool(self.engine and self.engine.should_skip_engine_analyser()),
+                engine_is_playing=self.eng_plays(),
+                engine_move_was_book=self.state.engine_move_was_book,
+                is_user_turn=self.state.is_user_turn(),
+            )
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
@@ -3272,7 +3298,7 @@ async def main() -> None:
             else:
                 logger.debug("empty InfoDict")
 
-        async def analyse(self, triggered_by_timer: bool = False) -> InfoDict | None:
+        async def analyse(self, triggered_by_timer: bool = False, allow_autoplay: bool = True) -> InfoDict | None:
             """analyse, observe etc depening on mode - create analysis info
             this is executed periodically in the background_analyse_timer task"""
             info: InfoDict | None = None
@@ -3362,7 +3388,7 @@ async def main() -> None:
                 await self.send_analyse(info, analysed_fen)
             # autoplay is temporarily piggybacking on this once-a-second analyse call
             # @todo give it a separate timer task when this is stable
-            if self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
+            if allow_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 next_move = self._get_cached_pgn_next_move()
                 if self._pgn_next_move_in_book(next_move):
                     await asyncio.sleep(1.0)
@@ -4099,6 +4125,12 @@ async def main() -> None:
 
         async def engine_mode(self):
             """call when engine mode is changed"""
+            if self.state.picotutor is not None:
+                await self.state.picotutor.set_analysis_enabled(
+                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
+                )
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 # optimisation, dont ask for ponder unless needed
                 ponder_mode = True if self.state.interaction_mode == Mode.BRAIN else False
@@ -4378,6 +4410,7 @@ async def main() -> None:
                 # if we are waiting for an engine move, get rid of that first
                 await self.get_rid_of_engine_move()
                 self.state.best_sent_depth.reset()
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "engine", "clear": True}))
                 old_file = self.state.engine_file
                 old_options = {}
                 old_options = self.engine.get_pgn_options()
@@ -4731,6 +4764,10 @@ async def main() -> None:
                 await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 # also state of main analyser might have changed
                 await self._start_or_stop_analysis_as_needed()
+                if not self.eng_plays():
+                    if self.need_engine_analyser():
+                        await asyncio.sleep(0.2)
+                    await self.analyse(allow_autoplay=False)
                 # end of NEW_ENGINE
 
             elif isinstance(event, Event.SETUP_POSITION):
@@ -4905,6 +4942,8 @@ async def main() -> None:
                     await self.engine.newgame(self.state.engine_board_copy())
 
                     self.state.best_sent_depth.reset()
+                    await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "engine", "clear": True}))
+                    await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
                     self.state.done_computer_fen = None
                     self.state.done_move = self.state.pb_move = chess.Move.null()
                     self.state.time_control.reset()

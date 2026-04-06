@@ -1525,45 +1525,39 @@ function formatEngineOutput(line) {
             scoreClass += ' score-negative';
         }
 
-        output = '<div class="list-group-item">';
-        output += '<div class="analysis-line-compact">';
+        output = '<div class="list-group-item pv-two-row">';
 
-        // Puntuacion (siempre en relacion al blanco)
+        // Row 1: header — score pill + depth pill
+        output += '<div class="pv-header">';
         if (score !== null) {
             output += '<span class="' + scoreClass + '">' + score + '</span>';
         }
+        output += '<span class="depth-display">d' + depth + '</span>';
+        output += '</div>';
 
-        // Primer movimiento destacado
+        // Row 2: body — first move + continuation
+        output += '<div class="pv-body">';
         if (history.length > 0) {
             var firstMoveText = '';
-            // Crear una copia del juego para obtener el turno actual
             var tempGame = new Chess();
             if (currentPosition && currentPosition.fen) {
                 tempGame.load(currentPosition.fen, chessGameType);
             }
-            var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
-
-            // Calcular el número de movimiento correctamente
+            var currentTurn = tempGame.turn();
             var moveNumber = Math.floor((start_move_num + 1) / 2);
-
             if (currentTurn === 'w') {
-                // Le toca a las blancas
                 firstMoveText += moveNumber + '. ';
             } else {
-                // Le toca a las negras
                 firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
             output += '<span class="first-move">' + firstMoveText + '</span>';
         }
-        // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
             var currentMoveNum = start_move_num;
-
             for (i = 1; i < history.length; ++i) {
                 currentMoveNum++;
-                // Si es turno de las blancas (número impar), mostrar número de movimiento
                 if (currentMoveNum % 2 === 1) {
                     continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
                 }
@@ -1571,10 +1565,9 @@ function formatEngineOutput(line) {
             }
             output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-        // Profundidad al final
-        output += '<span class="depth-display">d' + depth + '</span>';
+        output += '</div>';
 
-        output += '</div></div>';
+        output += '</div>';
 
         analysis_game = null;
 
@@ -1716,9 +1709,6 @@ function analyzePressed() {
         }
     }
     analyze(false);
-    if (window.updateEngineNavLabels) {
-        window.updateEngineNavLabels();
-    }
 }
 
 function updateEngineControlsVisibility() {
@@ -2159,13 +2149,32 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
-    var output = '<div class="list-group-item">';
-    output += '<div class="analysis-line-compact">';
-    output += '<span class="analysis-source">' + labelText + '</span>';
+    // Derive move number from FEN for staleness awareness
+    var moveNumText = '';
+    if (analysis.fen) {
+        var fenParts = analysis.fen.split(' ');
+        if (fenParts.length >= 6) {
+            var fullmove = parseInt(fenParts[5], 10);
+            var fenTurn = fenParts[1];
+            if (!isNaN(fullmove)) {
+                moveNumText = fenTurn === 'w' ? (fullmove + '.') : (fullmove + '...');
+            }
+        }
+    }
+    var output = '<div class="list-group-item pv-two-row">';
+    // Row 1: name badge + score + depth + move number
+    output += '<div class="pv-header">';
+    output += '<span class="engine-name-badge">' + labelText + '</span>';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     if (typeof analysis.depth === 'number') {
         output += '<span class="depth-display">d' + analysis.depth + '</span>';
     }
+    if (moveNumText) {
+        output += '<span class="move-number">' + moveNumText + '</span>';
+    }
+    output += '</div>';
+    // Row 2: PV moves
+    output += '<div class="pv-body">';
     if (pvFormatted) {
         output += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
         if (pvFormatted.continuation) {
@@ -2174,43 +2183,42 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     } else if (pvMoves.length > 0) {
         output += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
     }
-    output += '</div></div>';
+    output += '</div>';
+    output += '</div>';
     lineEl.innerHTML = output;
 }
 
-function isAnalysisSourcesVisible() {
-    var sourceBlock = document.querySelector('.analysis-sources');
-    return sourceBlock && !sourceBlock.classList.contains('d-none');
-}
+var analysisDisplayVisible = false;
+var lastServerAnalysis = null;
 
 function setEngineLinePlaceholder() {
-    var engineEl = document.getElementById('analysisLineEngine');
-    if (!engineEl) return;
-    if (isAnalysisSourcesVisible() && !engineEl.innerHTML.trim()) {
-        engineEl.innerHTML =
-            '<div class="list-group-item">' +
-            '<div class="analysis-line-compact">' +
-            '<span class="analysis-source">Engine:</span>' +
-            '</div></div>';
+    var serverEl = document.getElementById('analysisLineServer');
+    if (!serverEl) return;
+    if (analysisDisplayVisible && !serverEl.innerHTML.trim()) {
+        serverEl.innerHTML =
+            '<div class="list-group-item pv-two-row">' +
+            '<div class="pv-header">' +
+            '<span class="engine-name-badge">Engine</span>' +
+            '</div>' +
+            '<div class="pv-body"></div>' +
+            '</div>';
     }
 }
 
 function updateBackendAnalysis(analysis) {
+    var serverEl = document.getElementById('analysisLineServer');
     if (!analysis) {
-        var engineEl = document.getElementById('analysisLineEngine');
-        var tutorEl = document.getElementById('analysisLineTutor');
-        if (engineEl) engineEl.innerHTML = '';
-        if (tutorEl) tutorEl.textContent = '';
-        // Keep the Engine: label visible whenever Show Server is active.
+        lastServerAnalysis = null;
+        if (serverEl) serverEl.innerHTML = '';
         setEngineLinePlaceholder();
         return;
     }
-    var source = analysis.source || 'engine';
-    var lineEl = source === 'tutor'
-        ? document.getElementById('analysisLineTutor')
-        : document.getElementById('analysisLineEngine');
-    var labelText = source === 'tutor' ? 'Tutor :' : 'Engine:';
-    updateBackendAnalysisLine(lineEl, analysis, labelText);
+    lastServerAnalysis = analysis;
+    if (!analysisDisplayVisible) {
+        return;
+    }
+    var labelText = analysis.source === 'tutor' ? 'Tutor' : 'Engine';
+    updateBackendAnalysisLine(serverEl, analysis, labelText);
 }
 
 function goToDGTFen() {
@@ -2677,186 +2685,37 @@ $(function () {
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
 
-    function toggleAnalysisSources() {
-        var sourceBlock = $('.analysis-sources');
-        if (sourceBlock.hasClass('d-none')) {
-            sourceBlock.removeClass('d-none');
+    function showServerAnalysis() {
+        analysisDisplayVisible = true;
+        var showRow = document.getElementById('showAnalysisRow');
+        var analysisRow = document.getElementById('analysisRow');
+        if (showRow) showRow.classList.add('d-none');
+        if (analysisRow) analysisRow.classList.remove('d-none');
+        // Render whatever arrived while the panel was hidden, or show placeholder.
+        if (lastServerAnalysis) {
+            var serverEl = document.getElementById('analysisLineServer');
+            var labelText = lastServerAnalysis.source === 'tutor' ? 'Tutor' : 'Engine';
+            updateBackendAnalysisLine(serverEl, lastServerAnalysis, labelText);
         } else {
-            sourceBlock.addClass('d-none');
-        }
-        if (sourceBlock.hasClass('d-none')) {
-            $('#toggleBackendAnalysisText').text('Show Server');
-        } else {
-            $('#toggleBackendAnalysisText').text('Hide Server');
-            // Immediately show the Engine: label if no analysis has arrived yet.
             setEngineLinePlaceholder();
-        }
-        if (window.updateEngineNavLabels) {
-            window.updateEngineNavLabels();
         }
     }
 
-    $('#toggleBackendAnalysis').on('click', toggleAnalysisSources);
+    function hideServerAnalysis() {
+        analysisDisplayVisible = false;
+        var showRow = document.getElementById('showAnalysisRow');
+        var analysisRow = document.getElementById('analysisRow');
+        if (analysisRow) analysisRow.classList.add('d-none');
+        if (showRow) showRow.classList.remove('d-none');
+    }
 
-    var engineModeActive = false;
-    var engineTab = document.getElementById('pills-home-tab');
-    var menuTab = document.getElementById('pills-menu-tab');
-    var tutorTab = document.getElementById('pills-tutor-tab');
-    var bookTab = document.getElementById('pills-profile-tab');
-    var gamesTab = document.getElementById('pills-contact-tab');
-    var toggleBackendAnalysisBtn = document.getElementById('toggleBackendAnalysis');
-    var analyzeBtn = document.getElementById('analyzeBtn');
-
-    if (engineTab && tutorTab && bookTab && gamesTab) {
-        var defaultTutorText = tutorTab.textContent.trim();
-        var defaultBookText = bookTab.textContent.trim();
-        var defaultGamesText = gamesTab.textContent.trim();
-        var tutorTabToggle = tutorTab.getAttribute('data-bs-toggle');
-        var tutorTabTarget = tutorTab.getAttribute('data-bs-target');
-        var bookTabToggle = bookTab.getAttribute('data-bs-toggle');
-        var bookTabTarget = bookTab.getAttribute('data-bs-target');
-        var gamesTabToggle = gamesTab.getAttribute('data-bs-toggle');
-        var gamesTabTarget = gamesTab.getAttribute('data-bs-target');
-
-        function restoreNavAttr(element, attrName, value) {
-            if (!element) {
-                return;
-            }
-            if (value == null) {
-                element.removeAttribute(attrName);
-            } else {
-                element.setAttribute(attrName, value);
-            }
-        }
-
-        function getToggleLabel() {
-            var sourceBlock = document.querySelector('.analysis-sources');
-            if (sourceBlock && sourceBlock.classList.contains('d-none')) {
-                return 'Show Server';
-            }
-            return 'Hide Server';
-        }
-
-        function getAnalyzeLabel() {
-            return window.analysis ? 'Stop Web' : 'Start Web';
-        }
-
-        function updateEngineLabels() {
-            if (!engineModeActive) {
-                return;
-            }
-            tutorTab.textContent = getToggleLabel();
-            bookTab.textContent = getAnalyzeLabel();
-        }
-
-        function setEngineModeButtons(active) {
-            var buttons = [tutorTab, bookTab, gamesTab];
-            buttons.forEach(function (btn) {
-                if (!btn) {
-                    return;
-                }
-                if (active) {
-                    btn.classList.add('engine-mode-button');
-                } else {
-                    btn.classList.remove('engine-mode-button');
-                }
-            });
-        }
-
-        function setBackLabel() {
-            if (!gamesTab) {
-                return;
-            }
-            gamesTab.innerHTML = '<i class="fa fa-arrow-left"></i><span>Back</span>';
-        }
-
-        function enterEngineMode() {
-            engineModeActive = true;
-            tutorTab.removeAttribute('data-bs-toggle');
-            tutorTab.removeAttribute('data-bs-target');
-            bookTab.removeAttribute('data-bs-toggle');
-            bookTab.removeAttribute('data-bs-target');
-            gamesTab.removeAttribute('data-bs-toggle');
-            gamesTab.removeAttribute('data-bs-target');
-            setEngineModeButtons(true);
-            updateEngineLabels();
-            setBackLabel();
-            // Show Engine: label immediately if analysis-sources is visible
-            // and no analysis has arrived yet.
-            setEngineLinePlaceholder();
-        }
-
-        function exitEngineMode() {
-            engineModeActive = false;
-            restoreNavAttr(tutorTab, 'data-bs-toggle', tutorTabToggle);
-            restoreNavAttr(tutorTab, 'data-bs-target', tutorTabTarget);
-            restoreNavAttr(bookTab, 'data-bs-toggle', bookTabToggle);
-            restoreNavAttr(bookTab, 'data-bs-target', bookTabTarget);
-            restoreNavAttr(gamesTab, 'data-bs-toggle', gamesTabToggle);
-            restoreNavAttr(gamesTab, 'data-bs-target', gamesTabTarget);
-            setEngineModeButtons(false);
-            tutorTab.textContent = defaultTutorText;
-            bookTab.textContent = defaultBookText;
-            gamesTab.textContent = defaultGamesText;
-        }
-
-        engineTab.addEventListener('click', function () {
-            enterEngineMode();
-        });
-
-        if (engineTab.classList.contains('active')) {
-            enterEngineMode();
-        }
-
-        tutorTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            toggleAnalysisSources();
-            updateEngineLabels();
-        });
-
-        bookTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof analyzePressed === 'function') {
-                analyzePressed();
-            } else if (analyzeBtn) {
-                analyzeBtn.click();
-            }
-            updateEngineLabels();
-        });
-
-        gamesTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            exitEngineMode();
-            if (menuTab) {
-                menuTab.click();
-            }
-        });
-
-        if (toggleBackendAnalysisBtn) {
-            toggleBackendAnalysisBtn.addEventListener('click', function () {
-                updateEngineLabels();
-            });
-        }
-
-        if (analyzeBtn) {
-            analyzeBtn.addEventListener('click', function () {
-                updateEngineLabels();
-            });
-        }
-
-        window.updateEngineNavLabels = updateEngineLabels;
+    var showAnalysisBtn = document.getElementById('showAnalysisBtn');
+    var hideAnalysisBtn = document.getElementById('hideAnalysisBtn');
+    if (showAnalysisBtn) {
+        showAnalysisBtn.addEventListener('click', showServerAnalysis);
+    }
+    if (hideAnalysisBtn) {
+        hideAnalysisBtn.addEventListener('click', hideServerAnalysis);
     }
 });
 

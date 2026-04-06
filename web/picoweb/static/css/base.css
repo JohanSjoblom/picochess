@@ -851,6 +851,50 @@ td.result {
     margin-bottom: 1vh;
 }
 
+/* Two-row PV item layout (server engine + SF18) */
+.pv-two-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.pv-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+
+.pv-body {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+
+/* Engine / source name badge — neutral grey pill */
+.engine-name-badge {
+    display: inline-block;
+    background: #6c757d;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 999rem;
+    padding: 0.1rem 0.5rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Small move-number label in server analysis header */
+.move-number {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, #6c757d);
+    flex-shrink: 0;
+}
+
 /* Optimización para 1024x600 y 1024x800 - Análisis compacto */
 
 

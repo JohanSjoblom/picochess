@@ -1571,10 +1571,13 @@ function formatEngineOutput(line) {
             return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
-        // Extra PV lines (pv_2+): single row — same score/depth pills as pv_1 + moves on one line
-        output = '<div class="pv-extra-line">';
+        // Extra PV lines (pv_2+): same two-row layout as pv_1 but without buttons
+        output = '<div class="pv-two-row">';
+        output += '<div class="pv-header">';
+        output += '<span class="engine-name-badge">Stockfish 18</span>';
         output += metaHtml;
-        output += bodyHtml;
+        output += '</div>';
+        output += '<div class="pv-body">' + bodyHtml + '</div>';
         output += '</div>';
         return { line: output, pv_index: multipv };
     }

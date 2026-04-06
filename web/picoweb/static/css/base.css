@@ -562,37 +562,29 @@ td.result {
     margin-right: 10px;
 }
 
-/* Puntuación compacta */
+/* Score pill — same size as depth pill */
 .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
     padding: 2px 6px;
     border-radius: 8px;
-    font-weight: bold;
-    font-size: 0.9rem;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
-    box-shadow: 0 1px 3px rgba(0,123,255,0.3);
-    min-width: 44px;
-    text-align: center;
+    font-size: 0.75rem;
     flex-shrink: 0;
 }
 
 /* Puntuación positiva (ventaja blancas) */
 .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34);
-    box-shadow: 0 2px 4px rgba(40,167,69,0.3);
 }
 
 /* Puntuación negativa (ventaja negras) */
 .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333);
-    box-shadow: 0 2px 4px rgba(220,53,69,0.3);
 }
 
 /* Puntuación de mate */
 .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100);
-    box-shadow: 0 2px 4px rgba(253,126,20,0.3);
     animation: pulse-mate 2s infinite;
 }
 

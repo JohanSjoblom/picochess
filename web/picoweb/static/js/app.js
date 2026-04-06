@@ -1639,11 +1639,6 @@ function multiPvIncrease() {
         window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
         window.stockfish.postMessage('stop');
         window.stockfish.postMessage('go infinite');
-
-        if (!window.StockfishModule) {
-            stopAnalysis();
-            analyze(true);
-        }
     }
 
     // Actualizar el estado visual
@@ -1664,11 +1659,6 @@ function multiPvDecrease() {
             window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
             window.stockfish.postMessage('stop');
             window.stockfish.postMessage('go infinite');
-
-            if (!window.StockfishModule) {
-                stopAnalysis();
-                analyze(true);
-            }
         }
 
         // Actualizar el estado visual
@@ -1712,9 +1702,6 @@ function analyzePressed() {
     }
     analyze(false);
 }
-
-// True when multi-PV controls (±) are supported (not on localhost/device).
-var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
 
 function updateEngineControlsVisibility() {
     // No-op: ± and SHOW/HIDE buttons are rendered inside the dynamic PV HTML.
@@ -2670,12 +2657,8 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
 
-    if (!allowMultiPvControls) {
-        $('#sf18PmGroup').hide();
-    } else {
-        $('#analyzeMinus').on('click', multiPvDecrease);
-        $('#analyzePlus').on('click', multiPvIncrease);
-    }
+    $('#analyzeMinus').on('click', multiPvDecrease);
+    $('#analyzePlus').on('click', multiPvIncrease);
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

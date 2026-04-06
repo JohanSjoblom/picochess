@@ -1981,6 +1981,9 @@
                 if (item)  item.classList.toggle('active', !!active);
                 if (sub)   sub.textContent   = active ? 'Watcher On' : 'Off';
             };
+            // Sync overlay with the server-side initial state (the earlier call at
+            // page-load ran before this wrapper existed and only updated the button).
+            window.setTutorWatchState(Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive));
 
         })();
             // Initialise ThreeCheck king badge icons to match the current piece set

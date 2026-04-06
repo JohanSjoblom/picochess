@@ -1935,8 +1935,10 @@ function updateTutorMistakes(mistakes) {
         var entry = document.createElement('li');
         entry.className = 'list-group-item tutor-mistake-item';
         var nag = item.nag ? item.nag : '';
-        var moveText = (item.move_no ? item.move_no + ' ' : '') + (item.user_move || '') + nag;
-        entry.textContent = moveText + ' — CPL: ' + item.cpl + ', best: ' + item.best_move;
+        var figUser = figurinizeMove(item.user_move) || (item.user_move || '');
+        var figBest = figurinizeMove(item.best_move) || (item.best_move || '');
+        var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
+        entry.innerHTML = moveText + ' \u2014 CPL: ' + item.cpl + ', best: ' + figBest;
         if (item.halfmove) {
             entry.dataset.halfmove = item.halfmove;
             entry.addEventListener('click', function () {

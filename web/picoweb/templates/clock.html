@@ -673,7 +673,7 @@
                                                 <!-- Server engine analysis (static structure, JS updates content) -->
                                                 <div class="pv-two-row" id="engineRow" aria-live="polite">
                                                     <div class="pv-header">
-                                                        <span class="engine-name-badge">Engine</span>
+                                                        <span class="engine-name-badge" id="engineNameBadge">Engine</span>
                                                         <div id="engineMeta"></div>
                                                         <div class="pv-spacer"></div>
                                                         <button id="engineToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
@@ -869,6 +869,8 @@
                             tutorWatchSpan.innerHTML = 'Tutor';
                             tutorWatchIcon.className = 'fa fa-eye-slash';
                         }
+                        var engineBadge = document.getElementById('engineNameBadge');
+                        if (engineBadge) engineBadge.textContent = tutorWatchActive ? 'Tutor' : 'Engine';
                     }
 
                     window.setTutorWatchState = setTutorWatchState;

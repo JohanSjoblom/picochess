@@ -783,11 +783,11 @@ td.result {
     margin-bottom: 1vh;
 }
 
-/* Compact single-row layout for extra PV lines (pv_2+): score + depth + moves on one line */
+/* Single-row layout for extra PV lines (pv_2+): pills + moves on one line */
 .pv-extra-line {
     display: flex;
     flex-direction: row;
-    align-items: baseline;
+    align-items: center;
     gap: 0.35rem;
     flex-wrap: wrap;
     padding: 0.15rem 0.5rem;

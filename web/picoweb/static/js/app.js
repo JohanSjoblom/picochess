@@ -1571,7 +1571,7 @@ function formatEngineOutput(line) {
             return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
-        // Extra PV lines (pv_2+): compact single-row layout [score] [depth] [moves]
+        // Extra PV lines (pv_2+): single row — same score/depth pills as pv_1 + moves on one line
         output = '<div class="pv-extra-line">';
         output += metaHtml;
         output += bodyHtml;

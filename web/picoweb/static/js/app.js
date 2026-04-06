@@ -1571,13 +1571,10 @@ function formatEngineOutput(line) {
             return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
-        // Extra PV lines (pv_2+): render a full two-row block
-        output = '<div class="pv-two-row">';
-        output += '<div class="pv-header">';
-        output += '<span class="engine-name-badge">Stockfish 18</span>';
+        // Extra PV lines (pv_2+): compact single-row layout [score] [depth] [moves]
+        output = '<div class="pv-extra-line">';
         output += metaHtml;
-        output += '</div>';
-        output += '<div class="pv-body">' + bodyHtml + '</div>';
+        output += bodyHtml;
         output += '</div>';
         return { line: output, pv_index: multipv };
     }
@@ -1831,6 +1828,9 @@ function analyze(position_update) {
     var startpos = 'startpos';
     if (setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
+    }
+    if (position_update && window.stockfish) {
+        window.stockfish.postMessage('stop');
     }
     window.stockfish.postMessage('position ' + startpos + ' moves ' + moves);
     window.stockfish.postMessage('setoption name multipv value ' + window.multipv);

@@ -1630,43 +1630,29 @@ function updateEvaluationBar(score) {
 function multiPvIncrease() {
     window.multipv += 1;
 
-    // Agregar nuevo contenedor
+    // Add container for the new PV line
     var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
     $("#pv_output").append(new_div_str);
 
-    // Solo actualizar el motor si el análisis está activo
-    if (window.analysis && window.stockfish) {
-        window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-        window.stockfish.postMessage('stop');
-        window.stockfish.postMessage('go infinite');
+    // Restart analysis with updated multipv (position + setoption + go infinite)
+    if (window.analysis) {
+        analyze(true);
     }
 
-    // Actualizar el estado visual
-    var multiPvStatusEl = $('#engineMultiPVStatus');
-    if (multiPvStatusEl.length) {
-        multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-    }
     updateSF18PmButtons();
 }
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
-        // Remover el contenedor
+        // Remove the last PV container
         $('#pv_' + window.multipv).remove();
         window.multipv -= 1;
 
-        // Solo actualizar el motor si el análisis está activo
-        if (window.analysis && window.stockfish) {
-            window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            window.stockfish.postMessage('stop');
-            window.stockfish.postMessage('go infinite');
+        // Restart analysis with updated multipv (position + setoption + go infinite)
+        if (window.analysis) {
+            analyze(true);
         }
 
-        // Actualizar el estado visual
-        var multiPvStatusEl = $('#engineMultiPVStatus');
-        if (multiPvStatusEl.length) {
-            multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-        }
         updateSF18PmButtons();
     }
 }

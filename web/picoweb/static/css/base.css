@@ -493,9 +493,8 @@ td.result {
 
 #pv_output {
     background-color: transparent !important;
-    border-radius: 6px;
-    padding: 6px;
-    margin-top: 5px;
+    padding: 0;
+    margin-top: 0;
     max-width: 100%;
     box-sizing: border-box;
     overflow-x: hidden;

@@ -636,10 +636,9 @@ td.result {
     flex-shrink: 0;
 }
 
-/* Continuation moves — same size as first-move, slightly muted */
+/* Continuation moves — same size as first-move */
 .continuation-moves {
     font-size: 0.9rem;
-    color: var(--bs-secondary-color, #6c757d);
     font-weight: normal;
     flex-grow: 1;
     overflow: hidden;

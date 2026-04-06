@@ -1678,6 +1678,8 @@
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
+                        if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
+                        if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
                         var postBody = 'action=' + action;
                         setTimeout(function() { post(postBody); close(); }, 180);
                     });

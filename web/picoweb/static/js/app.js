@@ -1646,6 +1646,7 @@ function multiPvIncrease() {
     if (multiPvStatusEl.length) {
         multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
     }
+    updateSF18PmButtons();
 }
 
 function multiPvDecrease() {
@@ -1666,6 +1667,7 @@ function multiPvDecrease() {
         if (multiPvStatusEl.length) {
             multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
         }
+        updateSF18PmButtons();
     }
 }
 
@@ -1808,6 +1810,7 @@ function analyze(position_update) {
             window.analysis = true;
             var sf18Btn = document.getElementById('sf18ToggleBtn');
             if (sf18Btn) sf18Btn.textContent = 'HIDE';
+            updateSF18PmButtons();
         }
         else {
             window.analysis = false;
@@ -2159,6 +2162,19 @@ function setEngineLinePlaceholder() {
     if (btn)    btn.textContent = 'SHOW';
 }
 
+// Update ± button visibility and disabled state based on SF18 running state and multipv count.
+function updateSF18PmButtons() {
+    var group    = document.getElementById('sf18PmGroup');
+    var minusBtn = document.getElementById('analyzeMinus');
+    if (!group) return;
+    if (!window.analysis) {
+        $(group).hide();
+    } else {
+        $(group).show();
+        if (minusBtn) minusBtn.disabled = (window.multipv <= 1);
+    }
+}
+
 // Clear SF18 first-PV content; reset button to SHOW.
 function setSF18Placeholder() {
     var metaEl = document.getElementById('sf18Meta');
@@ -2169,6 +2185,7 @@ function setSF18Placeholder() {
     if (btn)    btn.textContent = 'SHOW';
     // Clear extra PV lines
     $('#pv_output').empty();
+    updateSF18PmButtons();
 }
 
 function updateBackendAnalysis(analysis) {

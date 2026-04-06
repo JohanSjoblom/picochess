@@ -1718,7 +1718,8 @@ function updateEngineControlsVisibility() {
         showControls = false;
     }
     var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
-    var showMultiPv = showControls && allowMultiPvControls;
+    // ± buttons are always visible when supported (not gated on SF18 running)
+    var showMultiPv = allowMultiPvControls;
 
     var plusBtn = document.getElementById('analyzePlus');
     var minusBtn = document.getElementById('analyzeMinus');
@@ -1835,11 +1836,11 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
-            $('#AnalyzeText').text('Stop Web');
+            $('#AnalyzeText').text('Hide SF18');
             updateEngineControlsVisibility();
         }
         else {
-            $('#AnalyzeText').text('Start Web');
+            $('#AnalyzeText').text('Show SF18');
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
@@ -2149,28 +2150,13 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
-    // Derive move number from FEN for staleness awareness
-    var moveNumText = '';
-    if (analysis.fen) {
-        var fenParts = analysis.fen.split(' ');
-        if (fenParts.length >= 6) {
-            var fullmove = parseInt(fenParts[5], 10);
-            var fenTurn = fenParts[1];
-            if (!isNaN(fullmove)) {
-                moveNumText = fenTurn === 'w' ? (fullmove + '.') : (fullmove + '...');
-            }
-        }
-    }
     var output = '<div class="list-group-item pv-two-row">';
-    // Row 1: name badge + score + depth + move number
+    // Row 1: name badge + score + depth
     output += '<div class="pv-header">';
     output += '<span class="engine-name-badge">' + labelText + '</span>';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     if (typeof analysis.depth === 'number') {
         output += '<span class="depth-display">d' + analysis.depth + '</span>';
-    }
-    if (moveNumText) {
-        output += '<span class="move-number">' + moveNumText + '</span>';
     }
     output += '</div>';
     // Row 2: PV moves
@@ -2217,7 +2203,9 @@ function updateBackendAnalysis(analysis) {
     if (!analysisDisplayVisible) {
         return;
     }
-    var labelText = analysis.source === 'tutor' ? 'Tutor' : 'Engine';
+    var labelText = analysis.source === 'tutor'
+        ? 'Tutor'
+        : (analysis.engine_name || (window.system_info && window.system_info.engine_name) || 'Engine');
     updateBackendAnalysisLine(serverEl, analysis, labelText);
 }
 
@@ -2652,7 +2640,7 @@ $(function () {
                 // re-send the cached analysis payload on reconnect.
                 if (window.analysis || window.stockfish) {
                     window.analysis = false;
-                    $('#AnalyzeText').text('Web Analysis');
+                    $('#AnalyzeText').text('Show SF18');
                     stopAnalysis();
                     $('#engineStatus').html('');
                     updateEngineControlsVisibility();
@@ -2694,7 +2682,9 @@ $(function () {
         // Render whatever arrived while the panel was hidden, or show placeholder.
         if (lastServerAnalysis) {
             var serverEl = document.getElementById('analysisLineServer');
-            var labelText = lastServerAnalysis.source === 'tutor' ? 'Tutor' : 'Engine';
+            var labelText = lastServerAnalysis.source === 'tutor'
+                ? 'Tutor'
+                : (lastServerAnalysis.engine_name || (window.system_info && window.system_info.engine_name) || 'Engine');
             updateBackendAnalysisLine(serverEl, lastServerAnalysis, labelText);
         } else {
             setEngineLinePlaceholder();

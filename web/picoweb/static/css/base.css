@@ -650,16 +650,15 @@ td.result {
     order: 3;
 }
 
-/* Movimientos de continuación - más discretos */
+/* Continuation moves — same size as first-move, slightly muted */
 .continuation-moves {
-    font-size: 0.85rem;
-    color: #6c757d;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color, #6c757d);
     font-weight: normal;
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    order: 2;
     min-width: 0;
 }
 
@@ -669,19 +668,10 @@ td.result {
     font-weight: 500;
 }
 
-/* Primer movimiento destacado - MÁS COMPACTO */
+/* First move — bold, no background pill */
 .first-move {
-    background: #fff3cd;
-    color: #856404;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: bold;
-    border: 1px solid #ffc107;
-    font-size: 1.1em;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.1);
-    box-shadow: 0 1px 2px rgba(255,193,7,0.2);
-    display: inline-block;
-    margin: 0 2px;
+    font-weight: 600;
+    font-size: 0.9rem;
     flex-shrink: 0;
 }
 

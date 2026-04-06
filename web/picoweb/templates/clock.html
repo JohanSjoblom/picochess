@@ -678,8 +678,10 @@
                                                 </div>
                                                 <div class="row d-none" id="analysisRow">
                                                     <div class="col-12">
-                                                        <div id="analysisLineServer" class="pv-container" aria-live="polite" aria-label="Server engine analysis" role="status"></div>
-                                                        <button id="hideAnalysisBtn" class="btn btn-sm btn-outline-secondary mt-1">Hide analysis</button>
+                                                        <div class="d-flex align-items-start gap-2">
+                                                            <div id="analysisLineServer" class="pv-container flex-grow-1" aria-live="polite" aria-label="Server engine analysis" role="status"></div>
+                                                            <button id="hideAnalysisBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0">Hide analysis</button>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -690,7 +692,7 @@
                                                     <div class="col-12">
                                                         <div class="engine-controls">
                                                             <button id="analyzeBtn" class="btn btn-sm">
-                                                                <span id="AnalyzeText">Start Web</span>
+                                                                <span id="AnalyzeText">Show SF18</span>
                                                             </button>
                                                             <div class="btn-group btn-group-xs" role="group" aria-label="Analysis lines">
                                                                 <button id="analyzeMinus"

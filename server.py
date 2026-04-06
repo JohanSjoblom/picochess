@@ -1964,6 +1964,7 @@ class WebDisplay(DisplayMsg):
                 "pv": [move.uci() for move in pv_moves],
                 "fen": fen,
                 "source": "engine",
+                "engine_name": self.shared.get("system_info", {}).get("engine_name", "Engine"),
             }
             self.shared["analysis_state"] = analysis_payload
             self.shared["analysis_state_engine"] = analysis_payload

@@ -1836,11 +1836,11 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
-            $('#AnalyzeText').text('Hide SF18');
+            $('#AnalyzeText').text('STOP');
             updateEngineControlsVisibility();
         }
         else {
-            $('#AnalyzeText').text('Show SF18');
+            $('#AnalyzeText').text('GO');
             stopAnalysis();
             window.analysis = false;
             $('#engineStatus').html('');
@@ -2203,9 +2203,7 @@ function updateBackendAnalysis(analysis) {
     if (!analysisDisplayVisible) {
         return;
     }
-    var labelText = analysis.source === 'tutor'
-        ? 'Tutor'
-        : (analysis.engine_name || (window.system_info && window.system_info.engine_name) || 'Engine');
+    var labelText = analysis.source === 'tutor' ? 'Tutor' : 'Engine';
     updateBackendAnalysisLine(serverEl, analysis, labelText);
 }
 
@@ -2640,7 +2638,7 @@ $(function () {
                 // re-send the cached analysis payload on reconnect.
                 if (window.analysis || window.stockfish) {
                     window.analysis = false;
-                    $('#AnalyzeText').text('Show SF18');
+                    $('#AnalyzeText').text('GO');
                     stopAnalysis();
                     $('#engineStatus').html('');
                     updateEngineControlsVisibility();
@@ -2682,9 +2680,7 @@ $(function () {
         // Render whatever arrived while the panel was hidden, or show placeholder.
         if (lastServerAnalysis) {
             var serverEl = document.getElementById('analysisLineServer');
-            var labelText = lastServerAnalysis.source === 'tutor'
-                ? 'Tutor'
-                : (lastServerAnalysis.engine_name || (window.system_info && window.system_info.engine_name) || 'Engine');
+            var labelText = lastServerAnalysis.source === 'tutor' ? 'Tutor' : 'Engine';
             updateBackendAnalysisLine(serverEl, lastServerAnalysis, labelText);
         } else {
             setEngineLinePlaceholder();

@@ -503,15 +503,8 @@ td.result {
 #pv_output,
 #pv_output *,
 #pv_output div,
-#pv_output div[id^="pv_"],
-#pv_output .list-group,
-#pv_output .list-group-item,
-#pv_output .gameMoves,
-#pv_output .analysis-line-compact,
-#pv_output .analysis-line-compact *,
-#pv_output .continuation-moves {
+#pv_output div[id^="pv_"] {
     background-color: transparent !important;
-    color: inherit !important;
 }
 
 /* Asegurar que hereda del contenedor padre */
@@ -640,7 +633,7 @@ td.result {
 .continuation-moves {
     font-size: 0.9rem;
     font-weight: normal;
-    color: inherit;
+    color: var(--bs-body-color, #212529);
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -778,9 +771,7 @@ td.result {
 
 /* Clase para contenedor de PV */
 .pv-container {
-    margin-top: 0px;
-    margin-left: 0px;
-    margin-bottom: 1vh;
+    margin: 0;
 }
 
 /* Single-row layout for extra PV lines (pv_2+): pills + moves on one line */

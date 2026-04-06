@@ -316,10 +316,6 @@ td.result {
     vertical-align: text-top;
 }
 
-#analyzeBtn {
-    min-width: 114px;
-}
-
 .list-group-item {
     color: var(--mdb-card-color);
     padding-left: 8px;
@@ -570,13 +566,13 @@ td.result {
 .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
-    padding: 3px 8px;
-    border-radius: 12px;
+    padding: 2px 6px;
+    border-radius: 8px;
     font-weight: bold;
-    font-size: 1rem;
+    font-size: 0.9rem;
     text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
     box-shadow: 0 1px 3px rgba(0,123,255,0.3);
-    min-width: 50px;
+    min-width: 44px;
     text-align: center;
     flex-shrink: 0;
 }
@@ -756,50 +752,6 @@ td.result {
     font-size: 0.85rem;
 }
 
-/* Botones de análisis */
-#analyzeBtn {
-    background: linear-gradient(135deg, #28a745, #20c997);
-    border: none;
-    color: white;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-#analyzeBtn:hover {
-    background: linear-gradient(135deg, #20c997, #28a745);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(40,167,69,0.3);
-}
-
-#analyzeBtn.analyzing {
-    background: linear-gradient(135deg, #dc3545, #c82333);
-    animation: pulse-analyzing 1.5s infinite;
-}
-
-@keyframes pulse-analyzing {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Botones más/menos */
-#analyzePlus, #analyzeMinus {
-    background: linear-gradient(145deg, #5bc0de, #31b0d5);
-    border: none;
-    color: #ffffff;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.35rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 0.125rem;
-    transition: all 0.2s ease;
-}
-
-#analyzePlus:hover, #analyzeMinus:hover {
-    background: linear-gradient(145deg, #6bd0ee, #41c0e5);
-}
-
 .engine-controls {
     display: flex;
     align-items: center;
@@ -865,17 +817,19 @@ td.result {
     flex-wrap: wrap;
 }
 
-/* Engine / source name badge — neutral grey pill */
+/* Engine / source name — plain bold label, no pill */
 .engine-name-badge {
     display: inline-block;
-    background: #6c757d;
-    color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    border-radius: 999rem;
-    padding: 0.1rem 0.5rem;
+    color: var(--bs-body-color, #212529);
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+/* Rubber spacer: pushes buttons to the right in pv-header */
+.pv-spacer {
+    flex: 1;
 }
 
 /* Small move-number label in server analysis header */
@@ -893,32 +847,37 @@ td.result {
 
 
 
-/* Excepciones para elementos con colores específicos - mantener sus fondos distintivos */
+/* Colour overrides for score / depth / first-move in all analysis containers */
 #pv_output .score-display,
+#engineAnalysisSection .score-display,
 .analysis-sources .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3) !important;
     color: white !important;
 }
 
 #pv_output .score-positive,
+#engineAnalysisSection .score-positive,
 .analysis-sources .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34) !important;
     color: white !important;
 }
 
 #pv_output .score-negative,
+#engineAnalysisSection .score-negative,
 .analysis-sources .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333) !important;
     color: white !important;
 }
 
 #pv_output .score-mate,
+#engineAnalysisSection .score-mate,
 .analysis-sources .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100) !important;
     color: white !important;
 }
 
 #pv_output .first-move,
+#engineAnalysisSection .first-move,
 .analysis-sources .first-move {
     background: #fff3cd !important;
     color: #856404 !important;
@@ -926,6 +885,7 @@ td.result {
 }
 
 #pv_output .depth-display,
+#engineAnalysisSection .depth-display,
 .analysis-sources .depth-display {
     background: #6c757d !important;
     color: white !important;
@@ -1731,11 +1691,16 @@ piece {
 /* Best-move highlight: swap light-yellow for dark-amber in dark mode */
 html[data-theme="dark"] .first-move,
 html[data-theme="dark"] #pv_output .first-move,
+html[data-theme="dark"] #engineAnalysisSection .first-move,
 html[data-theme="dark"] .analysis-sources .first-move {
     background: rgba(255, 193, 7, 0.15) !important;
     color: #ffc107 !important;
     border-color: rgba(255, 193, 7, 0.35) !important;
     text-shadow: none !important;
+}
+
+html[data-theme="dark"] .engine-name-badge {
+    color: var(--bs-body-color, #dee2e6);
 }
 
 /* Mute button: replace light-grey fill with a subtle dark fill */

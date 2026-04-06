@@ -670,56 +670,14 @@
                                                 </div>
                                                 <div id="engineStatus"></div>
 
-                                                <!-- Upper half: server engine analysis -->
-                                                <div class="row" id="showAnalysisRow">
-                                                    <div class="col-12 py-1">
-                                                        <button id="showAnalysisBtn" class="btn btn-sm btn-outline-secondary">Show analysis</button>
-                                                    </div>
-                                                </div>
-                                                <div class="row d-none" id="analysisRow">
-                                                    <div class="col-12">
-                                                        <div class="d-flex align-items-start gap-2">
-                                                            <div id="analysisLineServer" class="pv-container flex-grow-1" aria-live="polite" aria-label="Server engine analysis" role="status"></div>
-                                                            <button id="hideAnalysisBtn" class="btn btn-sm btn-outline-secondary flex-shrink-0">Hide analysis</button>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <!-- Server engine analysis section (JS renders content) -->
+                                                <div id="engineAnalysisSection" aria-live="polite" aria-label="Server engine analysis" role="status"></div>
 
                                                 <hr class="my-1">
 
-                                                <!-- Lower half: Stockfish 18 js web engine -->
-                                                <div class="row">
-                                                    <div class="col-12">
-                                                        <div class="engine-controls">
-                                                            <span class="engine-name-badge engine-version-label">Stockfish 18 js</span>
-                                                            <button id="analyzeBtn" class="btn btn-sm">
-                                                                <span id="AnalyzeText">GO</span>
-                                                            </button>
-                                                            <div class="btn-group btn-group-xs" role="group" aria-label="Analysis lines">
-                                                                <button id="analyzeMinus"
-                                                                    class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto"
-                                                                    aria-label="Fewer analysis lines" title="Fewer analysis lines">
-                                                                    <span id="analyzeMinusText">
-                                                                        <i class='fa fa-minus' aria-hidden="true"></i>
-                                                                    </span>
-                                                                </button>
-                                                                <button id="analyzePlus"
-                                                                    class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto"
-                                                                    aria-label="More analysis lines" title="More analysis lines">
-                                                                    <span id="analyzePlusText"><i
-                                                                            class='fa fa-plus' aria-hidden="true"></i></span>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="row">
-                                                    <div id="pv_output" class="gameMoves list-group">
-                                                        <div id="pv_1" class="pv-container">
-                                                        </div>
-                                                    </div>
+                                                <!-- SF18 analysis section (JS renders header + PV lines) -->
+                                                <div id="pv_output" class="gameMoves list-group">
+                                                    <div id="pv_1" class="pv-container"></div>
                                                 </div>
                                             </div>
                                         </div>

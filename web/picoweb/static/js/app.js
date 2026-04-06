@@ -1527,12 +1527,23 @@ function formatEngineOutput(line) {
 
         output = '<div class="list-group-item pv-two-row">';
 
-        // Row 1: header — score pill + depth pill
+        // Row 1: header — label + score + depth [+ spacer + ± + HIDE on first PV]
         output += '<div class="pv-header">';
+        output += '<span class="engine-name-badge">Stockfish 18</span>';
         if (score !== null) {
             output += '<span class="' + scoreClass + '">' + score + '</span>';
         }
         output += '<span class="depth-display">d' + depth + '</span>';
+        if (multipv === 1) {
+            output += '<div class="pv-spacer"></div>';
+            if (allowMultiPvControls) {
+                output += '<div class="btn-group btn-group-xs">' +
+                    '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-minus-btn" aria-label="Fewer lines"><i class="fa fa-minus"></i></button>' +
+                    '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-plus-btn" aria-label="More lines"><i class="fa fa-plus"></i></button>' +
+                    '</div>';
+            }
+            output += '<button class="btn btn-sm btn-primary pv-sf18-toggle-btn">HIDE</button>';
+        }
         output += '</div>';
 
         // Row 2: body — first move + continuation
@@ -1711,40 +1722,16 @@ function analyzePressed() {
     analyze(false);
 }
 
+// True when multi-PV controls (±) are supported (not on localhost/device).
+var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+
 function updateEngineControlsVisibility() {
-    var showControls = !!window.analysis;
-    var analyzeBtn = document.getElementById('analyzeBtn');
-    if (analyzeBtn && analyzeBtn.disabled) {
-        showControls = false;
-    }
-    var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
-    // ± buttons are always visible when supported (not gated on SF18 running)
-    var showMultiPv = allowMultiPvControls;
-
-    var plusBtn = document.getElementById('analyzePlus');
-    var minusBtn = document.getElementById('analyzeMinus');
-    var multiPvGroup = document.querySelector('.engine-controls .btn-group');
-    var engineLabel = document.querySelector('.engine-controls .engine-version-label');
-
-    if (plusBtn) {
-        plusBtn.style.display = showMultiPv ? '' : 'none';
-    }
-    if (minusBtn) {
-        minusBtn.style.display = showMultiPv ? '' : 'none';
-    }
-    if (multiPvGroup) {
-        multiPvGroup.style.display = showMultiPv ? '' : 'none';
-    }
-    if (engineLabel) {
-        engineLabel.style.display = showControls ? '' : 'none';
-    }
+    // No-op: ± and SHOW/HIDE buttons are rendered inside the dynamic PV HTML.
 }
 
 function stockfishPNACLModuleDidLoad() {
     window.StockfishModule = document.getElementById('stockfish_module');
     window.StockfishModule.postMessage('uci');
-    $('#analyzeBtn').prop('disabled', false);
-    updateEngineControlsVisibility();
 }
 
 function handleCrash(event) {
@@ -1836,16 +1823,13 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
-            $('#AnalyzeText').text('STOP');
-            updateEngineControlsVisibility();
         }
         else {
-            $('#AnalyzeText').text('GO');
-            stopAnalysis();
             window.analysis = false;
+            setSF18Placeholder();
+            stopAnalysis();
             $('#engineStatus').html('');
             $('#evaluationBar').css('visibility', 'hidden');
-            updateEngineControlsVisibility();
             return;
         }
     }
@@ -2151,13 +2135,15 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
     var output = '<div class="list-group-item pv-two-row">';
-    // Row 1: name badge + score + depth
+    // Row 1: label + score + depth + spacer + HIDE
     output += '<div class="pv-header">';
     output += '<span class="engine-name-badge">' + labelText + '</span>';
     output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
     if (typeof analysis.depth === 'number') {
         output += '<span class="depth-display">d' + analysis.depth + '</span>';
     }
+    output += '<div class="pv-spacer"></div>';
+    output += '<button class="btn btn-sm btn-primary pv-hide-engine-btn">HIDE</button>';
     output += '</div>';
     // Row 2: PV moves
     output += '<div class="pv-body">';
@@ -2177,25 +2163,49 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 
+// Render the server-engine row.  When visible but no analysis yet: label + HIDE.
+// When hidden: label + SHOW.
 function setEngineLinePlaceholder() {
-    var serverEl = document.getElementById('analysisLineServer');
-    if (!serverEl) return;
-    if (analysisDisplayVisible && !serverEl.innerHTML.trim()) {
-        serverEl.innerHTML =
-            '<div class="list-group-item pv-two-row">' +
-            '<div class="pv-header">' +
-            '<span class="engine-name-badge">Engine</span>' +
-            '</div>' +
-            '<div class="pv-body"></div>' +
-            '</div>';
-    }
+    var el = document.getElementById('engineAnalysisSection');
+    if (!el) return;
+    var btn = analysisDisplayVisible
+        ? '<button class="btn btn-sm btn-primary pv-hide-engine-btn">HIDE</button>'
+        : '<button class="btn btn-sm btn-primary pv-show-engine-btn">SHOW</button>';
+    el.innerHTML =
+        '<div class="list-group-item pv-two-row">' +
+        '<div class="pv-header">' +
+        '<span class="engine-name-badge">Engine</span>' +
+        '<div class="pv-spacer"></div>' +
+        btn +
+        '</div>' +
+        '</div>';
+}
+
+// Render the SF18 placeholder row in pv_1 (engine not running).
+function setSF18Placeholder() {
+    var pv1 = document.getElementById('pv_1');
+    if (!pv1) return;
+    var plusMinus = allowMultiPvControls
+        ? '<div class="btn-group btn-group-xs">' +
+          '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-minus-btn" aria-label="Fewer lines"><i class="fa fa-minus"></i></button>' +
+          '<button class="btn btn-sm btn-primary book-switch-btn pv-sf18-plus-btn" aria-label="More lines"><i class="fa fa-plus"></i></button>' +
+          '</div>'
+        : '';
+    pv1.innerHTML =
+        '<div class="list-group-item pv-two-row">' +
+        '<div class="pv-header">' +
+        '<span class="engine-name-badge">Stockfish 18</span>' +
+        '<div class="pv-spacer"></div>' +
+        plusMinus +
+        '<button class="btn btn-sm btn-primary pv-sf18-toggle-btn">SHOW</button>' +
+        '</div>' +
+        '</div>';
 }
 
 function updateBackendAnalysis(analysis) {
-    var serverEl = document.getElementById('analysisLineServer');
+    var serverEl = document.getElementById('engineAnalysisSection');
     if (!analysis) {
         lastServerAnalysis = null;
-        if (serverEl) serverEl.innerHTML = '';
         setEngineLinePlaceholder();
         return;
     }
@@ -2410,18 +2420,6 @@ $(window).on('load', function () {
     }
 });
 
-$('#analyzeBtn').on('click', analyzePressed);
-
-// disable plus/minus analysis on device as this currently causes the engine to load multiple times
-if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-    $('#analyzePlus').hide()
-    $('#analyzeMinus').hide()
-} else {
-    $('#analyzePlus').on('click', multiPvIncrease);
-    $('#analyzeMinus').on('click', multiPvDecrease);
-}
-updateEngineControlsVisibility();
-
 $('#ClockBtn0').on('click', clockButton0);
 $('#ClockBtn1').on('click', clockButton1);
 $('#ClockBtn2').on('click', clockButton2);
@@ -2458,8 +2456,9 @@ $(function () {
     loadSavedTheme();
     getAllInfo();
     loadWebBookList();
-    // Show Engine: label immediately on page load before any analysis arrives.
+    // Render placeholders immediately on page load before any analysis arrives.
     setEngineLinePlaceholder();
+    setSF18Placeholder();
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         updateStatus();
@@ -2515,9 +2514,9 @@ $(function () {
             ws.onopen = function () {
                 // Reset backoff on successful connection.
                 wsReconnectDelay = 2000;
-                // Ensure Engine: label is visible while waiting for the first
-                // analysis message (server may not send one immediately).
+                // Ensure placeholders are visible while waiting for first messages.
                 setEngineLinePlaceholder();
+                if (!window.analysis) setSF18Placeholder();
             };
 
             // Process messages from picochess
@@ -2638,10 +2637,9 @@ $(function () {
                 // re-send the cached analysis payload on reconnect.
                 if (window.analysis || window.stockfish) {
                     window.analysis = false;
-                    $('#AnalyzeText').text('GO');
+                    setSF18Placeholder();
                     stopAnalysis();
                     $('#engineStatus').html('');
-                    updateEngineControlsVisibility();
                 }
                 // Schedule reconnect with exponential backoff (max 30 s).
                 if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
@@ -2662,7 +2660,6 @@ $(function () {
     }
 
     if (navigator.mimeTypes['application/x-pnacl'] !== undefined) {
-        $('#analyzeBtn').prop('disabled', true);
         loadNaclStockfish();
     }
 
@@ -2671,38 +2668,26 @@ $(function () {
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
 
-    function showServerAnalysis() {
+    // Event delegation for dynamically-rendered SHOW/HIDE and SF18 ± buttons.
+    $(document).on('click', '.pv-show-engine-btn', function () {
         analysisDisplayVisible = true;
-        var showRow = document.getElementById('showAnalysisRow');
-        var analysisRow = document.getElementById('analysisRow');
-        if (showRow) showRow.classList.add('d-none');
-        if (analysisRow) analysisRow.classList.remove('d-none');
-        // Render whatever arrived while the panel was hidden, or show placeholder.
+        var serverEl = document.getElementById('engineAnalysisSection');
         if (lastServerAnalysis) {
-            var serverEl = document.getElementById('analysisLineServer');
             var labelText = lastServerAnalysis.source === 'tutor' ? 'Tutor' : 'Engine';
             updateBackendAnalysisLine(serverEl, lastServerAnalysis, labelText);
         } else {
             setEngineLinePlaceholder();
         }
-    }
-
-    function hideServerAnalysis() {
+    });
+    $(document).on('click', '.pv-hide-engine-btn', function () {
         analysisDisplayVisible = false;
-        var showRow = document.getElementById('showAnalysisRow');
-        var analysisRow = document.getElementById('analysisRow');
-        if (analysisRow) analysisRow.classList.add('d-none');
-        if (showRow) showRow.classList.remove('d-none');
-    }
-
-    var showAnalysisBtn = document.getElementById('showAnalysisBtn');
-    var hideAnalysisBtn = document.getElementById('hideAnalysisBtn');
-    if (showAnalysisBtn) {
-        showAnalysisBtn.addEventListener('click', showServerAnalysis);
-    }
-    if (hideAnalysisBtn) {
-        hideAnalysisBtn.addEventListener('click', hideServerAnalysis);
-    }
+        setEngineLinePlaceholder();
+    });
+    $(document).on('click', '.pv-sf18-toggle-btn', function () {
+        analyzePressed();
+    });
+    $(document).on('click', '.pv-sf18-minus-btn', multiPvDecrease);
+    $(document).on('click', '.pv-sf18-plus-btn', multiPvIncrease);
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

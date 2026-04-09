@@ -531,7 +531,7 @@ function WebExporter(columns) {
     this.current_line = '';
     this.flush_current_line = function () {
         if (this.current_line) {
-            this.lines.append(this.current_line.trim());
+            this.lines.push(this.current_line.trim());
             this.current_line = '';
         }
     };
@@ -646,7 +646,7 @@ function PgnExporter(columns) {
     this.current_line = "";
     this.flush_current_line = function () {
         if (this.current_line) {
-            this.lines.append(this.current_line.trim());
+            this.lines.push(this.current_line.trim());
             this.current_line = "";
         }
     };
@@ -1132,8 +1132,8 @@ function loadGame(pgn_lines) {
 
     var board_stack = [tmpGame];
     var variation_stack = [current_position];
-    var last_board_stack_index;
-    var last_variation_stack_index;
+    var last_board_stack_index = 0;
+    var last_variation_stack_index = 0;
 
     var in_variation = false;
     var starting_comment = '';
@@ -1486,6 +1486,7 @@ function formatEngineOutput(line) {
         }
 
         var pv_index = tokens.indexOf('pv') + 1;
+        if (pv_index < 1) { return; }
 
         var pv_out = tokens.slice(pv_index);
 

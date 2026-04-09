@@ -1099,33 +1099,127 @@
                     .catch(function() {});
             }
 
-            function showPlayer() {
-                showSubpanel('overlay-player');
-                var si = window._picoSystemInfo || {};
-                var nameEl = document.getElementById('ovl-player-name');
-                var eloEl  = document.getElementById('ovl-player-elo');
-                if (nameEl) nameEl.value = si.user_name || '';
-                if (eloEl)  eloEl.value  = (si.user_elo && si.user_elo !== '-') ? si.user_elo : '';
-                // Wire save button (once, idempotent via flag)
-                var saveBtn = document.getElementById('ovl-player-save');
-                if (saveBtn && !saveBtn._picoWired) {
-                    saveBtn._picoWired = true;
-                    saveBtn.addEventListener('click', function() {
-                        var name = (document.getElementById('ovl-player-name').value || '').trim();
-                        var elo  = (document.getElementById('ovl-player-elo').value  || '').trim();
-                        if (!name) return;
-                        var eloNum = parseInt(elo, 10);
-                        elo = (isNaN(eloNum) || eloNum < 0 || eloNum > 3000) ? '1500' : String(eloNum);
-                        document.getElementById('ovl-player-elo').value = elo;
-                        post('action=set_player&name=' + encodeURIComponent(name) + '&elo=' + encodeURIComponent(elo));
-                        // Update local cache immediately
-                        window._picoSystemInfo = window._picoSystemInfo || {};
-                        window._picoSystemInfo.user_name = name;
-                        window._picoSystemInfo.user_elo  = elo || '-';
-                        updateTileStates();
-                        close();
+            /* ── position setup ──────────────────────── */
+            var _positionSettings = {
+                sideToMove:      'white',   // 'white' | 'black'
+                boardOrientation: 'normal', // 'normal' | 'flipped'
+                uci960:           false,    // false | true
+                castling: { wk: true, wq: true, bk: true, bq: true }
+            };
+
+            var POSITION_PARAMS = {
+                side: {
+                    label: 'Side to Move',
+                    items: [
+                        { label: '♔ White to move', value: 'white' },
+                        { label: '♚ Black to move', value: 'black' }
+                    ]
+                },
+                orientation: {
+                    label: 'Board Orientation',
+                    items: [
+                        { label: '⬜ White on bottom', value: 'normal' },
+                        { label: '⬛ Black on bottom', value: 'flipped' }
+                    ]
+                },
+                uci960: {
+                    label: 'UCI960 Mode',
+                    items: [
+                        { label: '♟ Standard chess', value: 'false' },
+                        { label: '♞ UCI960 / FRC',   value: 'true'  }
+                    ]
+                },
+                castling: {
+                    label: 'Castling Rights',
+                    items: [
+                        { label: 'White O-O',   key: 'wk' },
+                        { label: 'White O-O-O', key: 'wq' },
+                        { label: 'Black O-O',   key: 'bk' },
+                        { label: 'Black O-O-O', key: 'bq' }
+                    ]
+                }
+            };
+
+            function _positionSubLabel() {
+                var side = _positionSettings.sideToMove === 'white' ? 'White' : 'Black';
+                var mode = _positionSettings.uci960 ? 'UCI960' : 'Std';
+                return side + ' · ' + mode;
+            }
+
+            function _castlingSub() {
+                var c = _positionSettings.castling;
+                var all = c.wk && c.wq && c.bk && c.bq;
+                var none = !c.wk && !c.wq && !c.bk && !c.bq;
+                if (all)  return 'All enabled';
+                if (none) return 'None';
+                var parts = [];
+                if (c.wk)  parts.push('W O-O');
+                if (c.wq)  parts.push('W O-O-O');
+                if (c.bk)  parts.push('B O-O');
+                if (c.bq)  parts.push('B O-O-O');
+                return parts.join(', ');
+            }
+
+            function _updatePositionParamSubs() {
+                var el;
+                el = document.getElementById('ovl-pos-side-sub');
+                if (el) el.textContent = _positionSettings.sideToMove === 'white' ? 'White' : 'Black';
+                el = document.getElementById('ovl-pos-orient-sub');
+                if (el) el.textContent = _positionSettings.boardOrientation === 'normal' ? 'White bottom' : 'Black bottom';
+                el = document.getElementById('ovl-pos-uci960-sub');
+                if (el) el.textContent = _positionSettings.uci960 ? 'UCI960' : 'Standard';
+                el = document.getElementById('ovl-pos-castling-sub');
+                if (el) el.textContent = _castlingSub();
+            }
+
+            function showPositionValues(param) {
+                var pd = POSITION_PARAMS[param];
+                if (!pd) return;
+                var col    = document.getElementById('ovl-pos-value-col');
+                var lbl    = document.getElementById('ovl-pos-value-label');
+                var listEl = document.getElementById('ovl-pos-value-list');
+                if (!col || !lbl || !listEl) return;
+                lbl.textContent = pd.label;
+                listEl.innerHTML = '';
+
+                if (param === 'castling') {
+                    // Toggle items — multiple can be active simultaneously
+                    pd.items.forEach(function(item) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.dataset.posCastling = item.key;
+                        if (_positionSettings.castling[item.key]) btn.classList.add('selected');
+                        btn.innerHTML = '<strong>' + item.label + '</strong>';
+                        listEl.appendChild(btn);
+                    });
+                } else {
+                    // Single-select items
+                    var currentVal = String(param === 'side'        ? _positionSettings.sideToMove :
+                                           param === 'orientation'  ? _positionSettings.boardOrientation :
+                                                                      _positionSettings.uci960);
+                    pd.items.forEach(function(item) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.dataset.posParam = param;
+                        btn.dataset.posValue = item.value;
+                        if (String(item.value) === currentVal) btn.classList.add('selected');
+                        btn.innerHTML = '<strong>' + item.label + '</strong>';
+                        listEl.appendChild(btn);
                     });
                 }
+                col.style.display = 'flex';
+            }
+
+            function showPosition() {
+                showSubpanel('overlay-position');
+                // Hide right column until a param is selected
+                var col = document.getElementById('ovl-pos-value-col');
+                if (col) col.style.display = 'none';
+                _updatePositionParamSubs();
+                // Clear any previous param selection highlight
+                document.querySelectorAll('#ovl-pos-param-list .pico-picker-item').forEach(function(el) {
+                    el.classList.remove('selected');
+                });
             }
 
             /* ── display picker (board / pieces / theme) ─ */
@@ -1490,6 +1584,52 @@
                 col.style.display = 'flex';
             }
 
+            function showPlayerOpts() {
+                var col    = document.getElementById('ovl-game-opt-col');
+                var lbl    = document.getElementById('ovl-game-opt-label');
+                var listEl = document.getElementById('ovl-game-opt-list');
+                if (!col || !lbl || !listEl) return;
+                lbl.textContent = 'Player Info';
+                listEl.innerHTML = '';
+
+                var si = window._picoSystemInfo || {};
+                var curName = (si.user_name || '').trim();
+                var curElo  = (si.user_elo && si.user_elo !== '-') ? si.user_elo : '';
+
+                var nameBtn = document.createElement('button');
+                nameBtn.className = 'pico-picker-item';
+                nameBtn.innerHTML = '<strong>Name</strong><span class="picker-sub">' + (curName || '—') + '</span>';
+                nameBtn.addEventListener('click', function() {
+                    var val = prompt('Player name:', curName);
+                    if (val === null) return;
+                    val = val.trim().slice(0, 20);
+                    if (!val) return;
+                    curName = val;
+                    nameBtn.querySelector('.picker-sub').textContent = val;
+                    window._picoSystemInfo = window._picoSystemInfo || {};
+                    window._picoSystemInfo.user_name = val;
+                    post('action=set_player&name=' + encodeURIComponent(val) + '&elo=' + encodeURIComponent(curElo || '1500'));
+                });
+                listEl.appendChild(nameBtn);
+
+                var eloBtn = document.createElement('button');
+                eloBtn.className = 'pico-picker-item';
+                eloBtn.innerHTML = '<strong>ELO</strong><span class="picker-sub">' + (curElo || '—') + '</span>';
+                eloBtn.addEventListener('click', function() {
+                    var val = prompt('ELO rating (0–3000):', curElo || '1500');
+                    if (val === null) return;
+                    var n = parseInt(val, 10);
+                    if (isNaN(n) || n < 0 || n > 3000) return;
+                    curElo = String(n);
+                    eloBtn.querySelector('.picker-sub').textContent = curElo;
+                    window._picoSystemInfo = window._picoSystemInfo || {};
+                    window._picoSystemInfo.user_elo = curElo;
+                    post('action=set_player&name=' + encodeURIComponent(curName) + '&elo=' + encodeURIComponent(curElo));
+                });
+                listEl.appendChild(eloBtn);
+                col.style.display = 'flex';
+            }
+
             /* ── system category picker ──────────────── */
             var SYS_OPT = {
                 power:   { label: 'Power', items: [['Shutdown','sys_shutdown'],['Reboot','sys_reboot'],['Exit PicoChess','sys_exit'],['Update PicoChess','sys_update'],['Update Engines','sys_update_engines']] },
@@ -1681,10 +1821,8 @@
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
                 if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
                 if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
-                if ((el = document.getElementById('ovl-player-sub'))) {
-                    var pName = sysInfo.user_name || '';
-                    var pElo  = (sysInfo.user_elo && sysInfo.user_elo !== '-') ? sysInfo.user_elo : '';
-                    el.textContent = pName ? (pElo ? pName + ' · ' + pElo : pName) : '—';
+                if ((el = document.getElementById('ovl-position-sub'))) {
+                    el.textContent = _positionSubLabel();
                 }
                 stateEl.textContent = gameActive ? '● Game in progress' : '○ No active game';
                 stateEl.style.color = gameActive ? '#4caf50' : '#888';
@@ -1878,7 +2016,7 @@
                 var tile = e.target.closest('.pico-tile');
                 if (!tile) return;
                 var fns = { 'ovl-mode': showMode, 'ovl-engine': showEngine, 'ovl-time': showTime,
-                            'ovl-book': showBook, 'ovl-tutor': showTutor, 'ovl-player': showPlayer,
+                            'ovl-book': showBook, 'ovl-tutor': showTutor, 'ovl-position': showPosition,
                             'ovl-game': showGame, 'ovl-system': showSystem, 'ovl-display': showDisplay };
                 var fn = fns[tile.id];
                 if (fn) fn();
@@ -1910,6 +2048,77 @@
                     return;
                 }
 
+                // Position: parameter column (left)
+                var posParamBtn = e.target.closest('#ovl-pos-param-list .pico-picker-item[data-pos-param]');
+                if (posParamBtn && posParamBtn.dataset.posParam) {
+                    document.querySelectorAll('#ovl-pos-param-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    posParamBtn.classList.add('selected');
+                    showPositionValues(posParamBtn.dataset.posParam);
+                    return;
+                }
+                // Position: scan action button
+                var posScanBtn = e.target.closest('#ovl-pos-param-list [data-pos-action="scan"]');
+                if (posScanBtn) {
+                    var scanBtn = document.getElementById('ovl-pos-scan-btn');
+                    var origHtml = scanBtn ? scanBtn.innerHTML : '';
+                    if (scanBtn) scanBtn.innerHTML = '<strong>⏳ Scanning…</strong><span class="picker-sub">Please wait</span>';
+                    var c = _positionSettings.castling;
+                    fetch('/channel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action:           'scan_board',
+                            sideToPlay:       _positionSettings.sideToMove === 'white' ? 'true' : 'false',
+                            boardSide:        _positionSettings.boardOrientation === 'flipped' ? 'true' : 'false',
+                            uci960:           _positionSettings.uci960 ? 'true' : 'false',
+                            whiteCastleKing:  c.wk,
+                            whiteCastleQueen: c.wq,
+                            blackCastleKing:  c.bk,
+                            blackCastleQueen: c.bq
+                        })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d.success) {
+                            var sub = document.getElementById('ovl-position-sub');
+                            if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+                            close();
+                        } else {
+                            if (scanBtn) scanBtn.innerHTML = '<strong>⚠ Invalid position</strong><span class="picker-sub">Check board &amp; retry</span>';
+                            setTimeout(function() { if (scanBtn) scanBtn.innerHTML = origHtml; }, 2500);
+                        }
+                    })
+                    .catch(function() {
+                        if (scanBtn) scanBtn.innerHTML = '<strong>⚠ Scan failed</strong><span class="picker-sub">Check connection</span>';
+                        setTimeout(function() { if (scanBtn) scanBtn.innerHTML = origHtml; }, 2500);
+                    });
+                    return;
+                }
+                // Position: single-select value column
+                var posValBtn = e.target.closest('#ovl-pos-value-list .pico-picker-item[data-pos-param]');
+                if (posValBtn && posValBtn.dataset.posValue !== undefined) {
+                    document.querySelectorAll('#ovl-pos-value-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    posValBtn.classList.add('selected');
+                    var pp = posValBtn.dataset.posParam;
+                    var pv = posValBtn.dataset.posValue;
+                    if (pp === 'side')        _positionSettings.sideToMove       = pv;
+                    if (pp === 'orientation') _positionSettings.boardOrientation  = pv;
+                    if (pp === 'uci960')      _positionSettings.uci960            = (pv === 'true');
+                    _updatePositionParamSubs();
+                    var posSub = document.getElementById('ovl-position-sub');
+                    if (posSub) posSub.textContent = _positionSubLabel();
+                    return;
+                }
+                // Position: castling toggles
+                var posCastleBtn = e.target.closest('#ovl-pos-value-list .pico-picker-item[data-pos-castling]');
+                if (posCastleBtn && posCastleBtn.dataset.posCastling) {
+                    var ck = posCastleBtn.dataset.posCastling;
+                    _positionSettings.castling[ck] = !_positionSettings.castling[ck];
+                    posCastleBtn.classList.toggle('selected', _positionSettings.castling[ck]);
+                    _updatePositionParamSubs();
+                    return;
+                }
+
                 // Game: action column
                 var gameActionBtn = e.target.closest('#ovl-game-action-list .pico-picker-item');
                 if (gameActionBtn && gameActionBtn.dataset.gameAction) {
@@ -1927,6 +2136,7 @@
                     if (ga === 'switchsides') { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
                     if (ga === 'resign') { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
                     if (ga === 'move-now') { if (!engineTurn) return; post('action=move_now'); close(); return; }
+                    if (ga === 'player') { showPlayerOpts(); return; }
                     showGameOpts(ga); return;
                 }
 
@@ -1955,7 +2165,7 @@
             window.picoOverlay = { open: open, close: close,
                 showTiles: showTiles, showScan: showScan, showEngine: showEngine,
                 showMode: showMode, showTime: showTime, showBook: showBook,
-                showTutor: showTutor, showPlayer: showPlayer, showGame: showGame,
+                showTutor: showTutor, showPosition: showPosition, showGame: showGame,
                 showSystem: showSystem, showDisplay: showDisplay };
 
             window.setPicoGameActive = function(active) {
@@ -2154,9 +2364,9 @@
                     <span class="pico-tile-label">Tutor</span>
                     <span class="pico-tile-sub" id="ovl-tutor-sub">Off</span>
                 </button>
-                <button class="pico-tile" id="ovl-player">
-                    <span class="pico-tile-label">Player</span>
-                    <span class="pico-tile-sub" id="ovl-player-sub">—</span>
+                <button class="pico-tile" id="ovl-position">
+                    <span class="pico-tile-label">Position</span>
+                    <span class="pico-tile-sub" id="ovl-position-sub">White · Std</span>
                 </button>
                 <button class="pico-tile" id="ovl-game">
                     <span class="pico-tile-label">Game</span>
@@ -2426,31 +2636,46 @@
                 </div>
             </div><!-- #overlay-tutor -->
 
-            <!-- PLAYER SUB-PANEL -->
-            <div id="overlay-player" class="pico-subpanel">
+            <!-- POSITION SETUP SUB-PANEL -->
+            <div id="overlay-position" class="pico-subpanel">
                 <div class="pico-picker-header">
                     <button class="pico-overlay-back">‹ Back</button>
-                    <span class="pico-picker-title">Player</span>
+                    <span class="pico-picker-title">Position Setup</span>
                 </div>
-                <div style="padding:1rem 1.2rem;">
-                    <div style="margin-bottom:1rem;">
-                        <label for="ovl-player-name" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">Name</label>
-                        <input type="text" id="ovl-player-name"
-                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
-                               maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                <div class="pico-picker-columns">
+                    <!-- LEFT COLUMN: parameters -->
+                    <div class="pico-picker-col" id="ovl-pos-param-col">
+                        <div class="pico-picker-col-label">Setting</div>
+                        <div id="ovl-pos-param-list">
+                            <button class="pico-picker-item" data-pos-param="side">
+                                <strong>Side to Move</strong>
+                                <span class="picker-sub" id="ovl-pos-side-sub">White</span>
+                            </button>
+                            <button class="pico-picker-item" data-pos-param="orientation">
+                                <strong>Board Side</strong>
+                                <span class="picker-sub" id="ovl-pos-orient-sub">White bottom</span>
+                            </button>
+                            <button class="pico-picker-item" data-pos-param="uci960">
+                                <strong>UCI960</strong>
+                                <span class="picker-sub" id="ovl-pos-uci960-sub">Standard</span>
+                            </button>
+                            <button class="pico-picker-item" data-pos-param="castling">
+                                <strong>Castling</strong>
+                                <span class="picker-sub" id="ovl-pos-castling-sub">All enabled</span>
+                            </button>
+                            <button class="pico-picker-item" data-pos-action="scan" id="ovl-pos-scan-btn">
+                                <strong>Scan Board Now</strong>
+                                <span class="picker-sub">Read position &amp; start</span>
+                            </button>
+                        </div>
                     </div>
-                    <div style="margin-bottom:1.4rem;">
-                        <label for="ovl-player-elo" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">ELO Rating</label>
-                        <input type="number" id="ovl-player-elo"
-                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
-                               min="0" max="3000" step="50" placeholder="1500">
+                    <!-- RIGHT COLUMN: choices (hidden until a parameter is selected) -->
+                    <div class="pico-picker-col" id="ovl-pos-value-col" style="display:none;">
+                        <div class="pico-picker-col-label" id="ovl-pos-value-label">Choice</div>
+                        <div id="ovl-pos-value-list"></div>
                     </div>
-                    <button id="ovl-player-save"
-                            style="width:100%;padding:0.7rem;background:rgba(76,175,80,0.55);border:none;border-radius:4px;color:inherit;font-size:1rem;font-weight:600;cursor:pointer;transition:background 0.12s;">
-                        Save
-                    </button>
                 </div>
-            </div><!-- #overlay-player -->
+            </div><!-- #overlay-position -->
 
             <!-- GAME SUB-PANEL -->
             <div id="overlay-game" class="pico-subpanel">
@@ -2473,6 +2698,7 @@
                             <button class="pico-picker-item" data-game-action="switchsides"><strong>🔄 Switch Sides</strong><span class="picker-sub">Swap colors with engine</span></button>
                             <button class="pico-picker-item" data-game-action="resign"><strong>🏳️ Resign</strong><span class="picker-sub">Concede the game</span></button>
                             <button class="pico-picker-item" data-game-action="move-now" data-requires-engine-turn><strong>⚡ Move Now</strong><span class="picker-sub">Force engine to move</span></button>
+                            <button class="pico-picker-item" data-game-action="player"><strong>Player</strong><span class="picker-sub" id="game-player-sub">Name &amp; ELO</span></button>
                         </div>
                     </div>
                     <div class="pico-picker-col" id="ovl-game-opt-col" style="display:none;">

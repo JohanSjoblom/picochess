@@ -311,6 +311,10 @@ class Emailer(object):
 class PgnDisplay(DisplayMsg):
     """Deal with DisplayMessages related to pgn."""
 
+    @staticmethod
+    def _sanitize(text: str) -> str:
+        return ModeInfo._sanitize(text)
+
     def __init__(self, file_name: str, emailer: Emailer, shared: dict, loop: asyncio.AbstractEventLoop):
         super(PgnDisplay, self).__init__(loop)
         self.file_name = file_name
@@ -387,7 +391,7 @@ class PgnDisplay(DisplayMsg):
 
         # Headers
         if ModeInfo.get_online_mode():
-            pgn_game.headers["Event"] = "PicoChess" + self.engine_name
+            pgn_game.headers["Event"] = "PicoChess" + self._sanitize(self.engine_name)
         else:
             pgn_game.headers["Event"] = "PicoChess Game"
 
@@ -439,24 +443,24 @@ class PgnDisplay(DisplayMsg):
 
             logger.debug("Play Mode %s", message.play_mode)
             if message.play_mode == PlayMode.USER_WHITE:
-                pgn_game.headers["White"] = user_name
-                pgn_game.headers["Black"] = engine_name
+                pgn_game.headers["White"] = self._sanitize(user_name)
+                pgn_game.headers["Black"] = self._sanitize(engine_name)
                 pgn_game.headers["WhiteElo"] = str(self.user_elo)
                 pgn_game.headers["BlackElo"] = str(comp_elo)
             if message.play_mode == PlayMode.USER_BLACK:
-                pgn_game.headers["White"] = engine_name
-                pgn_game.headers["Black"] = user_name
+                pgn_game.headers["White"] = self._sanitize(engine_name)
+                pgn_game.headers["Black"] = self._sanitize(user_name)
                 pgn_game.headers["WhiteElo"] = str(comp_elo)
                 pgn_game.headers["BlackElo"] = str(self.user_elo)
         else:
             if message.play_mode == PlayMode.USER_WHITE:
-                pgn_game.headers["White"] = self.user_name
-                pgn_game.headers["Black"] = self.engine_name + engine_level
+                pgn_game.headers["White"] = self._sanitize(self.user_name)
+                pgn_game.headers["Black"] = self._sanitize(self.engine_name + engine_level)
                 pgn_game.headers["WhiteElo"] = str(self.user_elo)
                 pgn_game.headers["BlackElo"] = str(comp_elo)
             if message.play_mode == PlayMode.USER_BLACK:
-                pgn_game.headers["White"] = self.engine_name + engine_level
-                pgn_game.headers["Black"] = self.user_name
+                pgn_game.headers["White"] = self._sanitize(self.engine_name + engine_level)
+                pgn_game.headers["Black"] = self._sanitize(self.user_name)
                 pgn_game.headers["WhiteElo"] = str(comp_elo)
                 pgn_game.headers["BlackElo"] = str(self.user_elo)
 

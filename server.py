@@ -548,7 +548,7 @@ class ChannelHandler(ServerRequestHandler):
             if not castling:
                 castling = "-"
 
-            fen = self.shared["dgt_fen"]
+            fen = self.shared.get("dgt_fen")
 
             if not fen or fen == "8/8/8/8/8/8/8/8":
                 logger.error("No valid board position scanned")
@@ -569,9 +569,8 @@ class ChannelHandler(ServerRequestHandler):
                 if not is_valid:
                     logger.warning(f"FEN validation failed: {fen}")
                     logger.warning(f"Status: {bit_board.status()}")
-                    logger.warning("Accepting position anyway for setup")
+                    return None
 
-                # Fire SETUP_POSITION even if invalid
                 await Observable.fire(Event.SETUP_POSITION(fen=fen, uci960=uci960_enabled))
                 return fen
 
@@ -621,8 +620,15 @@ class ChannelHandler(ServerRequestHandler):
                 return
 
         if action == "broadcast":
-            fen = self.get_argument("fen")
-            pgn_str = self.get_argument("pgn")
+            if not _require_auth_if_remote(self, "Broadcast"):
+                return
+            try:
+                fen = self.get_argument("fen")
+                pgn_str = self.get_argument("pgn")
+            except tornado.web.MissingArgumentError as e:
+                logger.warning("broadcast missing argument: %s", e)
+                self.set_status(400)
+                return
             result = {
                 "event": "Broadcast",
                 "msg": "Position from Spectators!",
@@ -631,15 +637,25 @@ class ChannelHandler(ServerRequestHandler):
             }
             EventHandler.write_to_clients(result)
         elif action == "move":
-            move = chess.Move.from_uci(
-                self.get_argument("source") + self.get_argument("target") + self.get_argument("promotion")
-            )
-            await Observable.fire(Event.REMOTE_MOVE(move=move, fen=self.get_argument("fen")))
+            try:
+                move = chess.Move.from_uci(
+                    self.get_argument("source") + self.get_argument("target") + self.get_argument("promotion")
+                )
+                await Observable.fire(Event.REMOTE_MOVE(move=move, fen=self.get_argument("fen")))
+            except (tornado.web.MissingArgumentError, ValueError) as e:
+                logger.warning("move action error: %s", e)
+                self.set_status(400)
+                return
         elif action == "promotion":
-            move = chess.Move.from_uci(
-                self.get_argument("source") + self.get_argument("target") + self.get_argument("promotion")
-            )
-            await Observable.fire(Event.PROMOTION(move=move, fen=self.get_argument("fen")))
+            try:
+                move = chess.Move.from_uci(
+                    self.get_argument("source") + self.get_argument("target") + self.get_argument("promotion")
+                )
+                await Observable.fire(Event.PROMOTION(move=move, fen=self.get_argument("fen")))
+            except (tornado.web.MissingArgumentError, ValueError) as e:
+                logger.warning("promotion action error: %s", e)
+                self.set_status(400)
+                return
         elif action == "clockbutton":
             await Observable.fire(Event.KEYBOARD_BUTTON(button=self.get_argument("button"), dev="web"))
         elif action == "room":

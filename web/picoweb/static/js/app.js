@@ -63,7 +63,7 @@ function updateCheckCounters(variant, checks) {
     if (variant === '3check' && checks) {
         document.getElementById('whiteChecks').textContent = (3 - checks.white); // checks delivered by White
         document.getElementById('blackChecks').textContent = (3 - checks.black); // checks delivered by Black
-        checkCounters.style.display = 'inline';
+        checkCounters.style.display = 'flex';
     } else {
         checkCounters.style.display = 'none';
     }
@@ -309,12 +309,12 @@ function addArrow(ucimove, play) {
 
 function figurinizeMove(move) {
     if (!move) { return; }
-    move = move.replace('N', '&#9816;');
-    move = move.replace('B', '&#9815;');
-    move = move.replace('R', '&#9814;');
-    move = move.replace('K', '&#9812;');
-    move = move.replace('Q', '&#9813;');
-    move = move.replace('X', '&#9888;'); // error code
+    move = move.replace('N', '<span class="figurine">&#9816;</span>');
+    move = move.replace('B', '<span class="figurine">&#9815;</span>');
+    move = move.replace('R', '<span class="figurine">&#9814;</span>');
+    move = move.replace('K', '<span class="figurine">&#9812;</span>');
+    move = move.replace('Q', '<span class="figurine">&#9813;</span>');
+    move = move.replace('X', '<span class="figurine">&#9888;</span>'); // error code
     return move;
 }
 
@@ -987,13 +987,31 @@ async function getMove(game, source, target) {
 
 function updateChessGround() {
     var tmpGame = createGamePointer();
+    var psi = window._picoSystemInfo || {};
+    var hasBoard = !!psi.has_board;
+    var turnColor = toColor(tmpGame);
+    var movableColor;
+
+    if (!hasBoard) {
+        // No physical board: full diagram interactivity (NOEBOARD mode).
+        movableColor = turnColor;
+    } else if (psi.interaction_mode === 'remote') {
+        // REMOTE mode: local player uses the physical board; the remote
+        // opponent enters moves via the web diagram.  Only allow dragging
+        // when it is actually the remote side's turn.
+        var remoteColor = (psi.play_mode === 'user_white') ? 'black' : 'white';
+        movableColor = (turnColor === remoteColor) ? remoteColor : 'none';
+    } else {
+        // Any other mode with a board: diagram is read-only.
+        movableColor = 'none';
+    }
 
     chessground1.set({
         fen: currentPosition.fen,
-        turnColor: toColor(tmpGame),
+        turnColor: turnColor,
         movable: {
-            color: toColor(tmpGame),
-            dests: toDests(tmpGame)
+            color: movableColor,
+            dests: (movableColor === 'none') ? {} : toDests(tmpGame)
         }
     });
 }
@@ -1296,6 +1314,9 @@ function download() {
 function newBoard(fen) {
     stopAnalysis();
 
+    fenHash = {};
+    computerside = "";
+
     currentPosition = {};
     currentPosition.fen = fen;
 
@@ -1504,64 +1525,60 @@ function formatEngineOutput(line) {
             scoreClass += ' score-negative';
         }
 
-        output = '<div class="list-group-item">';
-        output += '<div class="analysis-line-compact">';
-
-        // Puntuacion (siempre en relacion al blanco)
+        // Build score+depth meta HTML (shared for pv_1 update and pv_2+ header)
+        var metaHtml = '';
         if (score !== null) {
-            output += '<span class="' + scoreClass + '">' + score + '</span>';
+            metaHtml += '<span class="' + scoreClass + '">' + score + '</span>';
         }
+        metaHtml += '<span class="depth-display">d' + depth + '</span>';
 
-        // Primer movimiento destacado
+        // Build PV body HTML
+        var bodyHtml = '';
         if (history.length > 0) {
             var firstMoveText = '';
-            // Crear una copia del juego para obtener el turno actual
             var tempGame = new Chess();
             if (currentPosition && currentPosition.fen) {
                 tempGame.load(currentPosition.fen, chessGameType);
             }
-            var currentTurn = tempGame.turn(); // Obtener el turno actual antes de hacer el movimiento
-
-            // Calcular el número de movimiento correctamente
+            var currentTurn = tempGame.turn();
             var moveNumber = Math.floor((start_move_num + 1) / 2);
-
             if (currentTurn === 'w') {
-                // Le toca a las blancas
                 firstMoveText += moveNumber + '. ';
             } else {
-                // Le toca a las negras
                 firstMoveText += moveNumber + '... ';
             }
             firstMoveText += figurinizeMove(history[0]);
-            output += '<span class="first-move">' + firstMoveText + '</span>';
+            bodyHtml += '<span class="first-move">' + firstMoveText + '</span>';
         }
-        // Continuacion de la linea (mas discreta)
         if (history.length > 1) {
             var continuationText = '';
             var currentMoveNum = start_move_num;
-
             for (i = 1; i < history.length; ++i) {
                 currentMoveNum++;
-                // Si es turno de las blancas (número impar), mostrar número de movimiento
                 if (currentMoveNum % 2 === 1) {
                     continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
                 }
                 continuationText += figurinizeMove(history[i]) + ' ';
             }
-            output += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
+            bodyHtml += '<span class="continuation-moves">' + continuationText.trim() + '</span>';
         }
-        // Profundidad al final
-        output += '<span class="depth-display">d' + depth + '</span>';
-
-        output += '</div></div>';
 
         analysis_game = null;
 
-        // Actualizar la barra de evaluación con la primera línea (mejor evaluación)
         if (multipv === 1) {
+            // First PV: update the static SF18 row elements directly
             updateEvaluationBar(score);
+            return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
+        // Extra PV lines (pv_2+): same two-row layout as pv_1 but without buttons
+        output = '<div class="pv-two-row">';
+        output += '<div class="pv-header">';
+        output += '<span class="engine-name-badge">Stockfish 18</span>';
+        output += metaHtml;
+        output += '</div>';
+        output += '<div class="pv-body">' + bodyHtml + '</div>';
+        output += '</div>';
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
@@ -1569,7 +1586,8 @@ function formatEngineOutput(line) {
     }
 }
 
-// Función para actualizar la barra de evaluación horizontal
+// Update vertical evaluation bar (black on top, white on bottom, like Lichess)
+// +1.00 = one square shift; 0.00 = 50/50 split at mid-board
 function updateEvaluationBar(score) {
     if (!score || score === '?') return;
 
@@ -1579,107 +1597,64 @@ function updateEvaluationBar(score) {
     if (String(score).includes('#')) {
         isMate = true;
         var mateIn = parseInt(score.replace('#', ''));
-        numericScore = mateIn > 0 ? 50 : -50; // Valor completo para mate
+        numericScore = mateIn > 0 ? 50 : -50;
     } else {
         numericScore = parseFloat(score);
     }
 
     var fillElement = $('#evaluationFill');
-    var valueElement = $('#evaluationValue');
 
+    var blackPct;
     if (isMate) {
-        // Para mate, llenar completamente la barra
-        if (numericScore > 0) {
-            fillElement.removeClass('negative');
-            fillElement.css({
-                'left': '50%',
-                'width': '50%'
-            });
-        } else {
-            fillElement.addClass('negative');
-            fillElement.css({
-                'left': '0%',
-                'width': '50%'
-            });
-        }
+        blackPct = numericScore > 0 ? 0 : 100;
     } else {
         numericScore = Math.max(-8, Math.min(8, numericScore));
-
-        if (numericScore >= 0) {
-            // Ventaja blancas - llenar hacia la derecha desde el centro
-            fillElement.removeClass('negative');
-            fillElement.css({
-                'left': '50%',
-                'width': ((numericScore / 8) * 50) + '%'
-            });
-        } else {
-            // Ventaja negras - llenar hacia la izquierda desde el centro
-            fillElement.addClass('negative');
-            fillElement.css({
-                'left': (50 + (numericScore / 8) * 50) + '%',
-                'width': ((-numericScore / 8) * 50) + '%'
-            });
-        }
+        // Each pawn = 1/8 of bar height; 0.00 → 50%, +8 → 0%, -8 → 100%
+        blackPct = (4 - numericScore) / 8 * 100;
     }
 
-    // Mostrar el valor original del motor, no el limitado
-    var originalScore = parseFloat(score);
-    if (isMate) {
-        valueElement.text(score);
-    } else {
-        valueElement.text(originalScore.toFixed(1));
+    fillElement.css('height', blackPct + '%');
+
+    // Show numeric score as tooltip and small label
+    var scoreText = String(score);
+    var barEl = document.getElementById('evaluationBar');
+    var valEl = document.getElementById('evaluationValue');
+    if (barEl) {
+        barEl.setAttribute('title', scoreText);
+        barEl.setAttribute('aria-valuenow', isMate ? (numericScore > 0 ? 8 : -8) : numericScore);
+        barEl.setAttribute('aria-valuetext', scoreText);
     }
+    if (valEl) valEl.textContent = scoreText;
 }
 
 function multiPvIncrease() {
     window.multipv += 1;
 
-    // Agregar nuevo contenedor
-    var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
-    $("#pv_output").append(new_div_str);
-
-    // Solo actualizar el motor si el análisis está activo
-    if (window.analysis && window.stockfish) {
-        window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-        window.stockfish.postMessage('stop');
-        window.stockfish.postMessage('go infinite');
-
-        if (!window.StockfishModule) {
-            stopAnalysis();
-            analyze(true);
-        }
+    if (window.analysis) {
+        // stopAnalysis() terminates the Worker and recreates pv_2..pv_N containers,
+        // then analyze(true) creates a fresh Worker and restarts with new multipv.
+        stopAnalysis();
+        analyze(true);
+    } else {
+        var new_div_str = "<div id=\"pv_" + window.multipv + "\" class=\"pv-container\"></div>";
+        $("#pv_output").append(new_div_str);
     }
 
-    // Actualizar el estado visual
-    var multiPvStatusEl = $('#engineMultiPVStatus');
-    if (multiPvStatusEl.length) {
-        multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-    }
+    updateSF18PmButtons();
 }
 
 function multiPvDecrease() {
     if (window.multipv > 1) {
-        // Remover el contenedor
-        $('#pv_' + window.multipv).remove();
         window.multipv -= 1;
 
-        // Solo actualizar el motor si el análisis está activo
-        if (window.analysis && window.stockfish) {
-            window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-            window.stockfish.postMessage('stop');
-            window.stockfish.postMessage('go infinite');
-
-            if (!window.StockfishModule) {
-                stopAnalysis();
-                analyze(true);
-            }
+        if (window.analysis) {
+            stopAnalysis();
+            analyze(true);
+        } else {
+            $('#pv_' + (window.multipv + 1)).remove();
         }
 
-        // Actualizar el estado visual
-        var multiPvStatusEl = $('#engineMultiPVStatus');
-        if (multiPvStatusEl.length) {
-            multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-        }
+        updateSF18PmButtons();
     }
 }
 
@@ -1708,52 +1683,22 @@ function analyzePressed() {
         $('#evaluationBar').css('visibility', 'visible');
     } else {
         $('#evaluationBar').css('visibility', 'hidden');
-        // Limpiar contenedor de análisis al detener
+        // Clear extra PV lines; pv_1 body is static HTML in sf18Row
         $('#pv_output').empty();
-        // Recrear los contenedores según el multipv actual
-        for (var i = 1; i <= window.multipv; i++) {
+        for (var i = 2; i <= window.multipv; i++) {
             $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
         }
     }
     analyze(false);
-    if (window.updateEngineNavLabels) {
-        window.updateEngineNavLabels();
-    }
 }
 
 function updateEngineControlsVisibility() {
-    var showControls = !!window.analysis;
-    var analyzeBtn = document.getElementById('analyzeBtn');
-    if (analyzeBtn && analyzeBtn.disabled) {
-        showControls = false;
-    }
-    var allowMultiPvControls = !(location.hostname === '127.0.0.1' || location.hostname === 'localhost');
-    var showMultiPv = showControls && allowMultiPvControls;
-
-    var plusBtn = document.getElementById('analyzePlus');
-    var minusBtn = document.getElementById('analyzeMinus');
-    var multiPvGroup = document.querySelector('.engine-controls .btn-group');
-    var engineLabel = document.querySelector('.engine-controls .engine-version-label');
-
-    if (plusBtn) {
-        plusBtn.style.display = showMultiPv ? '' : 'none';
-    }
-    if (minusBtn) {
-        minusBtn.style.display = showMultiPv ? '' : 'none';
-    }
-    if (multiPvGroup) {
-        multiPvGroup.style.display = showMultiPv ? '' : 'none';
-    }
-    if (engineLabel) {
-        engineLabel.style.display = showControls ? '' : 'none';
-    }
+    // No-op: ± and SHOW/HIDE buttons are rendered inside the dynamic PV HTML.
 }
 
 function stockfishPNACLModuleDidLoad() {
     window.StockfishModule = document.getElementById('stockfish_module');
     window.StockfishModule.postMessage('uci');
-    $('#analyzeBtn').prop('disabled', false);
-    updateEngineControlsVisibility();
 }
 
 function handleCrash(event) {
@@ -1765,7 +1710,13 @@ function handleCrash(event) {
 function handleMessage(event) {
     if (!event || !event.data) return;
     var output = formatEngineOutput(event.data);
-    if (output && output.pv_index && output.pv_index > 0) {
+    if (output && output.pv_index === 1) {
+        // Update the static SF18 first-PV row
+        var metaEl = document.getElementById('sf18Meta');
+        var bodyEl = document.getElementById('sf18Pv1Body');
+        if (metaEl) metaEl.innerHTML = output.meta || '';
+        if (bodyEl) bodyEl.innerHTML = output.body || '';
+    } else if (output && output.pv_index > 1) {
         $('#pv_' + output.pv_index).html(output.line);
     }
         var multiPvStatusEl = $('#engineMultiPVStatus');
@@ -1800,10 +1751,9 @@ function stopAnalysis() {
         }
     }
 
-    // Limpiar todas las líneas de análisis
+    // Clear extra PV lines (pv_2+); pv_1 is now static HTML in sf18Row
     $('#pv_output').empty();
-    // Recrear los contenedores según el multipv actual
-    for (var i = 1; i <= window.multipv; i++) {
+    for (var i = 2; i <= window.multipv; i++) {
         $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
     }
 
@@ -1845,16 +1795,16 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
-            $('#AnalyzeText').text('Stop Web');
-            updateEngineControlsVisibility();
+            var sf18Btn = document.getElementById('sf18ToggleBtn');
+            if (sf18Btn) sf18Btn.textContent = 'HIDE';
+            updateSF18PmButtons();
         }
         else {
-            $('#AnalyzeText').text('Start Web');
-            stopAnalysis();
             window.analysis = false;
+            setSF18Placeholder();
+            stopAnalysis();
             $('#engineStatus').html('');
             $('#evaluationBar').css('visibility', 'hidden');
-            updateEngineControlsVisibility();
             return;
         }
     }
@@ -1882,6 +1832,9 @@ function analyze(position_update) {
     var startpos = 'startpos';
     if (setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
+    }
+    if (position_update && window.stockfish) {
+        window.stockfish.postMessage('stop');
     }
     window.stockfish.postMessage('position ' + startpos + ' moves ' + moves);
     window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
@@ -1935,8 +1888,10 @@ function updateTutorMistakes(mistakes) {
         var entry = document.createElement('li');
         entry.className = 'list-group-item tutor-mistake-item';
         var nag = item.nag ? item.nag : '';
-        var moveText = (item.move_no ? item.move_no + ' ' : '') + (item.user_move || '') + nag;
-        entry.textContent = moveText + ' — CPL: ' + item.cpl + ', best: ' + item.best_move;
+        var figUser = figurinizeMove(item.user_move) || (item.user_move || '');
+        var figBest = figurinizeMove(item.best_move) || (item.best_move || '');
+        var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
+        entry.innerHTML = moveText + ' \u2014 CPL: ' + item.cpl + ', best: ' + figBest;
         if (item.halfmove) {
             entry.dataset.halfmove = item.halfmove;
             entry.addEventListener('click', function () {
@@ -1945,6 +1900,10 @@ function updateTutorMistakes(mistakes) {
         }
         listEl.appendChild(entry);
     });
+    var container = listEl.parentElement;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 function findFenByHalfmove(halfmove) {
@@ -2038,99 +1997,100 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
         return null;
     }
 
-    function applyBackendMove(game, moveText) {
-        if (!moveText) {
-            return null;
-        }
-        if (typeof moveText !== 'string') {
-            return null;
-        }
-        var cleaned = moveText.trim();
-        if (!cleaned) {
-            return null;
-        }
-        var uciMatch = cleaned.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-        if (uciMatch) {
-            var from = uciMatch[1];
-            var to = uciMatch[2];
-            var promotion = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
-            return promotion
-                ? game.move(({ from: from, to: to, promotion: promotion }))
-                : game.move(({ from: from, to: to }));
-        }
-        return game.move(cleaned, { sloppy: true });
-    }
+    // Detect whether moves are pre-computed SAN (sent by Python) or raw UCI.
+    // UCI moves match exactly: [a-h][1-8][a-h][1-8] with optional promotion letter.
+    // SAN moves (e4, Nf3, O-O, Qxd5+, e8=Q, etc.) do NOT match this pattern.
+    // Python converts to SAN before sending; UCI is only a fallback when that fails.
+    var uciPattern = /^[a-h][1-8][a-h][1-8][qrbn]?$/i;
+    var movesAreSan = !uciPattern.test(normalizedMoves[0]);
 
-    function buildFormattedPv(fen, allowCurrentFallback) {
-        var analysis_game = new Chess();
-        var start_move_num = 1;
-        if (fen) {
-            if (analysis_game.load(fen, chessGameType)) {
-                start_move_num = getStartMoveNumFromFen(fen);
-            } else if (allowCurrentFallback && currentPosition && currentPosition.fen
-                && analysis_game.load(currentPosition.fen, chessGameType)) {
-                start_move_num = getCountPrevMoves(currentPosition) + 1;
-            } else {
-                return null;
-            }
-        } else if (allowCurrentFallback && currentPosition && currentPosition.fen
-            && analysis_game.load(currentPosition.fen, chessGameType)) {
-            start_move_num = getCountPrevMoves(currentPosition) + 1;
-        }
-
-        var baseTurn = analysis_game.turn();
-        for (var i = 0; i < normalizedMoves.length; i++) {
-            var mv = applyBackendMove(analysis_game, normalizedMoves[i]);
-            if (!mv) {
-                break;
+    // Load the position FEN to determine turn (w/b) and full-move number.
+    // For SAN moves we only need this metadata; the moves themselves are already formatted.
+    // For UCI moves we also need to apply them through chess.js to obtain SAN history.
+    var startMoveNum = 1;
+    var baseTurn = 'w';
+    var fenForMeta = baseFen || (currentPosition && currentPosition.fen) || '';
+    if (fenForMeta) {
+        var metaGame = new Chess();
+        if (metaGame.load(fenForMeta, chessGameType)) {
+            startMoveNum = baseFen
+                ? getStartMoveNumFromFen(baseFen)
+                : (getCountPrevMoves(currentPosition) + 1);
+            baseTurn = metaGame.turn();
+        } else if (baseFen && currentPosition && currentPosition.fen) {
+            var metaGame2 = new Chess();
+            if (metaGame2.load(currentPosition.fen, chessGameType)) {
+                startMoveNum = getCountPrevMoves(currentPosition) + 1;
+                baseTurn = metaGame2.turn();
             }
         }
+    }
 
-        var history = analysis_game.history();
-        if (history.length === 0) {
-            return null;
-        }
-
-        var moveNumber = Math.floor((start_move_num + 1) / 2);
-        var firstMoveText = '';
-        if (baseTurn === 'w') {
-            firstMoveText += moveNumber + '. ';
-        } else {
-            firstMoveText += moveNumber + '... ';
-        }
-        firstMoveText += figurinizeMove(history[0]);
-
-        var continuationText = '';
-        var currentMoveNum = start_move_num;
-        for (i = 1; i < history.length; ++i) {
-            currentMoveNum++;
-            if (currentMoveNum % 2 === 1) {
-                continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+    var formattedMoves;
+    if (movesAreSan) {
+        // Python pre-computed SAN: figurinize each string directly.
+        // No chess.js move application needed — avoids FEN/move-application failures.
+        formattedMoves = normalizedMoves.map(function (m) { return figurinizeMove(m); });
+    } else {
+        // Raw UCI fallback: apply moves through chess.js to obtain SAN, then figurinize.
+        function applyBackendMove(game, moveText) {
+            if (!moveText || typeof moveText !== 'string') { return null; }
+            var c = moveText.trim();
+            if (!c) { return null; }
+            var uciMatch = c.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+            if (uciMatch) {
+                var from = uciMatch[1], to = uciMatch[2];
+                var promo = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
+                return promo ? game.move({ from: from, to: to, promotion: promo })
+                             : game.move({ from: from, to: to });
             }
-            continuationText += figurinizeMove(history[i]) + ' ';
+            return game.move(c, { sloppy: true });
         }
 
-        return {
-            firstMove: firstMoveText,
-            continuation: continuationText.trim()
-        };
+        var uciGame = new Chess();
+        var loaded = false;
+        if (baseFen && uciGame.load(baseFen, chessGameType)) {
+            loaded = true;
+        } else if (currentPosition && currentPosition.fen
+                   && uciGame.load(currentPosition.fen, chessGameType)) {
+            loaded = true;
+        }
+        if (!loaded) { return null; }
+
+        for (var k = 0; k < normalizedMoves.length; k++) {
+            if (!applyBackendMove(uciGame, normalizedMoves[k])) { break; }
+        }
+        var history = uciGame.history();
+        if (history.length === 0) { return null; }
+        formattedMoves = history.map(function (m) { return figurinizeMove(m); });
     }
 
-    var formatted = buildFormattedPv(baseFen, true);
-    if (!formatted && baseFen && currentPosition && currentPosition.fen
-        && currentPosition.fen !== baseFen) {
-        formatted = buildFormattedPv(currentPosition.fen, false);
+    if (!formattedMoves || formattedMoves.length === 0) { return null; }
+
+    var moveNumber = Math.floor((startMoveNum + 1) / 2);
+    var firstMoveText = (baseTurn === 'w') ? moveNumber + '. ' : moveNumber + '... ';
+    firstMoveText += formattedMoves[0];
+
+    var continuationText = '';
+    var currentMoveNum = startMoveNum;
+    for (var n = 1; n < formattedMoves.length; n++) {
+        currentMoveNum++;
+        if (currentMoveNum % 2 === 1) {
+            continuationText += Math.floor((currentMoveNum + 1) / 2) + '. ';
+        }
+        continuationText += formattedMoves[n] + ' ';
     }
 
-    return formatted;
+    return {
+        firstMove: firstMoveText,
+        continuation: continuationText.trim()
+    };
 }
 
-function updateBackendAnalysisLine(lineEl, analysis, labelText) {
-    if (!lineEl) {
-        return;
-    }
+// Update the static engine-row elements with live analysis data.
+function updateBackendAnalysisLine(analysis) {
     if (!analysis) {
-        lineEl.textContent = '';
+        setEngineLinePlaceholder();
         return;
     }
     var scoreText = '?';
@@ -2150,52 +2110,120 @@ function updateBackendAnalysisLine(lineEl, analysis, labelText) {
     }
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
-    var output = '<div class="list-group-item">';
-    output += '<div class="analysis-line-compact">';
-    output += '<span class="analysis-source">' + labelText + '</span>';
-    output += '<span class="' + scoreClass + '">' + scoreText + '</span>';
-    if (typeof analysis.depth === 'number') {
-        output += '<span class="depth-display">d' + analysis.depth + '</span>';
-    }
-    if (pvFormatted) {
-        output += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
-        if (pvFormatted.continuation) {
-            output += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+
+    // Update score+depth in #engineMeta
+    var metaEl = document.getElementById('engineMeta');
+    if (metaEl) {
+        var metaHtml = '<span class="' + scoreClass + '">' + scoreText + '</span>';
+        if (typeof analysis.depth === 'number') {
+            metaHtml += '<span class="depth-display">d' + analysis.depth + '</span>';
         }
-    } else if (pvMoves.length > 0) {
-        output += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+        metaEl.innerHTML = metaHtml;
     }
-    output += '</div></div>';
-    lineEl.innerHTML = output;
+    // Update PV moves in #enginePvBody
+    var bodyEl = document.getElementById('enginePvBody');
+    if (bodyEl) {
+        var bodyHtml = '';
+        if (pvFormatted) {
+            bodyHtml += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
+            if (pvFormatted.continuation) {
+                bodyHtml += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+            }
+        } else if (pvMoves.length > 0) {
+            bodyHtml += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+        }
+        bodyEl.innerHTML = bodyHtml;
+    }
+    // Button text: HIDE (analysis is showing)
+    var btn = document.getElementById('engineToggleBtn');
+    if (btn) btn.textContent = 'HIDE';
+}
+
+var analysisDisplayVisible = false;
+var lastServerAnalysis = null;
+
+// Clear engine analysis content; reset button to SHOW.
+function setEngineLinePlaceholder() {
+    var metaEl = document.getElementById('engineMeta');
+    var bodyEl = document.getElementById('enginePvBody');
+    var btn    = document.getElementById('engineToggleBtn');
+    if (metaEl) metaEl.innerHTML = '';
+    if (bodyEl) bodyEl.innerHTML = '';
+    if (btn)    btn.textContent = 'SHOW';
+}
+
+// Update ± button visibility and disabled state based on SF18 running state and multipv count.
+function updateSF18PmButtons() {
+    var group    = document.getElementById('sf18PmGroup');
+    var minusBtn = document.getElementById('analyzeMinus');
+    if (!group) return;
+    if (!window.analysis) {
+        $(group).hide();
+    } else {
+        $(group).show();
+        if (minusBtn) minusBtn.disabled = (window.multipv <= 1);
+    }
+}
+
+// Clear SF18 first-PV content; reset button to SHOW.
+function setSF18Placeholder() {
+    var metaEl = document.getElementById('sf18Meta');
+    var bodyEl = document.getElementById('sf18Pv1Body');
+    var btn    = document.getElementById('sf18ToggleBtn');
+    if (metaEl) metaEl.innerHTML = '';
+    if (bodyEl) bodyEl.innerHTML = '';
+    if (btn)    btn.textContent = 'SHOW';
+    // Clear extra PV lines
+    $('#pv_output').empty();
+    updateSF18PmButtons();
 }
 
 function updateBackendAnalysis(analysis) {
-    var source = analysis && analysis.source ? analysis.source : 'engine';
-    var lineEl = source === 'tutor'
-        ? document.getElementById('analysisLineTutor')
-        : document.getElementById('analysisLineEngine');
-    var labelText = source === 'tutor' ? 'Tutor :' : 'Engine:';
-    if (analysis && analysis.clear) {
-        updateBackendAnalysisLine(lineEl, null, labelText);
+    if (!analysis) {
+        lastServerAnalysis = null;
+        // Clear content but keep button state
+        var metaEl = document.getElementById('engineMeta');
+        var bodyEl = document.getElementById('enginePvBody');
+        if (metaEl) metaEl.innerHTML = '';
+        if (bodyEl) bodyEl.innerHTML = '';
         return;
     }
-    updateBackendAnalysisLine(lineEl, analysis, labelText);
+    // Upstream: explicit clear signal resets the engine line to placeholder state.
+    if (analysis.clear) {
+        setEngineLinePlaceholder();
+        return;
+    }
+    lastServerAnalysis = analysis;
+    if (!analysisDisplayVisible) {
+        return;
+    }
+    updateBackendAnalysisLine(analysis);
 }
 
 function goToDGTFen() {
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
-        if (data) {
-            updateDGTPosition(data);
-            highlightBoard(data.move, data.play);
-            addArrow(data.move, data.play);
-            updateTutorMistakes(data.mistakes);
-        }
-        else {
-            data.fen = START_FEN
-            updateDGTPosition(data);
-            highlightBoard(data.move, data.play);
-            addArrow(data.move, data.play);
-            updateTutorMistakes([]);
+        if (data && data.fen) {
+            if (data.play === 'newgame') {
+                // Server is at a fresh game — reset board and move list together,
+                // same as the 'Game' WebSocket event handler does.
+                var savedHeader = gameHistory.gameHeader || '';
+                newBoard(data.fen);
+                gameHistory.gameHeader = savedHeader;
+                writeVariationTree(pgnEl, '', gameHistory);
+                removeHighlights();
+                removeArrow();
+            } else {
+                updateDGTPosition(data);
+                if (window.chessground1) { window.chessground1.redrawAll(); }
+                highlightBoard(data.move, data.play);
+                addArrow(data.move, data.play);
+                updateTutorMistakes(data.mistakes);
+            }
+        } else {
+            // No active game: show starting position
+            newBoard(START_FEN);
+            removeHighlights();
+            removeArrow();
         }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);
@@ -2243,6 +2271,12 @@ function setHeaders(data) {
 function getAllInfo() {
     $.get('/info', { action: 'get_system_info' }, function (data) {
         window.system_info = data;
+        // Merge into _picoSystemInfo (used by the overlay) and refresh diagram
+        // interactivity — in particular the has_board flag locks the diagram
+        // when a physical board is the source of truth for piece positions.
+        window._picoSystemInfo = window._picoSystemInfo || {};
+        Object.assign(window._picoSystemInfo, data);
+        if (window.chessground1) { updateChessGround(); }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);
     });
@@ -2314,6 +2348,15 @@ function getCurrentPieceSet() {
     return pieceSets.indexOf('merida');
 }
 
+function syncKingBadgeIcons() {
+    var pieces = pieceSets.find(function(p) { return $('#xboardsection').hasClass(p); }) || 'merida';
+    var base = '/static/css/chessground/images/pieces/' + pieces + '/';
+    var wImg = document.getElementById('checkKingW');
+    var bImg = document.getElementById('checkKingB');
+    if (wImg) wImg.src = base + 'wK.svg';
+    if (bImg) bImg.src = base + 'bK.svg';
+}
+
 function changePieceSet() {
     var currentIndex = getCurrentPieceSet();
     var newIndex = (currentIndex + 1) % pieceSets.length;
@@ -2321,6 +2364,7 @@ function changePieceSet() {
 
     $('#xboardsection').removeClass(pieceSets.join(' '));
     $('#xboardsection').addClass(pieces);
+    syncKingBadgeIcons();
 
     // Persist to server so the choice survives page reloads
     $.ajax({
@@ -2359,18 +2403,6 @@ $(window).on('load', function () {
     }
 });
 
-$('#analyzeBtn').on('click', analyzePressed);
-
-// disable plus/minus analysis on device as this currently causes the engine to load multiple times
-if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-    $('#analyzePlus').hide()
-    $('#analyzeMinus').hide()
-} else {
-    $('#analyzePlus').on('click', multiPvIncrease);
-    $('#analyzeMinus').on('click', multiPvDecrease);
-}
-updateEngineControlsVisibility();
-
 $('#ClockBtn0').on('click', clockButton0);
 $('#ClockBtn1').on('click', clockButton1);
 $('#ClockBtn2').on('click', clockButton2);
@@ -2407,6 +2439,9 @@ $(function () {
     loadSavedTheme();
     getAllInfo();
     loadWebBookList();
+    // Render placeholders immediately on page load before any analysis arrives.
+    setEngineLinePlaceholder();
+    setSF18Placeholder();
 
     $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
         updateStatus();
@@ -2449,95 +2484,165 @@ $(function () {
         alert('No WebSocket Support');
     }
     else {
-        var ws = new WebSocket('ws://' + location.host + '/event');
-        // Process messages from picochess
-        ws.onmessage = function (e) {
-            var data = JSON.parse(e.data);
-            switch (data.event) {
-                case 'Fen':
-                    pickPromotion(null) // reset promotion dialog if still showing
-                    updateDGTPosition(data);
-                    updateTutorMistakes(data.mistakes);
-                    updateCheckCounters(data.variant, data.checks);
-                    if (data.play === 'reload') {
-                        removeHighlights();
-                    }
-                    if (data.play === 'user') {
-                        highlightBoard(data.move, 'user');
-                    }
-                    if (data.play === 'review') {
-                        highlightBoard(data.move, 'review');
-                    }
-                    break;
-                case 'Game':
-                    newBoard(data.fen);
-                    updateTutorMistakes(data.mistakes);
-                    updateCheckCounters(data.variant, data.checks);
-                    break;
-                case 'Analysis':
-                    updateBackendAnalysis(data.analysis);
-                    break;
-                case 'Message':
-                    boardStatusEl.html(data.msg);
-                    break;
-                case 'Clock':
-                    dgtClockTextEl.html(data.msg);
-                    break;
-                case 'WebAudio':
-                    queueBackendAudio(data.audio);
-                    break;
-                case 'Status':
-                    // dgtClockStatusEl.html(data.msg);
-                    break;
-                case 'TutorWatch':
-                    if (window.setTutorWatchState) {
-                        window.setTutorWatchState(Boolean(data.active));
-                    }
-                    break;
-                case 'Light':
-                    var tmp_board = new Chess(currentPosition.fen, chessGameType);
-                    var tmp_move = tmp_board.move(data.move, { sloppy: true });
-                    if (tmp_move !== null) {
-                        computerside = tmp_move.color;
-                        saymove(tmp_move, tmp_board);
-                    }
-                    // Always show highlight and arrow for computer moves,
-                    // even when chess.js can't validate the move (atomic variant).
-                    highlightBoard(data.move, 'computer');
-                    addArrow(data.move, 'computer');
-                    break;
-                case 'Clear':
-                    break;
-                case 'Header':
-                    setHeaders(data['headers']);
-                    break;
-                case 'Title':
-                    setTitle(data['ip_info']);
-                    break;
-                case 'Broadcast':
-                    boardStatusEl.html(data.msg);
-                    break;
-                case 'PromotionDlg':
-                    // for e-boards that do not feature piece recognition
-                    promotionDialog(data.move);
-                default:
-                    console.warn(data);
-            }
-        };
-        ws.onclose = function () {
-            dgtClockStatusEl.html('closed');
-            if (window.analysis || window.stockfish) {
-                window.analysis = false;
-                $('#AnalyzeText').text('Web Analysis');
-                stopAnalysis();
-                $('#engineStatus').html('');
-                updateEngineControlsVisibility();
-            }
-        };
+        // WebSocket with automatic reconnect.
+        // The server syncs board state and last analysis on every new
+        // connection (server.py EventHandler.open), so reconnecting
+        // restores the analysis display without any extra client logic.
+        var wsReconnectDelay = 2000; // start at 2 s, doubles each attempt
+        var wsReconnectTimer = null;
+
+        function connectWebSocket() {
+            var ws = new WebSocket('ws://' + location.host + '/event');
+
+            ws.onopen = function () {
+                // Reset backoff on successful connection.
+                wsReconnectDelay = 2000;
+                // Ensure placeholders are visible while waiting for first messages.
+                setEngineLinePlaceholder();
+                if (!window.analysis) setSF18Placeholder();
+            };
+
+            // Process messages from picochess
+            ws.onmessage = function (e) {
+                var data = JSON.parse(e.data);
+                switch (data.event) {
+                    case 'Fen':
+                        pickPromotion(null) // reset promotion dialog if still showing
+                        updateDGTPosition(data);
+                        updateTutorMistakes(data.mistakes);
+                        updateCheckCounters(data.variant, data.checks);
+                        if (data.play === 'reload') {
+                            removeHighlights();
+                        }
+                        if (data.play === 'user') {
+                            highlightBoard(data.move, 'user');
+                            if (window.setPicoGameActive) window.setPicoGameActive(true);
+                            if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
+                        }
+                        if (data.play === 'computer') {
+                            if (window.setPicoGameActive) window.setPicoGameActive(true);
+                            if (window.setPicoEngineTurn) window.setPicoEngineTurn(true);
+                        }
+                        if (data.play === 'review') {
+                            highlightBoard(data.move, 'review');
+                        }
+                        break;
+                    case 'Game':
+                        var savedGameHeader = gameHistory.gameHeader || '';
+                        newBoard(data.fen);
+                        gameHistory.gameHeader = savedGameHeader;
+                        // Clear the move list — newBoard() resets the game tree but
+                        // does not update the DOM, leaving the previous game's moves visible.
+                        writeVariationTree(pgnEl, '', gameHistory);
+                        updateTutorMistakes(data.mistakes);
+                        updateCheckCounters(data.variant, data.checks);
+                        // New board = no moves played yet
+                        if (window.setPicoGameActive) window.setPicoGameActive(false);
+                        if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
+                        break;
+                    case 'Analysis':
+                        updateBackendAnalysis(data.analysis);
+                        break;
+                    case 'Message':
+                        boardStatusEl.html(data.msg);
+                        break;
+                    case 'Clock':
+                        dgtClockTextEl.html(data.msg);
+                        break;
+                    case 'WebAudio':
+                        queueBackendAudio(data.audio);
+                        break;
+                    case 'Status':
+                        var dgtEl = document.getElementById('picoFooterDgt');
+                        if (dgtEl) {
+                            if (data.eboard === 'connected') {
+                                dgtEl.classList.add('footer-connected');
+                            } else if (data.eboard === 'error' || data.eboard === 'noeboard') {
+                                dgtEl.classList.remove('footer-connected');
+                            }
+                        }
+                        break;
+                    case 'TutorWatch':
+                        if (window.setTutorWatchState) {
+                            window.setTutorWatchState(Boolean(data.active));
+                        }
+                        break;
+                    case 'Light':
+                        var tmp_board = new Chess(currentPosition.fen, chessGameType);
+                        var tmp_move = tmp_board.move(data.move, { sloppy: true });
+                        if (tmp_move !== null) {
+                            computerside = tmp_move.color;
+                            saymove(tmp_move, tmp_board);
+                        }
+                        // Always show highlight and arrow for computer moves,
+                        // even when chess.js can't validate the move (atomic variant).
+                        highlightBoard(data.move, 'computer');
+                        addArrow(data.move, 'computer');
+                        break;
+                    case 'Clear':
+                        break;
+                    case 'Header':
+                        setHeaders(data['headers']);
+                        // Definitive result means game ended
+                        if (window.setPicoGameActive) {
+                            var _res = data['headers'] && data['headers']['Result'];
+                            if (_res === '1-0' || _res === '0-1' || _res === '1/2-1/2') {
+                                window.setPicoGameActive(false);
+                            }
+                        }
+                        break;
+                    case 'Title':
+                        setTitle(data['ip_info']);
+                        break;
+                    case 'Broadcast':
+                        boardStatusEl.html(data.msg);
+                        break;
+                    case 'PromotionDlg':
+                        // for e-boards that do not feature piece recognition
+                        promotionDialog(data.move);
+                        break;
+                    case 'SystemInfo':
+                        // Live update of interaction_mode / play_mode so the
+                        // diagram immediately locks/unlocks when mode changes.
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        Object.assign(window._picoSystemInfo, data.msg);
+                        if (window.chessground1) { updateChessGround(); }
+                        break;
+                    default:
+                        console.warn(data);
+                }
+            };
+
+            ws.onclose = function () {
+                dgtClockStatusEl.html('connecting…');
+                // Stop client-side web analysis (in-browser Stockfish).
+                // Server-side analysis display is preserved; the server will
+                // re-send the cached analysis payload on reconnect.
+                if (window.analysis || window.stockfish) {
+                    window.analysis = false;
+                    setSF18Placeholder();
+                    stopAnalysis();
+                    $('#engineStatus').html('');
+                }
+                // Schedule reconnect with exponential backoff (max 30 s).
+                if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+                wsReconnectTimer = setTimeout(function () {
+                    wsReconnectTimer = null;
+                    connectWebSocket();
+                }, wsReconnectDelay);
+                wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000);
+            };
+
+            ws.onerror = function (e) {
+                // Log WS errors; onclose will fire afterward and handle reconnect.
+                console.warn('WebSocket error', e);
+            };
+        }
+
+        connectWebSocket();
     }
 
     if (navigator.mimeTypes['application/x-pnacl'] !== undefined) {
-        $('#analyzeBtn').prop('disabled', true);
         loadNaclStockfish();
     }
 
@@ -2546,182 +2651,26 @@ $(function () {
     $('#bookPrev').on('click', function () { changeWebBook(-1); });
     $('#bookNext').on('click', function () { changeWebBook(1); });
 
-    function toggleAnalysisSources() {
-        var sourceBlock = $('.analysis-sources');
-        if (sourceBlock.hasClass('d-none')) {
-            sourceBlock.removeClass('d-none');
+    // Static bindings for persistent SHOW/HIDE and ± buttons.
+    $('#engineToggleBtn').on('click', function () {
+        if (analysisDisplayVisible) {
+            analysisDisplayVisible = false;
+            setEngineLinePlaceholder();
         } else {
-            sourceBlock.addClass('d-none');
-        }
-        if (sourceBlock.hasClass('d-none')) {
-            $('#toggleBackendAnalysisText').text('Show Server');
-        } else {
-            $('#toggleBackendAnalysisText').text('Hide Server');
-        }
-        if (window.updateEngineNavLabels) {
-            window.updateEngineNavLabels();
-        }
-    }
-
-    $('#toggleBackendAnalysis').on('click', toggleAnalysisSources);
-
-    var engineModeActive = false;
-    var engineTab = document.getElementById('pills-home-tab');
-    var menuTab = document.getElementById('pills-menu-tab');
-    var tutorTab = document.getElementById('pills-tutor-tab');
-    var bookTab = document.getElementById('pills-profile-tab');
-    var gamesTab = document.getElementById('pills-contact-tab');
-    var toggleBackendAnalysisBtn = document.getElementById('toggleBackendAnalysis');
-    var analyzeBtn = document.getElementById('analyzeBtn');
-
-    if (engineTab && tutorTab && bookTab && gamesTab) {
-        var defaultTutorText = tutorTab.textContent.trim();
-        var defaultBookText = bookTab.textContent.trim();
-        var defaultGamesText = gamesTab.textContent.trim();
-        var tutorTabToggle = tutorTab.getAttribute('data-bs-toggle');
-        var tutorTabTarget = tutorTab.getAttribute('data-bs-target');
-        var bookTabToggle = bookTab.getAttribute('data-bs-toggle');
-        var bookTabTarget = bookTab.getAttribute('data-bs-target');
-        var gamesTabToggle = gamesTab.getAttribute('data-bs-toggle');
-        var gamesTabTarget = gamesTab.getAttribute('data-bs-target');
-
-        function restoreNavAttr(element, attrName, value) {
-            if (!element) {
-                return;
-            }
-            if (value == null) {
-                element.removeAttribute(attrName);
+            analysisDisplayVisible = true;
+            if (lastServerAnalysis) {
+                updateBackendAnalysisLine(lastServerAnalysis);
             } else {
-                element.setAttribute(attrName, value);
+                // No data yet — show HIDE so user knows it's active
+                var btn = document.getElementById('engineToggleBtn');
+                if (btn) btn.textContent = 'HIDE';
             }
         }
+    });
+    $('#sf18ToggleBtn').on('click', analyzePressed);
 
-        function getToggleLabel() {
-            var sourceBlock = document.querySelector('.analysis-sources');
-            if (sourceBlock && sourceBlock.classList.contains('d-none')) {
-                return 'Show Server';
-            }
-            return 'Hide Server';
-        }
-
-        function getAnalyzeLabel() {
-            return window.analysis ? 'Stop Web' : 'Start Web';
-        }
-
-        function updateEngineLabels() {
-            if (!engineModeActive) {
-                return;
-            }
-            tutorTab.textContent = getToggleLabel();
-            bookTab.textContent = getAnalyzeLabel();
-        }
-
-        function setEngineModeButtons(active) {
-            var buttons = [tutorTab, bookTab, gamesTab];
-            buttons.forEach(function (btn) {
-                if (!btn) {
-                    return;
-                }
-                if (active) {
-                    btn.classList.add('engine-mode-button');
-                } else {
-                    btn.classList.remove('engine-mode-button');
-                }
-            });
-        }
-
-        function setBackLabel() {
-            if (!gamesTab) {
-                return;
-            }
-            gamesTab.innerHTML = '<i class="fa fa-arrow-left"></i><span>Back</span>';
-        }
-
-        function enterEngineMode() {
-            engineModeActive = true;
-            tutorTab.removeAttribute('data-bs-toggle');
-            tutorTab.removeAttribute('data-bs-target');
-            bookTab.removeAttribute('data-bs-toggle');
-            bookTab.removeAttribute('data-bs-target');
-            gamesTab.removeAttribute('data-bs-toggle');
-            gamesTab.removeAttribute('data-bs-target');
-            setEngineModeButtons(true);
-            updateEngineLabels();
-            setBackLabel();
-        }
-
-        function exitEngineMode() {
-            engineModeActive = false;
-            restoreNavAttr(tutorTab, 'data-bs-toggle', tutorTabToggle);
-            restoreNavAttr(tutorTab, 'data-bs-target', tutorTabTarget);
-            restoreNavAttr(bookTab, 'data-bs-toggle', bookTabToggle);
-            restoreNavAttr(bookTab, 'data-bs-target', bookTabTarget);
-            restoreNavAttr(gamesTab, 'data-bs-toggle', gamesTabToggle);
-            restoreNavAttr(gamesTab, 'data-bs-target', gamesTabTarget);
-            setEngineModeButtons(false);
-            tutorTab.textContent = defaultTutorText;
-            bookTab.textContent = defaultBookText;
-            gamesTab.textContent = defaultGamesText;
-        }
-
-        engineTab.addEventListener('click', function () {
-            enterEngineMode();
-        });
-
-        if (engineTab.classList.contains('active')) {
-            enterEngineMode();
-        }
-
-        tutorTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            toggleAnalysisSources();
-            updateEngineLabels();
-        });
-
-        bookTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof analyzePressed === 'function') {
-                analyzePressed();
-            } else if (analyzeBtn) {
-                analyzeBtn.click();
-            }
-            updateEngineLabels();
-        });
-
-        gamesTab.addEventListener('click', function (e) {
-            if (!engineModeActive) {
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-            exitEngineMode();
-            if (menuTab) {
-                menuTab.click();
-            }
-        });
-
-        if (toggleBackendAnalysisBtn) {
-            toggleBackendAnalysisBtn.addEventListener('click', function () {
-                updateEngineLabels();
-            });
-        }
-
-        if (analyzeBtn) {
-            analyzeBtn.addEventListener('click', function () {
-                updateEngineLabels();
-            });
-        }
-
-        window.updateEngineNavLabels = updateEngineLabels;
-    }
+    $('#analyzeMinus').on('click', multiPvDecrease);
+    $('#analyzePlus').on('click', multiPvIncrease);
 });
 
 // promotion code taken from https://github.com/thinktt/chessg

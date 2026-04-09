@@ -48,12 +48,14 @@ from utilities import (
     keep_essential_headers,
     ensure_important_headers,
     get_opening_books,
+    write_picochess_ini,
 )
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, flip_board_fen
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
+from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard
 from pgn import ModeInfo
@@ -316,6 +318,8 @@ class ChannelHandler(ServerRequestHandler):
                 await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
             else:
                 await Observable.fire(Event.PICOCOACH(picocoach=0))
+        elif action == "move_now":
+            await Observable.fire(Event.PAUSE_RESUME())
         elif action == "resign_game":
             play_mode = (self.shared.get("game_info") or {}).get("play_mode")
             if play_mode == PlayMode.USER_BLACK:
@@ -328,11 +332,408 @@ class ChannelHandler(ServerRequestHandler):
                 Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False)
             )
         elif action == "save_game":
-            await Observable.fire(Event.SAVE_GAME(pgn_filename="last_game.pgn"))
+            try:
+                slot = int(self.get_argument("slot", "1"))
+                if slot not in (1, 2, 3):
+                    slot = 1
+            except (ValueError, TypeError):
+                slot = 1
+            await Observable.fire(Event.SAVE_GAME(pgn_filename=f"picochess_game_{slot}.pgn"))
+        elif action == "load_game":
+            try:
+                slot = int(self.get_argument("slot", "1"))
+                if slot not in (0, 1, 2, 3):
+                    slot = 1
+            except (ValueError, TypeError):
+                slot = 1
+            pgn_fn = "last_game.pgn" if slot == 0 else f"picochess_game_{slot}.pgn"
+            await Observable.fire(Event.READ_GAME(pgn_filename=pgn_fn))
+        elif action == "game_end":
+            _result_map = {
+                "white": GameResult.WIN_WHITE,
+                "black": GameResult.WIN_BLACK,
+                "draw":  GameResult.DRAW,
+            }
+            result = _result_map.get(self.get_argument("result", "").strip())
+            if result is not None:
+                await Observable.fire(Event.DRAWRESIGN(result=result))
+        elif action == "new_engine":
+            from uci.engine_provider import EngineProvider
+            file  = self.get_argument("file")
+            level = self.get_argument("level", "")
+            eng   = EngineProvider.resolve_engine(file)
+            if eng:
+                options = eng.get("level_dict", {}).get(level, {}) if level else {}
+                # Persist the selected level name now so _build_game_header uses
+                # the correct Elo (e.g. "Elo@1600" → BlackElo 1600, not the engine
+                # max).  The DGT-menu path fires Event.LEVEL first which does the
+                # same; the web overlay fires only Event.NEW_ENGINE so we set it here.
+                if level:
+                    if "game_info" not in self.shared:
+                        self.shared["game_info"] = {}
+                    self.shared["game_info"]["level_name"] = level
+                await Observable.fire(Event.NEW_ENGINE(
+                    eng=eng,
+                    eng_text=eng.get("text", ""),
+                    options=options,
+                    show_ok=True,
+                ))
+        elif action == "new_book":
+            try:
+                index = int(self.get_argument("index", "0"))
+            except (TypeError, ValueError):
+                index = 0
+            library = get_opening_books()
+            if index == 0:
+                # Index 0 = online book server (obooksrv)
+                book = {"file": OBOOKSRV_BOOK_FILE, "text": None}
+                book_text = None
+            elif 1 <= index <= len(library):
+                book = library[index - 1]
+                book_text = book.get("text")
+            else:
+                book = library[0] if library else {"file": "", "text": None}
+                book_text = book.get("text")
+            # Remember which book file was selected so get_book_list returns the right current_index
+            self.shared["web_book_file"] = book.get("file", OBOOKSRV_BOOK_FILE)
+            await Observable.fire(Event.SET_OPENING_BOOK(book=book, book_text=book_text, show_ok=True))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
             self.set_header("Content-Type", "application/json")
+        elif action == "new_time":
+            try:
+                mode_id = int(self.get_argument("time_mode", "0"))
+            except (TypeError, ValueError):
+                mode_id = 0
+            try:
+                time_val = int(self.get_argument("time", "0") or "0")
+            except (TypeError, ValueError):
+                time_val = 0
+            try:
+                fischer_val = int(self.get_argument("fischer", "0") or "0")
+            except (TypeError, ValueError):
+                fischer_val = 0
+            tournament_str = self.get_argument("tournament", "") or ""
+
+            _mode_map = {
+                0: TimeMode.FIXED,
+                1: TimeMode.BLITZ,
+                2: TimeMode.FISCHER,
+                3: TimeMode.TOURN,
+                4: TimeMode.DEPTH,
+                5: TimeMode.NODE,
+            }
+            tc_mode = _mode_map.get(mode_id, TimeMode.FIXED)
+
+            if mode_id == 3 and tournament_str:  # tournament: "moves_to_go blitz blitz2 fischer"
+                parts = tournament_str.split()
+                _mtg   = int(parts[0]) if len(parts) > 0 else 0
+                _blitz = int(parts[1]) if len(parts) > 1 else 0
+                _blitz2 = int(parts[2]) if len(parts) > 2 else 0
+                _fisc  = int(parts[3]) if len(parts) > 3 else 0
+                tc_init = {
+                    "mode": TimeMode.TOURN, "fixed": 0, "blitz": _blitz,
+                    "fischer": _fisc, "moves_to_go": _mtg, "blitz2": _blitz2,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 4:  # depth
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": time_val, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 5:  # nodes
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": time_val, "internal_time": None,
+                }
+            elif mode_id == 0:  # fixed seconds/move
+                tc_init = {
+                    "mode": TimeMode.FIXED, "fixed": time_val, "blitz": 0,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            elif mode_id == 1:  # blitz
+                tc_init = {
+                    "mode": TimeMode.BLITZ, "fixed": 0, "blitz": time_val,
+                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+            else:  # fischer (mode_id == 2)
+                tc_init = {
+                    "mode": TimeMode.FISCHER, "fixed": 0, "blitz": time_val,
+                    "fischer": fischer_val, "moves_to_go": 0, "blitz2": 0,
+                    "depth": 0, "node": 0, "internal_time": None,
+                }
+
+            tc = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
+            time_text = tc.get_list_text()
+            logger.info("web new_time: mode_id=%d tc_init=%s time_text=%r", mode_id, tc_init, time_text)
+            await Observable.fire(Event.SET_TIME_CONTROL(tc_init=tc_init, time_text=time_text, show_ok=True))
+        elif action == "picotutor":
+            tutor = self.get_argument("tutor", "")
+            val   = self.get_argument("val", "0")
+            if tutor == "watcher":
+                active = val not in ("0", "false", "off")
+                await Observable.fire(Event.PICOWATCHER(picowatcher=active))
+                if active:
+                    coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
+                    if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                        coach_pref = PicoCoach.COACH_ON
+                    await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
+                else:
+                    await Observable.fire(Event.PICOCOACH(picocoach=0))
+            elif tutor == "coach":
+                _coach_map = {
+                    "on":   PicoCoach.COACH_ON,
+                    "lift": PicoCoach.COACH_LIFT,
+                    "off":  PicoCoach.COACH_OFF,
+                }
+                coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
+                await Observable.fire(Event.PICOCOACH(picocoach=coach_val))
+            elif tutor == "explorer":
+                active = val not in ("0", "false", "off")
+                await Observable.fire(Event.PICOEXPLORER(picoexplorer=active))
+            elif tutor == "comment":
+                _comment_map = {
+                    "engine": PicoComment.COM_ON_ENG,
+                    "all":    PicoComment.COM_ON_ALL,
+                    "off":    PicoComment.COM_OFF,
+                }
+                comment_val = _comment_map.get(val.lower(), PicoComment.COM_OFF)
+                await Observable.fire(Event.PICOCOMMENT(picocomment=comment_val))
+            elif tutor == "prob":
+                try:
+                    self.shared["tutor_prob"] = max(0, min(100, int(val)))
+                except (TypeError, ValueError):
+                    pass
+            else:
+                logger.warning("web picotutor: unknown tutor=%r", tutor)
+        elif action == "set_mode":
+            _mode_map = {
+                "normal":    (Mode.NORMAL,    "Normal"),
+                "training":  (Mode.TRAINING,  "Training"),
+                "brain":     (Mode.BRAIN,     "Brain"),
+                "analysis":  (Mode.ANALYSIS,  "Analysis"),
+                "kibitz":    (Mode.KIBITZ,    "Kibitz"),
+                "observe":   (Mode.OBSERVE,   "Observe"),
+                "remote":    (Mode.REMOTE,    "Remote"),
+                "ponder":    (Mode.PONDER,    "Ponder"),
+                "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
+            }
+            mode_name = self.get_argument("mode", "normal").lower()
+            mode_val, mode_text = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
+            await Observable.fire(Event.SET_INTERACTION_MODE(mode=mode_val, mode_text=mode_text, show_ok=True))
+        elif action == "lang":
+            _valid_langs = {"en", "de", "nl", "fr", "es", "it"}
+            lang_code = self.get_argument("val", "en").lower()
+            if lang_code not in _valid_langs:
+                logger.warning("web lang: unknown language code %r", lang_code)
+            else:
+                dgttranslate = self.shared.get("dgttranslate")
+                if dgttranslate:
+                    dgttranslate.set_language(lang_code)
+                    write_picochess_ini("language", lang_code)
+                    logger.info("web lang: language set to %r", lang_code)
+                else:
+                    logger.warning("web lang: dgttranslate not available in shared")
+        elif action == "beep":
+            _beep_map = {
+                "off":    Beep.OFF,
+                "some":   Beep.SOME,
+                "on":     Beep.ON,
+                "sample": Beep.SAMPLE,
+            }
+            beep_val_str = self.get_argument("val", "some").lower()
+            beep_val = _beep_map.get(beep_val_str)
+            if beep_val is None:
+                logger.warning("web beep: unknown beep value %r", beep_val_str)
+            else:
+                dgttranslate = self.shared.get("dgttranslate")
+                if dgttranslate:
+                    dgttranslate.set_beep(beep_val)
+                    write_picochess_ini("beep-config", dgttranslate.beep_to_config(beep_val))
+                    logger.info("web beep: beep set to %r", beep_val_str)
+                else:
+                    logger.warning("web beep: dgttranslate not available in shared")
+        elif action == "set_voice":
+            speaker = self.get_argument("speaker", "").strip()
+            voice_type = self.get_argument("type", "comp").strip()  # "user" or "comp"
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            if speaker:
+                voice_str = lang + ":" + speaker
+                ini_key = "user-voice" if voice_type == "user" else "comp-voice"
+                write_picochess_ini(ini_key, voice_str)
+                await Observable.fire(
+                    Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=1)
+                )
+                logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type, lang, speaker)
+        elif action == "set_player":
+            name = self.get_argument("name", "").strip()
+            elo  = self.get_argument("elo",  "").strip()
+            if name:
+                if "system_info" not in self.shared:
+                    self.shared["system_info"] = {}
+                self.shared["system_info"]["user_name"] = name
+                write_picochess_ini("pgn-user", name)
+                logger.info("web set_player: name=%r", name)
+            if elo:
+                try:
+                    elo_int = int(elo)
+                    if not (0 <= elo_int <= 3000):
+                        elo_int = 1500
+                except (TypeError, ValueError):
+                    elo_int = 1500
+                if "system_info" not in self.shared:
+                    self.shared["system_info"] = {}
+                self.shared["system_info"]["user_elo"] = str(elo_int)
+                write_picochess_ini("pgn-elo", str(elo_int))
+                logger.info("web set_player: elo=%r", elo_int)
+        elif action == "take_back":
+            await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
+        elif action == "altmove":
+            await Observable.fire(Event.ALTERNATIVE_MOVE())
+        elif action == "contlast":
+            await Observable.fire(Event.CONTLAST(contlast=True))
+        elif action == "sys_shutdown":
+            await Observable.fire(Event.SHUTDOWN(dev="web"))
+        elif action == "sys_reboot":
+            await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "sys_exit":
+            await Observable.fire(Event.EXIT(dev="web"))
+        elif action == "sys_update":
+            await Observable.fire(Event.UPDATE_PICO(tag=""))
+        elif action == "sys_update_engines":
+            await Observable.fire(Event.UPDATE_ENGINES())
+            await asyncio.sleep(1)
+            await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "display":
+            side = self.get_argument("side", "")
+            notation = self.get_argument("notation", "")
+            ponder = self.get_argument("ponder", "")
+            confirm = self.get_argument("confirm", "")
+            capital = self.get_argument("capital", "")
+            enginename = self.get_argument("enginename", "")
+            if side in ("left", "right"):
+                ModeInfo.set_clock_side(side)
+                write_picochess_ini("clockside", side)
+            if notation == "short":
+                write_picochess_ini("disable-short-notation", False)
+            elif notation == "long":
+                write_picochess_ini("disable-short-notation", True)
+            if ponder == "on":
+                write_picochess_ini("ponder-interval", 1)
+            elif ponder == "off":
+                write_picochess_ini("ponder-interval", 0)
+            if confirm == "on":
+                # "disable-confirm-message=False" means confirm messages ARE shown
+                write_picochess_ini("disable-confirm-message", False)
+                logger.info("web display: confirm messages enabled")
+            elif confirm == "off":
+                write_picochess_ini("disable-confirm-message", True)
+                logger.info("web display: confirm messages disabled")
+            if capital == "on":
+                write_picochess_ini("enable-capital-letters", True)
+                await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
+                logger.info("web display: capital letters enabled")
+            elif capital == "off":
+                write_picochess_ini("enable-capital-letters", False)
+                await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
+                logger.info("web display: capital letters disabled")
+            if enginename == "on":
+                write_picochess_ini("show-engine", True)
+                await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=True))
+                logger.info("web display: engine name shown")
+            elif enginename == "off":
+                write_picochess_ini("show-engine", False)
+                await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=False))
+                logger.info("web display: engine name hidden")
+        elif action == "eboard":
+            eboard_type = self.get_argument("type", "").strip()
+            _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "none"}
+            if eboard_type in _valid_eboards:
+                # "none" means no board; write "noeboard" so EBoard['NOEBOARD'] resolves correctly
+                # on next startup (EBoard has no 'NONE' member).
+                ini_value = "noeboard" if eboard_type == "none" else eboard_type
+                write_picochess_ini("board-type", ini_value)
+                # Only reboot when the board type actually changes (mirrors DGT menu behaviour).
+                current = ModeInfo.get_eboard_type()
+                if current is None or current.name.lower() != ini_value:
+                    await Observable.fire(Event.REBOOT(dev="web"))
+        elif action == "wifi_hotspot":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/wifi-hotspot-connect"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("wifi-hotspot-connect failed: %s", exc)
+        elif action == "bt_toggle":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/pair-phone"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("pair-phone failed: %s", exc)
+        elif action == "bt_fix":
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception as exc:
+                logger.warning("Fix_bluetooth.sh failed: %s", exc)
+        elif action == "voice_speed":
+            try:
+                speed_factor = max(1, min(9, int(self.get_argument("val", "2"))))
+            except (TypeError, ValueError):
+                speed_factor = 2
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            write_picochess_ini("speed-voice", speed_factor)
+            await Observable.fire(
+                Event.SET_VOICE(type=Voice.SPEED, lang=lang, speaker="mute", speed=speed_factor)
+            )
+            logger.info("web voice_speed: factor=%d", speed_factor)
+        elif action == "voice_volume":
+            try:
+                vol_factor = max(1, min(20, int(self.get_argument("val", "10"))))
+            except (TypeError, ValueError):
+                vol_factor = 10
+            write_picochess_ini("volume-voice", str(vol_factor))
+            # Set system volume: each factor unit = 5 % (same as _set_volume_voice in menu.py)
+            pct = str(vol_factor * 5)
+            for channel in ("Headphone", "Master", "HDMI", "PCM"):
+                try:
+                    subprocess.run(
+                        ["amixer", "-M", "sset", channel, f"{pct}%"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            await Observable.fire(
+                Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=1)
+            )
+            logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, pct)
+        elif action == "rspeed":
+            val_str = self.get_argument("val", "100").strip()
+            try:
+                rspeed_factor = 0.0 if val_str == "max" else round(float(val_str) / 100, 2)
+            except (TypeError, ValueError):
+                rspeed_factor = 1.0
+            write_picochess_ini("rspeed", rspeed_factor)
+            await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
+            logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
 
 
 class EventHandler(WebSocketHandler):
@@ -362,18 +763,38 @@ class EventHandler(WebSocketHandler):
     def open(self, *args: str, **kwargs: str):
         EventHandler.clients.add(self)
         client_ips.append(self.real_ip())
-        # sync newly connected client with last known board state, if available
+        # Sync newly connected client with last known board state, if available.
         if self.shared and "last_dgt_move_msg" in self.shared:
             try:
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
+        # If the engine has suggested a move not yet confirmed on the board, send the
+        # arrow so this new client shows the same hint as already-connected clients.
+        if self.shared and "pending_computer_move" in self.shared:
+            pending = self.shared["pending_computer_move"]
+            if "move" in pending:
+                try:
+                    self.write_message({"event": "Light", "move": pending["move"]})
+                except Exception as exc:  # pragma: no cover - websocket errors
+                    logger.warning("failed to sync pending engine move to client: %s", exc)
         for key in ("analysis_state_engine", "analysis_state_tutor", "analysis_state"):
             if self.shared and key in self.shared:
                 try:
                     self.write_message({"event": "Analysis", "analysis": self.shared[key]})
                 except Exception as exc:  # pragma: no cover - websocket errors
                     logger.warning("failed to sync analysis to client: %s", exc)
+        # Push the current system_info so the overlay tile subtitles are correct
+        # immediately, even if the HTTP get_system_info fetch hasn't completed.
+        # Filter to only JSON-safe scalar values (plain str/int/float/bool/None).
+        if self.shared and "system_info" in self.shared:
+            try:
+                _si = {k: v for k, v in self.shared["system_info"].items()
+                       if isinstance(v, (str, int, float, bool, type(None)))}
+                if _si:
+                    self.write_message({"event": "SystemInfo", "msg": _si})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync system_info to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -417,6 +838,89 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
+        if action == "get_engines":
+            from uci.engine_provider import EngineProvider
+            engines = []
+            def _add(eng_list, category):
+                for eng in eng_list:
+                    engines.append({
+                        "name":     eng.get("name", ""),
+                        "file":     eng.get("file", ""),
+                        "elo":      eng.get("elo",  ""),
+                        "levels":   list(eng.get("level_dict", {}).keys()),
+                        "category": category,
+                    })
+            _add(EngineProvider.modern_engines,   "modern")
+            _add(EngineProvider.retro_engines,    "retro")
+            _add(EngineProvider.favorite_engines, "favorites")
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"engines": engines}))
+        if action == "get_voices":
+            # Return available speakers for the current language.
+            # Speakers are sub-directories of talker/voices/{lang}/.
+            voices_base = os.path.join(os.path.dirname(__file__), "talker", "voices")
+            dgttranslate = self.shared.get("dgttranslate")
+            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            lang_dir = os.path.join(voices_base, lang)
+            speakers = []
+            if os.path.isdir(lang_dir):
+                for entry in sorted(os.listdir(lang_dir)):
+                    if os.path.isdir(os.path.join(lang_dir, entry)) and not entry.startswith("."):
+                        speakers.append(entry)
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps({"lang": lang, "speakers": speakers}))
+        if action == "get_current_settings":
+            # Return current picker values so the overlay can pre-mark selections.
+            from configobj import ConfigObj as _ConfigObj
+            settings = {}
+            try:
+                config = _ConfigObj("picochess.ini", default_encoding="utf8")
+                dgttranslate = self.shared.get("dgttranslate")
+                # Language (live from dgttranslate, fallback to ini)
+                settings["language"] = (
+                    getattr(dgttranslate, "language", None)
+                    or str(config.get("language", "en")).lower()
+                )
+                # Beep (live from dgttranslate)
+                beep = getattr(dgttranslate, "beep", None)
+                _bmap = {Beep.OFF: "off", Beep.SOME: "some", Beep.ON: "on", Beep.SAMPLE: "sample"}
+                settings["beep"] = _bmap.get(beep, "some") if beep is not None else "some"
+                # Board type
+                settings["board_type"] = str(config.get("board-type", "dgt")).lower()
+                # Display settings
+                settings["clockside"] = str(config.get("clockside", "left")).lower()
+                dsn = config.get("disable-short-notation")
+                settings["notation"] = "long" if dsn in (True, "True", "true") else "short"
+                pi = config.get("ponder-interval", "1")
+                settings["ponder"] = "off" if str(pi) == "0" else "on"
+                dcm = config.get("disable-confirm-message")
+                settings["confirm"] = "off" if dcm in (True, "True", "true") else "on"
+                ecl = config.get("enable-capital-letters")
+                settings["capital"] = "on" if ecl in (True, "True", "true") else "off"
+                se = config.get("show-engine")
+                settings["show_engine"] = "on" if se in (True, "True", "true") else "off"
+                # Retro speed (stored as float 0.0–10.0; UI shows as % strings)
+                try:
+                    rspeed_f = float(config.get("rspeed", 1.0))
+                    settings["rspeed"] = "max" if rspeed_f == 0.0 else str(int(round(rspeed_f * 100)))
+                except (TypeError, ValueError):
+                    settings["rspeed"] = "100"
+                # Voice speed (1–9)
+                settings["speed_voice"] = str(config.get("speed-voice", "2"))
+                # Voice volume (1–20)
+                settings["volume_voice"] = str(config.get("volume-voice", "10"))
+                # Current voice speakers (stored as "lang:speaker")
+                for key in ("comp-voice", "user-voice"):
+                    raw = str(config.get(key, ""))
+                    settings[key.replace("-", "_")] = raw.split(":")[-1] if ":" in raw else raw
+            except Exception as exc:
+                logger.warning("get_current_settings error: %s", exc)
+            # Engine name and level come from shared (live state, not ini)
+            si = self.shared.get("system_info", {})
+            settings["engine_name"] = si.get("engine_name", "")
+            settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            self.set_header("Content-Type", "application/json")
+            self.write(json.dumps(settings))
 
 
 class BookHandler(ServerRequestHandler):
@@ -527,11 +1031,11 @@ class BookHandler(ServerRequestHandler):
             books.append({"index": offset, "file": book.get("file"), "label": label})
 
         if action == "get_book_list":
-            # initial selection: try to match engine/book header once, otherwise index 0
+            # current selection: prefer web_book_file (updated on each new_book POST),
+            # fall back to PicoOpeningBook PGN header, default to index 0 (Obooksrv).
             current_index = 0
             if books:
-                headers = self.shared.get("headers") or {}
-                active_file = headers.get("PicoOpeningBook")
+                active_file = self.shared.get("web_book_file") or (self.shared.get("headers") or {}).get("PicoOpeningBook")
                 if active_file:
                     for entry in books:
                         if entry["file"] == active_file:
@@ -629,6 +1133,19 @@ class ChessBoardHandler(ServerRequestHandler):
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
+        from utilities import version as pico_version
+        from pgn import ModeInfo
+        import dgt.util as _dgt_util
+        _eboard_labels = {
+            _dgt_util.EBoard.DGT:       "DGT",
+            _dgt_util.EBoard.CERTABO:   "Certabo",
+            _dgt_util.EBoard.CHESSLINK: "ChessLink",
+            _dgt_util.EBoard.CHESSNUT:  "Chessnut",
+            _dgt_util.EBoard.ICHESSONE: "iChessOne",
+            _dgt_util.EBoard.NOEBOARD:  "No e-board",
+        }
+        eboard_name = _eboard_labels.get(ModeInfo.get_eboard_type(), "DGT")
+        variant = self.shared.get("variant", "chess") if self.shared else "chess"
         self.render(
             "web/picoweb/templates/clock.html",
             theme=self.theme,
@@ -637,6 +1154,9 @@ class ChessBoardHandler(ServerRequestHandler):
             web_speech=web_speech,
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
+            pico_version=pico_version,
+            eboard_name=eboard_name,
+            variant=variant,
         )
 
     def _get_web_speech_setting(self) -> bool:
@@ -783,6 +1303,10 @@ class SettingsSaveHandler(ServerRequestHandler):
             if web_board_theme_entry and web_board_theme_entry["enabled"]:
                 self.shared["web-board-theme"] = web_board_theme_entry["value"]
 
+            theme_entry = entries_by_key.get("theme")
+            if theme_entry and theme_entry["enabled"]:
+                self.shared["theme"] = theme_entry["value"]
+
         self.set_header("Content-Type", "application/json")
         self.write({"status": "ok"})
 
@@ -871,7 +1395,7 @@ class SettingsActionHandler(ServerRequestHandler):
         else:
             if not _require_auth_if_remote(self, "Settings"):
                 return
-        if action not in ("wifi-hotspot", "bt-pair", "bt-fix"):
+        if action not in ("wifi-hotspot", "bt-pair", "bt-fix", "bt-reconnect"):
             self.set_status(404)
             self.write({"error": "Unknown action"})
             return
@@ -881,9 +1405,12 @@ class SettingsActionHandler(ServerRequestHandler):
         elif action == "bt-pair":
             cmd = ["sudo", "-n", "/opt/picochess/pair-phone"]
             timeout = 50
-        else:
+        elif action == "bt-fix":
             cmd = ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"]
             timeout = 60
+        else:  # bt-reconnect
+            cmd = ["sudo", "-n", "/opt/picochess/reconnect-dgt-bt.sh"]
+            timeout = 30
         loop = asyncio.get_event_loop()
         try:
             result = await loop.run_in_executor(
@@ -922,7 +1449,7 @@ class WebServer:
                 (r"/settings", SettingsPageHandler),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
-                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix)", SettingsActionHandler),
+                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
                 (r"/onboard", WifiSetupPageHandler),
                 (r"/onboard/wifi", WifiSetupHandler),
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
@@ -1000,13 +1527,21 @@ class WebVr(DgtIface):
                 text_l = "{}:{:02d}.{:02d}".format(l_hms[0], l_hms[1], l_hms[2])
                 text_r = "{}:{:02d}.{:02d}".format(r_hms[0], r_hms[1], r_hms[2])
                 icon_d = "fa-caret-right" if self.side_running == ClockSide.RIGHT else "fa-caret-left"
+                left_running = self.side_running == ClockSide.LEFT
             else:
                 text_r = "{}:{:02d}.{:02d}".format(l_hms[0], l_hms[1], l_hms[2])
                 text_l = "{}:{:02d}.{:02d}".format(r_hms[0], r_hms[1], r_hms[2])
                 icon_d = "fa-caret-right" if self.side_running == ClockSide.LEFT else "fa-caret-left"
+                left_running = self.side_running == ClockSide.RIGHT
             if self.side_running == ClockSide.NONE:
                 icon_d = "fa-sort"
-            text = text_l + '&nbsp;<i class="fa ' + icon_d + '"></i>&nbsp;' + text_r
+                l_cls, r_cls = "ctime-l", "ctime-r"
+            else:
+                l_cls = "ctime-l ctime-active" if left_running else "ctime-l ctime-inactive"
+                r_cls = "ctime-r ctime-active" if not left_running else "ctime-r ctime-inactive"
+            text = (f'<span class="{l_cls}">{text_l}</span>'
+                    f'<i class="fa {icon_d}"></i>'
+                    f'<span class="{r_cls}">{text_r}</span>')
             self._create_clock_text()
             self.shared["clock_text"] = text
             result = {"event": "Clock", "msg": text}
@@ -1145,6 +1680,47 @@ class WebDisplay(DisplayMsg):
     result_sav = ""
     engine_name = "Picochess"
 
+    @staticmethod
+    def _text_to_label(text_obj) -> str:
+        """Extract a plain string from a DGT Text object or passthrough if already a str."""
+        if text_obj is None:
+            return ""
+        if isinstance(text_obj, str):
+            return text_obj.strip()
+        for attr in ("web_text", "large_text", "medium_text"):
+            val = getattr(text_obj, attr, None)
+            if val and str(val).strip():
+                return str(val).strip()
+        return ""
+
+    @staticmethod
+    def _tc_to_label(tc_init: dict) -> str:
+        """Derive a short human-readable time-control label from a tc_init dict."""
+        if not tc_init:
+            return ""
+        from dgt.util import TimeMode
+        mode   = tc_init.get("mode")
+        depth  = tc_init.get("depth")  or 0
+        node   = tc_init.get("node")   or 0
+        moves  = tc_init.get("moves_to_go") or 0
+        blitz  = tc_init.get("blitz")  or 0
+        fixed  = tc_init.get("fixed")  or 0
+        fisch  = tc_init.get("fischer") or 0
+        blitz2 = tc_init.get("blitz2") or 0
+        if depth:
+            return f"{depth} ply"
+        if node:
+            return f"{node}k nodes"
+        if moves:
+            return f"{moves}/{blitz}+{fisch}/{blitz2}" if fisch else f"{moves}/{blitz}/{blitz2}"
+        if mode == TimeMode.FISCHER:
+            return f"{blitz}+{fisch}"
+        if mode == TimeMode.BLITZ:
+            return f"{blitz} min"
+        if mode == TimeMode.FIXED:
+            return f"{fixed} s"
+        return ""
+
     def __init__(self, shared: dict, loop: asyncio.AbstractEventLoop):
         super(WebDisplay, self).__init__(loop)
         self.shared = shared
@@ -1233,6 +1809,17 @@ class WebDisplay(DisplayMsg):
                 if level_name.startswith("Elo@"):
                     comp_elo = int(level_name[4:])
                     engine_level = ""
+                elif level_name.startswith("Level@"):
+                    try:
+                        comp_elo = "Level {}".format(int(level_name[6:]))
+                    except ValueError:
+                        comp_elo = level_name[6:]
+                    engine_level = ""
+                elif "@" in level_name:
+                    suffix = level_name.rsplit("@", 1)[-1]
+                    if suffix.isdigit():
+                        comp_elo = int(suffix)
+                        engine_level = ""
             if "play_mode" in self.shared["game_info"]:
                 if self.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE:
                     pgn_game.headers["White"] = user_name
@@ -1386,6 +1973,7 @@ class WebDisplay(DisplayMsg):
                 "pv": [move.uci() for move in pv_moves],
                 "fen": fen,
                 "source": "engine",
+                "engine_name": self.shared.get("system_info", {}).get("engine_name", "Engine"),
             }
             self.shared["analysis_state"] = analysis_payload
             self.shared["analysis_state_engine"] = analysis_payload
@@ -1440,6 +2028,12 @@ class WebDisplay(DisplayMsg):
 
         # switch-case
         if isinstance(message, Message.START_NEW_GAME):
+            # Clear stale analysis so clients don't keep showing the previous
+            # position's engine lines while waiting for fresh analysis output.
+            self.analysis_state = {"depth": None, "score": None, "mate": None, "pv": None, "fen": None}
+            for key in ("analysis_state", "analysis_state_engine", "analysis_state_tutor"):
+                self.shared.pop(key, None)
+            EventHandler.write_to_clients({"event": "Analysis", "analysis": None})
             WebDisplay.result_sav = ""
             self.starttime = datetime.datetime.now().strftime("%H:%M:%S")
             if ModeInfo.get_pgn_mode():
@@ -1459,7 +2053,8 @@ class WebDisplay(DisplayMsg):
                 "play": "newgame",
             }
             _attach_variant_info(result)
-            _attach_mistakes(result)
+            result["mistakes"] = []  # always empty for a new game
+            self.shared.pop("pending_computer_move", None)  # discard any pending engine move
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
             if message.newgame:
@@ -1470,10 +2065,29 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.IP_INFO):
             self.shared["ip_info"] = message.info
+            # Expose network fields in system_info so the overlay Info
+            # panel (which reads system_info) can display them.
+            self._create_system_info()
+            self.shared["system_info"]["ip"] = message.info.get("int_ip", "")
+            self.shared["system_info"]["ext_ip"] = message.info.get("ext_ip", "")
+            self.shared["system_info"]["location"] = message.info.get("location", "")
+
+        elif isinstance(message, Message.BATTERY):
+            self._create_system_info()
+            pct = message.percent
+            if pct == 0x7F:
+                self.shared["system_info"]["battery"] = "N/A"
+            else:
+                self.shared["system_info"]["battery"] = "{}%".format(min(pct, 99))
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
             self.shared["system_info"].update(message.info)
+            # Let the web client know whether a physical board is connected so it
+            # can make the diagram read-only when appropriate.
+            self.shared["system_info"]["has_board"] = (
+                ModeInfo.get_eboard_type() != EBoard.NOEBOARD
+            )
             # store old/original values of everything from start
             if "engine_name" in self.shared["system_info"]:
                 WebDisplay.engine_name = self.shared["system_info"]["engine_name"]
@@ -1510,9 +2124,23 @@ class WebDisplay(DisplayMsg):
                     del self.shared["game_info"]["level_name"]
             _build_headers()
             _send_headers()
+            # Push the new engine name to connected web clients so the overlay
+            # tile subtitle stays current without requiring a page refresh.
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"engine_name": message.engine_name}})
 
         elif isinstance(message, Message.STARTUP_INFO):
             self.shared["game_info"] = message.info.copy()
+            # Mirror interaction_mode and play_mode into system_info so the
+            # web client can determine diagram interactivity on page load.
+            self._create_system_info()
+            _im = message.info.get("interaction_mode")
+            _pm = message.info.get("play_mode")
+            if _im is not None:
+                self.shared["system_info"]["interaction_mode"] = _im.name.lower()
+            if _pm is not None:
+                self.shared["system_info"]["play_mode"] = (
+                    "user_white" if _pm == PlayMode.USER_WHITE else "user_black"
+                )
             # change book_index to book_text
             books = message.info["books"]
             book_index = message.info["book_index"]
@@ -1521,6 +2149,16 @@ class WebDisplay(DisplayMsg):
             else:
                 self.shared["game_info"]["book_text"] = ""
             self.shared["game_info"].pop("book_index", None)  # safer to pop not del, but never used
+            # Mirror plain-string labels into system_info for get_system_info.
+            # game_info["book_text"] is a DGT Text object; extract readable text.
+            _raw_book = self.shared["game_info"].get("book_text")
+            self.shared["system_info"]["book_name"] = self._text_to_label(_raw_book) or "Off"
+            # Derive time label from tc_init (TimeMode enums are not JSON-safe).
+            _tc_init = message.info.get("tc_init")
+            if _tc_init:
+                _tc_label = self._tc_to_label(_tc_init)
+                if _tc_label:
+                    self.shared["system_info"]["time_label"] = _tc_label
 
             # remove if no level_text or level_name exist, else set old/original value from start
             if self.shared["game_info"].get("level_text") is None:
@@ -1537,11 +2175,23 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()
             self.shared["game_info"]["book_text"] = message.book_text
+            # Mirror plain-string book label into system_info and push live
+            # update so the overlay tile subtitle reflects the new selection.
+            self._create_system_info()
+            _book_name = self._text_to_label(message.book_text) or "Off"
+            self.shared["system_info"]["book_name"] = _book_name
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"book_name": _book_name}})
 
         elif isinstance(message, Message.INTERACTION_MODE):
             self._create_game_info()
             self.shared["game_info"]["interaction_mode"] = message.mode
             _set_normal_pgn()
+            # Keep system_info in sync and push live update so connected
+            # clients can immediately re-evaluate diagram interactivity.
+            self._create_system_info()
+            _im_str = message.mode.name.lower()
+            self.shared["system_info"]["interaction_mode"] = _im_str
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"interaction_mode": _im_str}})
 
             if self.shared["game_info"]["interaction_mode"] == Mode.REMOTE:
                 if self.shared["system_info"]["engine_name"] != "" and self.shared["system_info"]["old_engine"] == "":
@@ -1597,13 +2247,59 @@ class WebDisplay(DisplayMsg):
             if "PGN Replay" not in WebDisplay.engine_name:
                 self._create_game_info()
                 self.shared["game_info"]["play_mode"] = message.play_mode
+                # PLAY_MODE fires in set_wait_state() before START_NEW_GAME when the
+                # user's colour changes at the start of a new game.  At that point
+                # result_sav still holds the previous game's result ("0-1" etc.).
+                # Clearing it here prevents _build_headers() from embedding the stale
+                # result in the Header event that is sent to web clients.
+                # START_NEW_GAME (which arrives next) clears it anyway; we just beat it.
+                WebDisplay.result_sav = ""
                 _build_headers()
                 _send_headers()
+            # Keep system_info in sync and push live update.
+            self._create_system_info()
+            _pm_str = "user_white" if message.play_mode == PlayMode.USER_WHITE else "user_black"
+            self.shared["system_info"]["play_mode"] = _pm_str
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"play_mode": _pm_str}})
 
         elif isinstance(message, Message.TIME_CONTROL):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
+            # Derive a plain-string time label from tc_init and push it.
+            # tc_init contains TimeMode enums which are not JSON-safe, so we
+            # never put tc_init itself into system_info — only the derived label.
+            _time_label = self._tc_to_label(message.tc_init)
+            if _time_label:
+                self._create_system_info()
+                self.shared["system_info"]["time_label"] = _time_label
+                EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"time_label": _time_label}})
+            # Immediately push new clock times to web clients.
+            # The normal dispatch chain (CLOCK_SET → CLOCK_START) can be silently
+            # dropped when clock_connected["web"] is not yet set, or can be
+            # queued behind a running maxtimer that never re-shows time when
+            # side_running==NONE.  This guarantees the overlay change is visible.
+            try:
+                tc_init = message.tc_init
+                _tc = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
+                _tl, _tr = _tc.get_internal_time()
+                if _tl < 3600 * 10 and _tr < 3600 * 10:
+                    _l = hms_time(_tl)
+                    _r = hms_time(_tr)
+                    if ModeInfo.get_clock_side() == "left":
+                        _tl_str = "{}:{:02d}.{:02d}".format(_l[0], _l[1], _l[2])
+                        _tr_str = "{}:{:02d}.{:02d}".format(_r[0], _r[1], _r[2])
+                    else:
+                        _tr_str = "{}:{:02d}.{:02d}".format(_l[0], _l[1], _l[2])
+                        _tl_str = "{}:{:02d}.{:02d}".format(_r[0], _r[1], _r[2])
+                    _text = (f'<span class="ctime-l">{_tl_str}</span>'
+                             f'<i class="fa fa-sort"></i>'
+                             f'<span class="ctime-r">{_tr_str}</span>')
+                    self._create_clock_text()
+                    self.shared["clock_text"] = _text
+                    EventHandler.write_to_clients({"event": "Clock", "msg": _text})
+            except Exception:
+                pass  # non-fatal; normal dispatch chain remains the fallback
 
         elif isinstance(message, Message.LEVEL):
             self._create_game_info()
@@ -1672,10 +2368,14 @@ class WebDisplay(DisplayMsg):
             self.analysis_state["depth"] = message.depth
             _maybe_send_analysis()
 
+        elif isinstance(message, Message.DGT_SERIAL_NR):
+            # Serial number confirms the physical board is present on the bus.
+            # Turn the footer dot green regardless of whether a clock is attached.
+            if message.number:
+                EventHandler.write_to_clients({"event": "Status", "eboard": "connected"})
+
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
-            # result = {'event': 'Status', 'msg': 'Error clock'}
-            # EventHandler.write_to_clients(result)
-            pass
+            EventHandler.write_to_clients({"event": "Status", "eboard": "error"})
 
         elif isinstance(message, Message.DGT_CLOCK_VERSION):
             if message.dev == "ser":
@@ -1684,7 +2384,8 @@ class WebDisplay(DisplayMsg):
                 attached = "i2c-pi"
             else:
                 attached = "server"
-            result = {"event": "Status", "msg": "Ok clock " + attached}
+            connected = attached != "server"   # physical board, not web-only
+            result = {"event": "Status", "msg": "Ok clock " + attached, "eboard": "connected" if connected else "noeboard"}
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.COMPUTER_MOVE):
@@ -1701,12 +2402,20 @@ class WebDisplay(DisplayMsg):
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}
                 _attach_mistakes(result)
                 _attach_variant_info(result)
-                self.shared["last_dgt_move_msg"] = result  # not send => keep it for COMPUTER_MOVE_DONE
+                self.shared["pending_computer_move"] = result  # not sent => keep it for COMPUTER_MOVE_DONE
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
             WebDisplay.result_sav = ""
-            result = self.shared["last_dgt_move_msg"]
-            EventHandler.write_to_clients(result)
+            result = self.shared.pop("pending_computer_move", None)
+            # If START_NEW_GAME already ran it cleared pending_computer_move, so result is None –
+            # skip this stale engine move so the new game's clean PGN isn't overwritten.
+            if result is not None:
+                # Re-stamp variant info: for 3check, process_fen has already pushed
+                # the engine move onto the ThreeCheck board and updated checks_remaining,
+                # so this overwrites the stale value captured at COMPUTER_MOVE time.
+                _attach_variant_info(result)
+                self.shared["last_dgt_move_msg"] = result
+                EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.DGT_FEN):
             # Update dgt_fen for board scan functionality
@@ -1805,7 +2514,26 @@ class WebDisplay(DisplayMsg):
                 # and its most logical that WebDisplay updates the shared header
                 # now for issue #111 make sure also header has end game result
                 self.shared["headers"]["Result"] = WebDisplay.result_sav
-            # dont rebuild headers here, use existing one
+            # Rebuild PGN with result and push to all clients so the move list
+            # immediately shows "1-0", "0-1" or "1/2-1/2" appended.
+            # If an engine move was announced but not yet confirmed on the board,
+            # include it in the final PGN so the move list is complete.
+            game_for_end = message.game
+            pending = self.shared.get("pending_computer_move")
+            if pending and "move" in pending:
+                try:
+                    game_for_end = message.game.copy()
+                    game_for_end.push(chess.Move.from_uci(pending["move"]))
+                except Exception:
+                    pass
+            pgn_str = _transfer(game_for_end)
+            fen = _oldstyle_fen(game_for_end)
+            mov = peek_uci(game_for_end)
+            end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            _attach_mistakes(end_msg)
+            _attach_variant_info(end_msg)
+            self.shared["last_dgt_move_msg"] = end_msg
+            EventHandler.write_to_clients(end_msg)
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

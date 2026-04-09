@@ -554,10 +554,11 @@ class SystemLoop(object):
 class Bluetooth(MyEnum):
     PAIR_PHONE = "B00_bluetooth_pair_menu"
     FIX_BT = "B00_bluetooth_fix_menu"
+    RECONNECT_DGT = "B00_bluetooth_reconnect_menu"
 
     @classmethod
     def items(cls):
-        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT]
+        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT, Bluetooth.RECONNECT_DGT]
 
 
 class BluetoothLoop(object):

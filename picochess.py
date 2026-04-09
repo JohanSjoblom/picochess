@@ -57,6 +57,7 @@ from utilities import (
     get_location,
     update_pico_v4,
     update_pico_engines,
+    update_picochess_now,
     get_opening_books,
     shutdown,
     reboot,
@@ -1136,6 +1137,7 @@ async def main() -> None:
         theme: str = calc_theme(args.theme, state.set_location)
         shared["pieces"] = args.pieces
         shared["web-board-theme"] = args.web_board_theme
+        shared["dgttranslate"] = state.dgttranslate
         web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
         try:
             web_app.listen(args.web_server_port)
@@ -1695,6 +1697,11 @@ async def main() -> None:
                                     send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
+                                # Immediately push the engine's final analysis to the web Engine:
+                                # line.  The 1-second analyse() timer may never fire before a fast
+                                # engine (Stockfish) finishes its move, so do it right here while
+                                # the info is fresh.
+                                await self.send_web_analysis(info, analysed_fen, "engine")
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
@@ -2438,19 +2445,34 @@ async def main() -> None:
 
             # standard legal move
             elif fen in self.state.legal_fens:
-                logger.debug("standard move detected")
-                self.state.newgame_happened = False
-                legal_moves = list(_move_board.legal_moves)
-                move = legal_moves[state.legal_fens.index(fen)]
-                ok = await self.user_move(move, sliding=False)
-                if ok:
-                    self.state.last_legal_fens = self.state.legal_fens
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                else:
+                # Verify the move is actually legal from the CURRENT position.
+                # legal_fens may be stale if left over from a previous game that
+                # executed concurrently (asyncio.create_task per event).
+                # legal_fens_pico is freshly computed from self.state.game at the
+                # top of this function and acts as a reliable staleness detector.
+                # Use its index to avoid stale-index mismatches too.
+                if fen not in legal_fens_pico:
+                    logger.warning(
+                        "process_fen: discarding stale legal_fens entry %s "
+                        "(not legal from current position %s)",
+                        fen,
+                        self.state.game.fen(),
+                    )
                     handled_fen = False
+                else:
+                    logger.debug("standard move detected")
+                    self.state.newgame_happened = False
+                    legal_moves = list(_move_board.legal_moves)
+                    move = legal_moves[legal_fens_pico.index(fen)]
+                    ok = await self.user_move(move, sliding=False)
+                    if ok:
+                        self.state.last_legal_fens = self.state.legal_fens
+                        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
+                            self.state.legal_fens = []
+                        else:
+                            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                    else:
+                        handled_fen = False
 
             # molli: allow direct play of an alternative move for pico
             elif (
@@ -3237,19 +3259,9 @@ async def main() -> None:
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
-            # 128 - skip engine analyser when engine is thinking about its move
-            # because as of 128 the engine play will get info from PlayingContinuousAnalyser
+            # skip engine analyser when engine is thinking about its move
+            # (engine play will get info from PlayingContinuousAnalyser instead)
             result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
-            # skip engine analyser if tutor can be used on engine waiting for user turn
-            # this needs to match the if not self.state.picotutor.can_use_coach_analyser():
-            # in analyse
-            result = result and not (
-                self.eng_plays()
-                and self.state.picotutor.can_use_coach_analyser()
-                and self.state.is_user_turn()
-                and not engine_thinking
-            )
-            # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
 
         def eng_plays(self) -> bool:
@@ -3335,27 +3347,27 @@ async def main() -> None:
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
-                            # In engine-play mode this tutor snapshot is intentionally web-only.
-                            # Clock +/- remains engine-driven (ponder/engine analysis path).
+                            # Tutor output goes to the Tutor: line as before.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                        else:
-                            # is_coach_analyser() must be False here; otherwise the first branch above
-                            # would already have routed analysis through picotutor. Only fall back to
-                            # engine analysis when tutor info cannot be used.
-                            # save cpu - only run engine analysis on user turn if coach/watcher off
-                            analysis_board = self.state.get_move_check_board()
-                            result = await self.engine.get_analysis(analysis_board)
-                            info_list: list[InfoDict] = result.get("info")
-                            info_list_source = "engine"
-                            analysed_fen = result.get("fen", "")
-                            info_for_web_engine = info_list[0] if info_list else None
-                            analysed_fen_for_web_engine = analysed_fen
-                            info_candidate = info_list[0] if info_list else None
-                            if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                                info_list = None  # optimised else: prevent this info from being sent
+                        # Always read ContinuousAnalysis for the Engine: line during the user's
+                        # turn, even when the tutor is also active.  Previously only one or the
+                        # other was read; fast engines (Stockfish) that finish in < 1 s always
+                        # fell here, and with the old tutor-only branch the Engine: line was
+                        # permanently empty.  get_analysis() is a cheap buffer read — the
+                        # ContinuousAnalysis is already running (started by need_engine_analyser).
+                        analysis_board = self.state.get_move_check_board()
+                        result = await self.engine.get_analysis(analysis_board)
+                        info_list: list[InfoDict] = result.get("info")
+                        info_list_source = "engine"
+                        analysed_fen = result.get("fen", "")
+                        info_for_web_engine = info_list[0] if info_list else None
+                        analysed_fen_for_web_engine = analysed_fen
+                        info_candidate = info_list[0] if info_list else None
+                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                            info_list = None  # optimised: prevent re-sending analysis at same depth
                     await self._start_or_stop_analysis_as_needed()
             if info_for_web_engine:
                 await self.send_web_analysis(
@@ -3449,11 +3461,40 @@ async def main() -> None:
                 logger.debug("ignoring web analysis for old fen: %s != %s", analysed_fen, current_fen)
                 return
             (move, score, mate) = PicoTutor.get_score(info)
+            # Don't send incomplete analysis that would show "?" in the UI.
+            # get_score() returns mate=0 (falsy) when there is no mate, so check
+            # "not mate" rather than "mate is None" to cover both None and 0.
+            if score is None and not mate:
+                logger.debug("skip web analysis for %s: no score/mate yet", source)
+                return
             depth = info.get("depth")
             pv_moves = list(info.get("pv") or [])
-            pv_to_send = [m.uci() for m in pv_moves if m] if pv_moves else []
+            # Convert PV to SAN using the analysed position so the web client can render
+            # figurine notation without needing to re-parse UCI+FEN through chess.js.
+            # (chess.js FEN loading or move application can silently fail, falling back to
+            # raw UCI coordinates.  Pre-computing SAN in Python eliminates that code path.)
+            pv_to_send = []
+            if pv_moves and analysed_fen:
+                try:
+                    san_board = chess.Board(analysed_fen)
+                    for m in pv_moves:
+                        if not m or m == chess.Move.null():
+                            break
+                        try:
+                            pv_to_send.append(san_board.san(m))
+                            san_board.push(m)
+                        except (ValueError, AssertionError):
+                            break
+                except Exception:
+                    pass
+            if not pv_to_send:
+                # Fallback: raw UCI (SAN board construction failed; JS will attempt chess.js parsing)
+                pv_to_send = [m.uci() for m in pv_moves if m and m != chess.Move.null()]
             if not pv_to_send and move and move != chess.Move.null():
-                pv_to_send = [move.uci()]
+                try:
+                    pv_to_send = [chess.Board(analysed_fen).san(move)]
+                except Exception:
+                    pv_to_send = [move.uci()]
             analysis_payload = {
                 "depth": depth,
                 "score": score,
@@ -5690,6 +5731,14 @@ async def main() -> None:
                                             logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
+                        elif self.state.newgame_happened:
+                            # A new game was started while the engine was thinking.
+                            # Discard the stale move – sending MSG_COMPUTER_MOVE now
+                            # would display an illegal move on the new game's board.
+                            logger.debug(
+                                "EVT_BEST_MOVE: discarding stale engine move %s – new game started during think",
+                                event.move,
+                            )
                         else:
                             # normal computer move
                             if event.inbook:
@@ -5752,11 +5801,14 @@ async def main() -> None:
                                 )
 
                                 await asyncio.sleep(0.5)
-                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
-
+                                # Push the move and sync variant boards (e.g. 3check counter)
+                                # BEFORE firing COMPUTER_MOVE_DONE so that the server-side
+                                # _attach_variant_info re-stamp in COMPUTER_MOVE_DONE reads
+                                # the freshly updated checks_remaining, not the pre-move value.
                                 self.state.best_move_posted = False
                                 self.state.push_move(self.state.done_move)  # computer move without human assistance
                                 self._update_variant_shared()
+                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
                                 self.state.done_computer_fen = None
                                 self.state.done_move = chess.Move.null()
 
@@ -5881,7 +5933,7 @@ async def main() -> None:
                         logger.info("engine status: t:%s p:%s", self.engine.is_thinking(), self.engine.is_pondering())
 
             elif isinstance(event, Event.NEW_SCORE):
-                if event.score:
+                if event.score is not None:
                     if event.score == 99999 or event.score == -99999:
                         self.state.flag_pgn_game_over = True  # molli pgn mode: signal that pgn is at end
                     else:
@@ -6010,6 +6062,10 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
@@ -6056,6 +6112,10 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 if coach_request != 2:
                     coach_mode = self.state.dgtmenu.get_picocoach()
                     coach_msg = 0
@@ -6077,6 +6137,9 @@ async def main() -> None:
                     await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
+                self.state.dgtmenu.menu_picotutor_picoexplorer = event.picoexplorer
+                self.state.dgtmenu.res_picotutor_picoexplorer = event.picoexplorer
+                write_picochess_ini("tutor-explorer", event.picoexplorer)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -6186,6 +6249,15 @@ async def main() -> None:
                     self.pico_talker.set_comment_factor(comment_factor=self.state.dgtmenu.get_comment_factor())
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
                 else:
+                    _comment_ini = {
+                        PicoComment.COM_OFF:    "off",
+                        PicoComment.COM_ON_ENG: "single",
+                        PicoComment.COM_ON_ALL: "all",
+                    }
+                    if event.picocomment in _comment_ini:
+                        self.state.dgtmenu.menu_picotutor_picocomment = event.picocomment
+                        self.state.dgtmenu.res_picotutor_picocomment = event.picocomment
+                        write_picochess_ini("tutor-comment", _comment_ini[event.picocomment])
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment=event.picocomment))
 
             elif isinstance(event, Event.SET_TIME_CONTROL):
@@ -6398,8 +6470,9 @@ async def main() -> None:
             elif isinstance(event, Event.UPDATE_PICO):
                 await DisplayMsg.show(Message.UPDATE_PICO())
                 if not event.tag or event.tag == "":
-                    # full update at next boot for all scripts
-                    update_pico_v4()  # in utilities for now
+                    # Run install-picochess.sh twice in the background, then
+                    # restart the picochess service (no full reboot required).
+                    update_picochess_now()
                 else:
                     # only update code to a specific tag
                     checkout_tag(event.tag)

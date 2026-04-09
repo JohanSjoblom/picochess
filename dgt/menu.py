@@ -198,6 +198,7 @@ class MenuState(object):
     SYS_BLUETOOTH = 775000
     SYS_BLUETOOTH_PAIR = 775100
     SYS_BLUETOOTH_FIX = 775200
+    SYS_BLUETOOTH_RECONNECT = 775300
     SYS_THEME = 780000
     SYS_THEME_TYPE = 781000
 
@@ -1872,6 +1873,12 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_system_bluetooth.value)
         return text
 
+    def enter_sys_bluetooth_reconnect_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.SYS_BLUETOOTH_RECONNECT
+        text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+        return text
+
     def enter_sys_theme_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_THEME
@@ -2189,6 +2196,9 @@ class DgtMenu(object):
             text = self.enter_sys_bluetooth_menu()
 
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            text = self.enter_sys_bluetooth_menu()
+
+        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
             text = self.enter_sys_bluetooth_menu()
 
         elif self.state == MenuState.SYS_THEME:
@@ -3256,6 +3266,8 @@ class DgtMenu(object):
                 text = self.enter_sys_bluetooth_pair_menu()
             elif self.menu_system_bluetooth == Bluetooth.FIX_BT:
                 text = self.enter_sys_bluetooth_fix_menu()
+            elif self.menu_system_bluetooth == Bluetooth.RECONNECT_DGT:
+                text = self.enter_sys_bluetooth_reconnect_menu()
 
         elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
@@ -3280,6 +3292,18 @@ class DgtMenu(object):
                 )
             except Exception as exc:
                 logger.warning("Fix_bluetooth failed to start: %s", exc)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            try:
+                subprocess.Popen(
+                    ["sudo", "-n", "/opt/picochess/reconnect-dgt-bt.sh"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    universal_newlines=True,
+                )
+            except Exception as exc:
+                logger.warning("reconnect-dgt-bt failed to start: %s", exc)
 
         elif self.state == MenuState.SYS_THEME:
             text = self.enter_sys_theme_type_menu()
@@ -3938,12 +3962,17 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
-            self.state = MenuState.SYS_BLUETOOTH_FIX
+            self.state = MenuState.SYS_BLUETOOTH_RECONNECT
             self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
             self.state = MenuState.SYS_BLUETOOTH_PAIR
+            self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
+            self.state = MenuState.SYS_BLUETOOTH_FIX
             self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
@@ -4603,6 +4632,11 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
+            self.state = MenuState.SYS_BLUETOOTH_RECONNECT
+            self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
+            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
+
+        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
             self.state = MenuState.SYS_BLUETOOTH_PAIR
             self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)

@@ -54,6 +54,13 @@ body {
     font-family: Roboto, FreeSerif, sans-serif;
 }
 
+.figurine {
+    font-family: FreeSerif, serif;
+    font-size: 1.2em;
+    line-height: 1;
+    margin-right: -0.05em;
+}
+
 .gameMoves .highlight {
     color: darkgreen;
     font-size: 1.4vw;
@@ -209,10 +216,28 @@ div.dataTables_wrapper div.dataTables_length select {
     padding: 5px;
 }
 
-.nav-pills .nav-link {
-    margin-top: 0px;
-    margin-bottom: 0px;
-    padding: 14px;
+/* Nav-pills tab bar: distribute buttons evenly across the full available
+   width so they never overflow on narrow windows (right column).
+   min-width:0 + overflow:hidden prevent the <ul> from growing wider than
+   its flex slot in the card-header, which would make it overlap the gear. */
+#pills-tab {
+    flex-wrap: nowrap;      /* keep all four tabs on one line */
+    min-width: 0;           /* allow the <ul> to shrink below content size */
+    overflow: hidden;       /* clip any overflow so the gear is never covered */
+}
+#pills-tab .nav-item {
+    flex: 1 1 0;            /* equal share of available width */
+    min-width: 0;           /* allow shrinking below content size */
+}
+#pills-tab .nav-link {
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Replace the fixed 14px padding with a fluid value that shrinks on
+       narrow containers while still looking comfortable when wide. */
+    padding: 8px max(4px, 1vw);
 }
 
 .nav-link.engine-mode-button {
@@ -289,10 +314,6 @@ td.result {
 #engineMultiPVStatus {
     font-size: 1.5vw;
     vertical-align: text-top;
-}
-
-#analyzeBtn {
-    min-width: 114px;
 }
 
 .list-group-item {
@@ -472,9 +493,8 @@ td.result {
 
 #pv_output {
     background-color: transparent !important;
-    border-radius: 6px;
-    padding: 6px;
-    margin-top: 5px;
+    padding: 0;
+    margin-top: 0;
     max-width: 100%;
     box-sizing: border-box;
     overflow-x: hidden;
@@ -483,15 +503,8 @@ td.result {
 #pv_output,
 #pv_output *,
 #pv_output div,
-#pv_output div[id^="pv_"],
-#pv_output .list-group,
-#pv_output .list-group-item,
-#pv_output .gameMoves,
-#pv_output .analysis-line-compact,
-#pv_output .analysis-line-compact *,
-#pv_output .continuation-moves {
+#pv_output div[id^="pv_"] {
     background-color: transparent !important;
-    color: inherit !important;
 }
 
 /* Asegurar que hereda del contenedor padre */
@@ -541,43 +554,69 @@ td.result {
     margin-right: 10px;
 }
 
-/* Puntuación compacta */
+/* Score pill — same size as depth pill */
 .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-weight: bold;
-    font-size: 1rem;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
-    box-shadow: 0 1px 3px rgba(0,123,255,0.3);
-    min-width: 50px;
-    text-align: center;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.75rem;
     flex-shrink: 0;
 }
 
 /* Puntuación positiva (ventaja blancas) */
 .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34);
-    box-shadow: 0 2px 4px rgba(40,167,69,0.3);
 }
 
 /* Puntuación negativa (ventaja negras) */
 .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333);
-    box-shadow: 0 2px 4px rgba(220,53,69,0.3);
 }
 
 /* Puntuación de mate */
 .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100);
-    box-shadow: 0 2px 4px rgba(253,126,20,0.3);
     animation: pulse-mate 2s infinite;
 }
 
 @keyframes pulse-mate {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.05); }
+}
+
+/* ── ThreeCheck counters ──────────────────────────────── */
+.check-counter-row {
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.3rem 0.5rem;
+}
+
+.check-badge {
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.check-badge-white {
+    background: #f8f9fa;
+    color: #212529;
+    border: 1px solid #dee2e6;
+}
+
+.check-badge-black {
+    background: #adb5bd;
+    color: #212529;
+    border: 1px solid #6c757d;
+}
+
+.check-king-icon {
+    width: 1.4em;
+    height: 1.4em;
+    vertical-align: middle;
 }
 
 /* Profundidad compacta */
@@ -588,19 +627,16 @@ td.result {
     border-radius: 8px;
     font-size: 0.75rem;
     flex-shrink: 0;
-    order: 3;
 }
 
-/* Movimientos de continuación - más discretos */
+/* Continuation moves — same size as first-move */
 .continuation-moves {
-    font-size: 0.85rem;
-    color: #6c757d;
+    font-size: 0.9rem;
     font-weight: normal;
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    order: 2;
     min-width: 0;
 }
 
@@ -610,19 +646,10 @@ td.result {
     font-weight: 500;
 }
 
-/* Primer movimiento destacado - MÁS COMPACTO */
+/* First move — bold, no background pill */
 .first-move {
-    background: #fff3cd;
-    color: #856404;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: bold;
-    border: 1px solid #ffc107;
-    font-size: 1.1em;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.1);
-    box-shadow: 0 1px 2px rgba(255,193,7,0.2);
-    display: inline-block;
-    margin: 0 2px;
+    font-weight: 600;
+    font-size: 0.9rem;
     flex-shrink: 0;
 }
 
@@ -707,50 +734,6 @@ td.result {
     font-size: 0.85rem;
 }
 
-/* Botones de análisis */
-#analyzeBtn {
-    background: linear-gradient(135deg, #28a745, #20c997);
-    border: none;
-    color: white;
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-#analyzeBtn:hover {
-    background: linear-gradient(135deg, #20c997, #28a745);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(40,167,69,0.3);
-}
-
-#analyzeBtn.analyzing {
-    background: linear-gradient(135deg, #dc3545, #c82333);
-    animation: pulse-analyzing 1.5s infinite;
-}
-
-@keyframes pulse-analyzing {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Botones más/menos */
-#analyzePlus, #analyzeMinus {
-    background: linear-gradient(145deg, #5bc0de, #31b0d5);
-    border: none;
-    color: #ffffff;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.35rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 0.125rem;
-    transition: all 0.2s ease;
-}
-
-#analyzePlus:hover, #analyzeMinus:hover {
-    background: linear-gradient(145deg, #6bd0ee, #41c0e5);
-}
-
 .engine-controls {
     display: flex;
     align-items: center;
@@ -787,9 +770,63 @@ td.result {
 
 /* Clase para contenedor de PV */
 .pv-container {
-    margin-top: 0px;
-    margin-left: 0px;
-    margin-bottom: 1vh;
+    margin: 0;
+}
+
+/* Single-row layout for extra PV lines (pv_2+): pills + moves on one line */
+.pv-extra-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    padding: 0.15rem 0.5rem;
+}
+
+/* Two-row PV item layout (server engine + SF18) */
+.pv-two-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.pv-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+
+.pv-body {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+}
+
+/* Engine / source name — plain bold label, no pill */
+.engine-name-badge {
+    display: inline-block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bs-body-color, #212529);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Rubber spacer: pushes buttons to the right in pv-header */
+.pv-spacer {
+    flex: 1;
+}
+
+/* Small move-number label in server analysis header */
+.move-number {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, #6c757d);
+    flex-shrink: 0;
 }
 
 /* Optimización para 1024x600 y 1024x800 - Análisis compacto */
@@ -800,39 +837,63 @@ td.result {
 
 
 
-/* Excepciones para elementos con colores específicos - mantener sus fondos distintivos */
+/* Meta containers: transparent to flexbox so score/depth join the row directly */
+#engineMeta, #sf18Meta {
+    display: contents;
+}
+
+/* Colour overrides for score / depth / first-move in all analysis containers */
 #pv_output .score-display,
+#engineRow .score-display,
+#sf18Row .score-display,
 .analysis-sources .score-display {
     background: linear-gradient(135deg, #007bff, #0056b3) !important;
     color: white !important;
 }
 
 #pv_output .score-positive,
+#engineRow .score-positive,
+#sf18Row .score-positive,
 .analysis-sources .score-positive {
     background: linear-gradient(135deg, #28a745, #1e7e34) !important;
     color: white !important;
 }
 
 #pv_output .score-negative,
+#engineRow .score-negative,
+#sf18Row .score-negative,
 .analysis-sources .score-negative {
     background: linear-gradient(135deg, #dc3545, #c82333) !important;
     color: white !important;
 }
 
 #pv_output .score-mate,
+#engineRow .score-mate,
+#sf18Row .score-mate,
 .analysis-sources .score-mate {
     background: linear-gradient(135deg, #fd7e14, #e55100) !important;
     color: white !important;
 }
 
 #pv_output .first-move,
+#engineRow .first-move,
+#sf18Row .first-move,
 .analysis-sources .first-move {
     background: #fff3cd !important;
     color: #856404 !important;
     border-color: #ffc107 !important;
 }
 
+/* Continuation moves inherit body text colour, bypassing any grey from Bootstrap/MDB card overrides */
+#pv_output .continuation-moves,
+#engineRow .continuation-moves,
+#sf18Row .continuation-moves {
+    color: inherit !important;
+}
+
 #pv_output .depth-display,
+#engineRow .depth-display,
+#sf18Row .depth-display,
 .analysis-sources .depth-display {
     background: #6c757d !important;
     color: white !important;
@@ -926,4 +987,739 @@ piece {
 #boardcontrol > .row:last-child {
 
     min-height: 30px !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   VERTICAL EVALUATION BAR (left of board, like Lichess)
+   Uses position:relative wrapper so the svg-container
+   padding-bottom:100% square trick keeps working.
+   ═══════════════════════════════════════════════════ */
+.board-eval-wrapper {
+    position: relative;   /* establishes containing block for the eval bar */
+    padding-left: 16px;   /* reserve space for the 10px bar + 6px gap */
+}
+
+.pico-eval-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+#evaluationFill {
+    background: #000000;
+    width: 100%;
+    height: 50%;   /* updated by JS; 0.00 = 50% black on top */
+    position: absolute;
+    top: 0;
+    transition: height 0.4s ease;
+}
+
+#evaluationValue {
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%) rotate(-90deg);
+    font-size: 0.52rem;
+    font-weight: 700;
+    color: #888;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    mix-blend-mode: difference;
+    filter: invert(1);
+    opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════
+   CLOCK HEADER
+   ═══════════════════════════════════════════════════ */
+.pico-clock-header {
+    padding: 0.5rem 0.75rem 0.4rem;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.clock-label-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.15rem;
+}
+
+.clock-label-left,
+.clock-label-right {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: opacity 0.4s ease;
+}
+
+.clock-label-right-group {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pico-gear-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem 0.4rem;
+    font-size: 1.25rem;
+    line-height: 1;
+    opacity: 0.55;
+    cursor: pointer;
+    color: inherit;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.pico-gear-btn:hover {
+    opacity: 1;
+}
+
+.clock-label-inactive {
+    opacity: 0.35;
+}
+
+.clock-time-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+}
+
+.clock-time-row .ctime-l,
+.clock-time-row .ctime-r {
+    flex: 1;
+    text-align: center;
+    transition: opacity 0.4s ease;
+}
+
+.clock-time-row .ctime-inactive {
+    opacity: 0.35;
+}
+
+.clock-time-row .fa {
+    flex: 0 0 2rem;
+    text-align: center;
+    font-size: 1.1rem;
+    opacity: 0.45;
+}
+
+.clock-status-row {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--bs-secondary-color, #6c757d);
+    min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   REMOTE CONTROL BAR
+   ═══════════════════════════════════════════════════ */
+#row-remote {
+    /* remote bar removed; hidden placeholder kept for JS button IDs */
+}
+
+.pico-remote-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.pico-remote-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 52px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.7rem;
+    border-radius: 6px;
+    line-height: 1.2;
+}
+
+.pico-remote-btn i {
+    font-size: 1rem;
+    display: block;
+}
+
+.pico-remote-btn span {
+    font-size: 0.65rem;
+    font-weight: 400;
+}
+
+/* ═══════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════ */
+#pico-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.2rem 0.75rem;
+    font-size: 0.75rem;
+    border-top: 1px solid rgba(128, 128, 128, 0.25);
+    color: var(--bs-secondary-color, #6c757d);
+    flex-shrink: 0;
+}
+
+.footer-status {
+    font-size: 0.75rem;
+}
+
+#picoFooterDgt::before {
+    content: "●";
+    margin-right: 0.3em;
+    color: #6c757d;   /* grey: not yet confirmed connected */
+}
+
+#picoFooterDgt.footer-connected::before {
+    color: #28a745;   /* green: physical board confirmed connected */
+}
+
+.footer-version {
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+.footer-mute {
+    position: relative;
+    font-size: 18px;
+    cursor: pointer;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    background-color: transparent;
+    width: 36px;
+    height: 28px;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.footer-mute.is-muted {
+    background-color: #ffb3b3;
+    border-color: #ff0000;
+}
+
+.footer-mute.is-muted::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60%;
+    height: 3px;
+    background-color: white;
+    border: 1px solid #cc0000;
+    border-radius: 2px;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   RIGHT PANEL FLEX LAYOUT
+   ═══════════════════════════════════════════════════ */
+#right-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+#row-clock   { flex: 0 0 auto; }
+#row-tabs    { flex: 1 1 35%; min-height: 0; display: flex; flex-direction: column; }
+#row-remote  { flex: 0 0 auto; }
+
+#row-movelist {
+    flex: 1 1 40%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-movelist .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-movelist .scroll_movelist {
+    flex: 1;
+    min-height: 0;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto;
+}
+
+#row-tabs .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#row-tabs .card-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+#row-tabs .tab-content,
+#row-tabs .tab-pane.show.active {
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* ── PICO CONTEXT MENU OVERLAY ─────────────────────────────── */
+#pico-menu-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+}
+
+#pico-menu-overlay.open {
+    display: block;
+}
+
+.pico-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    cursor: pointer;
+}
+
+.pico-overlay-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(580px, 96vw);
+    max-height: 90vh;
+    background: rgba(30, 30, 46, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    /* The panel backdrop is always dark (rgba 30,30,46) regardless of the
+       page theme. Force light text so it stays legible in light mode. */
+    color: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Content wrapper: grows below header, clips sub-panels */
+.pico-overlay-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.pico-overlay-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pico-overlay-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex: 1;
+}
+
+.pico-overlay-state {
+    font-size: 0.78rem;
+    opacity: 0.75;
+}
+
+.pico-overlay-close {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    opacity: 0.7;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    line-height: 1;
+    color: inherit;
+}
+
+.pico-overlay-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* 3-column tile grid (3 rows × 3 cols = 9 tiles) */
+.pico-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+.pico-tile.pico-tile-wide {
+    grid-column: 1 / -1;
+}
+
+.pico-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 1.0rem 0.4rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.12s;
+}
+
+.pico-tile:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: inherit;
+    text-decoration: none;
+}
+
+.pico-tile:active {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.pico-tile-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.pico-tile-sub {
+    font-size: 0.82rem;
+    opacity: 0.70;
+    text-align: center;
+    line-height: 1.3;
+}
+
+/* DGT scan sub-panel inside overlay */
+#overlay-scan {
+    padding: 1rem 0;
+}
+
+/* ── ENGINE / LEVEL PICKER ──────────────────────────── */
+#overlay-engine {
+    display: none;          /* shown as flex by JS */
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0.75rem 1rem 0.75rem;
+}
+
+.pico-picker-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+}
+
+.pico-picker-title {
+    font-weight: 600;
+    font-size: 0.88rem;
+    flex: 1;
+}
+
+.pico-overlay-back {
+    background: none;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 5px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: inherit;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.pico-overlay-back:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Category tab strip (Engine modern/retro/favorites) */
+.pico-cat-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 0 8px 0;
+    flex-shrink: 0;
+}
+.pico-cat-tab {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid rgba(128,128,128,0.25);
+    background: rgba(128,128,128,0.06);
+    color: inherit;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+.pico-cat-tab.selected {
+    border-color: rgba(13,110,253,0.5);
+    background: rgba(13,110,253,0.15);
+}
+.pico-cat-tab:hover:not(.selected) {
+    background: rgba(128,128,128,0.14);
+}
+
+.pico-picker-columns {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.pico-picker-col {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    scrollbar-width: auto;
+}
+
+/* Wide scrollbar for touch-friendly overlay columns */
+.pico-picker-col::-webkit-scrollbar {
+    width: 16px;
+}
+.pico-picker-col::-webkit-scrollbar-track {
+    background: rgba(128, 128, 128, 0.1);
+    border-radius: 8px;
+}
+.pico-picker-col::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.45);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+.pico-picker-col::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.7);
+    background-clip: content-box;
+}
+
+.pico-picker-col + .pico-picker-col {
+    border-left: 1px solid rgba(128, 128, 128, 0.2);
+    padding-left: 10px;
+}
+
+.pico-picker-col-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.pico-picker-item {
+    padding: 0.42rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid transparent;
+    text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+    width: 100%;
+    color: inherit;
+    flex-shrink: 0;
+    line-height: 1.35;
+    position: relative;
+}
+
+.pico-picker-item:hover {
+    background: rgba(128, 128, 128, 0.2);
+}
+
+.pico-picker-item.selected {
+    border-color: rgba(13, 110, 253, 0.55);
+    background: rgba(13, 110, 253, 0.12);
+}
+
+.pico-picker-item.selected::after {
+    content: "✓";
+    position: absolute;
+    right: 0.65rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(13, 110, 253, 0.9);
+    font-weight: bold;
+    font-size: 0.95em;
+    pointer-events: none;
+}
+
+.pico-picker-item .picker-sub {
+    font-size: 0.7em;
+    opacity: 0.55;
+    display: block;
+}
+
+/* ── GATEWAY SUB-PANEL ITEMS ────────────────────────── */
+.pico-subpanel {
+    display: none;          /* shown as flex by JS */
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0.6rem 1rem 0.75rem;
+}
+
+.pico-subpanel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    scrollbar-width: auto;
+}
+
+/* Wide scrollbar for touch-friendly overlay sub-panels */
+.pico-subpanel-list::-webkit-scrollbar {
+    width: 16px;
+}
+.pico-subpanel-list::-webkit-scrollbar-track {
+    background: rgba(128, 128, 128, 0.1);
+    border-radius: 8px;
+}
+.pico-subpanel-list::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.45);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+.pico-subpanel-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.7);
+    background-clip: content-box;
+}
+
+.pico-subpanel-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    width: 100%;
+    transition: background 0.12s, border-color 0.12s;
+    flex-shrink: 0;
+}
+
+.pico-subpanel-item:hover {
+    background: rgba(128, 128, 128, 0.18);
+}
+
+.pico-subpanel-item.active {
+    border-color: rgba(13, 110, 253, 0.5);
+    background: rgba(13, 110, 253, 0.12);
+}
+
+.pico-subpanel-item:disabled,
+.pico-subpanel-item[disabled] {
+    cursor: default;
+}
+
+.pico-subpanel-icon {
+    font-size: 1.35rem;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 1.8rem;
+    text-align: center;
+}
+
+.pico-subpanel-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.pico-subpanel-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: block;
+}
+
+.pico-subpanel-desc {
+    font-size: 0.72rem;
+    opacity: 0.55;
+    display: block;
+}
+
+.pico-subpanel-badge {
+    font-size: 0.72rem;
+    opacity: 0.65;
+    flex-shrink: 0;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+}
+
+/* Menu trigger button — slightly highlighted */
+.pico-menu-trigger {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ═══════════════════════════════════════════════════
+   DARK THEME OVERRIDES
+   Applied when html[data-theme="dark"] (set by clock.html on load and
+   updated by the JS theme-switcher when the user changes theme).
+   ═══════════════════════════════════════════════════ */
+
+/* Best-move highlight: swap light-yellow for dark-amber in dark mode */
+html[data-theme="dark"] .first-move,
+html[data-theme="dark"] #pv_output .first-move,
+html[data-theme="dark"] #engineRow .first-move,
+html[data-theme="dark"] #sf18Row .first-move,
+html[data-theme="dark"] .analysis-sources .first-move {
+    background: rgba(255, 193, 7, 0.15) !important;
+    color: #ffc107 !important;
+    border-color: rgba(255, 193, 7, 0.35) !important;
+    text-shadow: none !important;
+}
+
+html[data-theme="dark"] .engine-name-badge {
+    color: var(--bs-body-color, #dee2e6);
+}
+
+/* Mute button: replace light-grey fill with a subtle dark fill */
+html[data-theme="dark"] #btn-mute {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Promotion piece selection: lighten the dark-grey circles */
+html[data-theme="dark"] .promotion-overlay square {
+    background-color: #505050;
+    box-shadow: inset 0 0 25px 3px #1a1a1a;
 }

@@ -583,6 +583,31 @@ else
 fi
 echo " ------- setcap end ------- "
 
+# Bluetooth sudoers setup
+echo " ------- "
+echo "Setting up passwordless sudo for Bluetooth fix and DGT reconnect scripts"
+for bt_script in \
+    "$REPO_DIR/Fix_bluetooth.sh" \
+    "$REPO_DIR/reconnect-dgt-bt.sh" \
+    "$REPO_DIR/enable-bluetooth-fix.sh" \
+    "$REPO_DIR/enable-dgt-bt-reconnect.sh"; do
+    if [ -f "$bt_script" ]; then
+        chmod +x "$bt_script"
+    fi
+done
+if [ -f "$REPO_DIR/enable-bluetooth-fix.sh" ]; then
+    SUDO_USER="$INSTALL_USER" "$REPO_DIR/enable-bluetooth-fix.sh" || \
+        echo "Warning: enable-bluetooth-fix.sh failed; Fix BT menu item may require manual setup." >&2
+else
+    echo "Warning: enable-bluetooth-fix.sh not found; skipping." >&2
+fi
+if [ -f "$REPO_DIR/enable-dgt-bt-reconnect.sh" ]; then
+    SUDO_USER="$INSTALL_USER" "$REPO_DIR/enable-dgt-bt-reconnect.sh" || \
+        echo "Warning: enable-dgt-bt-reconnect.sh failed; Reconnect DGT menu item may require manual setup." >&2
+else
+    echo "Warning: enable-dgt-bt-reconnect.sh not found; skipping." >&2
+fi
+
 # backup folder ownership fix
 echo "Fixing ownership for backup folders - in case user has run install-engines as sudo"
 chown -R "$INSTALL_USER:$INSTALL_USER" "$BACKUP_DIR_BASE" 2>/dev/null || true

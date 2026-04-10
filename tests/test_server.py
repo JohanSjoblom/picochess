@@ -6,6 +6,7 @@ from dgt.translate import DgtTranslate
 from dgt.util import Mode, TimeMode
 from server import (
     OBOOKSRV_BOOK_FILE,
+    _apply_web_analysis_state,
     _channel_action_requires_remote_auth,
     _configured_engine_book_file,
     _display_text_from_label,
@@ -139,6 +140,39 @@ class TestServerEngineBookSelection(unittest.TestCase):
         self.assertIsNotNone(selected)
         self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
         self.assertTrue(selected["label"])
+
+
+class TestServerWebAnalysisState(unittest.TestCase):
+    def test_none_analysis_clears_cached_state(self):
+        shared = {
+            "analysis_state": {"source": "engine", "depth": 12},
+            "analysis_state_engine": {"source": "engine", "depth": 12},
+            "analysis_state_tutor": {"source": "tutor", "depth": 10},
+            "suppress_engine_analysis": True,
+        }
+        reset_calls = []
+
+        payload = _apply_web_analysis_state(shared, None, reset_engine_analysis_state=lambda: reset_calls.append(True))
+
+        self.assertIsNone(payload)
+        self.assertNotIn("analysis_state", shared)
+        self.assertNotIn("analysis_state_engine", shared)
+        self.assertNotIn("analysis_state_tutor", shared)
+        self.assertNotIn("suppress_engine_analysis", shared)
+        self.assertTrue(shared["analysis_web_enabled"])
+        self.assertEqual([True], reset_calls)
+
+    def test_tutor_analysis_fills_missing_fen_and_preserves_engine_cache(self):
+        shared = {
+            "analysis_state_engine": {"source": "engine", "depth": 8},
+            "last_dgt_move_msg": {"fen": "some-fen"},
+        }
+
+        payload = _apply_web_analysis_state(shared, {"source": "tutor", "depth": 14}, reset_engine_analysis_state=None)
+
+        self.assertEqual("some-fen", payload["fen"])
+        self.assertEqual(payload, shared["analysis_state_tutor"])
+        self.assertEqual({"source": "engine", "depth": 8}, shared["analysis_state_engine"])
 
 
 class TestServerChannelAuth(unittest.TestCase):

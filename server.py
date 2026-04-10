@@ -306,6 +306,40 @@ def _update_web_book_selection(shared: dict | None, index: int):
     return selected
 
 
+def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_state=None):
+    """Update cached web-analysis state and return the payload to send to clients."""
+    if analysis is None:
+        shared.pop("analysis_state_tutor", None)
+        shared.pop("analysis_state_engine", None)
+        shared.pop("analysis_state", None)
+        shared.pop("suppress_engine_analysis", None)
+        if reset_engine_analysis_state is not None:
+            reset_engine_analysis_state()
+        shared["analysis_web_enabled"] = True
+        return None
+
+    analysis_payload = dict(analysis)
+    source = analysis_payload.get("source", "engine")
+    shared["suppress_engine_analysis"] = bool(analysis_payload.get("suppress_engine_line"))
+    if analysis_payload.get("clear"):
+        if source == "tutor":
+            shared.pop("analysis_state_tutor", None)
+        else:
+            shared.pop("analysis_state_engine", None)
+            shared.pop("analysis_state", None)
+            if reset_engine_analysis_state is not None:
+                reset_engine_analysis_state()
+    else:
+        if "fen" not in analysis_payload and "last_dgt_move_msg" in shared:
+            analysis_payload["fen"] = shared["last_dgt_move_msg"].get("fen")
+        if source == "tutor":
+            shared["analysis_state_tutor"] = analysis_payload
+        else:
+            shared["analysis_state_engine"] = analysis_payload
+    shared["analysis_web_enabled"] = True
+    return analysis_payload
+
+
 def _channel_action_requires_remote_auth(action: str) -> bool:
     """Require remote auth for settings/admin actions exposed through /channel."""
     return action in CHANNEL_REMOTE_AUTH_ACTIONS
@@ -2537,24 +2571,11 @@ class WebDisplay(DisplayMsg):
             )
 
         elif isinstance(message, Message.WEB_ANALYSIS):
-            analysis_payload = message.analysis or {}
-            source = analysis_payload.get("source", "engine")
-            self.shared["suppress_engine_analysis"] = bool(analysis_payload.get("suppress_engine_line"))
-            if analysis_payload.get("clear"):
-                if source == "tutor":
-                    self.shared.pop("analysis_state_tutor", None)
-                else:
-                    self.shared.pop("analysis_state_engine", None)
-                    self.shared.pop("analysis_state", None)
-                    self._reset_analysis_state()
-            else:
-                if "fen" not in analysis_payload and "last_dgt_move_msg" in self.shared:
-                    analysis_payload["fen"] = self.shared["last_dgt_move_msg"].get("fen")
-                if source == "tutor":
-                    self.shared["analysis_state_tutor"] = analysis_payload
-                else:
-                    self.shared["analysis_state_engine"] = analysis_payload
-            self.shared["analysis_web_enabled"] = True
+            analysis_payload = _apply_web_analysis_state(
+                self.shared,
+                message.analysis,
+                reset_engine_analysis_state=self._reset_analysis_state,
+            )
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
         elif isinstance(message, Message.NEW_PV):

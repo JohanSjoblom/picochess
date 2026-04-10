@@ -154,6 +154,40 @@ def _time_control_text(tc_init: dict, dgttranslate):
     return _translated_display_text(dgttranslate, text_id, time_control.get_list_text(), time_control.get_list_text())
 
 
+def _engine_level_event(level_name: str, dgttranslate):
+    """Build the canonical level event fired before a web engine change."""
+    selected_level = str(level_name or "").strip()
+    if selected_level:
+        return Event.LEVEL(
+            options={},
+            level_text=_translated_display_text(dgttranslate, "B10_level", selected_level, selected_level),
+            level_name=selected_level,
+        )
+    return Event.LEVEL(
+        options={},
+        level_text=_translated_display_text(dgttranslate, "N07_default", "Default", ""),
+        level_name="",
+    )
+
+
+def _engine_change_events(eng: dict, level_name: str, dgttranslate):
+    """Mirror the DGT-menu engine-change flow for web-triggered engine switches."""
+    level_dict = eng.get("level_dict") or {}
+    selected_level = str(level_name or "").strip()
+    if selected_level not in level_dict:
+        selected_level = ""
+    options = level_dict.get(selected_level, {}) if selected_level else {}
+    return (
+        _engine_level_event(selected_level, dgttranslate),
+        Event.NEW_ENGINE(
+            eng=eng,
+            eng_text=eng.get("text") or _display_text_from_label("Engine"),
+            options=options,
+            show_ok=True,
+        ),
+    )
+
+
 def _text_to_label(text_obj) -> str:
     """Extract a plain string from a DGT Text object or passthrough if already a str."""
     if text_obj is None:
@@ -480,21 +514,8 @@ class ChannelHandler(ServerRequestHandler):
             level = self.get_argument("level", "")
             eng   = EngineProvider.resolve_engine(file)
             if eng:
-                options = eng.get("level_dict", {}).get(level, {}) if level else {}
-                # Persist the selected level name now so _build_game_header uses
-                # the correct Elo (e.g. "Elo@1600" → BlackElo 1600, not the engine
-                # max).  The DGT-menu path fires Event.LEVEL first which does the
-                # same; the web overlay fires only Event.NEW_ENGINE so we set it here.
-                if level:
-                    if "game_info" not in self.shared:
-                        self.shared["game_info"] = {}
-                    self.shared["game_info"]["level_name"] = level
-                await Observable.fire(Event.NEW_ENGINE(
-                    eng=eng,
-                    eng_text=eng.get("text", ""),
-                    options=options,
-                    show_ok=True,
-                ))
+                for event in _engine_change_events(eng, level, dgttranslate):
+                    await Observable.fire(event)
         elif action == "new_book":
             selected = _update_web_book_selection(self.shared, self.get_argument("index", "0"))
             EventHandler.write_to_clients(

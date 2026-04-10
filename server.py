@@ -71,6 +71,31 @@ OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
 INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
 INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
+CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
+    {
+        "new_engine",
+        "new_time",
+        "picotutor",
+        "set_mode",
+        "lang",
+        "beep",
+        "set_voice",
+        "set_player",
+        "sys_shutdown",
+        "sys_reboot",
+        "sys_exit",
+        "sys_update",
+        "sys_update_engines",
+        "display",
+        "eboard",
+        "wifi_hotspot",
+        "bt_toggle",
+        "bt_fix",
+        "voice_speed",
+        "voice_volume",
+        "rspeed",
+    }
+)
 
 
 def _get_ini_path() -> str:
@@ -236,6 +261,11 @@ def _update_web_book_selection(shared: dict | None, index: int):
         shared["web_book_file"] = selected.get("file", OBOOKSRV_BOOK_FILE)
         shared.setdefault("system_info", {})["book_name"] = selected.get("label", "") or "Off"
     return selected
+
+
+def _channel_action_requires_remote_auth(action: str) -> bool:
+    """Require remote auth for settings/admin actions exposed through /channel."""
+    return action in CHANNEL_REMOTE_AUTH_ACTIONS
 
 
 def _require_auth_if_remote(handler, realm: str) -> bool:
@@ -421,6 +451,9 @@ class ChannelHandler(ServerRequestHandler):
         action = self.get_argument("action")
         logger.info(f"POST recibido con action: {action}")
         dgttranslate = self.shared.get("dgttranslate") if self.shared else None
+        if _channel_action_requires_remote_auth(action):
+            if not _require_auth_if_remote(self, "Control"):
+                return
 
         if action == "broadcast":
             fen = self.get_argument("fen")

@@ -5,6 +5,7 @@ from dgt.translate import DgtTranslate
 from dgt.util import Mode, TimeMode
 from server import (
     OBOOKSRV_BOOK_FILE,
+    _channel_action_requires_remote_auth,
     _display_text_from_label,
     _engine_change_events,
     _mode_text,
@@ -114,3 +115,35 @@ class TestServerWebEngineSelection(unittest.TestCase):
 
         self.assertEqual("", level_event.level_name)
         self.assertEqual({}, engine_event.options)
+
+
+class TestServerChannelAuth(unittest.TestCase):
+    def test_high_impact_channel_actions_require_remote_auth(self):
+        for action in (
+            "new_engine",
+            "new_time",
+            "set_mode",
+            "sys_shutdown",
+            "sys_reboot",
+            "sys_exit",
+            "sys_update",
+            "sys_update_engines",
+            "eboard",
+            "wifi_hotspot",
+            "bt_toggle",
+            "bt_fix",
+        ):
+            self.assertTrue(_channel_action_requires_remote_auth(action), action)
+
+    def test_gameplay_and_web_book_actions_remain_unauthenticated(self):
+        for action in (
+            "move",
+            "promotion",
+            "new_game",
+            "take_back",
+            "altmove",
+            "contlast",
+            "new_book",
+            "scan_board",
+        ):
+            self.assertFalse(_channel_action_requires_remote_auth(action), action)

@@ -130,6 +130,10 @@ class TestServerEngineBookSelection(unittest.TestCase):
         self.assertNotEqual(OBOOKSRV_BOOK_FILE, books[0]["file"])
         json.dumps({"books": books})
 
+    def test_engine_book_choices_exclude_web_only_obooksrv_entry(self):
+        self.assertEqual(len(_web_book_choices()) - 1, len(_engine_book_choices()))
+        self.assertIsNone(_select_engine_book(OBOOKSRV_BOOK_FILE))
+
     def test_select_engine_book_resolves_configured_book_file(self):
         selected = _select_engine_book(_configured_engine_book_file())
         self.assertIsNotNone(selected)

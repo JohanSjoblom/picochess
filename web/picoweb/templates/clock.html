@@ -1387,8 +1387,8 @@
                 close();
             }
 
-            /* ── book picker ─────────────────────────── */
-            function showBook() {
+            /* ── engine book picker ──────────────────── */
+            function showEngineBook() {
                 showSubpanel('overlay-book');
                 var listEl = document.getElementById('ovl-book-list');
                 listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
@@ -1877,7 +1877,7 @@
                 var tile = e.target.closest('.pico-tile');
                 if (!tile) return;
                 var fns = { 'ovl-mode': showMode, 'ovl-engine': showEngine, 'ovl-time': showTime,
-                            'ovl-book': showBook, 'ovl-tutor': showTutor, 'ovl-player': showPlayer,
+                            'ovl-book': showEngineBook, 'ovl-tutor': showTutor, 'ovl-player': showPlayer,
                             'ovl-game': showGame, 'ovl-system': showSystem, 'ovl-display': showDisplay };
                 var fn = fns[tile.id];
                 if (fn) fn();
@@ -2146,7 +2146,7 @@
                     <span class="pico-tile-sub" id="ovl-time-sub">—</span>
                 </button>
                 <button class="pico-tile" id="ovl-book">
-                    <span class="pico-tile-label">Book</span>
+                    <span class="pico-tile-label">Engine Book</span>
                     <span class="pico-tile-sub" id="ovl-book-sub">Off</span>
                 </button>
                 <button class="pico-tile" id="ovl-tutor">
@@ -2374,14 +2374,14 @@
                 </div>
             </div><!-- #overlay-time -->
 
-            <!-- BOOK SUB-PANEL -->
+            <!-- ENGINE BOOK SUB-PANEL -->
             <div id="overlay-book" class="pico-subpanel">
                 <div class="pico-picker-header">
                     <button class="pico-overlay-back">‹ Back</button>
-                    <span class="pico-picker-title">Opening Book</span>
+                    <span class="pico-picker-title">Engine Book</span>
                 </div>
                 <div class="pico-picker-col" style="flex:1; overflow-y:auto;">
-                    <div class="pico-picker-col-label">Select Book</div>
+                    <div class="pico-picker-col-label">Select Engine Book</div>
                     <div id="ovl-book-list"><div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div></div>
                 </div>
             </div><!-- #overlay-book -->

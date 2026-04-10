@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from dgt.api import DgtApi, EventApi
@@ -61,6 +62,7 @@ class TestServerWebBookSelection(unittest.TestCase):
         self.assertTrue(books)
         self.assertEqual(0, books[0]["index"])
         self.assertEqual(OBOOKSRV_BOOK_FILE, books[0]["file"])
+        json.dumps({"books": books})
 
     def test_select_web_book_zero_index_keeps_obooksrv_pseudo_entry(self):
         selected = _select_web_book(0)
@@ -70,7 +72,8 @@ class TestServerWebBookSelection(unittest.TestCase):
         shared = {}
         selected = _update_web_book_selection(shared, 0)
         self.assertEqual(OBOOKSRV_BOOK_FILE, shared["web_book_file"])
-        self.assertEqual(selected["label"], shared["system_info"]["book_name"])
+        self.assertEqual(OBOOKSRV_BOOK_FILE, selected["file"])
+        self.assertNotIn("system_info", shared)
 
 
 class TestServerWebEngineSelection(unittest.TestCase):

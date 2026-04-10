@@ -228,14 +228,13 @@ def _text_to_label(text_obj) -> str:
 
 def _web_book_choices():
     """Return the web book-picker choices including the ObookSrv pseudo-entry."""
-    books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL, "text": None}]
+    books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL}]
     for offset, book in enumerate(get_opening_books(), start=1):
         books.append(
             {
                 "index": offset,
                 "file": book.get("file", ""),
                 "label": _text_to_label(book.get("text")),
-                "text": book.get("text"),
             }
         )
     return books
@@ -245,7 +244,7 @@ def _select_web_book(index: int):
     """Resolve a web book-picker index to a concrete web choice."""
     books = _web_book_choices()
     if not books:
-        return {"index": 0, "file": "", "label": "", "text": None}
+        return {"index": 0, "file": "", "label": ""}
     try:
         resolved_index = int(index)
     except (TypeError, ValueError):
@@ -259,7 +258,6 @@ def _update_web_book_selection(shared: dict | None, index: int):
     selected = _select_web_book(index)
     if shared is not None:
         shared["web_book_file"] = selected.get("file", OBOOKSRV_BOOK_FILE)
-        shared.setdefault("system_info", {})["book_name"] = selected.get("label", "") or "Off"
     return selected
 
 
@@ -1183,11 +1181,11 @@ class BookHandler(ServerRequestHandler):
         books = _web_book_choices()
 
         if action == "get_book_list":
-            # current selection: prefer web_book_file (updated on each new_book POST),
-            # fall back to PicoOpeningBook PGN header, default to index 0 (Obooksrv).
+            # The legacy web BOOK tab keeps its own selection state and defaults
+            # to the ObookSrv pseudo-entry when no web-specific choice exists.
             current_index = 0
             if books:
-                active_file = self.shared.get("web_book_file") or (self.shared.get("headers") or {}).get("PicoOpeningBook")
+                active_file = self.shared.get("web_book_file")
                 if active_file:
                     for entry in books:
                         if entry["file"] == active_file:
@@ -1206,8 +1204,7 @@ class BookHandler(ServerRequestHandler):
             if not books:
                 current = {"file": "", "label": ""}
             else:
-                index = max(0, min(index, len(books) - 1))
-                current = books[index]
+                current = _update_web_book_selection(self.shared, index)
 
             self.set_header("Content-Type", "application/json")
             self.write({"book": current})

@@ -1392,19 +1392,18 @@
                 showSubpanel('overlay-book');
                 var listEl = document.getElementById('ovl-book-list');
                 listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
-                fetch('/book?action=get_book_list')
+                fetch('/book?action=get_engine_book_list')
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         listEl.innerHTML = '';
                         var currentIdx = (data.current_index !== undefined) ? data.current_index : 0;
                         var books = data.books || [];
-                        // Build list: Obooksrv first (index 0), then real books (index >= 1)
                         books.forEach(function(b) {
                             var btn = document.createElement('button');
                             btn.className = 'pico-picker-item';
                             btn.classList.toggle('selected', b.index === currentIdx);
-                            var label = b.index === 0 ? 'Obooksrv' : (b.label || b.file || ('Book ' + b.index));
-                            var sub   = b.index === 0 ? 'Online book server' : '';
+                            var label = b.label || b.file || ('Book ' + (b.index + 1));
+                            var sub   = '';
                             btn.innerHTML = '<strong>' + label + '</strong>' + (sub ? '<span class="picker-sub">' + sub + '</span>' : '');
                             // Keep tile subtitle in sync with the current selection.
                             if (b.index === currentIdx) {
@@ -1416,7 +1415,7 @@
                             btn.addEventListener('click', function() {
                                 listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                 btn.classList.add('selected');
-                                post('action=new_book&index=' + b.index);
+                                post('action=new_engine_book&file=' + encodeURIComponent(b.file || ''));
                                 var bookSub = document.getElementById('ovl-book-sub');
                                 if (bookSub) bookSub.textContent = label;
                                 window._picoSystemInfo = window._picoSystemInfo || {};

@@ -74,6 +74,7 @@ INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
     {
         "new_engine",
+        "new_engine_book",
         "new_time",
         "picotutor",
         "set_mode",
@@ -238,6 +239,50 @@ def _web_book_choices():
             }
         )
     return books
+
+
+def _configured_engine_book_file() -> str:
+    """Read the configured engine book from picochess.ini."""
+    try:
+        _, _, _, entries_map = _load_ini_entries()
+    except OSError:
+        return ""
+    entry = entries_map.get("book")
+    if not entry or not entry.get("enabled", True):
+        return ""
+    return str(entry.get("value", "")).strip()
+
+
+def _engine_book_choices():
+    """Return the real engine-book choices, excluding the ObookSrv pseudo-entry."""
+    choices = []
+    for index, book in enumerate(get_opening_books()):
+        choices.append(
+            {
+                "index": index,
+                "file": book.get("file", ""),
+                "label": _text_to_label(book.get("text")),
+            }
+        )
+    return choices
+
+
+def _select_engine_book(book_file: str):
+    """Resolve a real engine-book file to the matching configured book entry."""
+    selected_file = str(book_file or "").strip()
+    library = get_opening_books()
+    if not library:
+        return None
+    for index, book in enumerate(library):
+        if book.get("file", "") == selected_file:
+            return {
+                "index": index,
+                "file": book.get("file", ""),
+                "label": _text_to_label(book.get("text")),
+                "text": book.get("text"),
+                "book": book,
+            }
+    return None
 
 
 def _select_web_book(index: int):
@@ -547,11 +592,18 @@ class ChannelHandler(ServerRequestHandler):
             if eng:
                 for event in _engine_change_events(eng, level, dgttranslate):
                     await Observable.fire(event)
+        elif action == "new_engine_book":
+            selected = _select_engine_book(self.get_argument("file", ""))
+            if selected:
+                await Observable.fire(
+                    Event.SET_OPENING_BOOK(
+                        book=selected["book"],
+                        book_text=selected["text"],
+                        show_ok=True,
+                    )
+                )
         elif action == "new_book":
-            selected = _update_web_book_selection(self.shared, self.get_argument("index", "0"))
-            EventHandler.write_to_clients(
-                {"event": "SystemInfo", "msg": {"book_name": selected.get("label", "") or "Off"}}
-            )
+            _update_web_book_selection(self.shared, self.get_argument("index", "0"))
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
@@ -1179,6 +1231,14 @@ class BookHandler(ServerRequestHandler):
         action = self.get_argument("action", "get_book_moves")
 
         books = _web_book_choices()
+
+        if action == "get_engine_book_list":
+            engine_books = _engine_book_choices()
+            current = _select_engine_book(_configured_engine_book_file())
+            current_index = current["index"] if current else 0
+            self.set_header("Content-Type", "application/json")
+            self.write({"current_index": current_index, "books": engine_books})
+            return
 
         if action == "get_book_list":
             # The legacy web BOOK tab keeps its own selection state and defaults

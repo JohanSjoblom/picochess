@@ -7,9 +7,12 @@ from dgt.util import Mode, TimeMode
 from server import (
     OBOOKSRV_BOOK_FILE,
     _channel_action_requires_remote_auth,
+    _configured_engine_book_file,
     _display_text_from_label,
+    _engine_book_choices,
     _engine_change_events,
     _mode_text,
+    _select_engine_book,
     _select_web_book,
     _time_control_text,
     _update_web_book_selection,
@@ -120,10 +123,25 @@ class TestServerWebEngineSelection(unittest.TestCase):
         self.assertEqual({}, engine_event.options)
 
 
+class TestServerEngineBookSelection(unittest.TestCase):
+    def test_engine_book_choices_exclude_obooksrv_and_are_json_safe(self):
+        books = _engine_book_choices()
+        self.assertTrue(books)
+        self.assertNotEqual(OBOOKSRV_BOOK_FILE, books[0]["file"])
+        json.dumps({"books": books})
+
+    def test_select_engine_book_resolves_configured_book_file(self):
+        selected = _select_engine_book(_configured_engine_book_file())
+        self.assertIsNotNone(selected)
+        self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
+        self.assertTrue(selected["label"])
+
+
 class TestServerChannelAuth(unittest.TestCase):
     def test_high_impact_channel_actions_require_remote_auth(self):
         for action in (
             "new_engine",
+            "new_engine_book",
             "new_time",
             "set_mode",
             "sys_shutdown",

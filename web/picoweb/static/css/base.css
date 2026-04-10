@@ -426,6 +426,19 @@ td.result {
 .leipzig .rook.black { background-image: url('chessground/images/pieces/leipzig/bR.svg') }
 .leipzig .queen.black { background-image: url('chessground/images/pieces/leipzig/bQ.svg') }
 .leipzig .king.black { background-image: url('chessground/images/pieces/leipzig/bK.svg') }
+/* Neo pieces */
+.neo .pawn.white { background-image: url('chessground/images/pieces/neo/wP.svg') }
+.neo .knight.white { background-image: url('chessground/images/pieces/neo/wN.svg') }
+.neo .bishop.white { background-image: url('chessground/images/pieces/neo/wB.svg') }
+.neo .rook.white { background-image: url('chessground/images/pieces/neo/wR.svg') }
+.neo .queen.white { background-image: url('chessground/images/pieces/neo/wQ.svg') }
+.neo .king.white { background-image: url('chessground/images/pieces/neo/wK.svg') }
+.neo .pawn.black { background-image: url('chessground/images/pieces/neo/bP.svg') }
+.neo .knight.black { background-image: url('chessground/images/pieces/neo/bN.svg') }
+.neo .bishop.black { background-image: url('chessground/images/pieces/neo/bB.svg') }
+.neo .rook.black { background-image: url('chessground/images/pieces/neo/bR.svg') }
+.neo .queen.black { background-image: url('chessground/images/pieces/neo/bQ.svg') }
+.neo .king.black { background-image: url('chessground/images/pieces/neo/bK.svg') }
 /* --- ESTILOS DEL BOTÓN MUTE (GLOBAL) --- */
 
 /* Estilo base del botón */

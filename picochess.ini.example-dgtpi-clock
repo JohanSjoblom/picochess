@@ -391,7 +391,7 @@ clockside = left
 #theme = dark
 theme = auto
 
-## Web chess piece set: 'alpha', 'berlin', 'leipzig', 'merida' or 'uscf'. Default is 'merida'.
+## Web chess piece set: 'alpha', 'berlin', 'leipzig', 'merida', 'neo' or 'uscf'. Default is 'merida'.
 #pieces = merida
 pieces = merida
 

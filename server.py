@@ -53,7 +53,7 @@ from utilities import (
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
-from dgt.api import Event, Message
+from dgt.api import Dgt, DgtApi, Event, Message
 from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
@@ -90,6 +90,68 @@ def _is_private_request(request) -> bool:
     except ValueError:
         return False
     return addr.is_private or addr.is_loopback or addr.is_link_local
+
+
+def _display_text_from_label(label: str):
+    """Create a DGT display-text object from a plain string."""
+    text = str(label or "").strip() or " "
+    return Dgt.DISPLAY_TEXT(
+        web_text=text,
+        large_text=text,
+        medium_text=text,
+        small_text=text,
+        beep=False,
+        maxtime=0,
+        devs={"ser", "i2c", "web"},
+        wait=False,
+    )
+
+
+def _translated_display_text(dgttranslate, text_id: str, fallback_label: str, *args):
+    """Return a DGT display-text object, falling back to a plain label if translation is unavailable."""
+    if dgttranslate is not None:
+        translated = dgttranslate.text(text_id, *args)
+        if repr(translated) == DgtApi.DISPLAY_TEXT:
+            return translated
+    return _display_text_from_label(fallback_label)
+
+
+def _mode_label(mode: Mode) -> str:
+    labels = {
+        Mode.NORMAL: "Normal",
+        Mode.TRAINING: "Training",
+        Mode.BRAIN: "Brain",
+        Mode.ANALYSIS: "Analysis",
+        Mode.KIBITZ: "Kibitz",
+        Mode.OBSERVE: "Observe",
+        Mode.REMOTE: "Remote",
+        Mode.PONDER: "Ponder",
+        Mode.PGNREPLAY: "PGN Replay",
+    }
+    return labels.get(mode, "Mode")
+
+
+def _mode_text(mode: Mode, dgttranslate):
+    """Build the typed mode text used by interaction-mode events."""
+    return _translated_display_text(dgttranslate, mode.value, _mode_label(mode))
+
+
+def _time_control_text(tc_init: dict, dgttranslate):
+    """Build the typed time-control text used by time-control events."""
+    time_control = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
+    if time_control.depth > 0:
+        text_id = "B00_tc_depth"
+    elif time_control.node > 0:
+        text_id = "B00_tc_node"
+    elif time_control.moves_to_go_orig > 0:
+        text_id = "B00_tc_tourn"
+    elif time_control.mode == TimeMode.BLITZ:
+        text_id = "B00_tc_blitz"
+    elif time_control.mode == TimeMode.FISCHER:
+        text_id = "B00_tc_fisch"
+    else:
+        text_id = "B00_tc_fixed"
+    return _translated_display_text(dgttranslate, text_id, time_control.get_list_text(), time_control.get_list_text())
 
 
 def _require_auth_if_remote(handler, realm: str) -> bool:
@@ -274,6 +336,7 @@ class ChannelHandler(ServerRequestHandler):
     async def post(self):
         action = self.get_argument("action")
         logger.info(f"POST recibido con action: {action}")
+        dgttranslate = self.shared.get("dgttranslate") if self.shared else None
 
         if action == "broadcast":
             fen = self.get_argument("fen")
@@ -329,7 +392,11 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "pgn_replay":
             await Observable.fire(
-                Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text="PGN Replay", show_ok=False)
+                Event.SET_INTERACTION_MODE(
+                    mode=Mode.PGNREPLAY,
+                    mode_text=_mode_text(Mode.PGNREPLAY, dgttranslate),
+                    show_ok=False,
+                )
             )
         elif action == "save_game":
             try:
@@ -468,9 +535,8 @@ class ChannelHandler(ServerRequestHandler):
                     "depth": 0, "node": 0, "internal_time": None,
                 }
 
-            tc = TimeControl(**{k: v for k, v in tc_init.items() if k != "internal_time"})
-            time_text = tc.get_list_text()
-            logger.info("web new_time: mode_id=%d tc_init=%s time_text=%r", mode_id, tc_init, time_text)
+            time_text = _time_control_text(tc_init, dgttranslate)
+            logger.info("web new_time: mode_id=%d tc_init=%s", mode_id, tc_init)
             await Observable.fire(Event.SET_TIME_CONTROL(tc_init=tc_init, time_text=time_text, show_ok=True))
         elif action == "picotutor":
             tutor = self.get_argument("tutor", "")
@@ -524,8 +590,14 @@ class ChannelHandler(ServerRequestHandler):
                 "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
             }
             mode_name = self.get_argument("mode", "normal").lower()
-            mode_val, mode_text = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
-            await Observable.fire(Event.SET_INTERACTION_MODE(mode=mode_val, mode_text=mode_text, show_ok=True))
+            mode_val, _ = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
+            await Observable.fire(
+                Event.SET_INTERACTION_MODE(
+                    mode=mode_val,
+                    mode_text=_mode_text(mode_val, dgttranslate),
+                    show_ok=True,
+                )
+            )
         elif action == "lang":
             _valid_langs = {"en", "de", "nl", "fr", "es", "it"}
             lang_code = self.get_argument("val", "en").lower()

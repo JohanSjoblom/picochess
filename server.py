@@ -154,6 +154,56 @@ def _time_control_text(tc_init: dict, dgttranslate):
     return _translated_display_text(dgttranslate, text_id, time_control.get_list_text(), time_control.get_list_text())
 
 
+def _text_to_label(text_obj) -> str:
+    """Extract a plain string from a DGT Text object or passthrough if already a str."""
+    if text_obj is None:
+        return ""
+    if isinstance(text_obj, str):
+        return text_obj.strip()
+    for attr in ("web_text", "large_text", "medium_text"):
+        val = getattr(text_obj, attr, None)
+        if val and str(val).strip():
+            return str(val).strip()
+    return ""
+
+
+def _web_book_choices():
+    """Return the web book-picker choices including the ObookSrv pseudo-entry."""
+    books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL, "text": None}]
+    for offset, book in enumerate(get_opening_books(), start=1):
+        books.append(
+            {
+                "index": offset,
+                "file": book.get("file", ""),
+                "label": _text_to_label(book.get("text")),
+                "text": book.get("text"),
+            }
+        )
+    return books
+
+
+def _select_web_book(index: int):
+    """Resolve a web book-picker index to a concrete web choice."""
+    books = _web_book_choices()
+    if not books:
+        return {"index": 0, "file": "", "label": "", "text": None}
+    try:
+        resolved_index = int(index)
+    except (TypeError, ValueError):
+        resolved_index = 0
+    resolved_index = max(0, min(resolved_index, len(books) - 1))
+    return books[resolved_index]
+
+
+def _update_web_book_selection(shared: dict | None, index: int):
+    """Update only the web client's book-explorer selection, not the engine book."""
+    selected = _select_web_book(index)
+    if shared is not None:
+        shared["web_book_file"] = selected.get("file", OBOOKSRV_BOOK_FILE)
+        shared.setdefault("system_info", {})["book_name"] = selected.get("label", "") or "Off"
+    return selected
+
+
 def _require_auth_if_remote(handler, realm: str) -> bool:
     if _is_local_request(handler.request):
         return True
@@ -446,24 +496,10 @@ class ChannelHandler(ServerRequestHandler):
                     show_ok=True,
                 ))
         elif action == "new_book":
-            try:
-                index = int(self.get_argument("index", "0"))
-            except (TypeError, ValueError):
-                index = 0
-            library = get_opening_books()
-            if index == 0:
-                # Index 0 = online book server (obooksrv)
-                book = {"file": OBOOKSRV_BOOK_FILE, "text": None}
-                book_text = None
-            elif 1 <= index <= len(library):
-                book = library[index - 1]
-                book_text = book.get("text")
-            else:
-                book = library[0] if library else {"file": "", "text": None}
-                book_text = book.get("text")
-            # Remember which book file was selected so get_book_list returns the right current_index
-            self.shared["web_book_file"] = book.get("file", OBOOKSRV_BOOK_FILE)
-            await Observable.fire(Event.SET_OPENING_BOOK(book=book, book_text=book_text, show_ok=True))
+            selected = _update_web_book_selection(self.shared, self.get_argument("index", "0"))
+            EventHandler.write_to_clients(
+                {"event": "SystemInfo", "msg": {"book_name": selected.get("label", "") or "Off"}}
+            )
         elif action == "scan_board":
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
@@ -1090,17 +1126,7 @@ class BookHandler(ServerRequestHandler):
         """Web-facing API for opening book explorer (independent from engine book)."""
         action = self.get_argument("action", "get_book_moves")
 
-        # Build full opening book library from books.ini
-        library = get_opening_books()
-        books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL}]
-        for offset, book in enumerate(library, start=1):
-            text_obj = book.get("text")
-            label = ""
-            if hasattr(text_obj, "web_text") and text_obj.web_text:
-                label = text_obj.web_text
-            elif hasattr(text_obj, "large_text") and text_obj.large_text:
-                label = text_obj.large_text
-            books.append({"index": offset, "file": book.get("file"), "label": label})
+        books = _web_book_choices()
 
         if action == "get_book_list":
             # current selection: prefer web_book_file (updated on each new_book POST),
@@ -1756,15 +1782,7 @@ class WebDisplay(DisplayMsg):
     @staticmethod
     def _text_to_label(text_obj) -> str:
         """Extract a plain string from a DGT Text object or passthrough if already a str."""
-        if text_obj is None:
-            return ""
-        if isinstance(text_obj, str):
-            return text_obj.strip()
-        for attr in ("web_text", "large_text", "medium_text"):
-            val = getattr(text_obj, attr, None)
-            if val and str(val).strip():
-                return str(val).strip()
-        return ""
+        return _text_to_label(text_obj)
 
     @staticmethod
     def _tc_to_label(tc_init: dict) -> str:

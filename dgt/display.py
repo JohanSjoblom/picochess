@@ -753,6 +753,8 @@ class DgtDisplay(DisplayMsg):
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""
+        self._brain_hint_text = None
+        self._brain_hint_until = 0.0
         if self.leds_are_on:
             if log:
                 logger.warning("(rev) leds still on")
@@ -1304,11 +1306,30 @@ class DgtDisplay(DisplayMsg):
             await self._process_user_move_done(message)
 
         elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
-            # BRAIN/HAND: light the tutor's full move (from+to) on the physical Revelation board.
-            # Cleared automatically when force_leds_off() fires on the next computer move.
-            # The web client handles this separately via the 'TutorMove' WebSocket event in server.py.
+            # Light the tutor's full move on the Revelation board LEDs.
             await DispatchDgt.fire(Dgt.LIGHT_SQUARES(uci_move=message.move.uci(), devs={"ser"}))
             self.leds_are_on = True
+            # Clear any BRAIN piece-hint hold so the reveal text takes over.
+            self._brain_hint_text = None
+            self._brain_hint_until = 0.0
+            # Show the revealed move as text on the DGT clock (if enabled).
+            if self.dgtmenu.get_brain_reveal_text():
+                uci = message.move.uci()          # e.g. "e2e4" or "e7e8q"
+                frm, to = uci[:2], uci[2:4]
+                reveal_text = Dgt.DISPLAY_TEXT(
+                    web_text="Best move: " + frm + "-" + to,
+                    large_text=("Best " + frm + "-" + to).ljust(11)[:11],
+                    medium_text=("Bt " + frm + to).ljust(8)[:8],
+                    small_text=(frm + to).ljust(6)[:6],
+                    beep=False,
+                    maxtime=0,
+                    wait=True,
+                    devs={"ser", "i2c", "web"},
+                )
+                await DispatchDgt.fire(reveal_text)
+                # Hold the reveal text until the engine plays (force_leds_off will clear it).
+                self._brain_hint_text = reveal_text
+                self._brain_hint_until = float("inf")
 
         elif isinstance(message, Message.REVIEW_MOVE_DONE):
             await self._process_review_move_done(message)
@@ -1662,8 +1683,13 @@ class DgtDisplay(DisplayMsg):
                 # within one second.  Any non-BRAIN tutor message (score, best
                 # move, etc.) clears the hold immediately.
                 if message.eval_str.startswith("BRAIN_"):
-                    self._brain_hint_text = hint_text
-                    self._brain_hint_until = self.loop.time() + float(self.dgtmenu.get_brain_hint_duration())
+                    hint_display = self.dgtmenu.get_brain_hint_display()
+                    if hint_display > 0:
+                        self._brain_hint_text = hint_text
+                        self._brain_hint_until = self.loop.time() + float(hint_display)
+                    else:
+                        self._brain_hint_text = hint_text
+                        self._brain_hint_until = float("inf")
                 else:
                     self._brain_hint_until = 0.0
             if message.eval_str == "POSOK" or message.eval_str == "ANALYSIS" and self.play_move == chess.Move.null():

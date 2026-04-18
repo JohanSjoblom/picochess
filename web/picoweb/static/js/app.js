@@ -2285,6 +2285,9 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
+        if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
+            window.setPicoGameActive(Boolean(data.game_started));
+        }
         if (window.chessground1) { updateChessGround(); }
         if (window.syncClockControls) { window.syncClockControls(); }
     }).fail(function (jqXHR, textStatus) {
@@ -2632,6 +2635,9 @@ $(function () {
                         // diagram immediately locks/unlocks when mode changes.
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         Object.assign(window._picoSystemInfo, data.msg);
+                        if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
+                            window.setPicoGameActive(Boolean(data.msg.game_started));
+                        }
                         if (window.chessground1) { updateChessGround(); }
                         if (window.syncClockControls) { window.syncClockControls(); }
                         break;

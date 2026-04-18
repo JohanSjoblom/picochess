@@ -1702,6 +1702,10 @@
             function updateTileStates() {
                 var isMuted = !!(document.getElementById('btn-mute') && document.getElementById('btn-mute').classList.contains('is-muted'));
                 var sysInfo = window._picoSystemInfo || {};
+                if (Object.prototype.hasOwnProperty.call(sysInfo, 'game_started')) {
+                    gameActive = Boolean(sysInfo.game_started);
+                    if (!gameActive) engineTurn = false;
+                }
                 var el;
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = isMuted ? 'Muted' : 'Sound On';
@@ -1987,6 +1991,8 @@
 
             window.setPicoGameActive = function(active) {
                 gameActive = Boolean(active);
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.game_started = gameActive;
                 if (!gameActive) engineTurn = false;
                 if (overlay.classList.contains('open')) updateTileStates();
             };
@@ -2152,7 +2158,7 @@
 
             <div class="pico-overlay-header">
                 <span class="pico-overlay-title">PicoChess Menu</span>
-                <span class="pico-overlay-state" id="picoOverlayState">● Game in progress</span>
+                <span class="pico-overlay-state" id="picoOverlayState">○ No active game</span>
                 <button class="pico-overlay-close" id="picoOverlayClose" aria-label="Close">✕</button>
             </div>
 

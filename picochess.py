@@ -252,6 +252,7 @@ class PicochessState:
         self.game = None or chess.Board()
         self.engine_move_was_book = False
         self.game_declared = False  # User declared resignation or draw
+        self.game_started = False  # Lifecycle flag: true once play has started, even after takeback to move 0.
         self.interaction_mode = Mode.NORMAL
         self.last_legal_fens: List[Any] = []
         self.last_move = None
@@ -452,6 +453,7 @@ class PicochessState:
             Mode.REMOTE,
             Mode.TRAINING,
         ):
+            self.game_started = True
             self.time_control.start_internal(self.game.turn, self.main_loop)
             tc_init = self.time_control.get_parameters()
             if self.interaction_mode == Mode.TRAINING:
@@ -1233,6 +1235,7 @@ async def main() -> None:
                 FLOAT_MIN_BACKGROUND_TIME, self._pv_score_depth_analyser, loop=self.loop
             )
             self.shared = shared
+            self.shared.setdefault("system_info", {})["game_started"] = self.state.game_started
             self.non_main_tasks = non_main_tasks
             self.update_status = None
             self.git_status = None
@@ -1613,6 +1616,7 @@ async def main() -> None:
 
             If a move is found in the opening book, fire an event in a few seconds.
             """
+            self._set_game_started(True)
             await DisplayMsg.show(msg)
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
@@ -2910,6 +2914,7 @@ async def main() -> None:
                 #
                 game_before = self.state.game.copy()
                 self.state.push_move(move)  # this is where user move is made
+                self._set_game_started(True)
                 self._update_variant_shared()
                 logger.debug("user did a move for user")
                 #
@@ -3241,10 +3246,11 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
-            # Save CPU at game start: in normal engine-play modes, skip analyser on the
-            # untouched standard starting position (no moves played yet).
+            # Save CPU at idle startup: skip analyser on the untouched standard
+            # starting position until the game lifecycle has actually begun.
             if (
                 self.eng_plays()
+                and not self.state.game_started
                 and self.state.variant == "chess"
                 and self.state.game is not None
                 and not self.state.game.move_stack
@@ -3267,6 +3273,16 @@ async def main() -> None:
         def eng_plays(self) -> bool:
             """return true if engine is playing moves"""
             return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
+
+        def _set_game_started(self, started: bool) -> None:
+            """Update active-game lifecycle state and publish it to web clients."""
+            started = bool(started)
+            self.state.game_started = started
+            self.shared.setdefault("system_info", {})
+            if self.shared["system_info"].get("game_started") == started:
+                return
+            self.shared["system_info"]["game_started"] = started
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"game_started": started}})
 
         def _set_pgn_replay_autoplay(self, enabled: bool, mode: Mode | None = None) -> None:
             """Update PGN replay autoplay and publish it to connected web clients."""
@@ -4255,6 +4271,7 @@ async def main() -> None:
         def _start_pgn_replay_autoplay(self) -> None:
             """Enable PGN replay autoplay without advancing immediately."""
             if self.can_do_next_pgn_replay_move():
+                self._set_game_started(True)
                 self._set_pgn_replay_autoplay(True)
 
         def _get_cached_pgn_next_move(self) -> chess.Move | None:
@@ -4328,6 +4345,7 @@ async def main() -> None:
         def game_end_event(self):
             #  @todo1 should have an EVENT message for game end, function for now
             #  @todo2 should be more state variables to reset here?
+            self._set_game_started(False)
             self._set_pgn_replay_autoplay(False)  # prevent autoplay starting for next pgn read
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
@@ -4857,6 +4875,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.NEW_GAME):
                 await self.get_rid_of_engine_move()
+                self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
@@ -5208,6 +5227,7 @@ async def main() -> None:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()
                         else:
+                            self._set_game_started(True)
                             await self.state.start_clock()
                     else:
                         logger.debug("best move displayed, dont start/stop clock")
@@ -5346,6 +5366,7 @@ async def main() -> None:
                         await self.think(msg)  # PLAY_MODE
                     else:
                         await DisplayMsg.show(msg)  # PLAY_MODE
+                        self._set_game_started(True)
                         await self.state.start_clock()
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
@@ -5389,6 +5410,7 @@ async def main() -> None:
                             await self.think(msg)
                         else:
                             await DisplayMsg.show(msg)
+                            self._set_game_started(True)
                             await self.state.start_clock()
                             self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 

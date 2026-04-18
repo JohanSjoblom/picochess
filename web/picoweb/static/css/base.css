@@ -1045,17 +1045,62 @@ piece {
 
 .clock-label-row {
     display: flex;
+    align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
     margin-bottom: 0.15rem;
 }
 
 .clock-label-left,
 .clock-label-right {
+    flex: 1;
     font-size: 0.8rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     transition: opacity 0.4s ease;
+}
+
+.clock-label-left {
+    text-align: left;
+}
+
+.clock-label-right {
+    text-align: right;
+}
+
+.pico-clock-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: 999px;
+    background: rgba(128, 128, 128, 0.08);
+    color: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.08s ease;
+}
+
+.pico-clock-action:hover,
+.pico-clock-action:focus-visible {
+    background: rgba(128, 128, 128, 0.16);
+    border-color: rgba(128, 128, 128, 0.42);
+}
+
+.pico-clock-action:active {
+    transform: translateY(1px);
+}
+
+.pico-clock-switch-btn {
+    flex: 0 0 auto;
+    padding: 0.32rem 0.7rem;
+    text-transform: uppercase;
 }
 
 .clock-label-right-group {
@@ -1112,6 +1157,17 @@ piece {
     text-align: center;
     font-size: 1.1rem;
     opacity: 0.45;
+}
+
+.clock-action-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.38rem;
+}
+
+.pico-clock-pause-btn {
+    min-width: 10rem;
+    padding: 0.42rem 1.1rem;
 }
 
 .clock-status-row {

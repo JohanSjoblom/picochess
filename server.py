@@ -575,7 +575,7 @@ class ChannelHandler(ServerRequestHandler):
                 await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
             else:
                 await Observable.fire(Event.PICOCOACH(picocoach=0))
-        elif action == "move_now":
+        elif action == "pause_resume":
             await Observable.fire(Event.PAUSE_RESUME())
         elif action == "resign_game":
             play_mode = (self.shared.get("game_info") or {}).get("play_mode")

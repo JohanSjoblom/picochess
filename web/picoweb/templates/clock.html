@@ -591,9 +591,17 @@
                             <div class="pico-clock-header">
                                 <div class="clock-label-row">
                                     <span class="clock-label-left" id="clockLabelLeft">White</span>
+                                    <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
+                                        <i class="fa fa-exchange" aria-hidden="true"></i><span>Switch Sides</span>
+                                    </button>
                                     <span class="clock-label-right" id="clockLabelRight">Black</span>
                                 </div>
                                 <div class="clock-time-row" id="DGTClockText" aria-live="polite" aria-label="Clock" role="timer"></div>
+                                <div class="clock-action-row">
+                                    <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
+                                        <i class="fa fa-pause" aria-hidden="true"></i><span>Pause / Resume</span>
+                                    </button>
+                                </div>
                                 <div class="clock-status-row d-none" id="DGTClockStatus"></div>
                             </div>
                         </div>
@@ -1925,7 +1933,7 @@
                     if (ga === 'contlast') { post('action=contlast'); close(); return; }
                     if (ga === 'switchsides') { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
                     if (ga === 'resign') { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
-                    if (ga === 'move-now') { if (!engineTurn) return; post('action=move_now'); close(); return; }
+                    if (ga === 'move-now') { if (!engineTurn) return; post('action=pause_resume'); close(); return; }
                     showGameOpts(ga); return;
                 }
 

@@ -203,6 +203,7 @@ class TestServerChannelAuth(unittest.TestCase):
             "altmove",
             "contlast",
             "new_book",
+            "pause_resume",
             "scan_board",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)

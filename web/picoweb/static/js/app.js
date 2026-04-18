@@ -1366,6 +1366,15 @@ function clockButtonPower() {
     $.post('/channel', { action: 'clockbutton', button: 0x11 }, function (data) { });
 }
 
+function clockSwitchSides() {
+    $.post('/channel', { action: 'clockbutton', button: 0x40 }, function (data) { });
+    boardFlip();
+}
+
+function clockPauseResume() {
+    $.post('/channel', { action: 'pause_resume' }, function (data) { });
+}
+
 function goToPosition(fen) {
     stopAnalysis();
     currentPosition = fenHash[fen];
@@ -2409,6 +2418,8 @@ $('#ClockBtn2').on('click', clockButton2);
 $('#ClockBtn3').on('click', clockButton3);
 $('#ClockBtn4').on('click', clockButton4);
 $('#ClockLeverBtn').on('click', toggleLeverButton);
+$('#clockSwitchSidesBtn').on('click', clockSwitchSides);
+$('#clockPauseResumeBtn').on('click', clockPauseResume);
 
 $("#ClockBtn0").mouseup(function () {
     btn = $(this);
@@ -2432,6 +2443,10 @@ $("#ClockBtn4").mouseup(function () {
 })
 $("#ClockLeverBtn").mouseup(function () {
     btn = $(this);
+    setTimeout(function () { btn.blur(); }, 100);
+})
+$("#clockSwitchSidesBtn, #clockPauseResumeBtn").mouseup(function () {
+    var btn = $(this);
     setTimeout(function () { btn.blur(); }, 100);
 })
 

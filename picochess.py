@@ -2412,7 +2412,7 @@ async def main() -> None:
                     else:
                         if self.state.interaction_mode == Mode.PGNREPLAY:
                             # its a legal move, so let the user deviate from PGN replay but stop autoplay
-                            self.state.autoplay_pgn_file = False
+                            self._set_pgn_replay_autoplay(False)
                         else:  # TRAINING mode as before, user did an alternativ move for Pico engine
                             await DisplayMsg.show(Message.WRONG_FEN())  # display set pieces/pico's move
                             await asyncio.sleep(3)
@@ -3268,6 +3268,19 @@ async def main() -> None:
             """return true if engine is playing moves"""
             return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
 
+        def _set_pgn_replay_autoplay(self, enabled: bool, mode: Mode | None = None) -> None:
+            """Update PGN replay autoplay and publish it to connected web clients."""
+            enabled = bool(enabled)
+            self.state.autoplay_pgn_file = enabled
+            mode_name = (mode or self.state.interaction_mode).name.lower()
+            self.shared.setdefault("system_info", {})
+            update = {
+                "interaction_mode": mode_name,
+                "pgn_replay_autoplay": enabled,
+            }
+            self.shared["system_info"].update(update)
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
+
         async def get_rid_of_engine_move(self):
             """in some mode switches we need to get rid of a move engine is thinking about"""
             if self.eng_plays() and self.engine.is_thinking():
@@ -3404,7 +3417,7 @@ async def main() -> None:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # timer triggered
             elif self.state.interaction_mode == Mode.PGNREPLAY and self.state.game.is_game_over():
                 if self.state.autoplay_pgn_file:
-                    self.state.autoplay_pgn_file = False
+                    self._set_pgn_replay_autoplay(False)
                     logger.debug("PGN replay ended; autoplay stopped")
             return info
 
@@ -3541,7 +3554,7 @@ async def main() -> None:
                         )
                     )
             if not next_move:
-                self.state.autoplay_pgn_file = False  # always stop autoplay, not only else/elif
+                self._set_pgn_replay_autoplay(False)  # always stop autoplay, not only else/elif
                 logger.debug(
                     "No more PGN replay moves: halfmoves game %d, pgn %d, last seen automove %d",
                     moves_game,
@@ -3882,7 +3895,7 @@ async def main() -> None:
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
             self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
-            self.state.autoplay_pgn_file = False  # if you load a 2nd PGN it will autosave from move 1
+            self._set_pgn_replay_autoplay(False)  # if you load a 2nd PGN it will autosave from move 1
             self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
             self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
 
@@ -4242,7 +4255,7 @@ async def main() -> None:
         def _start_pgn_replay_autoplay(self) -> None:
             """Enable PGN replay autoplay without advancing immediately."""
             if self.can_do_next_pgn_replay_move():
-                self.state.autoplay_pgn_file = True
+                self._set_pgn_replay_autoplay(True)
 
         def _get_cached_pgn_next_move(self) -> chess.Move | None:
             """Return cached next PGN move for current FEN, computing when needed."""
@@ -4315,7 +4328,7 @@ async def main() -> None:
         def game_end_event(self):
             #  @todo1 should have an EVENT message for game end, function for now
             #  @todo2 should be more state variables to reset here?
-            self.state.autoplay_pgn_file = False  # prevent autoplay starting for next pgn read
+            self._set_pgn_replay_autoplay(False)  # prevent autoplay starting for next pgn read
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
             self.state.pgn_engine_games = []
@@ -4844,7 +4857,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.NEW_GAME):
                 await self.get_rid_of_engine_move()
-                self.state.autoplay_pgn_file = False  # stop auto replay of pgn file if new game started
+                self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False
@@ -5178,7 +5191,7 @@ async def main() -> None:
                     elif self.state.interaction_mode == Mode.PGNREPLAY:
                         # Built in PGN Replay mode - toggle autoplay on or off
                         if self.state.autoplay_pgn_file:
-                            self.state.autoplay_pgn_file = False  # stop auto replay of pgn
+                            self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn
                         else:
                             # if we are not already waiting for an autoplay move make the first move
                             if self.can_do_next_pgn_replay_move():
@@ -5187,7 +5200,7 @@ async def main() -> None:
                             else:
                                 auto_move = None
                             if auto_move:
-                                self.state.autoplay_pgn_file = True  # start auto replay of pgn
+                                self._set_pgn_replay_autoplay(True)  # start auto replay of pgn
                             else:
                                 msg = Message.SHOW_TEXT(text_string="no move")
                                 await DisplayMsg.show(msg)
@@ -5972,9 +5985,11 @@ async def main() -> None:
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move
-                if not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+                if self.state.interaction_mode == Mode.PGNREPLAY and event.mode != Mode.PGNREPLAY:
+                    self._set_pgn_replay_autoplay(False, mode=event.mode)
+                elif not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do i we change from a non-playing mode to a playing mode
-                    self.state.autoplay_pgn_file = False  # stop possible auto replay of pgn file
+                    self._set_pgn_replay_autoplay(False, mode=event.mode)  # stop possible auto replay of pgn file
                 if (
                     event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING) and self.state.done_computer_fen
                 ):  # @todo check why still needed

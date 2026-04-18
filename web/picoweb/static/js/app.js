@@ -2286,6 +2286,7 @@ function getAllInfo() {
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
         if (window.chessground1) { updateChessGround(); }
+        if (window.syncClockControls) { window.syncClockControls(); }
     }).fail(function (jqXHR, textStatus) {
         dgtClockStatusEl.html(textStatus);
     });
@@ -2632,6 +2633,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         Object.assign(window._picoSystemInfo, data.msg);
                         if (window.chessground1) { updateChessGround(); }
+                        if (window.syncClockControls) { window.syncClockControls(); }
                         break;
                     default:
                         console.warn(data);

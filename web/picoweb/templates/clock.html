@@ -934,7 +934,7 @@
                     });
                 }
 
-                // Sync label dim/bright and play/pause icon to the clock state.
+                // Sync label dim/bright and play/pause icon to clock or PGN replay state.
                 (function () {
                     var clockEl   = document.getElementById('DGTClockText');
                     var labelLeft = document.getElementById('clockLabelLeft');
@@ -947,7 +947,11 @@
                         }
                         var leftActive  = clockEl.querySelector('.ctime-l.ctime-active');
                         var rightActive = clockEl.querySelector('.ctime-r.ctime-active');
-                        var running = clockEl.dataset.running ? clockEl.dataset.running === '1' : !!(leftActive || rightActive);
+                        var clockRunning = clockEl.dataset.running ? clockEl.dataset.running === '1' : !!(leftActive || rightActive);
+                        var systemInfo = window._picoSystemInfo || {};
+                        var pgnReplayMode = systemInfo.interaction_mode === 'pgnreplay';
+                        var pgnReplayRunning = pgnReplayMode && systemInfo.pgn_replay_autoplay === true;
+                        var running = clockRunning || pgnReplayRunning;
                         if (leftActive) {
                             labelLeft  && labelLeft.classList.remove('clock-label-inactive');
                             labelRight && labelRight.classList.add('clock-label-inactive');
@@ -964,7 +968,9 @@
                                 icon.classList.toggle('fa-pause', running);
                                 icon.classList.toggle('fa-play', !running);
                             }
-                            pauseBtn.title = running ? 'Pause clock' : 'Resume clock';
+                            pauseBtn.title = pgnReplayMode
+                                ? (running ? 'Pause replay' : 'Resume replay')
+                                : (running ? 'Pause clock' : 'Resume clock');
                             pauseBtn.setAttribute('aria-label', pauseBtn.title);
                         }
                     };

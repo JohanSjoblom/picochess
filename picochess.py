@@ -5430,6 +5430,10 @@ async def main() -> None:
             elif isinstance(event, Event.REMOTE_MOVE):
                 self.state.flag_startup = False
                 if self.board_type == dgt.util.EBoard.NOEBOARD:
+                    # Mirror process_fen(): once a real user move starts the new
+                    # game, the next BEST_MOVE belongs to this game, not the
+                    # previous-game stale-move guard.
+                    self.state.newgame_happened = False
                     await self.user_move(event.move, sliding=False)
                 else:
                     if self.state.interaction_mode == Mode.REMOTE and self.state.is_not_user_turn():

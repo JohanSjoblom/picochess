@@ -1860,7 +1860,10 @@ class WebVr(DgtIface):
             return True
         if self.virtual_timer.is_running():
             self.virtual_timer.stop()
-        return self._resume_clock(ClockSide.NONE)
+        self._resume_clock(ClockSide.NONE)
+        self._create_clock_text()
+        EventHandler.write_to_clients(_clock_event(self.shared, self.shared["clock_text"], running=False))
+        return True
 
     def _resume_clock(self, side: ClockSide):
         self.side_running = side

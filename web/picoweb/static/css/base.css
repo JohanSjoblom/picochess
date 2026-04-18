@@ -170,10 +170,6 @@ div.dataTables_wrapper div.dataTables_length select {
     padding-bottom: 30px;
 }
 
-#boardControlButtons {
-    padding-bottom: 35px;
-}
-
 #BoardStatus {
     font-size: 1.8em;
     line-height: .75em;
@@ -339,13 +335,6 @@ td.result {
     box-shadow: inset 0 0 0 9999px white;
 }
 
-/* Correction for the Download-Button size */
-#uploadBtn,
-#downloadBtn {
-    font-size: 1rem;
-    padding: 0.25rem 0.5rem;
-}
-
 /* start promotion */
 .promotion-overlay {
     z-index: 4;
@@ -452,17 +441,6 @@ td.result {
 /* Estilo base del botón */
 #btn-mute {
     position: relative;
-    font-size: 24px;
-    cursor: pointer;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f0f0f0;
-    width: 60px;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    vertical-align: middle;
 }
 
 #btn-mute span {
@@ -1044,10 +1022,22 @@ piece {
 }
 
 .clock-control-row {
-    display: flex;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 2.35rem 1fr 2.35rem;
+    align-items: center;
     gap: 0.7rem;
     margin-bottom: 0.38rem;
+}
+
+.clock-control-spacer {
+    width: 2.35rem;
+    height: 2.05rem;
+}
+
+.clock-control-main {
+    display: inline-flex;
+    justify-content: center;
+    gap: 0.7rem;
 }
 
 .clock-label-row {
@@ -1160,6 +1150,16 @@ piece {
 
 .pico-clock-pause-btn {
     border-radius: 1.1rem;
+}
+
+.pico-clock-mute-btn {
+    display: none;
+    justify-self: end;
+    font-size: 1.08rem;
+}
+
+.pico-clock-mute-btn.is-visible {
+    display: inline-flex;
 }
 
 .clock-status-row {

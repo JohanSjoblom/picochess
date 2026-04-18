@@ -2401,20 +2401,18 @@ $('#endBtn').on('click', goToEnd);
 $(window).on('load', function () {
     const hostname = location.hostname;
     if (hostname === '127.0.0.1' || hostname === 'localhost') {
-        $('#downloadBtn').hide();
-        $('#uploadBtn').hide();
         $('#btn-mute').hide();
     } else {
         if (webAudioMode === "off") {
             $('#btn-mute').hide();
         } else {
-            $('#btn-mute').addClass('is-muted');
+            $('#btn-mute').addClass('is-muted is-visible');
         }
-        $('#downloadBtn').on('click', download);
-        $('#uploadBtn').on('click', function () {
-            window.location.href = 'upload';
-        });
     }
+    $('#downloadBtn').on('click', download);
+    $('#uploadBtn').on('click', function () {
+        window.location.href = 'upload';
+    });
 });
 
 $('#ClockBtn0').on('click', clockButton0);

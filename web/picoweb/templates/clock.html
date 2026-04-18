@@ -28,11 +28,11 @@
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
-        /* Enable vertical scrolling for mobile portrait mode */
+        /* Let the page own vertical scrolling in portrait mode.
+           Keeping a separate .scroll-portrait scrollbar leaves the footer
+           outside the scrolled area and creates double vertical scrollbars. */
         @media (max-width: 768px) {
             .scroll-portrait {
-                height: 98vh;
-                overflow-y: auto;
                 overflow-x: hidden;
                 -webkit-overflow-scrolling: touch;
             }
@@ -174,29 +174,6 @@
         .btn-light:hover {
             background: linear-gradient(145deg, #ffffff, #f8f9fa) !important;
             color: #495057 !important;
-        }
-
-        /* Board controls: keep Get PGN / Upload labels non-bold */
-        #uploadBtn,
-        #downloadBtn,
-        #uploadBtn .btn-text,
-        #downloadBtn .btn-text {
-            font-weight: 400 !important;
-        }
-
-        @media (max-width: 768px) and (orientation: portrait) {
-
-            #uploadBtn,
-            #downloadBtn {
-                background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
-                color: white !important;
-            }
-
-            #uploadBtn:hover,
-            #downloadBtn:hover {
-                background: linear-gradient(145deg, #6bd0ee, #41c0e5) !important;
-                color: white !important;
-            }
         }
 
         /* Universal active state - all buttons turn green when active */
@@ -559,6 +536,10 @@
                                                     <i class='fa fa-arrow-right' aria-hidden="true"></i></button>
                                                 <button type="button" id="endBtn" class="btn btn-light" aria-label="Last move" title="Last move">
                                                     <i class='fa fa-fast-forward' aria-hidden="true"></i></button>
+                                                <button type="button" id="downloadBtn" class="btn btn-light" aria-label="Download PGN" title="Download PGN">
+                                                    <i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+                                                <button type="button" id="uploadBtn" class="btn btn-light" aria-label="Upload PGN" title="Upload PGN">
+                                                    <i class="fa fa-arrow-up" aria-hidden="true"></i></button>
                                             </div>
                                         </div>
                                     </div>
@@ -571,10 +552,7 @@
                                     <div style="display:none" aria-hidden="true">
                                         <span id="sidetomove"></span>
                                         <span id="BoardStatus"></span>
-                                        <div id="boardControlButtons">
-                                            <button id="downloadBtn"></button>
-                                            <button id="uploadBtn"></button>
-                                        </div>
+                                        <div id="boardControlButtons"></div>
                                     </div>
                                 </div>
 
@@ -590,11 +568,17 @@
                         <div class="row g-0" id="row-clock">
                             <div class="pico-clock-header">
                                 <div class="clock-control-row" aria-label="Clock controls">
-                                    <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
-                                        <i class="fa fa-arrows-v" aria-hidden="true"></i>
-                                    </button>
-                                    <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
-                                        <i class="fa fa-play" aria-hidden="true"></i>
+                                    <span class="clock-control-spacer" aria-hidden="true"></span>
+                                    <span class="clock-control-main">
+                                        <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
+                                            <i class="fa fa-arrows-v" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
+                                            <i class="fa fa-play" aria-hidden="true"></i>
+                                        </button>
+                                    </span>
+                                    <button id="btn-mute" class="pico-clock-action pico-clock-mute-btn" onclick="toggleMute()" aria-label="Toggle web audio" title="Toggle web audio">
+                                        <span>🔊</span>
                                     </button>
                                 </div>
                                 <div class="clock-label-row">
@@ -2563,10 +2547,6 @@
         </div><!-- .pico-overlay-panel -->
     </div><!-- #pico-menu-overlay -->
 
-    <!-- #btn-mute kept hidden for toggleMute() JS -->
-    <div style="display:none" aria-hidden="true">
-        <button id="btn-mute"><span>🔊</span></button>
-    </div>
     <footer id="pico-footer">
         <span id="picoFooterDgt" class="footer-status">{{ eboard_name }}</span>
         <span class="footer-version">PicoChess {{ pico_version }}</span>

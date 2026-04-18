@@ -4,11 +4,11 @@
        overflow:hidden prevents touchscreen bounce without clipping the footer. */
     html {
         height: 100vh;
-        overflow: hidden;
+        overflow: hidden !important;
     }
     body {
         height: 100vh;
-        overflow: hidden;
+        overflow: hidden !important;
         display: flex;
         flex-direction: column;
     }

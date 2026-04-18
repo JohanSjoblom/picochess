@@ -934,13 +934,20 @@
                     });
                 }
 
-                // Sync label dim/bright and play/pause icon to clock or PGN replay state.
+                // Sync label dim/bright and smart quick-action icon to clock/replay/engine state.
                 (function () {
                     var clockEl   = document.getElementById('DGTClockText');
                     var labelLeft = document.getElementById('clockLabelLeft');
                     var labelRight= document.getElementById('clockLabelRight');
                     var pauseBtn  = document.getElementById('clockPauseResumeBtn');
                     if (!clockEl) return;
+                    function getFenTurnColor() {
+                        var fen = (typeof currentPosition !== 'undefined') && currentPosition && currentPosition.fen;
+                        if (typeof fen !== 'string') return '';
+                        var parts = fen.trim().split(/\s+/);
+                        if (parts.length < 2) return '';
+                        return parts[1] === 'b' ? 'black' : 'white';
+                    }
                     window.syncClockControls = function (runningOverride) {
                         if (typeof runningOverride === 'boolean') {
                             clockEl.dataset.running = runningOverride ? '1' : '0';
@@ -951,6 +958,12 @@
                         var systemInfo = window._picoSystemInfo || {};
                         var pgnReplayMode = systemInfo.interaction_mode === 'pgnreplay';
                         var pgnReplayRunning = pgnReplayMode && systemInfo.pgn_replay_autoplay === true;
+                        var engineMode = ['normal', 'brain', 'training'].indexOf(systemInfo.interaction_mode) !== -1;
+                        var hasUserColor = systemInfo.play_mode === 'user_white' || systemInfo.play_mode === 'user_black';
+                        var userColor = systemInfo.play_mode === 'user_black' ? 'black' : 'white';
+                        var turnColor = getFenTurnColor();
+                        var pendingEngineMove = systemInfo.pending_engine_move === true;
+                        var engineThinking = clockRunning && engineMode && hasUserColor && turnColor && turnColor !== userColor;
                         var running = clockRunning || pgnReplayRunning;
                         if (leftActive) {
                             labelLeft  && labelLeft.classList.remove('clock-label-inactive');
@@ -965,12 +978,14 @@
                         if (pauseBtn) {
                             var icon = pauseBtn.querySelector('.fa');
                             if (icon) {
-                                icon.classList.toggle('fa-pause', running);
-                                icon.classList.toggle('fa-play', !running);
+                                icon.classList.toggle('fa-random', pendingEngineMove);
+                                icon.classList.toggle('fa-stop', !pendingEngineMove && engineThinking);
+                                icon.classList.toggle('fa-pause', !pendingEngineMove && !engineThinking && running);
+                                icon.classList.toggle('fa-play', !pendingEngineMove && !engineThinking && !running);
                             }
-                            pauseBtn.title = pgnReplayMode
+                            pauseBtn.title = pendingEngineMove ? 'Alternative move' : (engineThinking ? 'Move now' : (pgnReplayMode
                                 ? (running ? 'Pause replay' : 'Resume replay')
-                                : (running ? 'Pause clock' : 'Resume clock');
+                                : (running ? 'Pause clock' : 'Resume clock')));
                             pauseBtn.setAttribute('aria-label', pauseBtn.title);
                         }
                     };

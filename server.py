@@ -1996,6 +1996,15 @@ class WebDisplay(DisplayMsg):
         if "system_info" not in self.shared:
             self.shared["system_info"] = {}
 
+    def _set_pending_engine_move(self, pending: bool):
+        """Publish whether an announced engine move is waiting on the physical board."""
+        self._create_system_info()
+        pending = bool(pending)
+        if self.shared["system_info"].get("pending_engine_move") == pending:
+            return
+        self.shared["system_info"]["pending_engine_move"] = pending
+        EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"pending_engine_move": pending}})
+
     def _create_headers(self):
         if "headers" not in self.shared:
             self.shared["headers"] = OrderedDict()
@@ -2300,6 +2309,7 @@ class WebDisplay(DisplayMsg):
             _attach_variant_info(result)
             result["mistakes"] = []  # always empty for a new game
             self.shared.pop("pending_computer_move", None)  # discard any pending engine move
+            self._set_pending_engine_move(False)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
             if message.newgame:
@@ -2633,10 +2643,13 @@ class WebDisplay(DisplayMsg):
                 _attach_mistakes(result)
                 _attach_variant_info(result)
                 self.shared["pending_computer_move"] = result  # not sent => keep it for COMPUTER_MOVE_DONE
+                has_board = bool(self.shared.get("system_info", {}).get("has_board", True))
+                self._set_pending_engine_move(has_board)
 
         elif isinstance(message, Message.COMPUTER_MOVE_DONE):
             WebDisplay.result_sav = ""
             result = self.shared.pop("pending_computer_move", None)
+            self._set_pending_engine_move(False)
             # If START_NEW_GAME already ran it cleared pending_computer_move, so result is None –
             # skip this stale engine move so the new game's clean PGN isn't overwritten.
             if result is not None:
@@ -2673,6 +2686,7 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.ALTERNATIVE_MOVE):
+            self._set_pending_engine_move(False)
             pgn_str = _transfer(message.game, self.shared["headers"])  # dont remake headers every move
             fen = _oldstyle_fen(message.game)
             mov = peek_uci(message.game)
@@ -2683,6 +2697,7 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.SWITCH_SIDES):
+            self._set_pending_engine_move(False)
             pgn_str = _transfer(message.game)
             fen = _oldstyle_fen(message.game)
             mov = message.move.uci()
@@ -2693,6 +2708,7 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.TAKE_BACK):
+            self._set_pending_engine_move(False)
             pgn_str = _transfer(message.game)
             fen = _oldstyle_fen(message.game)
             mov = peek_uci(message.game)

@@ -2287,9 +2287,21 @@ async def main() -> None:
             # wrong moves.
             _move_board = self.state.get_move_check_board()
             legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+            starting_board_fen = (
+                RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
+            )
+            is_starting_board_fen = fen == starting_board_fen
+            ended_game_start_reset = (
+                is_starting_board_fen
+                and bool(self.state.game.move_stack)
+                and not self.state.game_started
+            )
 
             # Check for same position (use variant board_fen for atomic explosions)
-            if fen == self.state.get_board_fen():
+            if ended_game_start_reset:
+                logger.info("start position after ended game detected; treating as new game")
+                handled_fen = False
+            elif fen == self.state.get_board_fen():
                 logger.debug("Already in this fen: %s", fen)
                 self.state.flag_startup = False
                 self.reset_setpieces_window_switch()
@@ -2795,9 +2807,7 @@ async def main() -> None:
                     await DisplayMsg.show(Message.EXIT_MENU())
                 self.state.position_mode = False
             else:
-                if fen == chess.STARTING_BOARD_FEN or (
-                    self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN
-                ):
+                if is_starting_board_fen:
                     pos960 = 518
                     self.state.error_fen = None
                     self.reset_setpieces_window_switch()

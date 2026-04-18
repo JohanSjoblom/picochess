@@ -718,13 +718,19 @@ class DgtDisplay(DisplayMsg):
                         await Observable.fire(Event.FEN(fen=fen))
                         self.have_seen_a_fen = True
                         return
-                    if self._current_game_has_moves and self._current_game_start_pos960 == pos960:
+                    if (
+                        self._current_game_has_moves
+                        and self._current_game_start_pos960 == pos960
+                        and ModeInfo.get_game_ending() == "*"
+                    ):
                         logger.debug("routing start-position board scan through Event.FEN for takeback handling")
                         self.last_pos_start = True
                         self._start_position_restore_pending = False
                         await Observable.fire(Event.FEN(fen=fen))
                         self.have_seen_a_fen = True
                         return
+                    if self._current_game_has_moves and self._current_game_start_pos960 == pos960:
+                        logger.debug("routing start-position board scan after ended game through Event.NEW_GAME")
                     if self.last_pos_start:
                         # trigger window switch
                         if ModeInfo.get_emulation_mode() and self.dgtmenu.get_engine_rdisplay():

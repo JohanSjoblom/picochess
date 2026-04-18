@@ -8,6 +8,7 @@ from server import (
     OBOOKSRV_BOOK_FILE,
     _apply_web_analysis_state,
     _channel_action_requires_remote_auth,
+    _clock_event,
     _configured_engine_book_file,
     _display_text_from_label,
     _engine_book_choices,
@@ -173,6 +174,17 @@ class TestServerWebAnalysisState(unittest.TestCase):
         self.assertEqual("some-fen", payload["fen"])
         self.assertEqual(payload, shared["analysis_state_tutor"])
         self.assertEqual({"source": "engine", "depth": 8}, shared["analysis_state_engine"])
+
+
+class TestServerClockState(unittest.TestCase):
+    def test_clock_event_caches_text_and_running_state(self):
+        shared = {}
+
+        event = _clock_event(shared, "<span>1:00</span>", running=True)
+
+        self.assertEqual({"event": "Clock", "msg": "<span>1:00</span>", "running": True}, event)
+        self.assertEqual("<span>1:00</span>", shared["clock_text"])
+        self.assertTrue(shared["clock_running"])
 
 
 class TestServerChannelAuth(unittest.TestCase):

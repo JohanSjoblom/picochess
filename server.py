@@ -340,6 +340,13 @@ def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_stat
     return analysis_payload
 
 
+def _clock_event(shared: dict, text, running: bool = False):
+    """Cache clock display state and build the websocket payload."""
+    shared["clock_text"] = text
+    shared["clock_running"] = bool(running)
+    return {"event": "Clock", "msg": text, "running": shared["clock_running"]}
+
+
 def _channel_action_requires_remote_auth(action: str) -> bool:
     """Require remote auth for settings/admin actions exposed through /channel."""
     return action in CHANNEL_REMOTE_AUTH_ACTIONS
@@ -1084,6 +1091,8 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_clock_text":
             if "clock_text" in self.shared:
                 self.write(self.shared["clock_text"])
+        if action == "get_clock_state":
+            self.write({"running": bool(self.shared.get("clock_running", False))})
         if action == "get_engines":
             from uci.engine_provider import EngineProvider
             engines = []
@@ -1726,6 +1735,12 @@ class WebVr(DgtIface):
     def _create_clock_text(self):
         if "clock_text" not in self.shared:
             self.shared["clock_text"] = {}
+        if "clock_running" not in self.shared:
+            self.shared["clock_running"] = False
+
+    def _clock_event(self, text):
+        self._create_clock_text()
+        return _clock_event(self.shared, text, running=self.side_running != ClockSide.NONE)
 
     async def _runclock(self):
         """callback from AsyncRepeatingTimer once every second"""
@@ -1786,10 +1801,7 @@ class WebVr(DgtIface):
             text = (f'<span class="{l_cls}">{text_l}</span>'
                     f'<i class="fa {icon_d}"></i>'
                     f'<span class="{r_cls}">{text_r}</span>')
-            self._create_clock_text()
-            self.shared["clock_text"] = text
-            result = {"event": "Clock", "msg": text}
-            EventHandler.write_to_clients(result)
+            EventHandler.write_to_clients(self._clock_event(text))
 
     def display_move_on_clock(self, message):
         """Display a move on the web clock."""
@@ -1811,11 +1823,8 @@ class WebVr(DgtIface):
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True
         self.clock_show_time = False
-        self._create_clock_text()
         logger.debug("[%s]", text)
-        self.shared["clock_text"] = text
-        result = {"event": "Clock", "msg": text}
-        EventHandler.write_to_clients(result)
+        EventHandler.write_to_clients(self._clock_event(text))
         return True
 
     def display_text_on_clock(self, message):
@@ -1828,11 +1837,8 @@ class WebVr(DgtIface):
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True
         self.clock_show_time = False
-        self._create_clock_text()
         logger.debug("[%s]", text)
-        self.shared["clock_text"] = text
-        result = {"event": "Clock", "msg": text}
-        EventHandler.write_to_clients(result)
+        EventHandler.write_to_clients(self._clock_event(text))
         return True
 
     def display_time_on_clock(self, message):
@@ -2531,9 +2537,7 @@ class WebDisplay(DisplayMsg):
                     _text = (f'<span class="ctime-l">{_tl_str}</span>'
                              f'<i class="fa fa-sort"></i>'
                              f'<span class="ctime-r">{_tr_str}</span>')
-                    self._create_clock_text()
-                    self.shared["clock_text"] = _text
-                    EventHandler.write_to_clients({"event": "Clock", "msg": _text})
+                    EventHandler.write_to_clients(_clock_event(self.shared, _text, running=False))
             except Exception:
                 pass  # non-fatal; normal dispatch chain remains the fallback
 

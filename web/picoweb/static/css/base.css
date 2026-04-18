@@ -1039,8 +1039,15 @@ piece {
    CLOCK HEADER
    ═══════════════════════════════════════════════════ */
 .pico-clock-header {
-    padding: 0.5rem 0.75rem 0.4rem;
+    padding: 0.45rem 0.75rem 0.4rem;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.clock-control-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.7rem;
+    margin-bottom: 0.38rem;
 }
 
 .clock-label-row {
@@ -1073,16 +1080,16 @@ piece {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
     border: 1px solid rgba(128, 128, 128, 0.28);
     border-radius: 999px;
     background: rgba(128, 128, 128, 0.08);
     color: inherit;
-    font-size: 0.78rem;
+    width: 2.35rem;
+    height: 2.05rem;
+    padding: 0;
+    font-size: 1rem;
     font-weight: 700;
     line-height: 1;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
     cursor: pointer;
     transition: background 0.16s ease, border-color 0.16s ease, transform 0.08s ease;
 }
@@ -1098,15 +1105,7 @@ piece {
 }
 
 .pico-clock-switch-btn {
-    flex: 0 0 auto;
-    padding: 0.32rem 0.7rem;
-    text-transform: uppercase;
-}
-
-.clock-label-right-group {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
+    border-radius: 0.45rem 0.45rem 1.1rem 1.1rem;
 }
 
 .pico-gear-btn {
@@ -1159,15 +1158,8 @@ piece {
     opacity: 0.45;
 }
 
-.clock-action-row {
-    display: flex;
-    justify-content: center;
-    margin-top: 0.38rem;
-}
-
 .pico-clock-pause-btn {
-    min-width: 10rem;
-    padding: 0.42rem 1.1rem;
+    border-radius: 1.1rem;
 }
 
 .clock-status-row {

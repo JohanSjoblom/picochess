@@ -589,19 +589,19 @@
                         <!-- ── CLOCK HEADER ─────────────────────────────── -->
                         <div class="row g-0" id="row-clock">
                             <div class="pico-clock-header">
+                                <div class="clock-control-row" aria-label="Clock controls">
+                                    <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
+                                        <i class="fa fa-arrows-v" aria-hidden="true"></i>
+                                    </button>
+                                    <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
+                                        <i class="fa fa-play" aria-hidden="true"></i>
+                                    </button>
+                                </div>
                                 <div class="clock-label-row">
                                     <span class="clock-label-left" id="clockLabelLeft">White</span>
-                                    <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
-                                        <i class="fa fa-exchange" aria-hidden="true"></i><span>Switch Sides</span>
-                                    </button>
                                     <span class="clock-label-right" id="clockLabelRight">Black</span>
                                 </div>
                                 <div class="clock-time-row" id="DGTClockText" aria-live="polite" aria-label="Clock" role="timer"></div>
-                                <div class="clock-action-row">
-                                    <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
-                                        <i class="fa fa-pause" aria-hidden="true"></i><span>Pause / Resume</span>
-                                    </button>
-                                </div>
                                 <div class="clock-status-row d-none" id="DGTClockStatus"></div>
                             </div>
                         </div>
@@ -950,15 +950,20 @@
                     });
                 }
 
-                // Sync label dim/bright to whichever clock side is active
+                // Sync label dim/bright and play/pause icon to the clock state.
                 (function () {
                     var clockEl   = document.getElementById('DGTClockText');
                     var labelLeft = document.getElementById('clockLabelLeft');
                     var labelRight= document.getElementById('clockLabelRight');
+                    var pauseBtn  = document.getElementById('clockPauseResumeBtn');
                     if (!clockEl) return;
-                    function syncLabels() {
+                    window.syncClockControls = function (runningOverride) {
+                        if (typeof runningOverride === 'boolean') {
+                            clockEl.dataset.running = runningOverride ? '1' : '0';
+                        }
                         var leftActive  = clockEl.querySelector('.ctime-l.ctime-active');
                         var rightActive = clockEl.querySelector('.ctime-r.ctime-active');
+                        var running = clockEl.dataset.running ? clockEl.dataset.running === '1' : !!(leftActive || rightActive);
                         if (leftActive) {
                             labelLeft  && labelLeft.classList.remove('clock-label-inactive');
                             labelRight && labelRight.classList.add('clock-label-inactive');
@@ -969,8 +974,18 @@
                             labelLeft  && labelLeft.classList.remove('clock-label-inactive');
                             labelRight && labelRight.classList.remove('clock-label-inactive');
                         }
-                    }
-                    new MutationObserver(syncLabels).observe(clockEl, { childList: true, subtree: true });
+                        if (pauseBtn) {
+                            var icon = pauseBtn.querySelector('.fa');
+                            if (icon) {
+                                icon.classList.toggle('fa-pause', running);
+                                icon.classList.toggle('fa-play', !running);
+                            }
+                            pauseBtn.title = running ? 'Pause clock' : 'Resume clock';
+                            pauseBtn.setAttribute('aria-label', pauseBtn.title);
+                        }
+                    };
+                    new MutationObserver(function () { window.syncClockControls(); }).observe(clockEl, { childList: true, subtree: true });
+                    window.syncClockControls();
                 })();
 
                 // Patch setHeaders so PGN White/Black names update the clock labels

@@ -2301,6 +2301,11 @@ function getAllInfo() {
     });
     $.get('/info', { action: 'get_clock_text' }, function (data) {
         dgtClockTextEl.html(data);
+        $.get('/info', { action: 'get_clock_state' }, function (state) {
+            if (window.syncClockControls) {
+                window.syncClockControls(Boolean(state && state.running));
+            }
+        }).fail(function () {});
     }).fail(function (jqXHR, textStatus) {
         console.warn(textStatus);
         dgtClockStatusEl.html(textStatus);
@@ -2563,6 +2568,13 @@ $(function () {
                         break;
                     case 'Clock':
                         dgtClockTextEl.html(data.msg);
+                        if (window.syncClockControls) {
+                            if (Object.prototype.hasOwnProperty.call(data, 'running')) {
+                                window.syncClockControls(Boolean(data.running));
+                            } else {
+                                window.syncClockControls();
+                            }
+                        }
                         break;
                     case 'WebAudio':
                         queueBackendAudio(data.audio);

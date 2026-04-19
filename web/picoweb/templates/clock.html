@@ -666,6 +666,9 @@
                                                 <div class="pv-two-row" id="engineRow" aria-live="polite">
                                                     <div class="pv-header">
                                                         <span class="engine-name-badge" id="engineNameBadge">Engine</span>
+                                                        <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
+                                                            <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
+                                                        </button>
                                                         <div id="engineMeta"></div>
                                                         <div class="pv-spacer"></div>
                                                         <button id="engineToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
@@ -765,7 +768,6 @@
                             <button id="newGameBtn"></button>
                             <button id="resignBtn"></button>
                             <button id="scanBtn"></button>
-                            <button id="tutorWatchBtn"><i class="fa fa-eye-slash"></i><span>Tutor</span></button>
                             <button id="replayBtn"></button>
                             <button id="saveGameBtn"></button>
                         </div>
@@ -780,6 +782,7 @@
             window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
             window.picoWebConfig.webAudioBackend = {{ "true" if web_audio_backend else "false" }};
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
+            window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
         <script>
@@ -1107,7 +1110,21 @@
             function showScan()   { showSubpanel('overlay-scan'); }
             function showMode()   { showSubpanel('overlay-mode');   updateModeSubpanel(); }
             function showTime()   { showSubpanel('overlay-time');   updateTimeSubpanel(); }
-            function showTutor()  { showSubpanel('overlay-tutor'); }
+            function refreshTutorSettings() {
+                return fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        if (window.setTutorSettings) window.setTutorSettings(d);
+                    })
+                    .catch(function() {
+                        if (window.setTutorSettings) window.setTutorSettings(window._picoTutorSettings || {});
+                    });
+            }
+            function showTutor()  {
+                showSubpanel('overlay-tutor');
+                refreshTutorSettings();
+            }
             function showGame()   {
                 showSubpanel('overlay-game');
                 document.getElementById('ovl-game-opt-col').style.display = 'none';
@@ -1773,6 +1790,82 @@
                 if (wmSub)  wmSub.textContent  = isMuted ? 'Click to unmute' : 'Click to mute';
             }
 
+            function normalizeTutorSettings(settings) {
+                settings = settings || {};
+                var coach = String(settings.tutor_coach || 'off').toLowerCase();
+                if (coach !== 'on' && coach !== 'lift') coach = 'off';
+                var comment = String(settings.tutor_comment || 'off').toLowerCase();
+                if (comment === 'single') comment = 'engine';
+                if (comment !== 'engine' && comment !== 'all') comment = 'off';
+                var prob = parseInt(settings.tutor_prob, 10);
+                if (isNaN(prob)) prob = 50;
+                prob = Math.max(0, Math.min(100, prob));
+                var normalized = {
+                    tutor_watcher: Boolean(settings.tutor_watcher),
+                    tutor_coach: coach,
+                    tutor_explorer: Boolean(settings.tutor_explorer),
+                    tutor_comment: comment,
+                    tutor_prob: prob
+                };
+                normalized.tutor_active = Boolean(
+                    normalized.tutor_watcher ||
+                    normalized.tutor_coach !== 'off' ||
+                    settings.tutor_active
+                );
+                return normalized;
+            }
+
+            function updateTutorSummary(settings) {
+                var parts = [];
+                if (settings.tutor_watcher) parts.push('Watcher');
+                if (settings.tutor_coach !== 'off') parts.push(settings.tutor_coach === 'lift' ? 'Coach Lift' : 'Coach On');
+                if (settings.tutor_explorer) parts.push('Explorer');
+                if (settings.tutor_comment !== 'off') parts.push(settings.tutor_comment === 'all' ? 'Comment All' : 'Comment Engine');
+                var sub = document.getElementById('ovl-tutor-sub');
+                if (sub) sub.textContent = parts.length ? parts.join(' · ') : 'Off';
+            }
+
+            function applyTutorSettings(settings) {
+                settings = normalizeTutorSettings(settings);
+                window._picoTutorSettings = settings;
+
+                var watcherBadge = document.getElementById('tutor-watcher-badge');
+                var watcherItem = document.getElementById('tutor-watcher-item');
+                if (watcherBadge) watcherBadge.textContent = settings.tutor_watcher ? 'On' : 'Off';
+                if (watcherItem) watcherItem.classList.toggle('active', settings.tutor_watcher);
+
+                ['off', 'on', 'lift'].forEach(function(coachMode) {
+                    var coachModeBtn = document.querySelector('[data-coach-value="' + coachMode + '"]');
+                    if (coachModeBtn) coachModeBtn.classList.toggle('active', settings.tutor_coach === coachMode);
+                });
+                var coachItem = document.getElementById('tutor-coach-item');
+                if (coachItem) coachItem.classList.toggle('active', settings.tutor_coach !== 'off');
+
+                var expBadge = document.getElementById('tutor-explorer-badge');
+                var expItem = document.getElementById('tutor-explorer-item');
+                if (expBadge) expBadge.textContent = settings.tutor_explorer ? 'On' : 'Off';
+                if (expItem) expItem.classList.toggle('active', settings.tutor_explorer);
+
+                var commentBadge = document.getElementById('tutor-comment-badge');
+                var commentItem = document.getElementById('tutor-comment-item');
+                if (commentBadge) commentBadge.textContent = settings.tutor_comment === 'all' ? 'All' : (settings.tutor_comment === 'engine' ? 'Engine' : 'Off');
+                if (commentItem) commentItem.classList.toggle('active', settings.tutor_comment !== 'off');
+
+                var probBadge = document.getElementById('tutor-prob-badge');
+                if (probBadge) probBadge.textContent = settings.tutor_prob + '%';
+
+                updateTutorSummary(settings);
+                return settings;
+            }
+
+            function setTutorSettingsOptimistic(settings) {
+                if (window.setTutorSettings) {
+                    window.setTutorSettings(settings);
+                } else {
+                    applyTutorSettings(settings);
+                }
+            }
+
             /* ── subpanel action dispatcher ──────────── */
             function handleSubpanelAction(action, itemEl) {
                 switch (action) {
@@ -1813,46 +1906,44 @@
                     // TIME — handled by time picker (see overlay click handler above)
                     // TUTOR
                     case 'tutor-watcher': {
-                        var watchBtn = document.getElementById('tutorWatchBtn');
-                        if (watchBtn) watchBtn.click();
-                        var isOn = itemEl && itemEl.classList.toggle('active');
-                        var badge = document.getElementById('tutor-watcher-badge');
-                        if (badge) badge.textContent = isOn ? 'On' : 'Off';
-                        var tutorSub = document.getElementById('ovl-tutor-sub');
-                        if (tutorSub) tutorSub.textContent = isOn ? 'Watcher On' : 'Off';
-                        post('action=picotutor&tutor=watcher&val=' + (isOn ? '1' : '0'));
-                        close(); break; }
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        tutorSettings.tutor_watcher = !tutorSettings.tutor_watcher;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=watcher&val=' + (tutorSettings.tutor_watcher ? '1' : '0'));
+                        break; }
                     case 'tutor-coach': {
-                        var coachBadge = document.getElementById('tutor-coach-badge');
-                        var coachCycle = ['Off','On','Lift'];
-                        var coachIdx = coachBadge ? (coachCycle.indexOf(coachBadge.textContent) + 1) % 3 : 0;
-                        if (coachBadge) coachBadge.textContent = coachCycle[coachIdx];
-                        if (itemEl) itemEl.classList.toggle('active', coachIdx > 0);
-                        post('action=picotutor&tutor=coach&val=' + coachCycle[coachIdx].toLowerCase());
-                        close(); break; }
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var nextCoach = itemEl && itemEl.getAttribute('data-coach-value');
+                        if (nextCoach !== 'on' && nextCoach !== 'lift') nextCoach = 'off';
+                        if (tutorSettings.tutor_coach !== nextCoach) {
+                            tutorSettings.tutor_coach = nextCoach;
+                            setTutorSettingsOptimistic(tutorSettings);
+                            post('action=picotutor&tutor=coach&val=' + tutorSettings.tutor_coach);
+                        }
+                        break; }
                     case 'tutor-explorer': {
-                        var expBadge = document.getElementById('tutor-explorer-badge');
-                        var expOn = expBadge && expBadge.textContent === 'Off';
-                        if (expBadge) expBadge.textContent = expOn ? 'On' : 'Off';
-                        if (itemEl) itemEl.classList.toggle('active', expOn);
-                        post('action=picotutor&tutor=explorer&val=' + (expOn ? '1' : '0'));
-                        close(); break; }
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        tutorSettings.tutor_explorer = !tutorSettings.tutor_explorer;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=explorer&val=' + (tutorSettings.tutor_explorer ? '1' : '0'));
+                        break; }
                     case 'tutor-comment': {
-                        var comBadge = document.getElementById('tutor-comment-badge');
-                        var comCycle = ['Off','Engine','All'];
-                        var comIdx = comBadge ? (comCycle.indexOf(comBadge.textContent) + 1) % 3 : 0;
-                        if (comBadge) comBadge.textContent = comCycle[comIdx];
-                        if (itemEl) itemEl.classList.toggle('active', comIdx > 0);
-                        post('action=picotutor&tutor=comment&val=' + comCycle[comIdx].toLowerCase());
-                        close(); break; }
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var commentCycle = ['off','engine','all'];
+                        var comIdx = (commentCycle.indexOf(tutorSettings.tutor_comment) + 1) % commentCycle.length;
+                        tutorSettings.tutor_comment = commentCycle[comIdx];
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=comment&val=' + tutorSettings.tutor_comment);
+                        break; }
                     case 'tutor-prob': {
-                        var probBadge = document.getElementById('tutor-prob-badge');
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
                         var probSteps = [0,5,10,15,20,25,30,40,50,60,70,80,90,100];
-                        var probCur = probBadge ? parseInt(probBadge.textContent) || 50 : 50;
+                        var probCur = tutorSettings.tutor_prob;
                         var probNext = probSteps[(probSteps.indexOf(probCur) + 1) % probSteps.length];
-                        if (probBadge) probBadge.textContent = probNext + '%';
+                        tutorSettings.tutor_prob = probNext;
+                        setTutorSettingsOptimistic(tutorSettings);
                         post('action=picotutor&tutor=prob&val=' + probNext);
-                        close(); break; }
+                        break; }
                     case 'tutor-hint':
                         post('action=clockbutton&button=3'); close(); break;
                     // SYSTEM
@@ -1970,6 +2061,9 @@
                 var dispCatBtn = e.target.closest('#ovl-disp-cat-list .pico-picker-item');
                 if (dispCatBtn && dispCatBtn.dataset.dispCat) { showDisplayCat(dispCatBtn.dataset.dispCat); return; }
 
+                var segmentedBtn = e.target.closest('.pico-segmented-button');
+                if (segmentedBtn && segmentedBtn.dataset.action) { handleSubpanelAction(segmentedBtn.dataset.action, segmentedBtn); return; }
+
                 // Generic subpanel items
                 var item = e.target.closest('.pico-subpanel-item');
                 if (item && item.dataset.action) handleSubpanelAction(item.dataset.action, item);
@@ -2005,18 +2099,27 @@
             // Keep tutor watch state in sync with overlay
             window.setTutorWatchState = window.setTutorWatchState || function() {};
             var _origSetTutorWatch = window.setTutorWatchState;
-            window.setTutorWatchState = function(active) {
+            window.setTutorSettings = function(settings) {
+                settings = applyTutorSettings(settings);
+                _origSetTutorWatch(settings.tutor_active);
+            };
+            window.setTutorWatchState = function(active, settings) {
+                if (settings) {
+                    window.setTutorSettings(settings);
+                    return;
+                }
                 _origSetTutorWatch(active);
-                var badge = document.getElementById('tutor-watcher-badge');
-                var item  = document.getElementById('tutor-watcher-item');
-                var sub   = document.getElementById('ovl-tutor-sub');
-                if (badge) badge.textContent = active ? 'On' : 'Off';
-                if (item)  item.classList.toggle('active', !!active);
-                if (sub)   sub.textContent   = active ? 'Watcher On' : 'Off';
+                var fallback = normalizeTutorSettings(window._picoTutorSettings);
+                fallback.tutor_active = Boolean(active);
+                updateTutorSummary(fallback);
             };
             // Sync overlay with the server-side initial state (the earlier call at
             // page-load ran before this wrapper existed and only updated the button).
-            window.setTutorWatchState(Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive));
+            window.setTutorSettings(
+                (window.picoWebConfig && window.picoWebConfig.tutorSettings) ||
+                { tutor_watcher: Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive) }
+            );
+            refreshTutorSettings();
 
         })();
             // Initialise ThreeCheck king badge icons to match the current piece set
@@ -2432,11 +2535,15 @@
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">Watcher</span><span class="pico-subpanel-desc">Alert on blunders in real time</span></span>
                         <span class="pico-subpanel-badge" id="tutor-watcher-badge">Off</span>
                     </button>
-                    <button class="pico-subpanel-item" data-action="tutor-coach" id="tutor-coach-item">
+                    <div class="pico-subpanel-item pico-subpanel-item-control" id="tutor-coach-item">
                         <span class="pico-subpanel-icon">🧑‍🏫</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Coach</span><span class="pico-subpanel-desc">Verbal advice after moves (Off · On · Lift)</span></span>
-                        <span class="pico-subpanel-badge" id="tutor-coach-badge">Off</span>
-                    </button>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Coach</span><span class="pico-subpanel-desc">On gives advice after moves. Lift also allows king-lift positional advice.</span></span>
+                        <span class="pico-segmented-control" role="group" aria-label="Coach mode">
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="off">Off</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="on">On</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="lift">Lift</button>
+                        </span>
+                    </div>
                     <button class="pico-subpanel-item" data-action="tutor-explorer" id="tutor-explorer-item">
                         <span class="pico-subpanel-icon">🗺️</span>
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">Explorer</span><span class="pico-subpanel-desc">Opening book exploration mode</span></span>

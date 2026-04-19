@@ -1697,6 +1697,14 @@ piece {
     cursor: default;
 }
 
+.pico-subpanel-item-control {
+    cursor: default;
+}
+
+.pico-subpanel-item-control:hover {
+    background: rgba(128, 128, 128, 0.08);
+}
+
 .pico-subpanel-icon {
     font-size: 1.35rem;
     line-height: 1;
@@ -1731,6 +1739,48 @@ piece {
     background: rgba(128, 128, 128, 0.15);
     border-radius: 4px;
     padding: 0.1rem 0.4rem;
+}
+
+.pico-segmented-control {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 999px;
+    background: rgba(128, 128, 128, 0.12);
+}
+
+.pico-segmented-button {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    min-width: 2.7rem;
+    padding: 0.42rem 0.5rem;
+}
+
+.pico-segmented-button.active {
+    background: rgba(13, 110, 253, 0.9);
+    color: #fff;
+}
+
+@media (max-width: 520px) {
+    .pico-subpanel-item-control {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .pico-subpanel-item-control .pico-subpanel-text {
+        min-width: calc(100% - 2.6rem);
+    }
+
+    .pico-segmented-control {
+        margin-left: 2.6rem;
+    }
 }
 
 /* Menu trigger button — slightly highlighted */

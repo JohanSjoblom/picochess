@@ -99,6 +99,73 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
 )
 
 
+def _coach_setting(value) -> str:
+    if value in (PicoCoach.COACH_LIFT, "lift", "Lift", 2):
+        return "lift"
+    if value in (PicoCoach.COACH_ON, "on", "On", True, 1):
+        return "on"
+    return "off"
+
+
+def _coach_event_value(setting: str):
+    setting = (setting or "off").lower()
+    if setting == "lift":
+        return PicoCoach.COACH_LIFT
+    if setting == "on":
+        return PicoCoach.COACH_ON
+    return PicoCoach.COACH_OFF
+
+
+def _comment_setting(value) -> str:
+    if value in (PicoComment.COM_ON_ALL, "all", "All"):
+        return "all"
+    if value in (PicoComment.COM_ON_ENG, "engine", "Engine", "single"):
+        return "engine"
+    return "off"
+
+
+def _bounded_tutor_prob(value) -> int:
+    try:
+        return max(0, min(100, int(value)))
+    except (TypeError, ValueError):
+        return 50
+
+
+def _tutor_settings_from_shared(shared: dict | None) -> dict:
+    shared = shared or {}
+    watcher = bool(shared.get("tutor_watch_watcher", False))
+    if "tutor_coach" in shared:
+        coach = _coach_setting(shared.get("tutor_coach"))
+    elif shared.get("tutor_watch_coach"):
+        coach = _coach_setting(shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON))
+    else:
+        coach = "off"
+    settings = {
+        "tutor_watcher": watcher,
+        "tutor_coach": coach,
+        "tutor_explorer": bool(shared.get("tutor_explorer", False)),
+        "tutor_comment": _comment_setting(shared.get("tutor_comment", "off")),
+        "tutor_prob": _bounded_tutor_prob(shared.get("tutor_prob", 50)),
+    }
+    settings["tutor_active"] = bool(settings["tutor_watcher"] or settings["tutor_coach"] != "off")
+    return settings
+
+
+def _store_tutor_coach(shared: dict, coach) -> None:
+    coach_setting = _coach_setting(coach)
+    shared["tutor_coach"] = coach_setting
+    shared["tutor_watch_coach"] = coach_setting != "off"
+    if coach_setting != "off":
+        shared["tutor_watch_coach_pref"] = _coach_event_value(coach_setting)
+    shared["tutor_watch_active"] = bool(
+        shared.get("tutor_watch_watcher") or shared.get("tutor_watch_coach")
+    )
+
+
+def _store_tutor_comment(shared: dict, comment) -> None:
+    shared["tutor_comment"] = _comment_setting(comment)
+
+
 def _get_ini_path() -> str:
     return os.path.join(os.path.dirname(__file__), "picochess.ini")
 
@@ -574,14 +641,20 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.NEW_GAME(pos960=pos960))
         elif action == "tutor_watch":
             active = self.get_argument("active", "false").lower() == "true"
-            await Observable.fire(Event.PICOWATCHER(picowatcher=active))
+            current = _tutor_settings_from_shared(self.shared)
             if active:
                 coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
                 if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
                     coach_pref = PicoCoach.COACH_ON
-                await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
+                if not current["tutor_watcher"]:
+                    await Observable.fire(Event.PICOWATCHER(picowatcher=True))
+                if current["tutor_coach"] != _coach_setting(coach_pref):
+                    await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
             else:
-                await Observable.fire(Event.PICOCOACH(picocoach=0))
+                if current["tutor_watcher"]:
+                    await Observable.fire(Event.PICOWATCHER(picowatcher=False))
+                if current["tutor_coach"] != "off":
+                    await Observable.fire(Event.PICOCOACH(picocoach=PicoCoach.COACH_OFF))
         elif action == "pause_resume":
             await Observable.fire(Event.PAUSE_RESUME())
         elif action == "resign_game":
@@ -722,16 +795,11 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "picotutor":
             tutor = self.get_argument("tutor", "")
             val   = self.get_argument("val", "0")
+            current = _tutor_settings_from_shared(self.shared)
             if tutor == "watcher":
                 active = val not in ("0", "false", "off")
-                await Observable.fire(Event.PICOWATCHER(picowatcher=active))
-                if active:
-                    coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
-                    if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
-                        coach_pref = PicoCoach.COACH_ON
-                    await Observable.fire(Event.PICOCOACH(picocoach=coach_pref))
-                else:
-                    await Observable.fire(Event.PICOCOACH(picocoach=0))
+                if current["tutor_watcher"] != active:
+                    await Observable.fire(Event.PICOWATCHER(picowatcher=active))
             elif tutor == "coach":
                 _coach_map = {
                     "on":   PicoCoach.COACH_ON,
@@ -739,10 +807,12 @@ class ChannelHandler(ServerRequestHandler):
                     "off":  PicoCoach.COACH_OFF,
                 }
                 coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
-                await Observable.fire(Event.PICOCOACH(picocoach=coach_val))
+                if current["tutor_coach"] != _coach_setting(coach_val):
+                    await Observable.fire(Event.PICOCOACH(picocoach=coach_val))
             elif tutor == "explorer":
                 active = val not in ("0", "false", "off")
-                await Observable.fire(Event.PICOEXPLORER(picoexplorer=active))
+                if current["tutor_explorer"] != active:
+                    await Observable.fire(Event.PICOEXPLORER(picoexplorer=active))
             elif tutor == "comment":
                 _comment_map = {
                     "engine": PicoComment.COM_ON_ENG,
@@ -750,12 +820,12 @@ class ChannelHandler(ServerRequestHandler):
                     "off":    PicoComment.COM_OFF,
                 }
                 comment_val = _comment_map.get(val.lower(), PicoComment.COM_OFF)
-                await Observable.fire(Event.PICOCOMMENT(picocomment=comment_val))
+                if current["tutor_comment"] != _comment_setting(comment_val):
+                    await Observable.fire(Event.PICOCOMMENT(picocomment=comment_val))
             elif tutor == "prob":
-                try:
-                    self.shared["tutor_prob"] = max(0, min(100, int(val)))
-                except (TypeError, ValueError):
-                    pass
+                prob = _bounded_tutor_prob(val)
+                if current["tutor_prob"] != prob:
+                    await Observable.fire(Event.PICOCOMMENT(picocomment=f"comment-factor:{prob}"))
             else:
                 logger.warning("web picotutor: unknown tutor=%r", tutor)
         elif action == "set_mode":
@@ -1048,6 +1118,11 @@ class EventHandler(WebSocketHandler):
                     self.write_message({"event": "SystemInfo", "msg": _si})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync system_info to client: %s", exc)
+        if self.shared:
+            try:
+                self.write_message({"event": "TutorSettings", "settings": _tutor_settings_from_shared(self.shared)})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync tutor settings to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -1174,6 +1249,7 @@ class InfoHandler(ServerRequestHandler):
             si = self.shared.get("system_info", {})
             settings["engine_name"] = si.get("engine_name", "")
             settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            settings.update(_tutor_settings_from_shared(self.shared))
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps(settings))
 
@@ -1384,6 +1460,7 @@ class ChessBoardHandler(ServerRequestHandler):
                 # Backend audio takes priority over browser speech synthesis.
                 web_speech = False
             tutor_watch_active = bool(self.shared.get("tutor_watch_active", False))
+        tutor_settings_json = json.dumps(_tutor_settings_from_shared(self.shared))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
         from utilities import version as pico_version
@@ -1407,6 +1484,7 @@ class ChessBoardHandler(ServerRequestHandler):
             web_speech=web_speech,
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
+            tutor_settings_json=tutor_settings_json,
             pico_version=pico_version,
             eboard_name=eboard_name,
             variant=variant,
@@ -2564,27 +2642,32 @@ class WebDisplay(DisplayMsg):
             self.shared["tutor_watch_active"] = bool(
                 self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
             )
+            settings = _tutor_settings_from_shared(self.shared)
             EventHandler.write_to_clients(
-                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"]}
+                {"event": "TutorWatch", "active": settings["tutor_active"], "settings": settings}
             )
 
         elif isinstance(message, Message.PICOCOACH):
-            coach_value = message.picocoach
-            coach_is_off = coach_value == 0 or coach_value == PicoCoach.COACH_OFF or coach_value is False
-            coach_is_lift = coach_value == 2 or coach_value == PicoCoach.COACH_LIFT
-            coach_is_on = coach_value == 1 or coach_value == PicoCoach.COACH_ON or (
-                coach_value and not coach_is_lift and not coach_is_off
-            )
-            self.shared["tutor_watch_coach"] = bool(coach_is_on or coach_is_lift)
-            if coach_is_lift:
-                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_LIFT
-            elif coach_is_on:
-                self.shared["tutor_watch_coach_pref"] = PicoCoach.COACH_ON
-            self.shared["tutor_watch_active"] = bool(
-                self.shared.get("tutor_watch_watcher") or self.shared.get("tutor_watch_coach")
-            )
+            _store_tutor_coach(self.shared, message.picocoach)
+            settings = _tutor_settings_from_shared(self.shared)
             EventHandler.write_to_clients(
-                {"event": "TutorWatch", "active": self.shared["tutor_watch_active"]}
+                {"event": "TutorWatch", "active": settings["tutor_active"], "settings": settings}
+            )
+
+        elif isinstance(message, Message.PICOEXPLORER):
+            self.shared["tutor_explorer"] = bool(message.picoexplorer)
+            EventHandler.write_to_clients(
+                {"event": "TutorSettings", "settings": _tutor_settings_from_shared(self.shared)}
+            )
+
+        elif isinstance(message, Message.PICOCOMMENT):
+            value = message.picocomment
+            if isinstance(value, str) and value.startswith("comment-factor:"):
+                self.shared["tutor_prob"] = _bounded_tutor_prob(value.split(":", 1)[1])
+            elif value != "ok" and value != "comment-factor":
+                _store_tutor_comment(self.shared, value)
+            EventHandler.write_to_clients(
+                {"event": "TutorSettings", "settings": _tutor_settings_from_shared(self.shared)}
             )
 
         elif isinstance(message, Message.WEB_ANALYSIS):

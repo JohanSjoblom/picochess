@@ -2288,6 +2288,9 @@ function getAllInfo() {
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
         }
+        if (window.setTutorSettings && Object.prototype.hasOwnProperty.call(data, 'tutor_watcher')) {
+            window.setTutorSettings(data);
+        }
         if (window.chessground1) { updateChessGround(); }
         if (window.syncClockControls) { window.syncClockControls(); }
     }).fail(function (jqXHR, textStatus) {
@@ -2592,8 +2595,15 @@ $(function () {
                         }
                         break;
                     case 'TutorWatch':
-                        if (window.setTutorWatchState) {
+                        if (data.settings && window.setTutorSettings) {
+                            window.setTutorSettings(data.settings);
+                        } else if (window.setTutorWatchState) {
                             window.setTutorWatchState(Boolean(data.active));
+                        }
+                        break;
+                    case 'TutorSettings':
+                        if (window.setTutorSettings) {
+                            window.setTutorSettings(data.settings || data);
                         }
                         break;
                     case 'Light':
@@ -2637,6 +2647,9 @@ $(function () {
                         Object.assign(window._picoSystemInfo, data.msg);
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));
+                        }
+                        if (window.setTutorSettings && Object.prototype.hasOwnProperty.call(data.msg, 'tutor_watcher')) {
+                            window.setTutorSettings(data.msg);
                         }
                         if (window.chessground1) { updateChessGround(); }
                         if (window.syncClockControls) { window.syncClockControls(); }

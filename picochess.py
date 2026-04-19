@@ -1122,11 +1122,25 @@ async def main() -> None:
         )
         shared["tutor_watch_watcher"] = bool(state.dgtmenu.get_picowatcher())
         shared["tutor_watch_coach"] = bool(state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
+        if state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT:
+            shared["tutor_coach"] = "lift"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON:
+            shared["tutor_coach"] = "on"
+        else:
+            shared["tutor_coach"] = "off"
         shared["tutor_watch_coach_pref"] = (
             state.dgtmenu.get_picocoach()
             if state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
             else PicoCoach.COACH_ON
         )
+        shared["tutor_explorer"] = bool(state.dgtmenu.get_picoexplorer())
+        if state.dgtmenu.get_picocomment() == PicoComment.COM_ON_ALL:
+            shared["tutor_comment"] = "all"
+        elif state.dgtmenu.get_picocomment() == PicoComment.COM_ON_ENG:
+            shared["tutor_comment"] = "engine"
+        else:
+            shared["tutor_comment"] = "off"
+        shared["tutor_prob"] = int(state.dgtmenu.get_comment_factor())
         # moved starting WebDisplayt and WebVr here so that they are in same main loop
         logger.info("initializing message queues")
         my_web_display = WebDisplay(shared, main_loop)
@@ -6296,9 +6310,19 @@ async def main() -> None:
                     await self.takeback()
 
             elif isinstance(event, Event.PICOCOMMENT):
-                if event.picocomment == "comment-factor":
-                    self.pico_talker.set_comment_factor(comment_factor=self.state.dgtmenu.get_comment_factor())
-                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+                if isinstance(event.picocomment, str) and event.picocomment.startswith("comment-factor"):
+                    if ":" in event.picocomment:
+                        try:
+                            comment_factor = max(0, min(100, int(event.picocomment.split(":", 1)[1])))
+                        except (TypeError, ValueError):
+                            comment_factor = self.state.dgtmenu.get_comment_factor()
+                        self.state.dgtmenu.menu_picotutor_picocomment_prob_list = str(comment_factor)
+                        self.state.dgtmenu.res_picotutor_picocomment_prob = comment_factor
+                        write_picochess_ini("comment-factor", str(comment_factor))
+                    else:
+                        comment_factor = self.state.dgtmenu.get_comment_factor()
+                    self.pico_talker.set_comment_factor(comment_factor=comment_factor)
+                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment=f"comment-factor:{comment_factor}"))
                 else:
                     _comment_ini = {
                         PicoComment.COM_OFF:    "off",

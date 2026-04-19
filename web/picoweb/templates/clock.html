@@ -1121,7 +1121,16 @@
                         if (window.setTutorSettings) window.setTutorSettings(window._picoTutorSettings || {});
                     });
             }
+            function applyCachedTutorSettings() {
+                if (!window.setTutorSettings) return;
+                window.setTutorSettings(
+                    window._picoTutorSettings ||
+                    (window.picoWebConfig && window.picoWebConfig.tutorSettings) ||
+                    { tutor_watcher: Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive) }
+                );
+            }
             function showTutor()  {
+                applyCachedTutorSettings();
                 showSubpanel('overlay-tutor');
                 refreshTutorSettings();
             }
@@ -1973,6 +1982,7 @@
 
             /* ── open / close ────────────────────────── */
             function open() {
+                applyCachedTutorSettings();
                 showTiles();
                 overlay.classList.add('open');
                 document.body.style.overflow = 'hidden';
@@ -2079,7 +2089,7 @@
             /* ── public API ──────────────────────────── */
             window.picoOverlay = { open: open, close: close,
                 showTiles: showTiles, showScan: showScan, showEngine: showEngine,
-                showMode: showMode, showTime: showTime, showBook: showBook,
+                showMode: showMode, showTime: showTime, showBook: showEngineBook,
                 showTutor: showTutor, showPlayer: showPlayer, showGame: showGame,
                 showSystem: showSystem, showDisplay: showDisplay };
 

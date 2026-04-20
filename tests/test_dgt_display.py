@@ -93,7 +93,7 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.display.play_mode = PlayMode.USER_WHITE
 
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
-    async def test_standard_start_position_routes_through_fen_for_takeback(self, observable_fire):
+    async def test_standard_start_position_with_move_history_triggers_new_game(self, observable_fire):
         self.display.last_pos_start = False
         self.display._current_game_has_moves = True
         self.display._current_game_start_pos960 = 518
@@ -101,8 +101,8 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         await self.display._process_fen(chess.STARTING_BOARD_FEN, raw=False)
 
         event = observable_fire.await_args.args[0]
-        self.assertIsInstance(event, Event.FEN)
-        self.assertEqual(chess.STARTING_BOARD_FEN, event.fen)
+        self.assertIsInstance(event, Event.NEW_GAME)
+        self.assertEqual(518, event.pos960)
 
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_ended_game_start_position_triggers_new_game(self, observable_fire):

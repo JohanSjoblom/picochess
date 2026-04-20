@@ -11,6 +11,7 @@ from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
 from dgt.util import EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+from pgn import ModeInfo
 from timecontrol import TimeControl
 from uci.engine_provider import EngineProvider
 from uci.read import read_engine_ini
@@ -80,6 +81,8 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         loop = asyncio.new_event_loop()
         self.addCleanup(loop.close)
+        ModeInfo.set_game_ending(result="*")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
         self.menu = DummyMenu()
         self.display = DgtDisplay(
             dgttranslate=DummyTranslate(),
@@ -100,6 +103,19 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         event = observable_fire.await_args.args[0]
         self.assertIsInstance(event, Event.FEN)
         self.assertEqual(chess.STARTING_BOARD_FEN, event.fen)
+
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_ended_game_start_position_triggers_new_game(self, observable_fire):
+        ModeInfo.set_game_ending(result="0-1")
+        self.display.last_pos_start = False
+        self.display._current_game_has_moves = True
+        self.display._current_game_start_pos960 = 518
+
+        await self.display._process_fen(chess.STARTING_BOARD_FEN, raw=False)
+
+        event = observable_fire.await_args.args[0]
+        self.assertIsInstance(event, Event.NEW_GAME)
+        self.assertEqual(518, event.pos960)
 
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_different_chess960_start_still_triggers_new_game(self, observable_fire):

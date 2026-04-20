@@ -93,10 +93,8 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.display.play_mode = PlayMode.USER_WHITE
 
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
-    async def test_standard_start_position_with_move_history_triggers_new_game(self, observable_fire):
+    async def test_standard_start_position_triggers_new_game(self, observable_fire):
         self.display.last_pos_start = False
-        self.display._current_game_has_moves = True
-        self.display._current_game_start_pos960 = 518
 
         await self.display._process_fen(chess.STARTING_BOARD_FEN, raw=False)
 
@@ -108,8 +106,6 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
     async def test_ended_game_start_position_triggers_new_game(self, observable_fire):
         ModeInfo.set_game_ending(result="0-1")
         self.display.last_pos_start = False
-        self.display._current_game_has_moves = True
-        self.display._current_game_start_pos960 = 518
 
         await self.display._process_fen(chess.STARTING_BOARD_FEN, raw=False)
 
@@ -121,8 +117,6 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
     async def test_different_chess960_start_still_triggers_new_game(self, observable_fire):
         self.menu._engine_has_960 = True
         self.display.last_pos_start = False
-        self.display._current_game_has_moves = True
-        self.display._current_game_start_pos960 = 518
         chess960_fen = chess.Board.from_chess960_pos(0).board_fen()
 
         await self.display._process_fen(chess960_fen, raw=False)
@@ -134,8 +128,6 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_start_position_without_move_history_still_triggers_new_game(self, observable_fire):
         self.display.last_pos_start = False
-        self.display._current_game_has_moves = False
-        self.display._current_game_start_pos960 = 518
 
         await self.display._process_fen(chess.STARTING_BOARD_FEN, raw=False)
 

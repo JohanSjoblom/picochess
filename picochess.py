@@ -1086,18 +1086,25 @@ async def main() -> None:
         # samples: no sounds
         sample_beeper = False
 
+    shared: dict = {
+        "web_speech_local": args.web_speech_local,
+        "web_speech_remote": args.web_speech_remote,
+        "web_audio_backend_remote": bool(args.web_audio_backend_remote),
+        "system_info": {"web_audio_backend_remote": bool(args.web_audio_backend_remote)},
+    }
+
     def _emit_web_audio(audio_data: dict):
         EventHandler.write_to_clients({"event": "WebAudio", "audio": audio_data})
 
     def _should_emit_web_audio() -> bool:
-        return EventHandler.has_remote_clients()
+        return bool(shared.get("web_audio_backend_remote", False)) and EventHandler.has_remote_clients()
 
     pico_talker = PicoTalkerDisplay(
         args.user_voice,
         args.computer_voice,
         args.speed_voice,
         args.audio_backend,
-        bool(args.web_server_port and args.web_audio_backend_remote),
+        bool(args.web_server_port),
         _emit_web_audio,
         _should_emit_web_audio,
         args.enable_setpieces_voice,
@@ -1113,10 +1120,6 @@ async def main() -> None:
     # Launch web server
     if args.web_server_port:
         my_web_server = WebServer()
-        shared: dict = {}
-        shared["web_speech_local"] = args.web_speech_local
-        shared["web_speech_remote"] = args.web_speech_remote
-        shared["web_audio_backend_remote"] = args.web_audio_backend_remote
         shared["tutor_watch_active"] = bool(
             state.dgtmenu.get_picowatcher() or state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
         )

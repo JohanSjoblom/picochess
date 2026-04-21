@@ -780,6 +780,7 @@
     <script>
             window.picoWebConfig = window.picoWebConfig || {};
             window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
+            window.picoWebConfig.webSpeechFallback = {{ "true" if web_speech_fallback else "false" }};
             window.picoWebConfig.webAudioBackend = {{ "true" if web_audio_backend else "false" }};
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
@@ -1149,7 +1150,15 @@
                 // Pre-fetch current settings so tick marks are ready when a category is opened
                 fetch('/info?action=get_current_settings')
                     .then(function(r) { return r.json(); })
-                    .then(function(d) { window._picoCurrentSettings = d; })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        if (Object.prototype.hasOwnProperty.call(d, 'web_audio_backend_remote')) {
+                            window._picoSystemInfo = window._picoSystemInfo || {};
+                            window._picoSystemInfo.web_audio_backend_remote = Boolean(d.web_audio_backend_remote);
+                        }
+                        updateSystemSubpanel();
+                        updateTileStates();
+                    })
                     .catch(function() {});
             }
 
@@ -1726,7 +1735,7 @@
 
             /* ── subpanel state updaters ─────────────── */
             function updateTileStates() {
-                var isMuted = !!(document.getElementById('btn-mute') && document.getElementById('btn-mute').classList.contains('is-muted'));
+                var audioState = getPhoneSpeakerControlState();
                 var sysInfo = window._picoSystemInfo || {};
                 if (Object.prototype.hasOwnProperty.call(sysInfo, 'game_started')) {
                     gameActive = Boolean(sysInfo.game_started);
@@ -1734,7 +1743,7 @@
                 }
                 var el;
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
-                if ((el = document.getElementById('ovl-system-sub'))) el.textContent = isMuted ? 'Muted' : 'Sound On';
+                if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
                 if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
                 if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
@@ -1784,19 +1793,62 @@
                 if (active) showTimeValues(active);
             }
 
+            function getPhoneSpeakerEnabled() {
+                var sysInfo = window._picoSystemInfo || {};
+                if (Object.prototype.hasOwnProperty.call(sysInfo, 'web_audio_backend_remote')) {
+                    return Boolean(sysInfo.web_audio_backend_remote);
+                }
+                var settings = window._picoCurrentSettings || {};
+                if (Object.prototype.hasOwnProperty.call(settings, 'web_audio_backend_remote')) {
+                    return Boolean(settings.web_audio_backend_remote);
+                }
+                return Boolean(window.picoWebConfig && window.picoWebConfig.webAudioBackend);
+            }
+
+            function setPhoneSpeakerState(enabled) {
+                enabled = Boolean(enabled);
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.web_audio_backend_remote = enabled;
+                window._picoCurrentSettings = window._picoCurrentSettings || {};
+                window._picoCurrentSettings.web_audio_backend_remote = enabled;
+                if (typeof applyWebAudioBackendRemote === 'function') {
+                    applyWebAudioBackendRemote(enabled);
+                }
+                updateSystemSubpanel();
+                updateTileStates();
+            }
+
+            window.setPicoPhoneSpeaker = setPhoneSpeakerState;
+
+            function getPhoneSpeakerControlState() {
+                var enabled = getPhoneSpeakerEnabled();
+                return {
+                    disabled: false,
+                    enabled: enabled,
+                    icon: enabled ? '🔊' : '🔇',
+                    label: 'Phone Speaker',
+                    subtitle: enabled ? 'Remote PicoTalker stream on' : 'Remote PicoTalker stream off',
+                    tileText: enabled ? 'Phone speaker on' : 'Phone speaker off'
+                };
+            }
+
             function updateSystemSubpanel() {
-                var isMuted = !!(document.getElementById('btn-mute') && document.getElementById('btn-mute').classList.contains('is-muted'));
+                var audioState = getPhoneSpeakerControlState();
                 var icon  = document.getElementById('system-sound-icon');
                 var badge = document.getElementById('system-sound-badge');
                 var item  = document.getElementById('system-sound-item');
-                if (icon)  icon.textContent  = isMuted ? '🔇' : '🔊';
-                if (badge) badge.textContent = isMuted ? 'Off' : 'On';
-                if (item)  item.classList.toggle('active', isMuted);
-                // sync web-mute button label
-                var wmIcon = document.getElementById('sys-webmute-icon');
-                var wmSub  = document.getElementById('sys-webmute-sub');
-                if (wmIcon) wmIcon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
-                if (wmSub)  wmSub.textContent  = isMuted ? 'Click to unmute' : 'Click to mute';
+                if (icon)  icon.textContent  = audioState.icon;
+                if (badge) badge.textContent = audioState.enabled ? 'On' : 'Off';
+                if (item)  item.classList.toggle('active', audioState.enabled);
+                var speakerBtn  = document.getElementById('sys-phone-speaker-btn');
+                var speakerIcon = document.getElementById('sys-phone-speaker-icon');
+                var speakerSub  = document.getElementById('sys-phone-speaker-sub');
+                if (speakerBtn) {
+                    speakerBtn.classList.toggle('selected', audioState.enabled);
+                    speakerBtn.title = audioState.subtitle;
+                }
+                if (speakerIcon) speakerIcon.textContent = audioState.icon + ' ' + audioState.label;
+                if (speakerSub)  speakerSub.textContent  = audioState.subtitle;
             }
 
             function normalizeTutorSettings(settings) {
@@ -1956,17 +2008,11 @@
                     case 'tutor-hint':
                         post('action=clockbutton&button=3'); close(); break;
                     // SYSTEM
-                    case 'web-mute':
-                        if (typeof toggleMute === 'function') toggleMute();
-                        (function() {
-                            var btn = document.getElementById('btn-mute');
-                            var isMuted = btn && btn.classList.contains('is-muted');
-                            var icon = document.getElementById('sys-webmute-icon');
-                            var sub  = document.getElementById('sys-webmute-sub');
-                            if (icon) icon.textContent = (isMuted ? '🔇' : '🔊') + ' Web Audio';
-                            if (sub)  sub.textContent  = isMuted ? 'Click to unmute' : 'Click to mute';
-                        })();
-                        close(); break;
+                    case 'phone-speaker': {
+                        var nextPhoneSpeaker = !getPhoneSpeakerEnabled();
+                        setPhoneSpeakerState(nextPhoneSpeaker);
+                        post('action=phone_speaker&enabled=' + (nextPhoneSpeaker ? 'true' : 'false'));
+                        break; }
                     case 'sound':
                         // dead-code path — Sound tile uses data-sys-cat, not data-action
                         close(); break;
@@ -2064,6 +2110,7 @@
 
                 // System: category column
                 var sysCatBtn = e.target.closest('#ovl-sys-cat-list .pico-picker-item');
+                if (sysCatBtn && sysCatBtn.disabled) return;
                 if (sysCatBtn && sysCatBtn.dataset.sysCat) { showSysCat(sysCatBtn.dataset.sysCat); return; }
                 if (sysCatBtn && sysCatBtn.dataset.action) { handleSubpanelAction(sysCatBtn.dataset.action, sysCatBtn); return; }
 
@@ -2199,6 +2246,9 @@
 
             function toggleMute() {
                 var btn = document.getElementById('btn-mute');
+                if (!btn || (typeof webAudioMode === 'string' && webAudioMode === 'off')) {
+                    return;
+                }
 
                 // 1. Cambiamos el aspecto visual (Rojo/Normal)
                 btn.classList.toggle('is-muted');
@@ -2644,7 +2694,7 @@
                         <div id="ovl-sys-cat-list">
                             <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
                             <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
-                            <button class="pico-picker-item" data-action="web-mute" id="sys-webmute-btn"><strong id="sys-webmute-icon">🔊 Web Audio</strong><span class="picker-sub" id="sys-webmute-sub">Click to mute</span></button>
+                            <button class="pico-picker-item" data-action="phone-speaker" id="sys-phone-speaker-btn"><strong id="sys-phone-speaker-icon">🔊 Phone Speaker</strong><span class="picker-sub" id="sys-phone-speaker-sub">Remote PicoTalker stream on</span></button>
                             <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
                             <button class="pico-picker-item" data-sys-cat="comp-voice"><strong>🎙️ Comp Voice</strong><span class="picker-sub">Computer speaker</span></button>

@@ -48,6 +48,50 @@ if (typeof window !== "undefined" && window.picoWebConfig) {
     }
 }
 
+function isLocalWebClient() {
+    const hostname = String(location.hostname || '').toLowerCase();
+    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+}
+
+function updateWebAudioMuteButtonVisibility() {
+    const muteButton = $('#btn-mute');
+    if (isLocalWebClient() || webAudioMode === "off") {
+        muteButton.hide();
+    } else {
+        muteButton.addClass('is-muted is-visible').show();
+    }
+}
+
+function isBrowserSpeechAllowed() {
+    if (window.picoWebConfig && Object.prototype.hasOwnProperty.call(window.picoWebConfig, 'webSpeechFallback')) {
+        return window.picoWebConfig.webSpeechFallback !== false;
+    }
+    return !(window.picoWebConfig && window.picoWebConfig.webSpeech === false);
+}
+
+function applyWebAudioBackendRemote(enabled) {
+    window.picoWebConfig = window.picoWebConfig || {};
+    window.picoWebConfig.webAudioBackend = Boolean(enabled) && !isLocalWebClient();
+
+    if (window.picoWebConfig.webAudioBackend === true) {
+        webAudioMode = "backend";
+    } else if (isBrowserSpeechAllowed()) {
+        webAudioMode = "tts";
+    } else {
+        webAudioMode = "off";
+    }
+
+    if (webAudioMode !== "backend") {
+        stopBackendAudioPlayback();
+    }
+    setSpeechMuted(true);
+    updateWebAudioMuteButtonVisibility();
+
+    if (window.updatePicoSystemAudioState) {
+        window.updatePicoSystemAudioState();
+    }
+}
+
 // 3check variant support
 var currentVariant = "chess";
 
@@ -2406,16 +2450,7 @@ $('#startBtn').on('click', goToStart);
 $('#endBtn').on('click', goToEnd);
 
 $(window).on('load', function () {
-    const hostname = location.hostname;
-    if (hostname === '127.0.0.1' || hostname === 'localhost') {
-        $('#btn-mute').hide();
-    } else {
-        if (webAudioMode === "off") {
-            $('#btn-mute').hide();
-        } else {
-            $('#btn-mute').addClass('is-muted is-visible');
-        }
-    }
+    updateWebAudioMuteButtonVisibility();
     $('#downloadBtn').on('click', download);
     $('#uploadBtn').on('click', function () {
         window.location.href = 'upload';
@@ -2647,6 +2682,13 @@ $(function () {
                         Object.assign(window._picoSystemInfo, data.msg);
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));
+                        }
+                        if (Object.prototype.hasOwnProperty.call(data.msg, 'web_audio_backend_remote')) {
+                            if (window.setPicoPhoneSpeaker) {
+                                window.setPicoPhoneSpeaker(Boolean(data.msg.web_audio_backend_remote));
+                            } else {
+                                applyWebAudioBackendRemote(Boolean(data.msg.web_audio_backend_remote));
+                            }
                         }
                         if (window.setTutorSettings && Object.prototype.hasOwnProperty.call(data.msg, 'tutor_watcher')) {
                             window.setTutorSettings(data.msg);

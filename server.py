@@ -95,6 +95,7 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "voice_speed",
         "voice_volume",
         "rspeed",
+        "phone_speaker",
     }
 )
 
@@ -915,6 +916,13 @@ class ChannelHandler(ServerRequestHandler):
                 self.shared["system_info"]["user_elo"] = str(elo_int)
                 write_picochess_ini("pgn-elo", str(elo_int))
                 logger.info("web set_player: elo=%r", elo_int)
+        elif action == "phone_speaker":
+            enabled = self.get_argument("enabled", "false").lower() in ("1", "true", "yes", "on")
+            self.shared["web_audio_backend_remote"] = enabled
+            self.shared.setdefault("system_info", {})["web_audio_backend_remote"] = enabled
+            write_picochess_ini("web-audio-backend-remote", "true" if enabled else "false")
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"web_audio_backend_remote": enabled}})
+            logger.info("web phone_speaker: backend stream %s", "enabled" if enabled else "disabled")
         elif action == "take_back":
             await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":
@@ -1239,6 +1247,16 @@ class InfoHandler(ServerRequestHandler):
                 settings["speed_voice"] = str(config.get("speed-voice", "2"))
                 # Voice volume (1–20)
                 settings["volume_voice"] = str(config.get("volume-voice", "10"))
+                raw_phone_speaker = self.shared.get(
+                    "web_audio_backend_remote",
+                    config.get("web-audio-backend-remote", False),
+                )
+                settings["web_audio_backend_remote"] = str(raw_phone_speaker).lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                )
                 # Current voice speakers (stored as "lang:speaker")
                 for key in ("comp-voice", "user-voice"):
                     raw = str(config.get(key, ""))
@@ -1451,11 +1469,13 @@ class ChessBoardHandler(ServerRequestHandler):
     def get(self):
         self.set_header("Cache-Control", "no-store")
         web_speech = True
+        web_speech_fallback = True
         web_audio_backend = False
         tutor_watch_active = False
         if self.shared is not None:
             web_audio_backend = self._get_web_audio_backend_setting()
-            web_speech = self._get_web_speech_setting()
+            web_speech_fallback = self._get_web_speech_setting()
+            web_speech = web_speech_fallback
             if web_audio_backend:
                 # Backend audio takes priority over browser speech synthesis.
                 web_speech = False
@@ -1482,6 +1502,7 @@ class ChessBoardHandler(ServerRequestHandler):
             pieces=pieces,
             board=board,
             web_speech=web_speech,
+            web_speech_fallback=web_speech_fallback,
             web_audio_backend=web_audio_backend,
             tutor_watch_active=tutor_watch_active,
             tutor_settings_json=tutor_settings_json,
@@ -1637,6 +1658,18 @@ class SettingsSaveHandler(ServerRequestHandler):
             theme_entry = entries_by_key.get("theme")
             if theme_entry and theme_entry["enabled"]:
                 self.shared["theme"] = theme_entry["value"]
+
+            phone_speaker_entry = entries_by_key.get("web-audio-backend-remote")
+            if phone_speaker_entry:
+                enabled = phone_speaker_entry["enabled"] and str(phone_speaker_entry["value"]).lower() in (
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                )
+                self.shared["web_audio_backend_remote"] = enabled
+                self.shared.setdefault("system_info", {})["web_audio_backend_remote"] = enabled
+                EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"web_audio_backend_remote": enabled}})
 
         self.set_header("Content-Type", "application/json")
         self.write({"status": "ok"})

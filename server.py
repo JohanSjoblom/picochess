@@ -96,6 +96,7 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "voice_volume",
         "rspeed",
         "phone_speaker",
+        "audio_backend",
     }
 )
 
@@ -923,6 +924,13 @@ class ChannelHandler(ServerRequestHandler):
             write_picochess_ini("web-audio-backend-remote", "true" if enabled else "false")
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"web_audio_backend_remote": enabled}})
             logger.info("web phone_speaker: backend stream %s", "enabled" if enabled else "disabled")
+        elif action == "audio_backend":
+            backend = self.get_argument("backend", "").strip().lower()
+            if backend in ("sox", "native"):
+                write_picochess_ini("audio-backend", backend)
+                logger.info("web audio_backend: backend set to %r; restart required", backend)
+            else:
+                logger.warning("web audio_backend: unknown backend %r", backend)
         elif action == "take_back":
             await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":
@@ -1247,6 +1255,8 @@ class InfoHandler(ServerRequestHandler):
                 settings["speed_voice"] = str(config.get("speed-voice", "2"))
                 # Voice volume (1–20)
                 settings["volume_voice"] = str(config.get("volume-voice", "10"))
+                audio_backend = str(config.get("audio-backend", "sox")).lower()
+                settings["audio_backend"] = audio_backend if audio_backend in ("sox", "native") else "sox"
                 raw_phone_speaker = self.shared.get(
                     "web_audio_backend_remote",
                     config.get("web-audio-backend-remote", False),

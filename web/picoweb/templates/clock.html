@@ -1577,6 +1577,7 @@
                 if (s.confirm)     a['display&confirm='   + s.confirm]     = true;
                 if (s.capital)     a['display&capital='   + s.capital]     = true;
                 if (s.show_engine) a['display&enginename='+ s.show_engine] = true;
+                if (s.audio_backend) a['audio_backend&backend=' + s.audio_backend] = true;
                 return a;
             }
             function showSysCat(cat) {
@@ -1704,6 +1705,31 @@
                             btn.classList.add('selected');
                             post('action=rspeed&val=' + pair[1]);
                             setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
+                if (cat === 'audio-backend') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Audio Backend';
+                    listEl.innerHTML = '<div style="font-size:0.78rem;line-height:1.55;opacity:0.72;padding:0.35rem 0.55rem 0.75rem;">Technical setting. Saved for next PicoChess restart. Native is intended for Wayland/PipeWire and needs pipewire-alsa; if native has no sound, rerun the installer or see README.</div>';
+                    var _curAudioBackend = (window._picoCurrentSettings || {}).audio_backend || 'sox';
+                    [
+                        ['Native (Wayland / PipeWire)', 'native', 'Requires pipewire-alsa · restart PicoChess'],
+                        ['SoX (X11 / legacy)', 'sox', 'Older playback backend · restart PicoChess']
+                    ].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong><span class="picker-sub">' + pair[2] + '</span>';
+                        if (pair[1] === _curAudioBackend) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            window._picoCurrentSettings = window._picoCurrentSettings || {};
+                            window._picoCurrentSettings.audio_backend = pair[1];
+                            post('action=audio_backend&backend=' + pair[1]);
+                            setTimeout(close, 220);
                         });
                         listEl.appendChild(btn);
                     });
@@ -2695,6 +2721,7 @@
                             <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
                             <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
                             <button class="pico-picker-item" data-action="phone-speaker" id="sys-phone-speaker-btn"><strong id="sys-phone-speaker-icon">🔊 Phone Speaker</strong><span class="picker-sub" id="sys-phone-speaker-sub">Remote PicoTalker stream on</span></button>
+                            <button class="pico-picker-item" data-sys-cat="audio-backend"><strong>🛠 Audio Backend</strong><span class="picker-sub">Native / SoX · restart required</span></button>
                             <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
                             <button class="pico-picker-item" data-sys-cat="comp-voice"><strong>🎙️ Comp Voice</strong><span class="picker-sub">Computer speaker</span></button>

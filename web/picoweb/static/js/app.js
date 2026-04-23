@@ -2275,7 +2275,9 @@ function _buildAnalysisClockLine(analysis) {
 
 function stopAnalysisClock() {
     analysisClockData = null;
-    dgtClockTextEl.html('');
+    // Do NOT clear dgtClockTextEl here — that would wipe Normal-mode clock
+    // times when called from ws.onopen or case 'Game'.  Clearing is done
+    // explicitly in the SystemInfo handler on Analysis-mode entry only.
 }
 
 function updateAnalysisClock(analysis) {
@@ -2784,6 +2786,7 @@ $(function () {
                         // enter Analysis mode, before the first Analysis event arrives.
                         if (data.msg.interaction_mode === 'analysis' && _prevMode !== 'analysis') {
                             stopAnalysisClock();
+                            dgtClockTextEl.html('');
                         }
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));

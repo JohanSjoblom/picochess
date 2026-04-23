@@ -1919,7 +1919,19 @@ function analyze(position_update) {
 }
 
 function updateDGTPosition(data) {
-    if (!goToPosition(data.fen) || data.play === 'reload') {
+    if (data.play === 'reload') {
+        // Takeback / switch-sides: always rebuild the move tree from the
+        // fresh PGN so the diagram and move list are in sync, even when
+        // the target FEN already exists in the current fenHash (i.e. a
+        // real move takeback where the previous position is in the list).
+        loadGame(data['pgn'].split("\n"));
+        if (!goToPosition(data.fen)) {
+            // Variant chess or edge-cases: force the board to the server FEN.
+            forcePosition(data.fen);
+        }
+        return;
+    }
+    if (!goToPosition(data.fen)) {
         loadGame(data['pgn'].split("\n"));
         if (!goToPosition(data.fen)) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
@@ -1942,6 +1954,15 @@ function forcePosition(fen) {
         fenHash[fen] = currentPosition;
         if (oldFen && oldFen !== fen) {
             delete fenHash[oldFen];
+        }
+    } else {
+        // No moves in the game (e.g. takeback to the starting position).
+        // Use the root gameHistory node so updateChessGround() has a valid
+        // currentPosition object with the correct FEN to display.
+        currentPosition = gameHistory;
+        if (currentPosition) {
+            currentPosition.fen = fen;
+            fenHash[fen] = currentPosition;
         }
     }
     updateChessGround();
@@ -2670,6 +2691,11 @@ $(function () {
                         updateCheckCounters(data.variant, data.checks);
                         if (data.play === 'reload') {
                             removeHighlights();
+                            // Force a full chessground redraw so the diagram
+                            // always reflects the post-takeback position, even
+                            // when the FEN was already present in the move list
+                            // (the board render can otherwise be deferred/stale).
+                            if (window.chessground1) { window.chessground1.redrawAll(); }
                         }
                         if (data.play === 'user') {
                             highlightBoard(data.move, 'user');

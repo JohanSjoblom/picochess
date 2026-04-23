@@ -1935,11 +1935,14 @@ class WebVr(DgtIface):
             else:
                 text = "{:2d}{:s}{:s}".format(bit_board.fullmove_number % 100, points, text)
         else:
-            text = message.move.uci()
-            if message.side == ClockSide.RIGHT:
-                text = text[:2].rjust(3) + text[2:].rjust(3)
+            # Web-only path: always compute SAN with full move number.
+            bit_board = self._mk_board(message)
+            if bit_board.is_legal(message.move):
+                san = bit_board.san(message.move)
             else:
-                text = text[:2].ljust(3) + text[:2].ljust(3)
+                san = message.move.uci()
+            points = "..." if message.side == ClockSide.RIGHT else "."
+            text = "{:d}{:s}{:s}".format(bit_board.fullmove_number, points, san)
         if self.get_name() not in message.devs:
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True

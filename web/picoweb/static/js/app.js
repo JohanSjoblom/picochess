@@ -2219,6 +2219,88 @@ function updateBackendAnalysisLine(analysis) {
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 
+// Analysis mode: rotating clock display (move ↔ score) in #DGTClockText
+var analysisClockTimer = null;
+var analysisClockPhase = 0;   // 0 = move number + bestmove, 1 = score + depth
+var analysisClockData  = null;
+var analysisClockFen   = null;
+var ANALYSIS_CLOCK_INTERVAL = 2000;  // ms per phase
+
+function _analysisClockMoveLine(analysis) {
+    var fen = analysis.fen || (currentPosition && currentPosition.fen) || '';
+    var moveNum = 1;
+    var points  = '.';
+    if (fen) {
+        var parts = fen.split(/\s+/);
+        if (parts.length >= 6) {
+            var n = parseInt(parts[5], 10);
+            if (!isNaN(n) && n >= 1) moveNum = n;
+        }
+        if (parts[1] === 'b') points = '...';
+    }
+    var pv  = Array.isArray(analysis.pv) ? analysis.pv : [];
+    var san = null;
+    if (pv.length > 0 && fen) {
+        var uci = typeof pv[0] === 'string' ? pv[0].trim() : '';
+        if (/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) {
+            try {
+                var b = new Chess(fen, chessGameType);
+                var mv = b.move({ from: uci.slice(0, 2), to: uci.slice(2, 4),
+                                  promotion: uci[4] || undefined });
+                if (mv) san = mv.san;
+            } catch (e) {}
+        }
+    }
+    return san ? moveNum + points + san : null;
+}
+
+function _analysisClockScoreLine(analysis) {
+    var depth = typeof analysis.depth === 'number' ? ' d' + analysis.depth : '';
+    if (analysis.mate) return '#' + analysis.mate + depth;
+    if (analysis.score !== null && analysis.score !== undefined) {
+        var s = analysis.score / 100.0;
+        return (s > 0 ? '+' : '') + s.toFixed(2) + depth;
+    }
+    return null;
+}
+
+function _analysisClockTick() {
+    if (!analysisClockData) return;
+    var text = null;
+    if (analysisClockPhase === 0) {
+        text = _analysisClockMoveLine(analysisClockData);
+        if (!text) { analysisClockPhase = 1; text = _analysisClockScoreLine(analysisClockData); }
+    } else {
+        text = _analysisClockScoreLine(analysisClockData);
+        if (!text) { analysisClockPhase = 0; text = _analysisClockMoveLine(analysisClockData); }
+    }
+    if (text) dgtClockTextEl.html(text);
+}
+
+function stopAnalysisClock() {
+    if (analysisClockTimer) { clearInterval(analysisClockTimer); analysisClockTimer = null; }
+    analysisClockData  = null;
+    analysisClockFen   = null;
+    analysisClockPhase = 0;
+}
+
+function updateAnalysisClock(analysis) {
+    if (!analysis || analysis.clear) { stopAnalysisClock(); return; }
+    var newFen     = analysis.fen || null;
+    var fenChanged = newFen !== analysisClockFen;
+    analysisClockData = analysis;
+    analysisClockFen  = newFen;
+    if (!analysisClockTimer || fenChanged) {
+        if (fenChanged) analysisClockPhase = 0;
+        if (analysisClockTimer) { clearInterval(analysisClockTimer); analysisClockTimer = null; }
+        _analysisClockTick();   // immediate first render
+        analysisClockTimer = setInterval(function () {
+            analysisClockPhase = 1 - analysisClockPhase;
+            _analysisClockTick();
+        }, ANALYSIS_CLOCK_INTERVAL);
+    }
+}
+
 // Clear engine analysis content; reset button to SHOW.
 function setEngineLinePlaceholder() {
     var metaEl = document.getElementById('engineMeta');
@@ -2585,6 +2667,7 @@ $(function () {
             ws.onopen = function () {
                 // Reset backoff on successful connection.
                 wsReconnectDelay = 2000;
+                stopAnalysisClock();
                 // Ensure placeholders are visible while waiting for first messages.
                 setEngineLinePlaceholder();
                 if (!window.analysis) setSF18Placeholder();
@@ -2616,6 +2699,7 @@ $(function () {
                         }
                         break;
                     case 'Game':
+                        stopAnalysisClock();
                         var savedGameHeader = gameHistory.gameHeader || '';
                         newBoard(data.fen);
                         gameHistory.gameHeader = savedGameHeader;
@@ -2630,12 +2714,15 @@ $(function () {
                         break;
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);
+                        updateAnalysisClock(data.analysis);
                         break;
                     case 'Message':
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        dgtClockTextEl.html(data.msg);
+                        if (!analysisClockTimer && (window._picoSystemInfo || {}).interaction_mode !== 'analysis') {
+                            dgtClockTextEl.html(data.msg);
+                        }
                         if (window.syncClockControls) {
                             if (Object.prototype.hasOwnProperty.call(data, 'running')) {
                                 window.syncClockControls(Boolean(data.running));

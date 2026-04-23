@@ -2219,86 +2219,70 @@ function updateBackendAnalysisLine(analysis) {
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 
-// Analysis mode: rotating clock display (move ↔ score) in #DGTClockText
-var analysisClockTimer = null;
-var analysisClockPhase = 0;   // 0 = move number + bestmove, 1 = score + depth
-var analysisClockData  = null;
-var analysisClockFen   = null;
-var ANALYSIS_CLOCK_INTERVAL = 2000;  // ms per phase
+// Analysis mode: real-time single-line display in #DGTClockText
+// Format: "24. Qxe5+ d27 +2.34"  (all on one line, updated on every Analysis event)
+var analysisClockData = null;
 
-function _analysisClockMoveLine(analysis) {
-    var fen = analysis.fen || (currentPosition && currentPosition.fen) || '';
-    var moveNum = 1;
-    var points  = '.';
-    if (fen) {
-        var parts = fen.split(/\s+/);
-        if (parts.length >= 6) {
-            var n = parseInt(parts[5], 10);
-            if (!isNaN(n) && n >= 1) moveNum = n;
-        }
-        if (parts[1] === 'b') points = '...';
-    }
+function _buildAnalysisClockLine(analysis) {
+    var parts = [];
+    var fen = analysis.fen || '';
     var pv  = Array.isArray(analysis.pv) ? analysis.pv : [];
-    var san = null;
-    if (pv.length > 0 && fen) {
-        var uci = typeof pv[0] === 'string' ? pv[0].trim() : '';
-        if (/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(uci)) {
-            try {
-                var b = new Chess(fen, chessGameType);
-                var mv = b.move({ from: uci.slice(0, 2), to: uci.slice(2, 4),
-                                  promotion: uci[4] || undefined });
-                if (mv) san = mv.san;
-            } catch (e) {}
+    if (pv.length > 0) {
+        var moveNum = 1;
+        var isBlack = false;
+        if (fen) {
+            var fp = fen.split(/\s+/);
+            if (fp.length >= 6) {
+                var n = parseInt(fp[5], 10);
+                if (!isNaN(n) && n >= 1) moveNum = n;
+            }
+            isBlack = (fp[1] === 'b');
+        }
+        var raw = typeof pv[0] === 'string' ? pv[0].trim() : '';
+        var san = null;
+        if (raw) {
+            if (/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(raw)) {
+                // UCI fallback — convert to SAN via chess.js
+                if (fen) {
+                    try {
+                        var b = new Chess(fen, chessGameType);
+                        var mv = b.move({ from: raw.slice(0, 2), to: raw.slice(2, 4),
+                                          promotion: raw[4] || undefined });
+                        if (mv) san = mv.san;
+                    } catch (e) {}
+                }
+                if (!san) san = raw;  // keep raw UCI if conversion fails
+            } else {
+                san = raw;  // already SAN (pre-converted by backend)
+            }
+        }
+        if (san) {
+            // "24. Nc4" for white, "24...Nc4" for black
+            parts.push(isBlack ? moveNum + '...' + san : moveNum + '. ' + san);
         }
     }
-    return san ? moveNum + points + san : null;
-}
-
-function _analysisClockScoreLine(analysis) {
-    var depth = typeof analysis.depth === 'number' ? ' d' + analysis.depth : '';
-    if (analysis.mate) return '#' + analysis.mate + depth;
-    if (analysis.score !== null && analysis.score !== undefined) {
+    if (typeof analysis.depth === 'number') {
+        parts.push('d' + analysis.depth);
+    }
+    if (analysis.mate) {
+        parts.push('#' + analysis.mate);
+    } else if (analysis.score !== null && analysis.score !== undefined) {
         var s = analysis.score / 100.0;
-        return (s > 0 ? '+' : '') + s.toFixed(2) + depth;
+        parts.push((s > 0 ? '+' : '') + s.toFixed(2));
     }
-    return null;
-}
-
-function _analysisClockTick() {
-    if (!analysisClockData) return;
-    var text = null;
-    if (analysisClockPhase === 0) {
-        text = _analysisClockMoveLine(analysisClockData);
-        if (!text) { analysisClockPhase = 1; text = _analysisClockScoreLine(analysisClockData); }
-    } else {
-        text = _analysisClockScoreLine(analysisClockData);
-        if (!text) { analysisClockPhase = 0; text = _analysisClockMoveLine(analysisClockData); }
-    }
-    if (text) dgtClockTextEl.html(text);
+    return parts.join(' ');
 }
 
 function stopAnalysisClock() {
-    if (analysisClockTimer) { clearInterval(analysisClockTimer); analysisClockTimer = null; }
-    analysisClockData  = null;
-    analysisClockFen   = null;
-    analysisClockPhase = 0;
+    analysisClockData = null;
+    dgtClockTextEl.html('');
 }
 
 function updateAnalysisClock(analysis) {
     if (!analysis || analysis.clear) { stopAnalysisClock(); return; }
-    var newFen     = analysis.fen || null;
-    var fenChanged = newFen !== analysisClockFen;
     analysisClockData = analysis;
-    analysisClockFen  = newFen;
-    if (!analysisClockTimer || fenChanged) {
-        if (fenChanged) analysisClockPhase = 0;
-        if (analysisClockTimer) { clearInterval(analysisClockTimer); analysisClockTimer = null; }
-        _analysisClockTick();   // immediate first render
-        analysisClockTimer = setInterval(function () {
-            analysisClockPhase = 1 - analysisClockPhase;
-            _analysisClockTick();
-        }, ANALYSIS_CLOCK_INTERVAL);
-    }
+    var line = _buildAnalysisClockLine(analysis);
+    if (line) dgtClockTextEl.html(line);
 }
 
 // Clear engine analysis content; reset button to SHOW.
@@ -2720,7 +2704,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        if (!analysisClockTimer && (window._picoSystemInfo || {}).interaction_mode !== 'analysis') {
+                        if ((window._picoSystemInfo || {}).interaction_mode !== 'analysis') {
                             dgtClockTextEl.html(data.msg);
                         }
                         if (window.syncClockControls) {
@@ -2794,7 +2778,13 @@ $(function () {
                         // Live update of interaction_mode / play_mode so the
                         // diagram immediately locks/unlocks when mode changes.
                         window._picoSystemInfo = window._picoSystemInfo || {};
+                        var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
+                        // Clear stale clock text (e.g. engine name) the moment we
+                        // enter Analysis mode, before the first Analysis event arrives.
+                        if (data.msg.interaction_mode === 'analysis' && _prevMode !== 'analysis') {
+                            stopAnalysisClock();
+                        }
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));
                         }

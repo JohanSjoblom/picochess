@@ -570,11 +570,17 @@
                                 <div class="clock-control-row" aria-label="Clock controls">
                                     <span class="clock-control-spacer" aria-hidden="true"></span>
                                     <span class="clock-control-main">
-                                        <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn" aria-label="Switch sides" title="Switch sides">
+                                        <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn pico-clock-action-separated" aria-label="Switch sides" title="Switch sides">
                                             <i class="fa fa-arrows-v" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockEvalBtn" class="pico-clock-action" aria-label="Show evaluation" title="Show evaluation">
+                                            <i class="fa fa-bar-chart-o" aria-hidden="true"></i>
                                         </button>
                                         <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
                                             <i class="fa fa-play" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockHintBtn" class="pico-clock-action" aria-label="Show hint" title="Show hint">
+                                            <i class="fa fa-lightbulb-o" aria-hidden="true"></i>
                                         </button>
                                     </span>
                                     <button id="btn-mute" class="pico-clock-action pico-clock-mute-btn" onclick="toggleMute()" aria-label="Toggle web audio" title="Toggle web audio">

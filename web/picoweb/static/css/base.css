@@ -1040,6 +1040,10 @@ piece {
     gap: 0.7rem;
 }
 
+.pico-clock-action-separated {
+    margin-right: 0.35rem;
+}
+
 .clock-label-row {
     display: flex;
     align-items: center;

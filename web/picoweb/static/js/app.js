@@ -1419,6 +1419,14 @@ function clockPauseResume() {
     $.post('/channel', { action: 'pause_resume' }, function (data) { });
 }
 
+function clockShowEvaluation() {
+    clockButton1();
+}
+
+function clockShowHint() {
+    clockButton3();
+}
+
 function goToPosition(fen) {
     stopAnalysis();
     currentPosition = fenHash[fen];
@@ -1681,6 +1689,12 @@ function updateEvaluationBar(score) {
 }
 
 function multiPvIncrease() {
+    if (isLocalWebClient()) {
+        window.multipv = 1;
+        updateSF18PmButtons();
+        return;
+    }
+
     window.multipv += 1;
 
     if (window.analysis) {
@@ -1697,6 +1711,12 @@ function multiPvIncrease() {
 }
 
 function multiPvDecrease() {
+    if (isLocalWebClient()) {
+        window.multipv = 1;
+        updateSF18PmButtons();
+        return;
+    }
+
     if (window.multipv > 1) {
         window.multipv -= 1;
 
@@ -1845,6 +1865,10 @@ function getPreviousMoves(node, format) {
 }
 
 function analyze(position_update) {
+    if (isLocalWebClient()) {
+        window.multipv = 1;
+    }
+
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
@@ -2209,12 +2233,14 @@ function setEngineLinePlaceholder() {
 function updateSF18PmButtons() {
     var group    = document.getElementById('sf18PmGroup');
     var minusBtn = document.getElementById('analyzeMinus');
+    var plusBtn  = document.getElementById('analyzePlus');
     if (!group) return;
-    if (!window.analysis) {
+    if (!window.analysis || isLocalWebClient()) {
         $(group).hide();
     } else {
         $(group).show();
         if (minusBtn) minusBtn.disabled = (window.multipv <= 1);
+        if (plusBtn) plusBtn.disabled = false;
     }
 }
 
@@ -2465,6 +2491,8 @@ $('#ClockBtn4').on('click', clockButton4);
 $('#ClockLeverBtn').on('click', toggleLeverButton);
 $('#clockSwitchSidesBtn').on('click', clockSwitchSides);
 $('#clockPauseResumeBtn').on('click', clockPauseResume);
+$('#clockEvalBtn').on('click', clockShowEvaluation);
+$('#clockHintBtn').on('click', clockShowHint);
 
 $("#ClockBtn0").mouseup(function () {
     btn = $(this);
@@ -2490,7 +2518,7 @@ $("#ClockLeverBtn").mouseup(function () {
     btn = $(this);
     setTimeout(function () { btn.blur(); }, 100);
 })
-$("#clockSwitchSidesBtn, #clockPauseResumeBtn").mouseup(function () {
+$("#clockEvalBtn, #clockSwitchSidesBtn, #clockPauseResumeBtn, #clockHintBtn").mouseup(function () {
     var btn = $(this);
     setTimeout(function () { btn.blur(); }, 100);
 })

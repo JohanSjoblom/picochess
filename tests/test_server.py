@@ -38,7 +38,20 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
     def test_mode_text_fallback_still_uses_typed_display_text(self):
         text = _mode_text(Mode.PONDER, None)
         self.assert_display_text(text)
-        self.assertEqual("Ponder", text.large_text)
+        self.assertEqual("Analysis", text.large_text)
+
+    def test_mode_text_fallback_uses_playing_mode_labels(self):
+        expected = {
+            Mode.BRAIN: "Ponder On",
+            Mode.ANALYSIS: "Move Hint",
+            Mode.KIBITZ: "Eval.Score",
+            Mode.PONDER: "Analysis",
+        }
+        for mode, label in expected.items():
+            with self.subTest(mode=mode):
+                text = _mode_text(mode, None)
+                self.assert_display_text(text)
+                self.assertEqual(label, text.large_text)
 
     def test_time_control_text_uses_typed_display_text(self):
         tc_init = {

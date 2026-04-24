@@ -215,12 +215,12 @@ def _mode_label(mode: Mode) -> str:
     labels = {
         Mode.NORMAL: "Normal",
         Mode.TRAINING: "Training",
-        Mode.BRAIN: "Brain",
-        Mode.ANALYSIS: "Analysis",
-        Mode.KIBITZ: "Kibitz",
+        Mode.BRAIN: "Ponder On",
+        Mode.ANALYSIS: "Move Hint",
+        Mode.KIBITZ: "Eval.Score",
         Mode.OBSERVE: "Observe",
         Mode.REMOTE: "Remote",
-        Mode.PONDER: "Ponder",
+        Mode.PONDER: "Analysis",
         Mode.PGNREPLAY: "PGN Replay",
     }
     return labels.get(mode, "Mode")
@@ -834,12 +834,12 @@ class ChannelHandler(ServerRequestHandler):
             _mode_map = {
                 "normal":    (Mode.NORMAL,    "Normal"),
                 "training":  (Mode.TRAINING,  "Training"),
-                "brain":     (Mode.BRAIN,     "Brain"),
-                "analysis":  (Mode.ANALYSIS,  "Analysis"),
-                "kibitz":    (Mode.KIBITZ,    "Kibitz"),
+                "brain":     (Mode.BRAIN,     "Ponder On"),
+                "analysis":  (Mode.ANALYSIS,  "Move Hint"),
+                "kibitz":    (Mode.KIBITZ,    "Eval.Score"),
                 "observe":   (Mode.OBSERVE,   "Observe"),
                 "remote":    (Mode.REMOTE,    "Remote"),
-                "ponder":    (Mode.PONDER,    "Ponder"),
+                "ponder":    (Mode.PONDER,    "Analysis"),
                 "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
             }
             mode_name = self.get_argument("mode", "normal").lower()

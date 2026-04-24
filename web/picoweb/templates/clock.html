@@ -1766,6 +1766,21 @@
             }
 
             /* ── subpanel state updaters ─────────────── */
+            function modeLabel(mode) {
+                var labels = {
+                    normal: 'Normal',
+                    brain: 'Ponder On',
+                    analysis: 'Move Hint',
+                    kibitz: 'Eval.Score',
+                    observe: 'Observe',
+                    ponder: 'Analysis',
+                    training: 'Training',
+                    remote: 'Remote',
+                    pgnreplay: 'PGN Replay'
+                };
+                return labels[String(mode || '').toLowerCase()] || 'Normal';
+            }
+
             function updateTileStates() {
                 var audioState = getPhoneSpeakerControlState();
                 var sysInfo = window._picoSystemInfo || {};
@@ -1776,6 +1791,7 @@
                 var el;
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
+                if ((el = document.getElementById('ovl-mode-sub')))   el.textContent = modeLabel(sysInfo.interaction_mode);
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
                 if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
                 if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
@@ -1804,7 +1820,7 @@
             }
 
             function updateModeSubpanel() {
-                var current = (window._picoSystemInfo || {}).mode || '';
+                var current = (window._picoSystemInfo || {}).interaction_mode || 'normal';
                 document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) {
                     el.classList.toggle('active', el.dataset.action === 'mode-' + current.toLowerCase());
                 });
@@ -2518,40 +2534,40 @@
             <div id="overlay-mode" class="pico-subpanel">
                 <div class="pico-picker-header">
                     <button class="pico-overlay-back">‹ Back</button>
-                    <span class="pico-picker-title">Game Mode</span>
+                    <span class="pico-picker-title">Playing Mode</span>
                 </div>
                 <div class="pico-subpanel-list">
                     <button class="pico-subpanel-item" data-action="mode-normal">
                         <span class="pico-subpanel-icon">♟️</span>
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">Normal</span><span class="pico-subpanel-desc">Standard game against the engine</span></span>
                     </button>
-                    <button class="pico-subpanel-item" data-action="mode-training">
-                        <span class="pico-subpanel-icon">🎓</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Engine suggests your moves too</span></span>
-                    </button>
                     <button class="pico-subpanel-item" data-action="mode-brain">
                         <span class="pico-subpanel-icon">🧠</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Brain</span><span class="pico-subpanel-desc">Hand &amp; Brain team mode</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Ponder On</span><span class="pico-subpanel-desc">Normal play with rolling info</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-analysis">
                         <span class="pico-subpanel-icon">🔬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free analysis, no clocks</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Move Hint</span><span class="pico-subpanel-desc">Best move display</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-kibitz">
                         <span class="pico-subpanel-icon">💬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Kibitz</span><span class="pico-subpanel-desc">Engine evaluates silently, both sides</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Eval.Score</span><span class="pico-subpanel-desc">Score and depth display</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-observe">
                         <span class="pico-subpanel-icon">👁️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch the engine play both sides</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch with clocks</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-ponder">
+                        <span class="pico-subpanel-icon">⏳</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free position analysis</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-training">
+                        <span class="pico-subpanel-icon">🎓</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Force Pico move</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-remote">
                         <span class="pico-subpanel-icon">🌐</span>
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">Remote</span><span class="pico-subpanel-desc">Play against a remote human opponent</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-ponder">
-                        <span class="pico-subpanel-icon">⏳</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Ponder</span><span class="pico-subpanel-desc">Engine thinks on your time too</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-pgnreplay">
                         <span class="pico-subpanel-icon">📖</span>

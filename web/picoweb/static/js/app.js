@@ -2240,9 +2240,14 @@ function updateBackendAnalysisLine(analysis) {
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 
-// Analysis mode: real-time single-line display in #DGTClockText
+// Ponder mode: real-time single-line display in #DGTClockText
 // Format: "24. Qxe5+ d27 +2.34"  (all on one line, updated on every Analysis event)
 var analysisClockData = null;
+
+function isAnalysisClockMode(mode) {
+    var resolvedMode = mode || (window._picoSystemInfo || {}).interaction_mode;
+    return resolvedMode === 'ponder';
+}
 
 function _buildAnalysisClockLine(analysis) {
     var parts = [];
@@ -2304,6 +2309,7 @@ function stopAnalysisClock() {
 function updateAnalysisClock(analysis) {
     if (!analysis || analysis.clear) { stopAnalysisClock(); return; }
     analysisClockData = analysis;
+    if (!isAnalysisClockMode()) return;
     var line = _buildAnalysisClockLine(analysis);
     if (line) dgtClockTextEl.html(line);
 }
@@ -2732,7 +2738,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        if ((window._picoSystemInfo || {}).interaction_mode !== 'analysis') {
+                        if (!isAnalysisClockMode()) {
                             dgtClockTextEl.html(data.msg);
                         }
                         if (window.syncClockControls) {
@@ -2809,8 +2815,8 @@ $(function () {
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
                         // Clear stale clock text (e.g. engine name) the moment we
-                        // enter Analysis mode, before the first Analysis event arrives.
-                        if (data.msg.interaction_mode === 'analysis' && _prevMode !== 'analysis') {
+                        // enter Ponder/free-analysis mode, before the first Analysis event arrives.
+                        if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
                             stopAnalysisClock();
                             dgtClockTextEl.html('');
                         }

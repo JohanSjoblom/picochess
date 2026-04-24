@@ -3659,16 +3659,24 @@ async def main() -> None:
                         else:
                             fen1 += " b KQkq - 0 1"
                             fen2 += " w KQkq - 0 1"
-                        # ask python-chess to correct the castling string
+
                         bit_board = chess.Board(fen1)
-                        bit_board.set_fen(bit_board.fen())
+                        bit_board.set_fen(bit_board.fen())  # let python-chess correct castling rights
                         if bit_board.is_valid():
-                            self.state.game = chess.Board(bit_board.fen())
+                            accepted_fen = bit_board.fen()
+                        else:
+                            bit_board = chess.Board(fen2)
+                            bit_board.set_fen(bit_board.fen())
+                            accepted_fen = bit_board.fen() if bit_board.is_valid() else None
+
+                        if accepted_fen:
+                            self.state.game = chess.Board(accepted_fen)
                             # Sync variant boards with new position
                             if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                                self.state._threecheck_board.set_fen(bit_board.fen())
+                                self.state._threecheck_board.set_fen(accepted_fen)
                             elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                                self.state._atomic_board.set_fen(bit_board.fen())
+                                self.state._atomic_board.set_fen(accepted_fen)
+                            self._update_variant_shared()
                             await self.engine.newgame(self.state.engine_board_copy(), False)
                             self.state.best_sent_depth.reset()
                             self.state.done_computer_fen = None
@@ -3681,84 +3689,10 @@ async def main() -> None:
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                             await DisplayMsg.show(self.state.new_game_msg(newgame=False))
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
+                            await self._start_or_stop_analysis_as_needed()
                         else:
-                            # ask python-chess to correct the castling string
-                            bit_board = chess.Board(fen2)
-                            bit_board.set_fen(bit_board.fen())
-                            if bit_board.is_valid():
-                                self.state.game = chess.Board(bit_board.fen())
-                                # Sync variant boards with new position
-                                if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                                    self.state._threecheck_board.set_fen(bit_board.fen())
-                                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                                    self.state._atomic_board.set_fen(bit_board.fen())
-                                await self.engine.newgame(self.state.engine_board_copy(), False)
-                                self.state.best_sent_depth.reset()
-                                self.state.done_computer_fen = None
-                                self.state.done_move = self.state.pb_move = chess.Move.null()
-                                self.state.searchmoves.reset()
-                                self.state.game_declared = False
-                                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                                self.state.legal_fens_after_cmove = []
-                                self.state.last_legal_fens = []
-                                await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                                await DisplayMsg.show(
-                                    self.state.new_game_msg(newgame=False)
-                                )
-                                await self.set_picotutor_position(new_game=True)  # issue #78 new code
-                            else:
-                                logger.info("wrong fen %s for 4 secs", self.state.error_fen)
-                                await DisplayMsg.show(Message.WRONG_FEN())
-                elif (
-                    self.state.interaction_mode == Mode.ANALYSIS
-                    and self.state.error_fen != chess.STARTING_BOARD_FEN
-                    and not (self.state.variant == "racingkings" and self.state.error_fen == RK_STARTING_BOARD_FEN)
-                ):
-                    # Analysis mode: accept any legal position, regardless of reachability.
-                    # The user may set up arbitrary positions on the board for analysis;
-                    # the "set pieces" reachability check that applies in Normal mode is
-                    # not wanted here.  Try same side to move as the current game first,
-                    # then the other side (board FEN has no side-to-move field).
-                    fen1 = self.state.error_fen
-                    fen2 = self.state.error_fen
-                    if self.state.game.turn == chess.WHITE:
-                        fen1 += " w KQkq - 0 1"
-                        fen2 += " b KQkq - 0 1"
-                    else:
-                        fen1 += " b KQkq - 0 1"
-                        fen2 += " w KQkq - 0 1"
-                    bit_board = chess.Board(fen1)
-                    bit_board.set_fen(bit_board.fen())  # let python-chess correct castling rights
-                    if bit_board.is_valid():
-                        accepted_fen = bit_board.fen()
-                    else:
-                        bit_board = chess.Board(fen2)
-                        bit_board.set_fen(bit_board.fen())
-                        accepted_fen = bit_board.fen() if bit_board.is_valid() else None
-                    if accepted_fen:
-                        logger.info("analysis mode: accepting new position %s", accepted_fen)
-                        self.state.game = chess.Board(accepted_fen)
-                        if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                            self.state._threecheck_board.set_fen(accepted_fen)
-                        elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                            self.state._atomic_board.set_fen(accepted_fen)
-                        self._update_variant_shared()
-                        await self.engine.newgame(self.state.engine_board_copy(), False)
-                        self.state.best_sent_depth.reset()
-                        self.state.done_computer_fen = None
-                        self.state.done_move = self.state.pb_move = chess.Move.null()
-                        self.state.searchmoves.reset()
-                        self.state.game_declared = False
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                        self.state.legal_fens_after_cmove = []
-                        self.state.last_legal_fens = []
-                        await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                        await DisplayMsg.show(self.state.new_game_msg(newgame=False))
-                        await self.set_picotutor_position(new_game=True)
-                        await self._start_or_stop_analysis_as_needed()
-                    else:
-                        logger.info("analysis mode: illegal position %s", self.state.error_fen)
-                        await DisplayMsg.show(Message.WRONG_FEN())
+                            logger.info("wrong fen %s for 4 secs", self.state.error_fen)
+                            await DisplayMsg.show(Message.WRONG_FEN())
 
                 else:
                     logger.info("wrong fen %s for 4 secs", self.state.error_fen)

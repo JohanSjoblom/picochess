@@ -2299,15 +2299,17 @@ function _buildAnalysisClockLine(analysis) {
     return parts.join(' ');
 }
 
-function stopAnalysisClock() {
+function stopAnalysisClock(clearText) {
     analysisClockData = null;
-    // Do NOT clear dgtClockTextEl here — that would wipe Normal-mode clock
-    // times when called from ws.onopen or case 'Game'.  Clearing is done
-    // explicitly in the SystemInfo handler on Analysis-mode entry only.
+    // Do NOT clear by default — this is also called from ws.onopen and case
+    // 'Game', where clearing would wipe Normal-mode clock times.
+    if (clearText && isAnalysisClockMode()) {
+        dgtClockTextEl.html('');
+    }
 }
 
 function updateAnalysisClock(analysis) {
-    if (!analysis || analysis.clear) { stopAnalysisClock(); return; }
+    if (!analysis || analysis.clear) { stopAnalysisClock(true); return; }
     analysisClockData = analysis;
     if (!isAnalysisClockMode()) return;
     var line = _buildAnalysisClockLine(analysis);

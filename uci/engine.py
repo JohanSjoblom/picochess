@@ -399,19 +399,6 @@ class ContinuousAnalysis:
         debug_once_limit = True
         debug_once_game = True
         self.limit_reached = False  # True when depth limit reached for position
-        # Disable the engine's own opening book so every position yields info lines.
-        # Engines with a built-in book (e.g. Arasan) may otherwise return bestmove
-        # immediately without any info lines for book positions, leaving no analysis
-        # data to display.  PicoChess manages its own opening book independently.
-        try:
-            if "UCI_AnalyseMode" in self.engine.options:
-                await self.engine.configure({"UCI_AnalyseMode": True})
-                logger.debug("%s UCI_AnalyseMode=True configured for analysis", self.whoami)
-            elif "OwnBook" in self.engine.options:
-                await self.engine.configure({"OwnBook": False})
-                logger.debug("%s OwnBook=False configured for analysis", self.whoami)
-        except Exception as exc:
-            logger.debug("%s configure-for-analysis failed: %s", self.whoami, exc)
         while self._running:
             try:
                 if not self._game_analysable(self.game):

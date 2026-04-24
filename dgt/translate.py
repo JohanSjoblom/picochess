@@ -494,6 +494,34 @@ class DgtTranslate(object):
                 medium_text="Lev pz ",
                 small_text="levpz",
             )
+        if text_id == "picocoach_brain":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Brain and hand: Brain",
+                large_text="Coach Brain",
+                medium_text="CoachBrn",
+                small_text="c brn ",
+            )
+            detxt = nltxt = frtxt = ittxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Brain and hand: Brain",
+                large_text="Coach Brain",
+                medium_text="CoachBrn",
+                small_text="c brn ",
+            )
+        if text_id == "picocoach_hand":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Brain and hand: Hand",
+                large_text="Coach Hand ",
+                medium_text="CoachHnd",
+                small_text="c hnd ",
+            )
+            detxt = nltxt = frtxt = ittxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Brain and hand: Hand",
+                large_text="Coach Hand ",
+                medium_text="CoachHnd",
+                small_text="c hnd ",
+            )
         if text_id == "picocoach_off":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
@@ -944,6 +972,49 @@ class DgtTranslate(object):
                     small_text="anal ",
                 )
                 ittxt = entxt
+            elif msg == "BRAIN_WRONG":
+                entxt = Dgt.DISPLAY_TEXT(
+                    web_text="Brain and hand: wrong piece",
+                    large_text="WrongPiece!",
+                    medium_text="WrongPc!",
+                    small_text="wrong ",
+                )
+                detxt = nltxt = frtxt = estxt = ittxt = entxt
+            elif msg in ("BRAIN_NOPIECE", "HAND_NOPIECE"):
+                entxt = Dgt.DISPLAY_TEXT(
+                    web_text="Brain and hand: no move for this piece",
+                    large_text="No piece   ",
+                    medium_text="NoPiece ",
+                    small_text="nopce ",
+                )
+                detxt = nltxt = frtxt = estxt = ittxt = entxt
+            elif msg.startswith("BRAIN_") or msg.startswith("HAND_"):
+                piece_names = {
+                    "PAWN": ("pawn", "Play Pawn  ", "Pawn    ", "pawn  "),
+                    "KNIGHT": ("knight", "Play Knight", "Knight  ", "knight"),
+                    "BISHOP": ("bishop", "Play Bishop", "Bishop  ", "bishop"),
+                    "ROOK": ("rook", "Play Rook  ", "Rook    ", "rook  "),
+                    "QUEEN": ("queen", "Play Queen ", "Queen   ", "queen "),
+                    "KING": ("king", "Play King  ", "King    ", "king  "),
+                }
+                piece_key = msg.split("_", 1)[1]
+                piece = piece_names.get(piece_key)
+                if piece:
+                    web_piece, large_piece, medium_piece, small_piece = piece
+                    if msg.startswith("BRAIN_"):
+                        beep = False
+                        web_text = "Play a " + web_piece + " move"
+                        large_text = large_piece
+                    else:
+                        web_text = "Best " + web_piece + " move"
+                        large_text = medium_piece.ljust(11)[:11]
+                    entxt = Dgt.DISPLAY_TEXT(
+                        web_text=web_text,
+                        large_text=large_text,
+                        medium_text=medium_piece,
+                        small_text=small_piece,
+                    )
+                    detxt = nltxt = frtxt = estxt = ittxt = entxt
             elif "HINT" in msg:
                 beep = False
                 w_msg = "hint move: " + msg[4:]

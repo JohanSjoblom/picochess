@@ -26,7 +26,7 @@ from pgn import ModeInfo
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini, get_window_command
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
-from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, Top, flip_board_fen
+from dgt.util import ClockSide, ClockIcons, BeepLevel, Mode, GameResult, TimeMode, PlayMode, PicoCoach, Top, flip_board_fen
 from dgt.api import Dgt, Event, Message
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
@@ -68,6 +68,8 @@ class DgtDisplay(DisplayMsg):
         self.low_time = False
         self.c_last_player = ""
         self.c_time_counter = 0
+        self._brain_hint_text = None
+        self._brain_hint_until = 0.0
         self._task = None  # task for message consumer
         self.timer = AsyncRepeatingTimer(1, self._process_once_per_second, loop=self.loop)
 
@@ -771,6 +773,8 @@ class DgtDisplay(DisplayMsg):
 
     async def force_leds_off(self, log=False):
         """Clear the rev2 lights if they still on."""
+        self._brain_hint_text = None
+        self._brain_hint_until = 0.0
         if self.leds_are_on:
             if log:
                 logger.warning("(rev) leds still on")
@@ -1285,6 +1289,9 @@ class DgtDisplay(DisplayMsg):
                 elif mode in (Mode.TRAINING, Mode.KIBITZ, Mode.PGNREPLAY):
                     text = self._combine_depth_and_score()
                     text.wait = True
+                elif self._brain_hint_text and self.loop.time() < self._brain_hint_until:
+                    text = self._brain_hint_text
+                    text.wait = True
                 else:
                     text = Dgt.DISPLAY_TIME(force=True, wait=True, devs=devs)
 
@@ -1317,6 +1324,28 @@ class DgtDisplay(DisplayMsg):
 
         elif isinstance(message, Message.USER_MOVE_DONE):
             await self._process_user_move_done(message)
+
+        elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
+            await DispatchDgt.fire(Dgt.LIGHT_SQUARES(uci_move=message.move.uci(), devs={"ser"}))
+            self.leds_are_on = True
+            self._brain_hint_text = None
+            self._brain_hint_until = 0.0
+            if self.dgtmenu.get_brain_reveal_text():
+                uci = message.move.uci()
+                frm, to = uci[:2], uci[2:4]
+                reveal_text = Dgt.DISPLAY_TEXT(
+                    web_text="Best move: " + frm + "-" + to,
+                    large_text=("Best " + frm + "-" + to).ljust(11)[:11],
+                    medium_text=("Bt " + frm + to).ljust(8)[:8],
+                    small_text=(frm + to).ljust(6)[:6],
+                    beep=False,
+                    maxtime=0,
+                    wait=True,
+                    devs={"ser", "i2c", "web"},
+                )
+                await DispatchDgt.fire(reveal_text)
+                self._brain_hint_text = reveal_text
+                self._brain_hint_until = float("inf")
 
         elif isinstance(message, Message.REVIEW_MOVE_DONE):
             await self._process_review_move_done(message)
@@ -1667,7 +1696,17 @@ class DgtDisplay(DisplayMsg):
         elif isinstance(message, Message.PICOTUTOR_MSG):
             if self.play_move == chess.Move.null():
                 # issue #45 - we do not want eval display while user needs to perform computer move
-                await DispatchDgt.fire(self.dgttranslate.text("C10_picotutor_msg", message.eval_str))
+                hint_text = self.dgttranslate.text("C10_picotutor_msg", message.eval_str)
+                await DispatchDgt.fire(hint_text)
+                if message.eval_str.startswith("BRAIN_"):
+                    hint_display = self.dgtmenu.get_brain_hint_display()
+                    self._brain_hint_text = hint_text
+                    self._brain_hint_until = (
+                        self.loop.time() + float(hint_display) if hint_display > 0 else float("inf")
+                    )
+                else:
+                    self._brain_hint_text = None
+                    self._brain_hint_until = 0.0
             if message.eval_str == "POSOK" or message.eval_str == "ANALYSIS" and self.play_move == chess.Move.null():
                 # molli: sometime if you move the pieces too quickly a LED may still flash on the rev2
                 await self.force_leds_off()
@@ -1686,7 +1725,9 @@ class DgtDisplay(DisplayMsg):
             pass
 
         elif isinstance(message, Message.PICOCOACH):
-            pass
+            if self.dgtmenu.get_picocoach() != PicoCoach.COACH_BRAIN:
+                self._brain_hint_text = None
+                self._brain_hint_until = 0.0
 
         elif isinstance(message, Message.PICOEXPLORER):
             pass

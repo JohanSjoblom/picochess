@@ -338,6 +338,37 @@ function removeArrow() {
     chessground1.setShapes([]);
 }
 
+var _brainHintActive = false;
+var _tutorMoveActive = false;
+
+function showBrainHint(squares) {
+    var shapes = (squares || []).map(function(sq) {
+        return { orig: sq, brush: 'green' };
+    });
+    chessground1.setShapes(shapes);
+    _brainHintActive = shapes.length > 0;
+    _tutorMoveActive = false;
+}
+
+function clearBrainHint() {
+    if (_tutorMoveActive) return;
+    if (_brainHintActive) {
+        chessground1.setShapes([]);
+        _brainHintActive = false;
+    }
+}
+
+function showTutorMove(ucimove) {
+    var squares = String(ucimove || '').match(/.{2}/g);
+    if (!squares || squares.length < 2) return;
+    chessground1.setShapes([
+        { orig: squares[0], brush: 'green' },
+        { orig: squares[1], brush: 'green' }
+    ]);
+    _tutorMoveActive = true;
+    _brainHintActive = false;
+}
+
 function addArrow(ucimove, play) {
     var move = ucimove.match(/.{2}/g);
     var brush = 'green';
@@ -2694,6 +2725,7 @@ $(function () {
                 switch (data.event) {
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing
+                        clearBrainHint();
                         updateDGTPosition(data);
                         updateTutorMistakes(data.mistakes);
                         updateCheckCounters(data.variant, data.checks);
@@ -2719,6 +2751,8 @@ $(function () {
                         }
                         break;
                     case 'Game':
+                        _tutorMoveActive = false;
+                        clearBrainHint();
                         stopAnalysisClock();
                         var savedGameHeader = gameHistory.gameHeader || '';
                         newBoard(data.fen);
@@ -2735,6 +2769,13 @@ $(function () {
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);
                         updateAnalysisClock(data.analysis);
+                        break;
+                    case 'BrainHint':
+                        if (data.squares && data.squares.length > 0) {
+                            showBrainHint(data.squares);
+                        } else {
+                            clearBrainHint();
+                        }
                         break;
                     case 'Message':
                         boardStatusEl.html(data.msg);
@@ -2785,8 +2826,12 @@ $(function () {
                         }
                         // Always show highlight and arrow for computer moves,
                         // even when chess.js can't validate the move (atomic variant).
+                        _tutorMoveActive = false;
                         highlightBoard(data.move, 'computer');
                         addArrow(data.move, 'computer');
+                        break;
+                    case 'TutorMove':
+                        showTutorMove(data.move);
                         break;
                     case 'Clear':
                         break;

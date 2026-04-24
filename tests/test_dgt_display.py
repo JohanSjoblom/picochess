@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import chess
 
-from dgt.api import Event
+from dgt.api import Event, Message
 from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
@@ -209,3 +209,18 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         new_game_event = observable_fire.await_args_list[0].args[0]
         self.assertEqual("EVT_NEW_GAME", new_game_event._type)
         self.assertEqual(518, new_game_event.pos960)
+
+    async def test_non_brain_coach_clears_brain_hint_display_cache(self):
+        display = self.create_display()
+        display.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
+        display._brain_hint_text = object()
+        display._brain_hint_until = float("inf")
+
+        await display._process_message(Message.PICOCOACH(picocoach=3))
+        self.assertIsNotNone(display._brain_hint_text)
+
+        display.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND
+        await display._process_message(Message.PICOCOACH(picocoach=4))
+
+        self.assertIsNone(display._brain_hint_text)
+        self.assertEqual(0.0, display._brain_hint_until)

@@ -274,6 +274,12 @@ class PicochessState:
         self.pgn_replay_next_move = None
         self.pgn_replay_book_cache = {}
         self.picotutor: PicoTutor | None = None
+        self.last_hand_coach_move: chess.Move | None = None
+        self.hand_coach_task: asyncio.Task | None = None
+        self.brain_hint_task: asyncio.Task | None = None
+        self.brain_required_piece_type: chess.PieceType | None = None
+        self.brain_best_move: chess.Move | None = None
+        self.coach_triggered_piece_type: chess.PieceType | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
         self.setpieces_switch_anchor_fen = ""
@@ -1032,6 +1038,8 @@ async def main() -> None:
         args.continue_game,
         args.alt_move,
         state.dgttranslate,
+        brain_hint_display=args.tutor_brain_hint_display,
+        brain_reveal_text=args.tutor_brain_reveal_text == "on",
     )
 
     dgtdispatcher = Dispatcher(state.dgtmenu, main_loop)
@@ -1125,7 +1133,11 @@ async def main() -> None:
         )
         shared["tutor_watch_watcher"] = bool(state.dgtmenu.get_picowatcher())
         shared["tutor_watch_coach"] = bool(state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
-        if state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT:
+        if state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN:
+            shared["tutor_coach"] = "brain"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+            shared["tutor_coach"] = "hand"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT:
             shared["tutor_coach"] = "lift"
         elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON:
             shared["tutor_coach"] = "on"
@@ -1861,6 +1873,147 @@ async def main() -> None:
                             break
                 await self.state.start_clock()
 
+        async def call_hand_coach(self, piece_type: chess.PieceType | None):
+            """Experimental Brain and hand: suggest the best move for a lifted piece type."""
+            if not (
+                self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                and self.state.interaction_mode == Mode.NORMAL
+                and (
+                    (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
+                    or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
+                )
+                and not self.state.game.is_checkmate()
+                and not self.state.game.is_stalemate()
+            ):
+                return
+            if piece_type is None:
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
+                return
+
+            best_move = await self.state.picotutor.get_best_move_for_piece_type(piece_type)
+            if best_move is None:
+                self.state.last_hand_coach_move = None
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
+                return
+
+            piece_name = self._piece_type_name(piece_type)
+            logger.info("Brain and hand: best %s move is %s", piece_name, best_move)
+            self.state.last_hand_coach_move = best_move
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_" + piece_name))
+            await asyncio.sleep(2)
+            game_tutor = self.state.game.copy()
+            san_move = game_tutor.san(best_move)
+            game_tutor.push(best_move)
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor.copy()))
+
+        def _piece_type_name(self, piece_type: chess.PieceType | None) -> str:
+            return {
+                chess.PAWN: "PAWN",
+                chess.KNIGHT: "KNIGHT",
+                chess.BISHOP: "BISHOP",
+                chess.ROOK: "ROOK",
+                chess.QUEEN: "QUEEN",
+                chess.KING: "KING",
+            }.get(piece_type, "PAWN")
+
+        def _user_turn_and_alive(self) -> bool:
+            return (
+                (
+                    (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
+                    or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
+                )
+                and not self.state.game.is_checkmate()
+                and not self.state.game.is_stalemate()
+            )
+
+        async def _brain_hint_after_delay(self):
+            """Experimental Brain and hand: tell the user which piece type to play."""
+            if not (
+                self._user_turn_and_alive()
+                and self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
+            ):
+                return
+
+            best_move = None
+            if self.bookreader:
+                try:
+                    best_move = self.bookreader.weighted_choice(self.state.game.copy()).move
+                    logger.debug("Brain and hand: book hint move %s", best_move)
+                except IndexError:
+                    pass
+
+            if best_move is None:
+                best_engine = getattr(self.state.picotutor, "best_engine", None)
+                for _ in range(30):
+                    await asyncio.sleep(0.1)
+                    if not (
+                        self._user_turn_and_alive()
+                        and self.picotutor_mode()
+                        and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                        and self.state.interaction_mode == Mode.NORMAL
+                    ):
+                        return
+                    if best_engine and best_engine.is_analysis_limit_reached():
+                        break
+                result = await self.state.picotutor.get_pos_analysis()
+                if not result:
+                    return
+                best_move, _score, _mate, _alt_best_moves = result
+
+            if not best_move or best_move == chess.Move.null():
+                return
+            piece_type = self.state.game.piece_type_at(best_move.from_square)
+            if piece_type is None:
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_NOPIECE"))
+                return
+
+            self.state.brain_required_piece_type = piece_type
+            self.state.brain_best_move = best_move
+            piece_name = self._piece_type_name(piece_type)
+            logger.info("Brain and hand: use a %s", piece_name)
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name))
+            hint_display = self.state.dgtmenu.get_brain_hint_display()
+            if hint_display > 0:
+                await asyncio.sleep(hint_display)
+
+        def start_brain_hint_timer(self):
+            """Start/restart the experimental Brain and hand piece-type hint."""
+            self.cancel_brain_hint_timer()
+            self.state.brain_required_piece_type = None
+            if (
+                self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
+                and self._user_turn_and_alive()
+            ):
+                self.state.brain_hint_task = asyncio.ensure_future(self._brain_hint_after_delay())
+
+        def cancel_brain_hint_timer(self, preserve_best_move: bool = False):
+            """Cancel pending Brain and hand hints without touching playing modes."""
+            if self.state.brain_hint_task and not self.state.brain_hint_task.done():
+                self.state.brain_hint_task.cancel()
+            self.state.brain_hint_task = None
+            self.state.brain_required_piece_type = None
+            if not preserve_best_move:
+                self.state.brain_best_move = None
+
+        async def _handle_same_square_input(self, from_square: chess.Square):
+            """Use a same-square web move as a Brain and hand re-request gesture."""
+            coach_mode = self.state.dgtmenu.get_picocoach()
+            if coach_mode == PicoCoach.COACH_HAND and self.picotutor_mode():
+                piece_type = self.state.game.piece_type_at(from_square)
+                if piece_type is None:
+                    return
+                if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                    self.state.hand_coach_task.cancel()
+                self.state.last_hand_coach_move = None
+                self.state.hand_coach_task = asyncio.ensure_future(self.call_hand_coach(piece_type))
+            elif coach_mode == PicoCoach.COACH_BRAIN and self.picotutor_mode():
+                self.start_brain_hint_timer()
+
         def reset_setpieces_window_switch(self):
             self.state.setpieces_switch_anchor_fen = ""
             self.state.setpieces_switch_armed = False
@@ -2325,7 +2478,7 @@ async def main() -> None:
                 # molli: Chess tutor
                 if (
                     self.picotutor_mode()
-                    and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT
+                    and self.state.dgtmenu.get_picocoach() in (PicoCoach.COACH_LIFT, PicoCoach.COACH_HAND)
                     and fen != chess.STARTING_BOARD_FEN
                     and not (self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN)
                     and not self.state.take_back_locked
@@ -2333,7 +2486,13 @@ async def main() -> None:
                     and not self.state.position_mode
                     and not self.state.automatic_takeback
                 ):
-                    await self.call_pico_coach()
+                    if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+                        if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                            await self.state.hand_coach_task
+                        elif self.state.coach_triggered_piece_type is not None:
+                            await self.call_hand_coach(self.state.coach_triggered_piece_type)
+                    else:
+                        await self.call_pico_coach()
                     self.state.coach_triggered = False
                 elif self.state.position_mode:
                     self.state.position_mode = False
@@ -2673,6 +2832,7 @@ async def main() -> None:
                         end_time_cmove_done = 0
 
                     self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                    self.start_brain_hint_timer()
 
                     if self.pgn_mode():
                         log_pgn(self.state)
@@ -2857,6 +3017,34 @@ async def main() -> None:
                 logger.warning("illegal move [%s]", move)
                 return False
             else:
+                if (
+                    self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                    and self.state.interaction_mode == Mode.NORMAL
+                    and self.state.brain_required_piece_type is not None
+                    and not sliding
+                ):
+                    moved_piece_type = self.state.game.piece_type_at(move.from_square)
+                    if moved_piece_type != self.state.brain_required_piece_type:
+                        logger.info(
+                            "Brain and hand: wrong piece type (expected %s, got %s)",
+                            self.state.brain_required_piece_type,
+                            moved_piece_type,
+                        )
+                        await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_WRONG"))
+                        await asyncio.sleep(1)
+                        await DisplayMsg.show(
+                            Message.PICOTUTOR_MSG(
+                                eval_str="BRAIN_" + self._piece_type_name(self.state.brain_required_piece_type)
+                            )
+                        )
+                        return False
+
+                self.cancel_brain_hint_timer(preserve_best_move=True)
+                self.state.brain_required_piece_type = None
+                if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                    self.state.hand_coach_task.cancel()
+                self.state.hand_coach_task = None
+
                 if self.state.interaction_mode == Mode.BRAIN:
                     ponder_hit = move == self.state.pb_move
                     logger.info(
@@ -3030,6 +3218,22 @@ async def main() -> None:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                     )
+                    tutor_reveal_move = None
+                    if self.picotutor_mode():
+                        if (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                            and self.state.last_hand_coach_move is not None
+                        ):
+                            tutor_reveal_move = self.state.last_hand_coach_move
+                            self.state.last_hand_coach_move = None
+                        elif (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                            and self.state.brain_best_move is not None
+                        ):
+                            tutor_reveal_move = self.state.brain_best_move
+                            self.state.brain_best_move = None
+                    if tutor_reveal_move is not None:
+                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3619,8 +3823,14 @@ async def main() -> None:
                 internal_fen = game_fen
                 external_fen = self.state.error_fen
                 fen_res = compare_fen(external_fen, internal_fen)
-                if fen_res and (fen_res[4] == "K" or fen_res[4] == "k"):
-                    self.state.coach_triggered = True
+                if fen_res and len(fen_res) > 4:
+                    lifted_piece_char = fen_res[4]
+                    is_hand_mode = (
+                        self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                        and self.picotutor_mode()
+                    )
+                    if lifted_piece_char in ("K", "k") or is_hand_mode:
+                        self.state.coach_triggered = True
                 if (
                     self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.BRAIN)
                     and self.state.error_fen != chess.STARTING_BOARD_FEN
@@ -3724,21 +3934,52 @@ async def main() -> None:
                             self.state.setpieces_switch_armed = True
 
                     if (not self.state.position_mode) and fen_res:
-                        if fen_res[4] == "K" or fen_res[4] == "k":
+                        lifted_piece_char = fen_res[4] if len(fen_res) > 4 else ""
+                        is_king_lift = lifted_piece_char in ("K", "k")
+                        is_hand_mode = (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                            and self.picotutor_mode()
+                        )
+                        if is_king_lift or is_hand_mode:
                             self.state.coach_triggered = True
                             if not self.picotutor_mode():
                                 self.state.position_mode = True
+                            self.cancel_brain_hint_timer()
+                            if is_hand_mode and not is_king_lift and lifted_piece_char:
+                                piece_char_map = {
+                                    "P": chess.PAWN,
+                                    "N": chess.KNIGHT,
+                                    "B": chess.BISHOP,
+                                    "R": chess.ROOK,
+                                    "Q": chess.QUEEN,
+                                    "K": chess.KING,
+                                    "p": chess.PAWN,
+                                    "n": chess.KNIGHT,
+                                    "b": chess.BISHOP,
+                                    "r": chess.ROOK,
+                                    "q": chess.QUEEN,
+                                    "k": chess.KING,
+                                }
+                                self.state.coach_triggered_piece_type = piece_char_map.get(lifted_piece_char)
+                                if self.state.coach_triggered_piece_type is not None:
+                                    if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                                        self.state.hand_coach_task.cancel()
+                                    self.state.last_hand_coach_move = None
+                                    self.state.hand_coach_task = asyncio.ensure_future(
+                                        self.call_hand_coach(self.state.coach_triggered_piece_type)
+                                    )
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
-                            if not self.state.setpieces_switch_anchor_fen:
-                                self.state.setpieces_switch_anchor_fen = external_fen
-                                self.state.setpieces_switch_armed = False
-                            await DisplayMsg.show(Message.WRONG_FEN())
-                            await asyncio.sleep(2)
+                            if not is_hand_mode:
+                                if not self.state.setpieces_switch_anchor_fen:
+                                    self.state.setpieces_switch_anchor_fen = external_fen
+                                    self.state.setpieces_switch_armed = False
+                                await DisplayMsg.show(Message.WRONG_FEN())
+                                await asyncio.sleep(2)
                         self.state.delay_fen_error = 4
                         # molli: Picochess correction messages
                         # show incorrect square(s) and piece to put or be removed
@@ -4417,21 +4658,24 @@ async def main() -> None:
             elif isinstance(event, Event.KEYBOARD_MOVE):
                 move = event.move
                 logger.debug("keyboard move [%s]", move)
-                # Use variant board for legality check (atomic has different legal moves)
-                _check_board = self.state.get_move_check_board()
-                if move not in _check_board.legal_moves:
-                    logger.warning("illegal move. fen: [%s]", self.state.game.fen())
+                if move.from_square == move.to_square:
+                    await self._handle_same_square_input(move.from_square)
                 else:
-                    game_copy = self.state.game.copy()
-                    game_copy.push(move)
-                    # For atomic variant, use atomic board to get FEN with explosions applied
-                    if self.state.variant == "atomic" and self.state._atomic_board is not None:
-                        atomic_copy = self.state._atomic_board.copy()
-                        atomic_copy.push(move)
-                        fen = atomic_copy.board_fen()
+                    # Use variant board for legality check (atomic has different legal moves)
+                    _check_board = self.state.get_move_check_board()
+                    if move not in _check_board.legal_moves:
+                        logger.warning("illegal move. fen: [%s]", self.state.game.fen())
                     else:
-                        fen = game_copy.board_fen()
-                    await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
+                        game_copy = self.state.game.copy()
+                        game_copy.push(move)
+                        # For atomic variant, use atomic board to get FEN with explosions applied
+                        if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                            atomic_copy = self.state._atomic_board.copy()
+                            atomic_copy.push(move)
+                            fen = atomic_copy.board_fen()
+                        else:
+                            fen = game_copy.board_fen()
+                        await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
 
             elif isinstance(event, Event.LEVEL):
                 if event.options:
@@ -5476,7 +5720,9 @@ async def main() -> None:
 
             elif isinstance(event, Event.REMOTE_MOVE):
                 self.state.flag_startup = False
-                if self.board_type == dgt.util.EBoard.NOEBOARD:
+                if event.move.from_square == event.move.to_square:
+                    await self._handle_same_square_input(event.move.from_square)
+                elif self.board_type == dgt.util.EBoard.NOEBOARD:
                     # Mirror process_fen(): once a real user move starts the new
                     # game, the next BEST_MOVE belongs to this game, not the
                     # previous-game stale-move guard.
@@ -5923,6 +6169,7 @@ async def main() -> None:
                                         end_time_cmove_done = 0
 
                                     self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                                    self.start_brain_hint_timer()
 
                                     if self.pgn_mode():
                                         log_pgn(self.state)
@@ -6123,23 +6370,40 @@ async def main() -> None:
 
             elif isinstance(event, Event.PICOCOACH):
                 coach_request = event.picocoach
-                if coach_request in (PicoCoach.COACH_OFF, PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                if coach_request in (
+                    PicoCoach.COACH_OFF,
+                    PicoCoach.COACH_ON,
+                    PicoCoach.COACH_LIFT,
+                    PicoCoach.COACH_BRAIN,
+                    PicoCoach.COACH_HAND,
+                ):
+                    self.state.coach_triggered_piece_type = None
                     if coach_request == PicoCoach.COACH_OFF:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
                         write_picochess_ini("tutor-coach", "off")
+                        self.cancel_brain_hint_timer()
                     elif coach_request == PicoCoach.COACH_ON:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
                         write_picochess_ini("tutor-coach", "on")
-                    else:
+                    elif coach_request == PicoCoach.COACH_LIFT:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_LIFT
                         write_picochess_ini("tutor-coach", "lift")
+                    elif coach_request == PicoCoach.COACH_BRAIN:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
+                        write_picochess_ini("tutor-coach", "brain")
+                    else:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_HAND
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND
+                        write_picochess_ini("tutor-coach", "hand")
                 elif coach_request == 0:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
                     write_picochess_ini("tutor-coach", "off")
+                    self.cancel_brain_hint_timer()
                 elif coach_request == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
@@ -6151,8 +6415,16 @@ async def main() -> None:
                     self.state.dgtmenu.get_picoexplorer(),
                     self.state.dgtmenu.get_picocomment(),
                 )
+                coach_mode = self.state.dgtmenu.get_picocoach()
+                if coach_mode != PicoCoach.COACH_BRAIN:
+                    self.cancel_brain_hint_timer()
+                if coach_mode != PicoCoach.COACH_HAND and self.state.hand_coach_task:
+                    if not self.state.hand_coach_task.done():
+                        self.state.hand_coach_task.cancel()
+                    self.state.hand_coach_task = None
+                    self.state.last_hand_coach_move = None
 
-                if event.picocoach != PicoCoach.COACH_OFF:
+                if coach_mode != PicoCoach.COACH_OFF:
                     self.state.flag_picotutor = True
                     # @ todo - why do we need to set tutor pos here?
                     await self.set_picotutor_position()
@@ -6165,17 +6437,22 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                    if coach_mode == PicoCoach.COACH_BRAIN:
+                        self.start_brain_hint_timer()
                 # Clear stale web analysis lines and restart the engine analyser so the
                 # correct lines (engine / tutor) appear immediately after tutor state change.
                 await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
                 await self._start_or_stop_analysis_as_needed()
                 if coach_request != 2:
-                    coach_mode = self.state.dgtmenu.get_picocoach()
                     coach_msg = 0
                     if coach_mode == PicoCoach.COACH_ON:
                         coach_msg = 1
                     elif coach_mode == PicoCoach.COACH_LIFT:
                         coach_msg = 2
+                    elif coach_mode == PicoCoach.COACH_BRAIN:
+                        coach_msg = 3
+                    elif coach_mode == PicoCoach.COACH_HAND:
+                        coach_msg = 4
                     await DisplayMsg.show(Message.PICOCOACH(picocoach=coach_msg))
                     if self.shared is not None:
                         if coach_mode != PicoCoach.COACH_OFF:
@@ -6187,7 +6464,12 @@ async def main() -> None:
 
                 if self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF and coach_request == 2:
                     # call pico coach in case it was already set to on
-                    await self.call_pico_coach()
+                    if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN:
+                        self.start_brain_hint_timer()
+                    elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+                        self.state.last_hand_coach_move = None
+                    else:
+                        await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
                 self.state.dgtmenu.menu_picotutor_picoexplorer = event.picoexplorer

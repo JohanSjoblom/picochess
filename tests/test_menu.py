@@ -54,6 +54,20 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         )
         return menu
 
+    async def test_brain_and_hand_coach_values_are_in_tutor_cycle(self):
+        self.assertEqual(PicoCoach.COACH_BRAIN, PicoCoach.from_str("brain"))
+        self.assertEqual(PicoCoach.COACH_HAND, PicoCoach.from_str("hand"))
+        self.assertEqual(
+            [
+                PicoCoach.COACH_ON,
+                PicoCoach.COACH_LIFT,
+                PicoCoach.COACH_BRAIN,
+                PicoCoach.COACH_HAND,
+                PicoCoach.COACH_OFF,
+            ],
+            PicoCoach.items(),
+        )
+
     @patch("platform.machine")
     async def test_engine_menu_traversal(self, machine_mock):
         menu = self.create_menu(machine_mock)

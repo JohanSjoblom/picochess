@@ -1902,7 +1902,7 @@
             function normalizeTutorSettings(settings) {
                 settings = settings || {};
                 var coach = String(settings.tutor_coach || 'off').toLowerCase();
-                if (coach !== 'on' && coach !== 'lift') coach = 'off';
+                if (['on', 'lift', 'brain', 'hand'].indexOf(coach) === -1) coach = 'off';
                 var comment = String(settings.tutor_comment || 'off').toLowerCase();
                 if (comment === 'single') comment = 'engine';
                 if (comment !== 'engine' && comment !== 'all') comment = 'off';
@@ -1927,7 +1927,15 @@
             function updateTutorSummary(settings) {
                 var parts = [];
                 if (settings.tutor_watcher) parts.push('Watcher');
-                if (settings.tutor_coach !== 'off') parts.push(settings.tutor_coach === 'lift' ? 'Coach Lift' : 'Coach On');
+                if (settings.tutor_coach !== 'off') {
+                    var coachLabels = {
+                        on: 'Coach On',
+                        lift: 'Coach Lift',
+                        brain: 'Brain and hand: Brain',
+                        hand: 'Brain and hand: Hand'
+                    };
+                    parts.push(coachLabels[settings.tutor_coach] || 'Coach');
+                }
                 if (settings.tutor_explorer) parts.push('Explorer');
                 if (settings.tutor_comment !== 'off') parts.push(settings.tutor_comment === 'all' ? 'Comment All' : 'Comment Engine');
                 var sub = document.getElementById('ovl-tutor-sub');
@@ -1943,7 +1951,7 @@
                 if (watcherBadge) watcherBadge.textContent = settings.tutor_watcher ? 'On' : 'Off';
                 if (watcherItem) watcherItem.classList.toggle('active', settings.tutor_watcher);
 
-                ['off', 'on', 'lift'].forEach(function(coachMode) {
+                ['off', 'on', 'lift', 'brain', 'hand'].forEach(function(coachMode) {
                     var coachModeBtn = document.querySelector('[data-coach-value="' + coachMode + '"]');
                     if (coachModeBtn) coachModeBtn.classList.toggle('active', settings.tutor_coach === coachMode);
                 });
@@ -2645,11 +2653,13 @@
                     </button>
                     <div class="pico-subpanel-item pico-subpanel-item-control" id="tutor-coach-item">
                         <span class="pico-subpanel-icon">🧑‍🏫</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Coach</span><span class="pico-subpanel-desc">On gives advice after moves. Lift also allows king-lift positional advice.</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Brain and hand</span><span class="pico-subpanel-desc">Experimental tutor coaching during normal play.</span></span>
                         <span class="pico-segmented-control" role="group" aria-label="Coach mode">
                             <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="off">Off</button>
                             <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="on">On</button>
                             <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="lift">Lift</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="brain">Brain</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="hand">Hand</button>
                         </span>
                     </div>
                     <button class="pico-subpanel-item" data-action="tutor-explorer" id="tutor-explorer-item">

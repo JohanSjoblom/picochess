@@ -102,6 +102,10 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
 
 
 def _coach_setting(value) -> str:
+    if value in (PicoCoach.COACH_BRAIN, "brain", "Brain", 3):
+        return "brain"
+    if value in (PicoCoach.COACH_HAND, "hand", "Hand", 4):
+        return "hand"
     if value in (PicoCoach.COACH_LIFT, "lift", "Lift", 2):
         return "lift"
     if value in (PicoCoach.COACH_ON, "on", "On", True, 1):
@@ -111,6 +115,10 @@ def _coach_setting(value) -> str:
 
 def _coach_event_value(setting: str):
     setting = (setting or "off").lower()
+    if setting == "brain":
+        return PicoCoach.COACH_BRAIN
+    if setting == "hand":
+        return PicoCoach.COACH_HAND
     if setting == "lift":
         return PicoCoach.COACH_LIFT
     if setting == "on":
@@ -646,7 +654,12 @@ class ChannelHandler(ServerRequestHandler):
             current = _tutor_settings_from_shared(self.shared)
             if active:
                 coach_pref = self.shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON)
-                if coach_pref not in (PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                if coach_pref not in (
+                    PicoCoach.COACH_ON,
+                    PicoCoach.COACH_LIFT,
+                    PicoCoach.COACH_BRAIN,
+                    PicoCoach.COACH_HAND,
+                ):
                     coach_pref = PicoCoach.COACH_ON
                 if not current["tutor_watcher"]:
                     await Observable.fire(Event.PICOWATCHER(picowatcher=True))
@@ -804,9 +817,11 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.PICOWATCHER(picowatcher=active))
             elif tutor == "coach":
                 _coach_map = {
-                    "on":   PicoCoach.COACH_ON,
-                    "lift": PicoCoach.COACH_LIFT,
-                    "off":  PicoCoach.COACH_OFF,
+                    "on":    PicoCoach.COACH_ON,
+                    "lift":  PicoCoach.COACH_LIFT,
+                    "brain": PicoCoach.COACH_BRAIN,
+                    "hand":  PicoCoach.COACH_HAND,
+                    "off":   PicoCoach.COACH_OFF,
                 }
                 coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
                 if current["tutor_coach"] != _coach_setting(coach_val):
@@ -2695,6 +2710,8 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.PICOCOACH):
             _store_tutor_coach(self.shared, message.picocoach)
+            if _coach_setting(message.picocoach) != "brain" and self.shared.pop("brain_hint", None) is not None:
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
             settings = _tutor_settings_from_shared(self.shared)
             EventHandler.write_to_clients(
                 {"event": "TutorWatch", "active": settings["tutor_active"], "settings": settings}
@@ -2788,6 +2805,8 @@ class WebDisplay(DisplayMsg):
                 _attach_variant_info(result)
                 self.shared["last_dgt_move_msg"] = result
                 EventHandler.write_to_clients(result)
+            if self.shared.pop("brain_hint", None) is not None:
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.DGT_FEN):
             # Update dgt_fen for board scan functionality
@@ -2803,6 +2822,8 @@ class WebDisplay(DisplayMsg):
             _attach_variant_info(result)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
+            if self.shared.pop("brain_hint", None) is not None:
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.REVIEW_MOVE_DONE):
             pgn_str = _transfer(message.game, self.shared["headers"])  # dont remake headers every move
@@ -2850,6 +2871,34 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.PROMOTION_DIALOG):
             result = {"event": "PromotionDlg", "move": message.move}
             EventHandler.write_to_clients(result)
+
+        elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
+            EventHandler.write_to_clients({"event": "TutorMove", "move": message.move.uci()})
+
+        elif isinstance(message, Message.PICOTUTOR_MSG):
+            piece_map = {
+                "BRAIN_PAWN": chess.PAWN,
+                "BRAIN_KNIGHT": chess.KNIGHT,
+                "BRAIN_BISHOP": chess.BISHOP,
+                "BRAIN_ROOK": chess.ROOK,
+                "BRAIN_QUEEN": chess.QUEEN,
+                "BRAIN_KING": chess.KING,
+            }
+            piece_type = next((value for key, value in piece_map.items() if key in message.eval_str), None)
+            if piece_type is not None:
+                squares = []
+                fen = (self.shared.get("last_dgt_move_msg") or {}).get("fen", "")
+                if fen:
+                    try:
+                        board = chess.Board(fen)
+                        squares = [chess.square_name(sq) for sq in board.pieces(piece_type, board.turn)]
+                    except ValueError:
+                        squares = []
+                self.shared["brain_hint"] = {"squares": squares}
+                EventHandler.write_to_clients({"event": "BrainHint", "squares": squares})
+            elif any(token in message.eval_str for token in ("BRAIN_WRONG", "BRAIN_NOPIECE", "HAND_")):
+                if self.shared.pop("brain_hint", None) is not None:
+                    EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.GAME_ENDS):
             if message.result == GameResult.DRAW:

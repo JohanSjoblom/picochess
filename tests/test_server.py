@@ -1,14 +1,19 @@
 import json
+import asyncio
 import unittest
+from unittest.mock import patch
 
-from dgt.api import DgtApi, EventApi
+from dgt.api import DgtApi, EventApi, Message
 from dgt.translate import DgtTranslate
-from dgt.util import Mode, TimeMode
+from dgt.util import Mode, PicoCoach, TimeMode
 from server import (
+    WebDisplay,
     OBOOKSRV_BOOK_FILE,
     _apply_web_analysis_state,
     _channel_action_requires_remote_auth,
     _clock_event,
+    _coach_event_value,
+    _coach_setting,
     _configured_engine_book_file,
     _display_text_from_label,
     _engine_book_choices,
@@ -72,6 +77,33 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
         text = _display_text_from_label("PGN Replay")
         self.assert_display_text(text)
         self.assertEqual("PGN Replay", text.web_text)
+
+
+class TestServerTutorCoachHelpers(unittest.TestCase):
+    def test_brain_and_hand_coach_settings_round_trip(self):
+        cases = {
+            PicoCoach.COACH_BRAIN: "brain",
+            PicoCoach.COACH_HAND: "hand",
+            PicoCoach.COACH_LIFT: "lift",
+            PicoCoach.COACH_ON: "on",
+            PicoCoach.COACH_OFF: "off",
+        }
+        for enum_value, setting in cases.items():
+            with self.subTest(setting=setting):
+                self.assertEqual(setting, _coach_setting(enum_value))
+                self.assertEqual(enum_value, _coach_event_value(setting))
+
+
+class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
+    async def test_non_brain_coach_clears_stale_brain_hint(self):
+        shared = {"brain_hint": {"squares": ["e2"]}}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.PICOCOACH(picocoach=4))
+
+        self.assertNotIn("brain_hint", shared)
+        write_to_clients.assert_any_call({"event": "BrainHint", "squares": []})
 
 
 class TestServerWebBookSelection(unittest.TestCase):

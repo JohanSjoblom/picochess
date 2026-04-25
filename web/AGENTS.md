@@ -40,6 +40,17 @@ explicitly requires it.
   time. This avoids flooding audio announcements and makes settings easier to
   reason about.
 
+## Playing Mode Naming
+
+- `playing-modes.txt` is the reference for user-facing mode names versus code
+  mode names.
+- The user-facing `MOVE HINT` mode is `Mode.ANALYSIS` in the backend.
+- The user-facing `ANALYSIS` mode is `Mode.PONDER` in the backend.
+- Do not infer analysis routing from the visible label alone. Web menu actions,
+  `interaction_mode`, and analysis display logic must use the backend mode name.
+- In particular, top-level `AGENTS.md` rules for `Mode.PONDER` apply to the
+  web-visible `ANALYSIS` mode, not to web-visible `MOVE HINT`.
+
 ## Books
 
 - There are two distinct book concepts.

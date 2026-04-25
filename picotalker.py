@@ -25,6 +25,7 @@ import os
 import asyncio
 from collections import OrderedDict
 import subprocess
+import signal
 import threading
 from typing import Callable, Optional
 
@@ -49,6 +50,8 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
 NATIVE_STREAM_STARTUP_WAIT = 0.3
+SOX_PLAY_TIMEOUT = 12.0
+SOX_PLAY_KILL_TIMEOUT = 1.0
 
 
 class PicoTalker(object):
@@ -397,14 +400,60 @@ class PicoTalkerDisplay(DisplayMsg):
     def pico3_sound_player(self, voice_file) -> bool:
         """Speak out the sound part by using sox play.
         return True if sound was played, False if not."""
-        result = False
         command = ["play", voice_file, "tempo", str(self.speed_factor)]
-        try:  # use blocking call
-            subprocess.call(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            result = True
+        process = None
+        try:
+            process = subprocess.Popen(
+                command,
+                shell=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return_code = process.wait(timeout=SOX_PLAY_TIMEOUT)
+            if return_code != 0:
+                logger.warning("SoX play failed for %s with return code %s", voice_file, return_code)
+                return False
+            return True
+        except subprocess.TimeoutExpired:
+            logger.warning("SoX play timed out after %.1fs for %s", SOX_PLAY_TIMEOUT, voice_file)
+            self._terminate_sox_process(process)
         except OSError as os_exc:
             logger.warning("OSError: %s => turn voice OFF", os_exc)
-        return result
+        return False
+
+    @staticmethod
+    def _terminate_sox_process(process) -> None:
+        if process is None or process.poll() is not None:
+            return
+        try:
+            if hasattr(os, "killpg"):
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
+            process.wait(timeout=SOX_PLAY_KILL_TIMEOUT)
+            return
+        except ProcessLookupError:
+            return
+        except subprocess.TimeoutExpired:
+            logger.debug("SoX play did not exit after SIGTERM; sending SIGKILL")
+        except OSError as exc:
+            logger.debug("SoX play terminate failed: %s", exc)
+
+        try:
+            if process.poll() is None:
+                if hasattr(os, "killpg"):
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+                process.wait(timeout=SOX_PLAY_KILL_TIMEOUT)
+        except ProcessLookupError:
+            pass
+        except subprocess.TimeoutExpired:
+            logger.error("SoX play process did not exit after SIGKILL")
+        except OSError as exc:
+            logger.debug("SoX play kill failed: %s", exc)
 
     # async def get_or_load_sound(self, path):
     #     """Async function to load or get sound from cache"""

@@ -123,6 +123,18 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         await eng.startup({UCI_ELO: "max(auto, 800)"}, None)
         self.assertEqual(-1, eng.engine_rating)
 
+    async def test_analysis_false_uses_legacy_play_without_engine_analyser(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.playing = Mock()
+
+        await eng.startup({"Analysis": "false"})
+
+        self.assertTrue(eng.is_legacy_engine())
+        self.assertTrue(eng.should_skip_engine_analyser())
+        self.assertNotIn("Analysis", eng.options)
+        eng.playing.set_allow_info_loop.assert_called_once_with(False)
+
     async def test_engine_uses_eval_for_rating(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

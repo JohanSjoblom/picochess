@@ -603,7 +603,11 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.KEYBOARD_FEN(fen=fen))
             else:
                 # Event.KEYBOARD_MOVE tranfers "move" to "fen" and then continues with "Message.DGT_FEN"
-                move = chess.Move.from_uci(cmd)
+                if re.match(r"^([a-h][1-8])\1$", cmd):
+                    square = chess.parse_square(cmd[:2])
+                    move = chess.Move(square, square)
+                else:
+                    move = chess.Move.from_uci(cmd)
                 await Observable.fire(Event.KEYBOARD_MOVE(move=move))
         except (ValueError, IndexError):
             logger.warning("Invalid user input [%s]", raw)

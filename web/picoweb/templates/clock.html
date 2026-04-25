@@ -799,6 +799,16 @@
                 const moveInput = document.getElementById('moveInput');
                 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 if (moveInput) {
+                    let keyboardMoveBuffer = '';
+                    const submitKeyboardMove = async function(move) {
+                        move = (move || '').toString().trim();
+                        if (!move) return;
+                        await fetch('/channel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=command&command=' + encodeURIComponent(move)
+                        });
+                    };
                     const focusMoveInput = () => {
                         try {
                             moveInput.focus({ preventScroll: true });
@@ -814,13 +824,42 @@
                             e.preventDefault();
                             const move = (this.value || '').toString();
                             if (move && move.length > 0) {
-                                await fetch('/channel', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                    body: 'action=command&command=' + encodeURIComponent(move)
-                                });
+                                await submitKeyboardMove(move);
                                 this.value = "";
+                                keyboardMoveBuffer = '';
                             }
+                        }
+                    });
+                    document.addEventListener('keydown', async function(e) {
+                        if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+                        var _ovl = document.getElementById('pico-menu-overlay');
+                        if (_ovl && _ovl.classList.contains('open')) return;
+                        var target = e.target;
+                        if (target === moveInput) return;
+                        if (target && (
+                            target.tagName === 'INPUT' ||
+                            target.tagName === 'TEXTAREA' ||
+                            target.tagName === 'SELECT' ||
+                            target.isContentEditable
+                        )) return;
+
+                        if (e.key === 'Enter') {
+                            if (keyboardMoveBuffer.length > 0) {
+                                e.preventDefault();
+                                await submitKeyboardMove(keyboardMoveBuffer);
+                                keyboardMoveBuffer = '';
+                                moveInput.value = '';
+                            }
+                        } else if (e.key === 'Backspace') {
+                            if (keyboardMoveBuffer.length > 0) {
+                                e.preventDefault();
+                                keyboardMoveBuffer = keyboardMoveBuffer.slice(0, -1);
+                            }
+                        } else if (e.key === 'Escape') {
+                            keyboardMoveBuffer = '';
+                            moveInput.value = '';
+                        } else if (/^[a-hA-H1-8qQrRbBnN]$/.test(e.key)) {
+                            keyboardMoveBuffer = (keyboardMoveBuffer + e.key.toLowerCase()).slice(0, 5);
                         }
                     });
                     // Mantener el foco siempre en el input de jugada

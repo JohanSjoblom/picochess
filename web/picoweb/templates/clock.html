@@ -1862,6 +1862,14 @@
                 document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) {
                     el.classList.toggle('active', el.dataset.action === 'mode-' + current.toLowerCase());
                 });
+                var coach = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
+                var handBrainItem = document.getElementById('mode-handbrain-item');
+                if (handBrainItem) {
+                    handBrainItem.classList.toggle(
+                        'active',
+                        current === 'normal' && (coach === 'brain' || coach === 'hand')
+                    );
+                }
             }
 
             function updateTimeSubpanel() {
@@ -1990,11 +1998,20 @@
                 if (watcherItem) watcherItem.classList.toggle('active', settings.tutor_watcher);
 
                 ['off', 'on', 'lift', 'brain', 'hand'].forEach(function(coachMode) {
-                    var coachModeBtn = document.querySelector('[data-coach-value="' + coachMode + '"]');
-                    if (coachModeBtn) coachModeBtn.classList.toggle('active', settings.tutor_coach === coachMode);
+                    document.querySelectorAll('[data-coach-value="' + coachMode + '"]').forEach(function(coachModeBtn) {
+                        coachModeBtn.classList.toggle('active', settings.tutor_coach === coachMode);
+                    });
                 });
                 var coachItem = document.getElementById('tutor-coach-item');
                 if (coachItem) coachItem.classList.toggle('active', settings.tutor_coach !== 'off');
+                var modeHandBrainItem = document.getElementById('mode-handbrain-item');
+                if (modeHandBrainItem) {
+                    var currentMode = (window._picoSystemInfo || {}).interaction_mode || 'normal';
+                    modeHandBrainItem.classList.toggle(
+                        'active',
+                        currentMode === 'normal' && (settings.tutor_coach === 'brain' || settings.tutor_coach === 'hand')
+                    );
+                }
 
                 var expBadge = document.getElementById('tutor-explorer-badge');
                 var expItem = document.getElementById('tutor-explorer-item');
@@ -2056,8 +2073,33 @@
                         itemEl && itemEl.classList.add('active');
                         var modeSub = document.getElementById('ovl-mode-sub');
                         if (modeSub && itemEl) modeSub.textContent = itemEl.querySelector('.pico-subpanel-label').textContent;
-                        post('action=set_mode&mode=' + action.replace('mode-', ''));
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var clearHandBrainCoach = tutorSettings.tutor_coach === 'brain' || tutorSettings.tutor_coach === 'hand';
+                        if (clearHandBrainCoach) {
+                            tutorSettings.tutor_coach = 'on';
+                            setTutorSettingsOptimistic(tutorSettings);
+                        }
+                        post('action=set_mode&mode=' + action.replace('mode-', '')).finally(function() {
+                            if (clearHandBrainCoach) post('action=picotutor&tutor=coach&val=on');
+                        });
                         close(); break;
+                    case 'mode-handbrain': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var nextCoach = itemEl && itemEl.getAttribute('data-coach-value');
+                        if (nextCoach !== 'brain' && nextCoach !== 'hand') return;
+                        tutorSettings.tutor_coach = nextCoach;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) { el.classList.remove('active'); });
+                        var handBrainItem = document.getElementById('mode-handbrain-item');
+                        if (handBrainItem) handBrainItem.classList.add('active');
+                        var modeSub = document.getElementById('ovl-mode-sub');
+                        if (modeSub) modeSub.textContent = 'Normal';
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.interaction_mode = 'normal';
+                        post('action=set_mode&mode=normal').finally(function() {
+                            post('action=picotutor&tutor=coach&val=' + tutorSettings.tutor_coach);
+                        });
+                        close(); break; }
                     // TIME — handled by time picker (see overlay click handler above)
                     // TUTOR
                     case 'tutor-watcher': {
@@ -2611,6 +2653,14 @@
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">PGN Replay</span><span class="pico-subpanel-desc">Step through a saved PGN game</span></span>
                     </button>
                     <div class="pico-subpanel-group">Special modes</div>
+                    <div class="pico-subpanel-item pico-subpanel-item-control" id="mode-handbrain-item">
+                        <span class="pico-subpanel-icon">🧑‍🏫</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Hand and brain</span><span class="pico-subpanel-desc">Start normal play with a Brain or Hand coach</span></span>
+                        <span class="pico-segmented-control" role="group" aria-label="Hand and brain coach mode">
+                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="brain">Brain</button>
+                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="hand">Hand</button>
+                        </span>
+                    </div>
                     <button class="pico-subpanel-item" data-action="mode-observe">
                         <span class="pico-subpanel-icon">👁️</span>
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch a game with clocks and silent engine thinking</span></span>

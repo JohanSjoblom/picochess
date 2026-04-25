@@ -1671,6 +1671,23 @@ piece {
     background-clip: content-box;
 }
 
+.pico-subpanel-group {
+    margin: 0.45rem 0 0.1rem;
+    padding: 0 0.25rem;
+    color: inherit;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.2;
+    opacity: 0.62;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.pico-subpanel-group:first-child {
+    margin-top: 0;
+}
+
 .pico-subpanel-item {
     display: flex;
     align-items: center;

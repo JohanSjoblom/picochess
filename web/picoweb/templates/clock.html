@@ -2545,37 +2545,41 @@
                     <span class="pico-picker-title">Playing Mode</span>
                 </div>
                 <div class="pico-subpanel-list">
+                    <div class="pico-subpanel-group">Play against Pico</div>
                     <button class="pico-subpanel-item" data-action="mode-normal">
                         <span class="pico-subpanel-icon">♟️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Normal</span><span class="pico-subpanel-desc">Standard game against the engine</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-analysis">
-                        <span class="pico-subpanel-icon">🔬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Move Hint</span><span class="pico-subpanel-desc">Best move display</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-kibitz">
-                        <span class="pico-subpanel-icon">💬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Eval.Score</span><span class="pico-subpanel-desc">Score and depth display</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-observe">
-                        <span class="pico-subpanel-icon">👁️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch with clocks</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-ponder">
-                        <span class="pico-subpanel-icon">⏳</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free position analysis</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Normal</span><span class="pico-subpanel-desc">Play a standard game against the engine</span></span>
                     </button>
                     <button class="pico-subpanel-item" data-action="mode-training">
                         <span class="pico-subpanel-icon">🎓</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Force Pico move</span></span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Play against the engine with Force Pico move</span></span>
                     </button>
-                    <button class="pico-subpanel-item" data-action="mode-remote">
-                        <span class="pico-subpanel-icon">🌐</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Remote</span><span class="pico-subpanel-desc">Play against a remote human opponent</span></span>
+                    <div class="pico-subpanel-group">Analyze positions</div>
+                    <button class="pico-subpanel-item" data-action="mode-analysis">
+                        <span class="pico-subpanel-icon">🔬</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Move Hint</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows best move and records PGN</span></span>
                     </button>
+                    <button class="pico-subpanel-item" data-action="mode-kibitz">
+                        <span class="pico-subpanel-icon">💬</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Eval.Score</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows score and depth and records PGN</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-ponder">
+                        <span class="pico-subpanel-icon">⏳</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free position analysis; set any legal position without PGN tracking</span></span>
+                    </button>
+                    <div class="pico-subpanel-group">Replay</div>
                     <button class="pico-subpanel-item" data-action="mode-pgnreplay">
                         <span class="pico-subpanel-icon">📖</span>
                         <span class="pico-subpanel-text"><span class="pico-subpanel-label">PGN Replay</span><span class="pico-subpanel-desc">Step through a saved PGN game</span></span>
+                    </button>
+                    <div class="pico-subpanel-group">Special modes</div>
+                    <button class="pico-subpanel-item" data-action="mode-observe">
+                        <span class="pico-subpanel-icon">👁️</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch a game with clocks and silent engine thinking</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-remote">
+                        <span class="pico-subpanel-icon">🌐</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Remote</span><span class="pico-subpanel-desc">Play a game against a remote human opponent</span></span>
                     </button>
                 </div>
             </div><!-- #overlay-mode -->

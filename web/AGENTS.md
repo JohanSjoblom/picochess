@@ -108,7 +108,14 @@ explicitly requires it.
 - Keep the quick combined Tutor toggle in the old `ANALYSES` tab. It is useful
   for switching between Tutor analysis and selected-engine analysis, and for
   PGN replay timing.
-- Coach is one three-value setting: `off`, `on`, `lift`.
+- Coach is one mutually exclusive setting: `off`, `on`, `lift`, `brain`, or
+  `hand`. Do not model Brain and Hand as independent toggles.
+- Brain/Hand are tutor coach modes for normal play, not web-only modes.
+  Selecting them from the web menu must post `action=picotutor&tutor=coach`
+  with `val=brain` or `val=hand`.
+- In the `ANALYSES` tab, the Pico backend analysis row should stay visually
+  distinct from the web-client Stockfish row. Preserve the Pico source badge:
+  `E` for selected-engine backend analysis and `T` for Tutor backend analysis.
 - Read and display backend tutor state when the web client opens, and keep it in
   sync via websocket updates.
 

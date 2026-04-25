@@ -1666,7 +1666,7 @@ function formatEngineOutput(line) {
         // Extra PV lines (pv_2+): same two-row layout as pv_1 but without buttons
         output = '<div class="pv-two-row">';
         output += '<div class="pv-header">';
-        output += '<span class="engine-name-badge">Stockfish 18</span>';
+        output += '<span class="engine-name-badge">Web client Stockfish 18</span>';
         output += metaHtml;
         output += '</div>';
         output += '<div class="pv-body">' + bodyHtml + '</div>';
@@ -2222,6 +2222,7 @@ function updateBackendAnalysisLine(analysis) {
         setEngineLinePlaceholder();
         return;
     }
+    updateBackendAnalysisSourceBadge(analysis.source);
     var scoreText = '?';
     if (analysis.mate) {
         scoreText = '#' + analysis.mate;
@@ -2357,6 +2358,19 @@ function setEngineLinePlaceholder() {
     if (btn)    btn.textContent = 'SHOW';
 }
 
+function updateBackendAnalysisSourceBadge(source) {
+    var badge = document.getElementById('backendAnalysisSourceBadge');
+    if (!badge) return;
+    var normalized = String(source || 'engine').toLowerCase();
+    var isTutor = normalized === 'tutor';
+    badge.textContent = isTutor ? 'T' : 'E';
+    badge.title = isTutor
+        ? 'Pico backend analysis source: Tutor'
+        : 'Pico backend analysis source: selected engine';
+    badge.classList.toggle('tutor-source', isTutor);
+    badge.classList.toggle('engine-source', !isTutor);
+}
+
 // Update ± button visibility and disabled state based on SF18 running state and multipv count.
 function updateSF18PmButtons() {
     var group    = document.getElementById('sf18PmGroup');
@@ -2388,6 +2402,7 @@ function setSF18Placeholder() {
 function updateBackendAnalysis(analysis) {
     if (!analysis) {
         lastServerAnalysis = null;
+        updateBackendAnalysisSourceBadge('engine');
         // Clear content but keep button state
         var metaEl = document.getElementById('engineMeta');
         var bodyEl = document.getElementById('enginePvBody');
@@ -2397,10 +2412,12 @@ function updateBackendAnalysis(analysis) {
     }
     // Upstream: explicit clear signal resets the engine line to placeholder state.
     if (analysis.clear) {
+        updateBackendAnalysisSourceBadge(analysis.source);
         setEngineLinePlaceholder();
         return;
     }
     lastServerAnalysis = analysis;
+    updateBackendAnalysisSourceBadge(analysis.source);
     if (!analysisDisplayVisible) {
         return;
     }

@@ -671,7 +671,8 @@
                                                 <!-- Server engine analysis (static structure, JS updates content) -->
                                                 <div class="pv-two-row" id="engineRow" aria-live="polite">
                                                     <div class="pv-header">
-                                                        <span class="engine-name-badge" id="engineNameBadge">Engine</span>
+                                                        <span class="engine-name-badge" id="engineNameBadge">Pico</span>
+                                                        <span class="backend-source-badge engine-source" id="backendAnalysisSourceBadge" title="Pico backend analysis source: selected engine">E</span>
                                                         <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
                                                             <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
                                                         </button>
@@ -687,7 +688,7 @@
                                                 <!-- SF18 analysis (static header, JS updates content + extra PVs) -->
                                                 <div class="pv-two-row" id="sf18Row">
                                                     <div class="pv-header">
-                                                        <span class="engine-name-badge">Stockfish 18</span>
+                                                        <span class="engine-name-badge">Web client Stockfish 18</span>
                                                         <div id="sf18Meta"></div>
                                                         <div class="pv-spacer"></div>
                                                         <div class="btn-group btn-group-xs" id="sf18PmGroup" style="display:none">
@@ -871,8 +872,6 @@
                             tutorWatchSpan.innerHTML = 'Tutor';
                             tutorWatchIcon.className = 'fa fa-eye-slash';
                         }
-                        var engineBadge = document.getElementById('engineNameBadge');
-                        if (engineBadge) engineBadge.textContent = tutorWatchActive ? 'Tutor' : 'Engine';
                     }
 
                     window.setTutorWatchState = setTutorWatchState;

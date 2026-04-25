@@ -3940,12 +3940,13 @@ async def main() -> None:
                             self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
                             and self.picotutor_mode()
                         )
+                        self.state.coach_triggered_piece_type = None
                         if is_king_lift or is_hand_mode:
                             self.state.coach_triggered = True
                             if not self.picotutor_mode():
                                 self.state.position_mode = True
                             self.cancel_brain_hint_timer()
-                            if is_hand_mode and not is_king_lift and lifted_piece_char:
+                            if is_hand_mode and lifted_piece_char:
                                 piece_char_map = {
                                     "P": chess.PAWN,
                                     "N": chess.KNIGHT,

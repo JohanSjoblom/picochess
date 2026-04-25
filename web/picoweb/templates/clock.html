@@ -2030,7 +2030,7 @@
                     case 'tutor-coach': {
                         var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
                         var nextCoach = itemEl && itemEl.getAttribute('data-coach-value');
-                        if (nextCoach !== 'on' && nextCoach !== 'lift') nextCoach = 'off';
+                        if (['on', 'lift', 'brain', 'hand'].indexOf(nextCoach) === -1) nextCoach = 'off';
                         if (tutorSettings.tutor_coach !== nextCoach) {
                             tutorSettings.tutor_coach = nextCoach;
                             setTutorSettingsOptimistic(tutorSettings);

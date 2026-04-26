@@ -1643,6 +1643,7 @@ async def main() -> None:
             self,
             msg: Message,
             searchlist=False,
+            tutor_reveal_move: chess.Move | None = None,
         ):
             """
             Start a new search on the current game.
@@ -1651,6 +1652,8 @@ async def main() -> None:
             """
             self._set_game_started(True)
             await DisplayMsg.show(msg)
+            if tutor_reveal_move is not None:
+                await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
             book_res = None
@@ -3248,8 +3251,6 @@ async def main() -> None:
                         ):
                             tutor_reveal_move = self.state.brain_best_move
                             self.state.brain_best_move = None
-                    if tutor_reveal_move is not None:
-                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3295,7 +3296,7 @@ async def main() -> None:
                                         # Allow additional takebacks to settle before starting engine search.
                                         await asyncio.sleep(0.6)
                                     if self.state.is_not_user_turn():
-                                        await self.think(msg)
+                                        await self.think(msg, tutor_reveal_move=tutor_reveal_move)
                                     else:
                                         logger.debug("skipping think() after takeback debounce: user turn")
                         else:
@@ -3306,7 +3307,7 @@ async def main() -> None:
                                 # Allow additional takebacks to settle before starting engine search.
                                 await asyncio.sleep(0.6)
                             if self.state.is_not_user_turn():
-                                await self.think(msg)
+                                await self.think(msg, tutor_reveal_move=tutor_reveal_move)
                             else:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 

@@ -1379,12 +1379,13 @@
                         ['Berlin',  'berlin'],
                         ['Leipzig', 'leipzig'],
                         ['Merida',  'merida'],
+                        ['Neo',     'neo'],
                         ['USCF',    'uscf']
                     ],
                     getCurrent: function() {
                         var sec = document.getElementById('xboardsection');
                         if (!sec) return 'merida';
-                        var sets = ['alpha','berlin','leipzig','merida','uscf'];
+                        var sets = ['alpha','berlin','leipzig','merida','neo','uscf'];
                         for (var i = 0; i < sets.length; i++) {
                             if (sec.classList.contains(sets[i])) return sets[i];
                         }
@@ -1393,7 +1394,7 @@
                     apply: function(val) {
                         var sec = document.getElementById('xboardsection');
                         if (!sec) return;
-                        ['alpha','berlin','leipzig','merida','uscf'].forEach(function(p) { sec.classList.remove(p); });
+                        ['alpha','berlin','leipzig','merida','neo','uscf'].forEach(function(p) { sec.classList.remove(p); });
                         sec.classList.add(val);
                         syncKingBadgeIcons();
                         fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},

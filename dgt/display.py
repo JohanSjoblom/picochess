@@ -985,6 +985,8 @@ class DgtDisplay(DisplayMsg):
     async def _process_user_move_done(self, message):
         self.last_pos_start = False
         self._start_position_restore_pending = False
+        self._brain_hint_text = None
+        self._brain_hint_until = 0.0
         await self.force_leds_off(log=True)  # can happen in case of a sliding move
 
         if self.c_last_player == "C" or self.c_last_player == "":

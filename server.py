@@ -2248,11 +2248,11 @@ class WebDisplay(DisplayMsg):
         """Message task consumer for WebDisplay messages"""
 
         def _set_normal_pgn():
-            if self.shared["system_info"]["old_engine"] != "":
+            if self.shared["system_info"].get("old_engine", "") != "":
                 self.shared["system_info"]["engine_name"] = self.shared["system_info"]["old_engine"]
                 self.shared["system_info"]["old_engine"] = ""
 
-            if self.shared["system_info"]["user_name_orig"] != "":
+            if self.shared["system_info"].get("user_name_orig", "") != "":
                 self.shared["system_info"]["user_name"] = self.shared["system_info"]["user_name_orig"]
                 self.shared["system_info"]["user_name_orig"] = ""
 

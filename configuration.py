@@ -378,6 +378,21 @@ class Configuration:
             help="experimental Brain and hand coach: show the tutor's revealed move as text on the DGT clock after the user plays",
         )
         self.parser.add_argument(
+            "-tbrd",
+            "--tutor-brain-reveal-display",
+            type=int,
+            default=3,
+            choices=range(0, 9),
+            help="Brain and hand coach: minimum seconds to keep the tutor's revealed move circles on the web diagram before the opponent arrow appears (0=instant, 1-8 seconds, default=3)",
+        )
+        self.parser.add_argument(
+            "-cdbd",
+            "--countdown-during-brain-display",
+            action="store_true",
+            default=False,
+            help="Brain and hand coach: if set, the clock counts down while the piece-type hint ('Play a Rook move') is shown; default is False (clock paused during hint)",
+        )
+        self.parser.add_argument(
             "-loc",
             "--location",
             type=str,

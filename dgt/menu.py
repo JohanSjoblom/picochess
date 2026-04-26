@@ -278,6 +278,7 @@ class DgtMenu(object):
         dgttranslate: DgtTranslate,
         brain_hint_display: int = 0,
         brain_reveal_text: bool = True,
+        brain_hint_countdown: bool = False,
     ):
         super(DgtMenu, self).__init__()
 
@@ -294,6 +295,7 @@ class DgtMenu(object):
         self.menu_picotutor_picocomment = picocomment
         self.menu_picotutor_brain_hint_display = brain_hint_display
         self.menu_picotutor_brain_reveal_text = brain_reveal_text
+        self.menu_picotutor_brain_hint_countdown = brain_hint_countdown
 
         self.menu_game = Game.NEW
         self.menu_game_end = GameEnd.WHITE_WINS
@@ -772,6 +774,7 @@ class DgtMenu(object):
         self.res_picotutor_picocomment_prob = int(self.menu_picotutor_picocomment_prob_list)
         self.res_picotutor_brain_hint_display = self.menu_picotutor_brain_hint_display
         self.res_picotutor_brain_reveal_text = self.menu_picotutor_brain_reveal_text
+        self.res_picotutor_brain_hint_countdown = self.menu_picotutor_brain_hint_countdown
         self.res_picotutor = self.menu_picotutor
 
         self.res_game_game_save = self.menu_game_save
@@ -898,6 +901,10 @@ class DgtMenu(object):
     def get_brain_reveal_text(self):
         """Return True if experimental Brain and hand reveal text is enabled."""
         return self.res_picotutor_brain_reveal_text
+
+    def get_brain_hint_countdown(self):
+        """Return True if the clock should count down during the piece-type hint display."""
+        return self.res_picotutor_brain_hint_countdown
 
     def get_game_altmove(self):
         """Get the flag."""

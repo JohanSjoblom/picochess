@@ -348,6 +348,8 @@ function removeArrow() {
 
 var _brainHintActive = false;
 var _tutorMoveActive = false;
+var _tutorMoveShownAt = 0;
+var _tutorMoveMinMs = 0;
 
 function showBrainHint(squares) {
     var shapes = (squares || []).map(function(sq) {
@@ -356,6 +358,7 @@ function showBrainHint(squares) {
     chessground1.setShapes(shapes);
     _brainHintActive = shapes.length > 0;
     _tutorMoveActive = false;
+    _tutorMoveShownAt = 0;
 }
 
 function clearBrainHint() {
@@ -366,7 +369,7 @@ function clearBrainHint() {
     }
 }
 
-function showTutorMove(ucimove) {
+function showTutorMove(ucimove, minSecs) {
     var squares = String(ucimove || '').match(/.{2}/g);
     if (!squares || squares.length < 2) return;
     chessground1.setShapes([
@@ -375,6 +378,8 @@ function showTutorMove(ucimove) {
     ]);
     _tutorMoveActive = true;
     _brainHintActive = false;
+    _tutorMoveShownAt = Date.now();
+    _tutorMoveMinMs = (minSecs || 0) * 1000;
 }
 
 function addArrow(ucimove, play) {
@@ -2852,12 +2857,27 @@ $(function () {
                         }
                         // Always show highlight and arrow for computer moves,
                         // even when chess.js can't validate the move (atomic variant).
+                        if (_tutorMoveActive) {
+                            var _lightMove = data.move;
+                            var _remaining = _tutorMoveMinMs - (Date.now() - _tutorMoveShownAt);
+                            _tutorMoveActive = false;
+                            _tutorMoveShownAt = 0;
+                            if (_remaining > 0) {
+                                setTimeout(function() {
+                                    _brainHintActive = false;
+                                    highlightBoard(_lightMove, 'computer');
+                                    addArrow(_lightMove, 'computer');
+                                }, _remaining);
+                                break;
+                            }
+                        }
                         _tutorMoveActive = false;
+                        _brainHintActive = false;
                         highlightBoard(data.move, 'computer');
                         addArrow(data.move, 'computer');
                         break;
                     case 'TutorMove':
-                        showTutorMove(data.move);
+                        showTutorMove(data.move, data.min_secs);
                         break;
                     case 'Clear':
                         break;

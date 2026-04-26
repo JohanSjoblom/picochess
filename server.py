@@ -2877,7 +2877,8 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.TUTOR_MOVE_REVEAL):
-            EventHandler.write_to_clients({"event": "TutorMove", "move": message.move.uci()})
+            min_secs = self.shared.get("system_info", {}).get("brain_reveal_min_secs", 3)
+            EventHandler.write_to_clients({"event": "TutorMove", "move": message.move.uci(), "min_secs": min_secs})
 
         elif isinstance(message, Message.PICOTUTOR_MSG):
             piece_map = {

@@ -25,6 +25,7 @@ from server import (
     _update_web_book_selection,
     _web_book_choices,
 )
+from utilities import version as pico_version
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):
@@ -95,6 +96,14 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
 
 
 class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
+    async def test_system_info_includes_picochess_version(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        display._create_system_info()
+
+        self.assertEqual(pico_version, shared["system_info"]["version"])
+
     async def test_non_brain_coach_clears_stale_brain_hint(self):
         shared = {"brain_hint": {"squares": ["e2"]}}
         display = WebDisplay(shared, asyncio.get_running_loop())

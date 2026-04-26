@@ -42,7 +42,7 @@ from typing import Optional
 from pathlib import Path
 
 # picochess version
-version = "4.2.3"
+version = "4.3.0"
 
 logger = logging.getLogger(__name__)
 
@@ -497,9 +497,7 @@ _WINDOW_COMMANDS = {
 _WAYLAND_SWAY_COMMANDS = {
     "toggle_fullscreen": "swaymsg --quiet fullscreen toggle",
     "switch_window": "swaymsg --quiet focus next",
-    "switch_window_toggle_fullscreen": (
-        "swaymsg --quiet focus next; sleep 0.2; swaymsg --quiet fullscreen toggle"
-    ),
+    "switch_window_toggle_fullscreen": ("swaymsg --quiet focus next; sleep 0.2; swaymsg --quiet fullscreen toggle"),
 }
 
 
@@ -564,9 +562,7 @@ def _get_wayland_window_command(action: str) -> Optional[str]:
     elif backend == "ydotool":
         cmd = _get_wayland_ydotool_commands().get(action)
     else:
-        logger.warning(
-            "Wayland window backend unavailable for action '%s' (looked for swaymsg/ydotool)", action
-        )
+        logger.warning("Wayland window backend unavailable for action '%s' (looked for swaymsg/ydotool)", action)
         return None
 
     if cmd is None:

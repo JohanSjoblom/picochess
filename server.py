@@ -49,6 +49,7 @@ from utilities import (
     ensure_important_headers,
     get_opening_books,
     write_picochess_ini,
+    version as pico_version,
 )
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
@@ -1528,7 +1529,6 @@ class ChessBoardHandler(ServerRequestHandler):
         tutor_settings_json = json.dumps(_tutor_settings_from_shared(self.shared))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
-        from utilities import version as pico_version
         from pgn import ModeInfo
         import dgt.util as _dgt_util
         _eboard_labels = {
@@ -2154,6 +2154,7 @@ class WebDisplay(DisplayMsg):
     def _create_system_info(self):
         if "system_info" not in self.shared:
             self.shared["system_info"] = {}
+        self.shared["system_info"]["version"] = pico_version
 
     def _set_pending_engine_move(self, pending: bool):
         """Publish whether an announced engine move is waiting on the physical board."""

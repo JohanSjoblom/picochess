@@ -57,6 +57,7 @@ from utilities import (
     get_location,
     update_pico_v4,
     update_pico_engines,
+    update_picochess_now,
     get_opening_books,
     shutdown,
     reboot,
@@ -251,6 +252,7 @@ class PicochessState:
         self.game = None or chess.Board()
         self.engine_move_was_book = False
         self.game_declared = False  # User declared resignation or draw
+        self.game_started = False  # Lifecycle flag: true once play has started, even after takeback to move 0.
         self.interaction_mode = Mode.NORMAL
         self.last_legal_fens: List[Any] = []
         self.last_move = None
@@ -272,6 +274,12 @@ class PicochessState:
         self.pgn_replay_next_move = None
         self.pgn_replay_book_cache = {}
         self.picotutor: PicoTutor | None = None
+        self.last_hand_coach_move: chess.Move | None = None
+        self.hand_coach_task: asyncio.Task | None = None
+        self.brain_hint_task: asyncio.Task | None = None
+        self.brain_required_piece_type: chess.PieceType | None = None
+        self.brain_best_move: chess.Move | None = None
+        self.coach_triggered_piece_type: chess.PieceType | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
         self.setpieces_switch_anchor_fen = ""
@@ -451,6 +459,7 @@ class PicochessState:
             Mode.REMOTE,
             Mode.TRAINING,
         ):
+            self.game_started = True
             self.time_control.start_internal(self.game.turn, self.main_loop)
             tc_init = self.time_control.get_parameters()
             if self.interaction_mode == Mode.TRAINING:
@@ -1029,6 +1038,8 @@ async def main() -> None:
         args.continue_game,
         args.alt_move,
         state.dgttranslate,
+        brain_hint_display=args.tutor_brain_hint_display,
+        brain_reveal_text=args.tutor_brain_reveal_text == "on",
     )
 
     dgtdispatcher = Dispatcher(state.dgtmenu, main_loop)
@@ -1083,18 +1094,25 @@ async def main() -> None:
         # samples: no sounds
         sample_beeper = False
 
+    shared: dict = {
+        "web_speech_local": args.web_speech_local,
+        "web_speech_remote": args.web_speech_remote,
+        "web_audio_backend_remote": bool(args.web_audio_backend_remote),
+        "system_info": {"web_audio_backend_remote": bool(args.web_audio_backend_remote)},
+    }
+
     def _emit_web_audio(audio_data: dict):
         EventHandler.write_to_clients({"event": "WebAudio", "audio": audio_data})
 
     def _should_emit_web_audio() -> bool:
-        return EventHandler.has_remote_clients()
+        return bool(shared.get("web_audio_backend_remote", False)) and EventHandler.has_remote_clients()
 
     pico_talker = PicoTalkerDisplay(
         args.user_voice,
         args.computer_voice,
         args.speed_voice,
         args.audio_backend,
-        bool(args.web_server_port and args.web_audio_backend_remote),
+        bool(args.web_server_port),
         _emit_web_audio,
         _should_emit_web_audio,
         args.enable_setpieces_voice,
@@ -1110,20 +1128,34 @@ async def main() -> None:
     # Launch web server
     if args.web_server_port:
         my_web_server = WebServer()
-        shared: dict = {}
-        shared["web_speech_local"] = args.web_speech_local
-        shared["web_speech_remote"] = args.web_speech_remote
-        shared["web_audio_backend_remote"] = args.web_audio_backend_remote
         shared["tutor_watch_active"] = bool(
             state.dgtmenu.get_picowatcher() or state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
         )
         shared["tutor_watch_watcher"] = bool(state.dgtmenu.get_picowatcher())
         shared["tutor_watch_coach"] = bool(state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF)
+        if state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN:
+            shared["tutor_coach"] = "brain"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+            shared["tutor_coach"] = "hand"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT:
+            shared["tutor_coach"] = "lift"
+        elif state.dgtmenu.get_picocoach() == PicoCoach.COACH_ON:
+            shared["tutor_coach"] = "on"
+        else:
+            shared["tutor_coach"] = "off"
         shared["tutor_watch_coach_pref"] = (
             state.dgtmenu.get_picocoach()
             if state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
             else PicoCoach.COACH_ON
         )
+        shared["tutor_explorer"] = bool(state.dgtmenu.get_picoexplorer())
+        if state.dgtmenu.get_picocomment() == PicoComment.COM_ON_ALL:
+            shared["tutor_comment"] = "all"
+        elif state.dgtmenu.get_picocomment() == PicoComment.COM_ON_ENG:
+            shared["tutor_comment"] = "engine"
+        else:
+            shared["tutor_comment"] = "off"
+        shared["tutor_prob"] = int(state.dgtmenu.get_comment_factor())
         # moved starting WebDisplayt and WebVr here so that they are in same main loop
         logger.info("initializing message queues")
         my_web_display = WebDisplay(shared, main_loop)
@@ -1136,6 +1168,7 @@ async def main() -> None:
         theme: str = calc_theme(args.theme, state.set_location)
         shared["pieces"] = args.pieces
         shared["web-board-theme"] = args.web_board_theme
+        shared["dgttranslate"] = state.dgttranslate
         web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
         try:
             web_app.listen(args.web_server_port)
@@ -1231,6 +1264,7 @@ async def main() -> None:
                 FLOAT_MIN_BACKGROUND_TIME, self._pv_score_depth_analyser, loop=self.loop
             )
             self.shared = shared
+            self.shared.setdefault("system_info", {})["game_started"] = self.state.game_started
             self.non_main_tasks = non_main_tasks
             self.update_status = None
             self.git_status = None
@@ -1611,6 +1645,7 @@ async def main() -> None:
 
             If a move is found in the opening book, fire an event in a few seconds.
             """
+            self._set_game_started(True)
             await DisplayMsg.show(msg)
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
@@ -1695,6 +1730,11 @@ async def main() -> None:
                                     send_pv=False,
                                     ponder_move=ponder_cache,
                                 )
+                                # Immediately push the engine's final analysis to the web Engine:
+                                # line.  The 1-second analyse() timer may never fire before a fast
+                                # engine (Stockfish) finishes its move, so do it right here while
+                                # the info is fresh.
+                                await self.send_web_analysis(info, analysed_fen, "engine")
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
@@ -1832,6 +1872,147 @@ async def main() -> None:
                         else:
                             break
                 await self.state.start_clock()
+
+        async def call_hand_coach(self, piece_type: chess.PieceType | None):
+            """Experimental Brain and hand: suggest the best move for a lifted piece type."""
+            if not (
+                self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                and self.state.interaction_mode == Mode.NORMAL
+                and (
+                    (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
+                    or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
+                )
+                and not self.state.game.is_checkmate()
+                and not self.state.game.is_stalemate()
+            ):
+                return
+            if piece_type is None:
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
+                return
+
+            best_move = await self.state.picotutor.get_best_move_for_piece_type(piece_type)
+            if best_move is None:
+                self.state.last_hand_coach_move = None
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
+                return
+
+            piece_name = self._piece_type_name(piece_type)
+            logger.info("Brain and hand: best %s move is %s", piece_name, best_move)
+            self.state.last_hand_coach_move = best_move
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_" + piece_name))
+            await asyncio.sleep(2)
+            game_tutor = self.state.game.copy()
+            san_move = game_tutor.san(best_move)
+            game_tutor.push(best_move)
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor.copy()))
+
+        def _piece_type_name(self, piece_type: chess.PieceType | None) -> str:
+            return {
+                chess.PAWN: "PAWN",
+                chess.KNIGHT: "KNIGHT",
+                chess.BISHOP: "BISHOP",
+                chess.ROOK: "ROOK",
+                chess.QUEEN: "QUEEN",
+                chess.KING: "KING",
+            }.get(piece_type, "PAWN")
+
+        def _user_turn_and_alive(self) -> bool:
+            return (
+                (
+                    (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
+                    or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
+                )
+                and not self.state.game.is_checkmate()
+                and not self.state.game.is_stalemate()
+            )
+
+        async def _brain_hint_after_delay(self):
+            """Experimental Brain and hand: tell the user which piece type to play."""
+            if not (
+                self._user_turn_and_alive()
+                and self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
+            ):
+                return
+
+            best_move = None
+            if self.bookreader:
+                try:
+                    best_move = self.bookreader.weighted_choice(self.state.game.copy()).move
+                    logger.debug("Brain and hand: book hint move %s", best_move)
+                except IndexError:
+                    pass
+
+            if best_move is None:
+                best_engine = getattr(self.state.picotutor, "best_engine", None)
+                for _ in range(30):
+                    await asyncio.sleep(0.1)
+                    if not (
+                        self._user_turn_and_alive()
+                        and self.picotutor_mode()
+                        and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                        and self.state.interaction_mode == Mode.NORMAL
+                    ):
+                        return
+                    if best_engine and best_engine.is_analysis_limit_reached():
+                        break
+                result = await self.state.picotutor.get_pos_analysis()
+                if not result:
+                    return
+                best_move, _score, _mate, _alt_best_moves = result
+
+            if not best_move or best_move == chess.Move.null():
+                return
+            piece_type = self.state.game.piece_type_at(best_move.from_square)
+            if piece_type is None:
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_NOPIECE"))
+                return
+
+            self.state.brain_required_piece_type = piece_type
+            self.state.brain_best_move = best_move
+            piece_name = self._piece_type_name(piece_type)
+            logger.info("Brain and hand: use a %s", piece_name)
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name))
+            hint_display = self.state.dgtmenu.get_brain_hint_display()
+            if hint_display > 0:
+                await asyncio.sleep(hint_display)
+
+        def start_brain_hint_timer(self):
+            """Start/restart the experimental Brain and hand piece-type hint."""
+            self.cancel_brain_hint_timer()
+            self.state.brain_required_piece_type = None
+            if (
+                self.picotutor_mode()
+                and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                and self.state.interaction_mode == Mode.NORMAL
+                and self._user_turn_and_alive()
+            ):
+                self.state.brain_hint_task = asyncio.ensure_future(self._brain_hint_after_delay())
+
+        def cancel_brain_hint_timer(self, preserve_best_move: bool = False):
+            """Cancel pending Brain and hand hints without touching playing modes."""
+            if self.state.brain_hint_task and not self.state.brain_hint_task.done():
+                self.state.brain_hint_task.cancel()
+            self.state.brain_hint_task = None
+            self.state.brain_required_piece_type = None
+            if not preserve_best_move:
+                self.state.brain_best_move = None
+
+        async def _handle_same_square_input(self, from_square: chess.Square):
+            """Use a same-square web move as a Brain and hand re-request gesture."""
+            coach_mode = self.state.dgtmenu.get_picocoach()
+            if coach_mode == PicoCoach.COACH_HAND and self.picotutor_mode():
+                piece_type = self.state.game.piece_type_at(from_square)
+                if piece_type is None:
+                    return
+                if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                    self.state.hand_coach_task.cancel()
+                self.state.last_hand_coach_move = None
+                self.state.hand_coach_task = asyncio.ensure_future(self.call_hand_coach(piece_type))
+            elif coach_mode == PicoCoach.COACH_BRAIN and self.picotutor_mode():
+                self.start_brain_hint_timer()
 
         def reset_setpieces_window_switch(self):
             self.state.setpieces_switch_anchor_fen = ""
@@ -2276,16 +2457,28 @@ async def main() -> None:
             # wrong moves.
             _move_board = self.state.get_move_check_board()
             legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+            starting_board_fen = (
+                RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
+            )
+            is_starting_board_fen = fen == starting_board_fen
+            ended_game_start_reset = (
+                is_starting_board_fen
+                and bool(self.state.game.move_stack)
+                and not self.state.game_started
+            )
 
             # Check for same position (use variant board_fen for atomic explosions)
-            if fen == self.state.get_board_fen():
+            if ended_game_start_reset:
+                logger.info("start position after ended game detected; treating as new game")
+                handled_fen = False
+            elif fen == self.state.get_board_fen():
                 logger.debug("Already in this fen: %s", fen)
                 self.state.flag_startup = False
                 self.reset_setpieces_window_switch()
                 # molli: Chess tutor
                 if (
                     self.picotutor_mode()
-                    and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_LIFT
+                    and self.state.dgtmenu.get_picocoach() in (PicoCoach.COACH_LIFT, PicoCoach.COACH_HAND)
                     and fen != chess.STARTING_BOARD_FEN
                     and not (self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN)
                     and not self.state.take_back_locked
@@ -2293,7 +2486,13 @@ async def main() -> None:
                     and not self.state.position_mode
                     and not self.state.automatic_takeback
                 ):
-                    await self.call_pico_coach()
+                    if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+                        if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                            await self.state.hand_coach_task
+                        elif self.state.coach_triggered_piece_type is not None:
+                            await self.call_hand_coach(self.state.coach_triggered_piece_type)
+                    else:
+                        await self.call_pico_coach()
                     self.state.coach_triggered = False
                 elif self.state.position_mode:
                     self.state.position_mode = False
@@ -2405,7 +2604,7 @@ async def main() -> None:
                     else:
                         if self.state.interaction_mode == Mode.PGNREPLAY:
                             # its a legal move, so let the user deviate from PGN replay but stop autoplay
-                            self.state.autoplay_pgn_file = False
+                            self._set_pgn_replay_autoplay(False)
                         else:  # TRAINING mode as before, user did an alternativ move for Pico engine
                             await DisplayMsg.show(Message.WRONG_FEN())  # display set pieces/pico's move
                             await asyncio.sleep(3)
@@ -2438,19 +2637,34 @@ async def main() -> None:
 
             # standard legal move
             elif fen in self.state.legal_fens:
-                logger.debug("standard move detected")
-                self.state.newgame_happened = False
-                legal_moves = list(_move_board.legal_moves)
-                move = legal_moves[state.legal_fens.index(fen)]
-                ok = await self.user_move(move, sliding=False)
-                if ok:
-                    self.state.last_legal_fens = self.state.legal_fens
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                else:
+                # Verify the move is actually legal from the CURRENT position.
+                # legal_fens may be stale if left over from a previous game that
+                # executed concurrently (asyncio.create_task per event).
+                # legal_fens_pico is freshly computed from self.state.game at the
+                # top of this function and acts as a reliable staleness detector.
+                # Use its index to avoid stale-index mismatches too.
+                if fen not in legal_fens_pico:
+                    logger.warning(
+                        "process_fen: discarding stale legal_fens entry %s "
+                        "(not legal from current position %s)",
+                        fen,
+                        self.state.game.fen(),
+                    )
                     handled_fen = False
+                else:
+                    logger.debug("standard move detected")
+                    self.state.newgame_happened = False
+                    legal_moves = list(_move_board.legal_moves)
+                    move = legal_moves[legal_fens_pico.index(fen)]
+                    ok = await self.user_move(move, sliding=False)
+                    if ok:
+                        self.state.last_legal_fens = self.state.legal_fens
+                        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
+                            self.state.legal_fens = []
+                        else:
+                            self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                    else:
+                        handled_fen = False
 
             # molli: allow direct play of an alternative move for pico
             elif (
@@ -2618,6 +2832,7 @@ async def main() -> None:
                         end_time_cmove_done = 0
 
                     self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                    self.start_brain_hint_timer()
 
                     if self.pgn_mode():
                         log_pgn(self.state)
@@ -2769,9 +2984,7 @@ async def main() -> None:
                     await DisplayMsg.show(Message.EXIT_MENU())
                 self.state.position_mode = False
             else:
-                if fen == chess.STARTING_BOARD_FEN or (
-                    self.state.variant == "racingkings" and fen == RK_STARTING_BOARD_FEN
-                ):
+                if is_starting_board_fen:
                     pos960 = 518
                     self.state.error_fen = None
                     self.reset_setpieces_window_switch()
@@ -2804,6 +3017,34 @@ async def main() -> None:
                 logger.warning("illegal move [%s]", move)
                 return False
             else:
+                if (
+                    self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                    and self.state.interaction_mode == Mode.NORMAL
+                    and self.state.brain_required_piece_type is not None
+                    and not sliding
+                ):
+                    moved_piece_type = self.state.game.piece_type_at(move.from_square)
+                    if moved_piece_type != self.state.brain_required_piece_type:
+                        logger.info(
+                            "Brain and hand: wrong piece type (expected %s, got %s)",
+                            self.state.brain_required_piece_type,
+                            moved_piece_type,
+                        )
+                        await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_WRONG"))
+                        await asyncio.sleep(1)
+                        await DisplayMsg.show(
+                            Message.PICOTUTOR_MSG(
+                                eval_str="BRAIN_" + self._piece_type_name(self.state.brain_required_piece_type)
+                            )
+                        )
+                        return False
+
+                self.cancel_brain_hint_timer(preserve_best_move=True)
+                self.state.brain_required_piece_type = None
+                if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                    self.state.hand_coach_task.cancel()
+                self.state.hand_coach_task = None
+
                 if self.state.interaction_mode == Mode.BRAIN:
                     ponder_hit = move == self.state.pb_move
                     logger.info(
@@ -2888,6 +3129,7 @@ async def main() -> None:
                 #
                 game_before = self.state.game.copy()
                 self.state.push_move(move)  # this is where user move is made
+                self._set_game_started(True)
                 self._update_variant_shared()
                 logger.debug("user did a move for user")
                 #
@@ -2976,6 +3218,22 @@ async def main() -> None:
                     msg = Message.USER_MOVE_DONE(
                         move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                     )
+                    tutor_reveal_move = None
+                    if self.picotutor_mode():
+                        if (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                            and self.state.last_hand_coach_move is not None
+                        ):
+                            tutor_reveal_move = self.state.last_hand_coach_move
+                            self.state.last_hand_coach_move = None
+                        elif (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN
+                            and self.state.brain_best_move is not None
+                        ):
+                            tutor_reveal_move = self.state.brain_best_move
+                            self.state.brain_best_move = None
+                    if tutor_reveal_move is not None:
+                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3219,10 +3477,11 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
-            # Save CPU at game start: in normal engine-play modes, skip analyser on the
-            # untouched standard starting position (no moves played yet).
+            # Save CPU at idle startup: skip analyser on the untouched standard
+            # starting position until the game lifecycle has actually begun.
             if (
                 self.eng_plays()
+                and not self.state.game_started
                 and self.state.variant == "chess"
                 and self.state.game is not None
                 and not self.state.game.move_stack
@@ -3237,24 +3496,37 @@ async def main() -> None:
             engine_thinking = bool(self.engine and self.engine.is_thinking())
             # reverse the first if in analyse(), meaning: it does not use tutor analysis
             result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
-            # 128 - skip engine analyser when engine is thinking about its move
-            # because as of 128 the engine play will get info from PlayingContinuousAnalyser
+            # skip engine analyser when engine is thinking about its move
+            # (engine play will get info from PlayingContinuousAnalyser instead)
             result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
-            # skip engine analyser if tutor can be used on engine waiting for user turn
-            # this needs to match the if not self.state.picotutor.can_use_coach_analyser():
-            # in analyse
-            result = result and not (
-                self.eng_plays()
-                and self.state.picotutor.can_use_coach_analyser()
-                and self.state.is_user_turn()
-                and not engine_thinking
-            )
-            # if engine plays engine analyser is only started if tutor cannot be used - and only on user turn
             return result
 
         def eng_plays(self) -> bool:
             """return true if engine is playing moves"""
             return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
+
+        def _set_game_started(self, started: bool) -> None:
+            """Update active-game lifecycle state and publish it to web clients."""
+            started = bool(started)
+            self.state.game_started = started
+            self.shared.setdefault("system_info", {})
+            if self.shared["system_info"].get("game_started") == started:
+                return
+            self.shared["system_info"]["game_started"] = started
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"game_started": started}})
+
+        def _set_pgn_replay_autoplay(self, enabled: bool, mode: Mode | None = None) -> None:
+            """Update PGN replay autoplay and publish it to connected web clients."""
+            enabled = bool(enabled)
+            self.state.autoplay_pgn_file = enabled
+            mode_name = (mode or self.state.interaction_mode).name.lower()
+            self.shared.setdefault("system_info", {})
+            update = {
+                "interaction_mode": mode_name,
+                "pgn_replay_autoplay": enabled,
+            }
+            self.shared["system_info"].update(update)
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
         async def get_rid_of_engine_move(self):
             """in some mode switches we need to get rid of a move engine is thinking about"""
@@ -3335,27 +3607,27 @@ async def main() -> None:
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
-                            # In engine-play mode this tutor snapshot is intentionally web-only.
-                            # Clock +/- remains engine-driven (ponder/engine analysis path).
+                            # Tutor output goes to the Tutor: line as before.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                        else:
-                            # is_coach_analyser() must be False here; otherwise the first branch above
-                            # would already have routed analysis through picotutor. Only fall back to
-                            # engine analysis when tutor info cannot be used.
-                            # save cpu - only run engine analysis on user turn if coach/watcher off
-                            analysis_board = self.state.get_move_check_board()
-                            result = await self.engine.get_analysis(analysis_board)
-                            info_list: list[InfoDict] = result.get("info")
-                            info_list_source = "engine"
-                            analysed_fen = result.get("fen", "")
-                            info_for_web_engine = info_list[0] if info_list else None
-                            analysed_fen_for_web_engine = analysed_fen
-                            info_candidate = info_list[0] if info_list else None
-                            if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                                info_list = None  # optimised else: prevent this info from being sent
+                        # Always read ContinuousAnalysis for the Engine: line during the user's
+                        # turn, even when the tutor is also active.  Previously only one or the
+                        # other was read; fast engines (Stockfish) that finish in < 1 s always
+                        # fell here, and with the old tutor-only branch the Engine: line was
+                        # permanently empty.  get_analysis() is a cheap buffer read — the
+                        # ContinuousAnalysis is already running (started by need_engine_analyser).
+                        analysis_board = self.state.get_move_check_board()
+                        result = await self.engine.get_analysis(analysis_board)
+                        info_list: list[InfoDict] = result.get("info")
+                        info_list_source = "engine"
+                        analysed_fen = result.get("fen", "")
+                        info_for_web_engine = info_list[0] if info_list else None
+                        analysed_fen_for_web_engine = analysed_fen
+                        info_candidate = info_list[0] if info_list else None
+                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
+                            info_list = None  # optimised: prevent re-sending analysis at same depth
                     await self._start_or_stop_analysis_as_needed()
             if info_for_web_engine:
                 await self.send_web_analysis(
@@ -3392,7 +3664,7 @@ async def main() -> None:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # timer triggered
             elif self.state.interaction_mode == Mode.PGNREPLAY and self.state.game.is_game_over():
                 if self.state.autoplay_pgn_file:
-                    self.state.autoplay_pgn_file = False
+                    self._set_pgn_replay_autoplay(False)
                     logger.debug("PGN replay ended; autoplay stopped")
             return info
 
@@ -3449,11 +3721,40 @@ async def main() -> None:
                 logger.debug("ignoring web analysis for old fen: %s != %s", analysed_fen, current_fen)
                 return
             (move, score, mate) = PicoTutor.get_score(info)
+            # Don't send incomplete analysis that would show "?" in the UI.
+            # get_score() returns mate=0 (falsy) when there is no mate, so check
+            # "not mate" rather than "mate is None" to cover both None and 0.
+            if score is None and not mate:
+                logger.debug("skip web analysis for %s: no score/mate yet", source)
+                return
             depth = info.get("depth")
             pv_moves = list(info.get("pv") or [])
-            pv_to_send = [m.uci() for m in pv_moves if m] if pv_moves else []
+            # Convert PV to SAN using the analysed position so the web client can render
+            # figurine notation without needing to re-parse UCI+FEN through chess.js.
+            # (chess.js FEN loading or move application can silently fail, falling back to
+            # raw UCI coordinates.  Pre-computing SAN in Python eliminates that code path.)
+            pv_to_send = []
+            if pv_moves and analysed_fen:
+                try:
+                    san_board = chess.Board(analysed_fen)
+                    for m in pv_moves:
+                        if not m or m == chess.Move.null():
+                            break
+                        try:
+                            pv_to_send.append(san_board.san(m))
+                            san_board.push(m)
+                        except (ValueError, AssertionError):
+                            break
+                except Exception:
+                    pass
+            if not pv_to_send:
+                # Fallback: raw UCI (SAN board construction failed; JS will attempt chess.js parsing)
+                pv_to_send = [m.uci() for m in pv_moves if m and m != chess.Move.null()]
             if not pv_to_send and move and move != chess.Move.null():
-                pv_to_send = [move.uci()]
+                try:
+                    pv_to_send = [chess.Board(analysed_fen).san(move)]
+                except Exception:
+                    pv_to_send = [move.uci()]
             analysis_payload = {
                 "depth": depth,
                 "score": score,
@@ -3500,7 +3801,7 @@ async def main() -> None:
                         )
                     )
             if not next_move:
-                self.state.autoplay_pgn_file = False  # always stop autoplay, not only else/elif
+                self._set_pgn_replay_autoplay(False)  # always stop autoplay, not only else/elif
                 logger.debug(
                     "No more PGN replay moves: halfmoves game %d, pgn %d, last seen automove %d",
                     moves_game,
@@ -3522,8 +3823,14 @@ async def main() -> None:
                 internal_fen = game_fen
                 external_fen = self.state.error_fen
                 fen_res = compare_fen(external_fen, internal_fen)
-                if fen_res and (fen_res[4] == "K" or fen_res[4] == "k"):
-                    self.state.coach_triggered = True
+                if fen_res and len(fen_res) > 4:
+                    lifted_piece_char = fen_res[4]
+                    is_hand_mode = (
+                        self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                        and self.picotutor_mode()
+                    )
+                    if lifted_piece_char in ("K", "k") or is_hand_mode:
+                        self.state.coach_triggered = True
                 if (
                     self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.BRAIN)
                     and self.state.error_fen != chess.STARTING_BOARD_FEN
@@ -3562,16 +3869,24 @@ async def main() -> None:
                         else:
                             fen1 += " b KQkq - 0 1"
                             fen2 += " w KQkq - 0 1"
-                        # ask python-chess to correct the castling string
+
                         bit_board = chess.Board(fen1)
-                        bit_board.set_fen(bit_board.fen())
+                        bit_board.set_fen(bit_board.fen())  # let python-chess correct castling rights
                         if bit_board.is_valid():
-                            self.state.game = chess.Board(bit_board.fen())
+                            accepted_fen = bit_board.fen()
+                        else:
+                            bit_board = chess.Board(fen2)
+                            bit_board.set_fen(bit_board.fen())
+                            accepted_fen = bit_board.fen() if bit_board.is_valid() else None
+
+                        if accepted_fen:
+                            self.state.game = chess.Board(accepted_fen)
                             # Sync variant boards with new position
                             if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                                self.state._threecheck_board.set_fen(bit_board.fen())
+                                self.state._threecheck_board.set_fen(accepted_fen)
                             elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                                self.state._atomic_board.set_fen(bit_board.fen())
+                                self.state._atomic_board.set_fen(accepted_fen)
+                            self._update_variant_shared()
                             await self.engine.newgame(self.state.engine_board_copy(), False)
                             self.state.best_sent_depth.reset()
                             self.state.done_computer_fen = None
@@ -3584,34 +3899,11 @@ async def main() -> None:
                             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                             await DisplayMsg.show(self.state.new_game_msg(newgame=False))
                             await self.set_picotutor_position(new_game=True)  # issue #78 new code
+                            await self._start_or_stop_analysis_as_needed()
                         else:
-                            # ask python-chess to correct the castling string
-                            bit_board = chess.Board(fen2)
-                            bit_board.set_fen(bit_board.fen())
-                            if bit_board.is_valid():
-                                self.state.game = chess.Board(bit_board.fen())
-                                # Sync variant boards with new position
-                                if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                                    self.state._threecheck_board.set_fen(bit_board.fen())
-                                elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                                    self.state._atomic_board.set_fen(bit_board.fen())
-                                await self.engine.newgame(self.state.engine_board_copy(), False)
-                                self.state.best_sent_depth.reset()
-                                self.state.done_computer_fen = None
-                                self.state.done_move = self.state.pb_move = chess.Move.null()
-                                self.state.searchmoves.reset()
-                                self.state.game_declared = False
-                                self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
-                                self.state.legal_fens_after_cmove = []
-                                self.state.last_legal_fens = []
-                                await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
-                                await DisplayMsg.show(
-                                    self.state.new_game_msg(newgame=False)
-                                )
-                                await self.set_picotutor_position(new_game=True)  # issue #78 new code
-                            else:
-                                logger.info("wrong fen %s for 4 secs", self.state.error_fen)
-                                await DisplayMsg.show(Message.WRONG_FEN())
+                            logger.info("wrong fen %s for 4 secs", self.state.error_fen)
+                            await DisplayMsg.show(Message.WRONG_FEN())
+
                 else:
                     logger.info("wrong fen %s for 4 secs", self.state.error_fen)
                     if self.online_mode():
@@ -3642,21 +3934,53 @@ async def main() -> None:
                             self.state.setpieces_switch_armed = True
 
                     if (not self.state.position_mode) and fen_res:
-                        if fen_res[4] == "K" or fen_res[4] == "k":
+                        lifted_piece_char = fen_res[4] if len(fen_res) > 4 else ""
+                        is_king_lift = lifted_piece_char in ("K", "k")
+                        is_hand_mode = (
+                            self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
+                            and self.picotutor_mode()
+                        )
+                        self.state.coach_triggered_piece_type = None
+                        if is_king_lift or is_hand_mode:
                             self.state.coach_triggered = True
                             if not self.picotutor_mode():
                                 self.state.position_mode = True
+                            self.cancel_brain_hint_timer()
+                            if is_hand_mode and lifted_piece_char:
+                                piece_char_map = {
+                                    "P": chess.PAWN,
+                                    "N": chess.KNIGHT,
+                                    "B": chess.BISHOP,
+                                    "R": chess.ROOK,
+                                    "Q": chess.QUEEN,
+                                    "K": chess.KING,
+                                    "p": chess.PAWN,
+                                    "n": chess.KNIGHT,
+                                    "b": chess.BISHOP,
+                                    "r": chess.ROOK,
+                                    "q": chess.QUEEN,
+                                    "k": chess.KING,
+                                }
+                                self.state.coach_triggered_piece_type = piece_char_map.get(lifted_piece_char)
+                                if self.state.coach_triggered_piece_type is not None:
+                                    if self.state.hand_coach_task and not self.state.hand_coach_task.done():
+                                        self.state.hand_coach_task.cancel()
+                                    self.state.last_hand_coach_move = None
+                                    self.state.hand_coach_task = asyncio.ensure_future(
+                                        self.call_hand_coach(self.state.coach_triggered_piece_type)
+                                    )
                         else:
                             self.state.position_mode = True
                             self.state.coach_triggered = False
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
-                            if not self.state.setpieces_switch_anchor_fen:
-                                self.state.setpieces_switch_anchor_fen = external_fen
-                                self.state.setpieces_switch_armed = False
-                            await DisplayMsg.show(Message.WRONG_FEN())
-                            await asyncio.sleep(2)
+                            if not is_hand_mode:
+                                if not self.state.setpieces_switch_anchor_fen:
+                                    self.state.setpieces_switch_anchor_fen = external_fen
+                                    self.state.setpieces_switch_armed = False
+                                await DisplayMsg.show(Message.WRONG_FEN())
+                                await asyncio.sleep(2)
                         self.state.delay_fen_error = 4
                         # molli: Picochess correction messages
                         # show incorrect square(s) and piece to put or be removed
@@ -3841,7 +4165,7 @@ async def main() -> None:
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
             self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
-            self.state.autoplay_pgn_file = False  # if you load a 2nd PGN it will autosave from move 1
+            self._set_pgn_replay_autoplay(False)  # if you load a 2nd PGN it will autosave from move 1
             self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
             self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
 
@@ -4201,7 +4525,8 @@ async def main() -> None:
         def _start_pgn_replay_autoplay(self) -> None:
             """Enable PGN replay autoplay without advancing immediately."""
             if self.can_do_next_pgn_replay_move():
-                self.state.autoplay_pgn_file = True
+                self._set_game_started(True)
+                self._set_pgn_replay_autoplay(True)
 
         def _get_cached_pgn_next_move(self) -> chess.Move | None:
             """Return cached next PGN move for current FEN, computing when needed."""
@@ -4274,7 +4599,8 @@ async def main() -> None:
         def game_end_event(self):
             #  @todo1 should have an EVENT message for game end, function for now
             #  @todo2 should be more state variables to reset here?
-            self.state.autoplay_pgn_file = False  # prevent autoplay starting for next pgn read
+            self._set_game_started(False)
+            self._set_pgn_replay_autoplay(False)  # prevent autoplay starting for next pgn read
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
             self.state.pgn_engine_games = []
@@ -4333,21 +4659,24 @@ async def main() -> None:
             elif isinstance(event, Event.KEYBOARD_MOVE):
                 move = event.move
                 logger.debug("keyboard move [%s]", move)
-                # Use variant board for legality check (atomic has different legal moves)
-                _check_board = self.state.get_move_check_board()
-                if move not in _check_board.legal_moves:
-                    logger.warning("illegal move. fen: [%s]", self.state.game.fen())
+                if move.from_square == move.to_square:
+                    await self._handle_same_square_input(move.from_square)
                 else:
-                    game_copy = self.state.game.copy()
-                    game_copy.push(move)
-                    # For atomic variant, use atomic board to get FEN with explosions applied
-                    if self.state.variant == "atomic" and self.state._atomic_board is not None:
-                        atomic_copy = self.state._atomic_board.copy()
-                        atomic_copy.push(move)
-                        fen = atomic_copy.board_fen()
+                    # Use variant board for legality check (atomic has different legal moves)
+                    _check_board = self.state.get_move_check_board()
+                    if move not in _check_board.legal_moves:
+                        logger.warning("illegal move. fen: [%s]", self.state.game.fen())
                     else:
-                        fen = game_copy.board_fen()
-                    await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
+                        game_copy = self.state.game.copy()
+                        game_copy.push(move)
+                        # For atomic variant, use atomic board to get FEN with explosions applied
+                        if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                            atomic_copy = self.state._atomic_board.copy()
+                            atomic_copy.push(move)
+                            fen = atomic_copy.board_fen()
+                        else:
+                            fen = game_copy.board_fen()
+                        await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
 
             elif isinstance(event, Event.LEVEL):
                 if event.options:
@@ -4803,7 +5132,8 @@ async def main() -> None:
 
             elif isinstance(event, Event.NEW_GAME):
                 await self.get_rid_of_engine_move()
-                self.state.autoplay_pgn_file = False  # stop auto replay of pgn file if new game started
+                self._set_game_started(False)
+                self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False
@@ -5137,7 +5467,7 @@ async def main() -> None:
                     elif self.state.interaction_mode == Mode.PGNREPLAY:
                         # Built in PGN Replay mode - toggle autoplay on or off
                         if self.state.autoplay_pgn_file:
-                            self.state.autoplay_pgn_file = False  # stop auto replay of pgn
+                            self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn
                         else:
                             # if we are not already waiting for an autoplay move make the first move
                             if self.can_do_next_pgn_replay_move():
@@ -5146,7 +5476,7 @@ async def main() -> None:
                             else:
                                 auto_move = None
                             if auto_move:
-                                self.state.autoplay_pgn_file = True  # start auto replay of pgn
+                                self._set_pgn_replay_autoplay(True)  # start auto replay of pgn
                             else:
                                 msg = Message.SHOW_TEXT(text_string="no move")
                                 await DisplayMsg.show(msg)
@@ -5154,6 +5484,7 @@ async def main() -> None:
                         if self.state.time_control.internal_running():
                             await self.state.stop_clock()
                         else:
+                            self._set_game_started(True)
                             await self.state.start_clock()
                     else:
                         logger.debug("best move displayed, dont start/stop clock")
@@ -5292,6 +5623,7 @@ async def main() -> None:
                         await self.think(msg)  # PLAY_MODE
                     else:
                         await DisplayMsg.show(msg)  # PLAY_MODE
+                        self._set_game_started(True)
                         await self.state.start_clock()
                         self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
@@ -5335,6 +5667,7 @@ async def main() -> None:
                             await self.think(msg)
                         else:
                             await DisplayMsg.show(msg)
+                            self._set_game_started(True)
                             await self.state.start_clock()
                             self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
 
@@ -5388,7 +5721,13 @@ async def main() -> None:
 
             elif isinstance(event, Event.REMOTE_MOVE):
                 self.state.flag_startup = False
-                if self.board_type == dgt.util.EBoard.NOEBOARD:
+                if event.move.from_square == event.move.to_square:
+                    await self._handle_same_square_input(event.move.from_square)
+                elif self.board_type == dgt.util.EBoard.NOEBOARD:
+                    # Mirror process_fen(): once a real user move starts the new
+                    # game, the next BEST_MOVE belongs to this game, not the
+                    # previous-game stale-move guard.
+                    self.state.newgame_happened = False
                     await self.user_move(event.move, sliding=False)
                 else:
                     if self.state.interaction_mode == Mode.REMOTE and self.state.is_not_user_turn():
@@ -5690,6 +6029,14 @@ async def main() -> None:
                                             logger.error("engine re-load failed")
                                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(0.5)
+                        elif self.state.newgame_happened:
+                            # A new game was started while the engine was thinking.
+                            # Discard the stale move – sending MSG_COMPUTER_MOVE now
+                            # would display an illegal move on the new game's board.
+                            logger.debug(
+                                "EVT_BEST_MOVE: discarding stale engine move %s – new game started during think",
+                                event.move,
+                            )
                         else:
                             # normal computer move
                             if event.inbook:
@@ -5752,11 +6099,14 @@ async def main() -> None:
                                 )
 
                                 await asyncio.sleep(0.5)
-                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
-
+                                # Push the move and sync variant boards (e.g. 3check counter)
+                                # BEFORE firing COMPUTER_MOVE_DONE so that the server-side
+                                # _attach_variant_info re-stamp in COMPUTER_MOVE_DONE reads
+                                # the freshly updated checks_remaining, not the pre-move value.
                                 self.state.best_move_posted = False
                                 self.state.push_move(self.state.done_move)  # computer move without human assistance
                                 self._update_variant_shared()
+                                await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
                                 self.state.done_computer_fen = None
                                 self.state.done_move = chess.Move.null()
 
@@ -5820,6 +6170,7 @@ async def main() -> None:
                                         end_time_cmove_done = 0
 
                                     self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+                                    self.start_brain_hint_timer()
 
                                     if self.pgn_mode():
                                         log_pgn(self.state)
@@ -5881,7 +6232,7 @@ async def main() -> None:
                         logger.info("engine status: t:%s p:%s", self.engine.is_thinking(), self.engine.is_pondering())
 
             elif isinstance(event, Event.NEW_SCORE):
-                if event.score:
+                if event.score is not None:
                     if event.score == 99999 or event.score == -99999:
                         self.state.flag_pgn_game_over = True  # molli pgn mode: signal that pgn is at end
                     else:
@@ -5916,9 +6267,11 @@ async def main() -> None:
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move
-                if not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+                if self.state.interaction_mode == Mode.PGNREPLAY and event.mode != Mode.PGNREPLAY:
+                    self._set_pgn_replay_autoplay(False, mode=event.mode)
+                elif not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do i we change from a non-playing mode to a playing mode
-                    self.state.autoplay_pgn_file = False  # stop possible auto replay of pgn file
+                    self._set_pgn_replay_autoplay(False, mode=event.mode)  # stop possible auto replay of pgn file
                 if (
                     event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING) and self.state.done_computer_fen
                 ):  # @todo check why still needed
@@ -6010,27 +6363,48 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 await DisplayMsg.show(Message.PICOWATCHER(picowatcher=event.picowatcher))
 
             elif isinstance(event, Event.PICOCOACH):
                 coach_request = event.picocoach
-                if coach_request in (PicoCoach.COACH_OFF, PicoCoach.COACH_ON, PicoCoach.COACH_LIFT):
+                if coach_request in (
+                    PicoCoach.COACH_OFF,
+                    PicoCoach.COACH_ON,
+                    PicoCoach.COACH_LIFT,
+                    PicoCoach.COACH_BRAIN,
+                    PicoCoach.COACH_HAND,
+                ):
+                    self.state.coach_triggered_piece_type = None
                     if coach_request == PicoCoach.COACH_OFF:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
                         write_picochess_ini("tutor-coach", "off")
+                        self.cancel_brain_hint_timer()
                     elif coach_request == PicoCoach.COACH_ON:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
                         write_picochess_ini("tutor-coach", "on")
-                    else:
+                    elif coach_request == PicoCoach.COACH_LIFT:
                         self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
                         self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_LIFT
                         write_picochess_ini("tutor-coach", "lift")
+                    elif coach_request == PicoCoach.COACH_BRAIN:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
+                        write_picochess_ini("tutor-coach", "brain")
+                    else:
+                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_HAND
+                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND
+                        write_picochess_ini("tutor-coach", "hand")
                 elif coach_request == 0:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
                     write_picochess_ini("tutor-coach", "off")
+                    self.cancel_brain_hint_timer()
                 elif coach_request == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
                     self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
                     self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
@@ -6042,8 +6416,16 @@ async def main() -> None:
                     self.state.dgtmenu.get_picoexplorer(),
                     self.state.dgtmenu.get_picocomment(),
                 )
+                coach_mode = self.state.dgtmenu.get_picocoach()
+                if coach_mode != PicoCoach.COACH_BRAIN:
+                    self.cancel_brain_hint_timer()
+                if coach_mode != PicoCoach.COACH_HAND and self.state.hand_coach_task:
+                    if not self.state.hand_coach_task.done():
+                        self.state.hand_coach_task.cancel()
+                    self.state.hand_coach_task = None
+                    self.state.last_hand_coach_move = None
 
-                if event.picocoach != PicoCoach.COACH_OFF:
+                if coach_mode != PicoCoach.COACH_OFF:
                     self.state.flag_picotutor = True
                     # @ todo - why do we need to set tutor pos here?
                     await self.set_picotutor_position()
@@ -6056,13 +6438,22 @@ async def main() -> None:
 
                 if self.state.flag_picotutor:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                    if coach_mode == PicoCoach.COACH_BRAIN:
+                        self.start_brain_hint_timer()
+                # Clear stale web analysis lines and restart the engine analyser so the
+                # correct lines (engine / tutor) appear immediately after tutor state change.
+                await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+                await self._start_or_stop_analysis_as_needed()
                 if coach_request != 2:
-                    coach_mode = self.state.dgtmenu.get_picocoach()
                     coach_msg = 0
                     if coach_mode == PicoCoach.COACH_ON:
                         coach_msg = 1
                     elif coach_mode == PicoCoach.COACH_LIFT:
                         coach_msg = 2
+                    elif coach_mode == PicoCoach.COACH_BRAIN:
+                        coach_msg = 3
+                    elif coach_mode == PicoCoach.COACH_HAND:
+                        coach_msg = 4
                     await DisplayMsg.show(Message.PICOCOACH(picocoach=coach_msg))
                     if self.shared is not None:
                         if coach_mode != PicoCoach.COACH_OFF:
@@ -6074,9 +6465,17 @@ async def main() -> None:
 
                 if self.state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF and coach_request == 2:
                     # call pico coach in case it was already set to on
-                    await self.call_pico_coach()
+                    if self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_BRAIN:
+                        self.start_brain_hint_timer()
+                    elif self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND:
+                        self.state.last_hand_coach_move = None
+                    else:
+                        await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
+                self.state.dgtmenu.menu_picotutor_picoexplorer = event.picoexplorer
+                self.state.dgtmenu.res_picotutor_picoexplorer = event.picoexplorer
+                write_picochess_ini("tutor-explorer", event.picoexplorer)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
                     self.state.dgtmenu.get_picowatcher(),
@@ -6182,10 +6581,29 @@ async def main() -> None:
                     await self.takeback()
 
             elif isinstance(event, Event.PICOCOMMENT):
-                if event.picocomment == "comment-factor":
-                    self.pico_talker.set_comment_factor(comment_factor=self.state.dgtmenu.get_comment_factor())
-                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+                if isinstance(event.picocomment, str) and event.picocomment.startswith("comment-factor"):
+                    if ":" in event.picocomment:
+                        try:
+                            comment_factor = max(0, min(100, int(event.picocomment.split(":", 1)[1])))
+                        except (TypeError, ValueError):
+                            comment_factor = self.state.dgtmenu.get_comment_factor()
+                        self.state.dgtmenu.menu_picotutor_picocomment_prob_list = str(comment_factor)
+                        self.state.dgtmenu.res_picotutor_picocomment_prob = comment_factor
+                        write_picochess_ini("comment-factor", str(comment_factor))
+                    else:
+                        comment_factor = self.state.dgtmenu.get_comment_factor()
+                    self.pico_talker.set_comment_factor(comment_factor=comment_factor)
+                    await DisplayMsg.show(Message.PICOCOMMENT(picocomment=f"comment-factor:{comment_factor}"))
                 else:
+                    _comment_ini = {
+                        PicoComment.COM_OFF:    "off",
+                        PicoComment.COM_ON_ENG: "single",
+                        PicoComment.COM_ON_ALL: "all",
+                    }
+                    if event.picocomment in _comment_ini:
+                        self.state.dgtmenu.menu_picotutor_picocomment = event.picocomment
+                        self.state.dgtmenu.res_picotutor_picocomment = event.picocomment
+                        write_picochess_ini("tutor-comment", _comment_ini[event.picocomment])
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment=event.picocomment))
 
             elif isinstance(event, Event.SET_TIME_CONTROL):
@@ -6398,8 +6816,9 @@ async def main() -> None:
             elif isinstance(event, Event.UPDATE_PICO):
                 await DisplayMsg.show(Message.UPDATE_PICO())
                 if not event.tag or event.tag == "":
-                    # full update at next boot for all scripts
-                    update_pico_v4()  # in utilities for now
+                    # Run install-picochess.sh twice in the background, then
+                    # restart the picochess service (no full reboot required).
+                    update_picochess_now()
                 else:
                     # only update code to a specific tag
                     checkout_tag(event.tag)

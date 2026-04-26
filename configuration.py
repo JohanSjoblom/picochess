@@ -339,9 +339,9 @@ class Configuration:
         self.parser.add_argument(
             "-coch",
             "--tutor-coach",
-            choices=["on", "off", "lift"],
+            choices=["on", "off", "lift", "brain", "hand"],
             default="off",
-            help="Pico Coach: move and position evaluation, move suggestion etc. on demand, default is off, when selecting lift you can trigger the coach by lifting and putting back a piece",
+            help="Pico Coach: move and position evaluation, move suggestion etc. on demand, default is off; lift triggers coach by lifting and replacing a piece; brain/hand are experimental Brain and hand coach options",
         )
         self.parser.add_argument(
             "-coan",
@@ -361,6 +361,21 @@ class Configuration:
             type=str,
             default="off",
             help="show game comments based on specific engines (=single) or in general (=all). Default value is off",
+        )
+        self.parser.add_argument(
+            "-tbh",
+            "--tutor-brain-hint-display",
+            type=int,
+            default=0,
+            choices=range(0, 9),
+            help="experimental Brain and hand coach: seconds to keep the piece-type hint on the DGT display (0=until user plays, 1-8 seconds)",
+        )
+        self.parser.add_argument(
+            "-tbrt",
+            "--tutor-brain-reveal-text",
+            choices=["on", "off"],
+            default="on",
+            help="experimental Brain and hand coach: show the tutor's revealed move as text on the DGT clock after the user plays",
         )
         self.parser.add_argument(
             "-loc",

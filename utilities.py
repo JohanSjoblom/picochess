@@ -280,6 +280,38 @@ def update_pico_v4(reason: Optional[str] = None):
         logger.info("Failed to create update flag. Cannot update picochess on next boot.")
 
 
+def update_picochess_now():
+    """Run install-picochess.sh twice in the background, then restart PicoChess.
+
+    The install script must be run twice: the first pass may update the script
+    itself; the second pass uses the updated version to update the application code.
+    After both passes, chromium (kiosk) is killed so it reconnects to the fresh
+    server, and PicoChess is restarted via systemctl (no full reboot required).
+    """
+    script = "/opt/picochess/install-picochess.sh"
+    logfile = "/var/log/picochess-update.log"
+    cmd = (
+        f"echo \"$(date): Update pass 1/2...\" >> '{logfile}' 2>&1 && "
+        f"sh '{script}' pico noengines >> '{logfile}' 2>&1 && "
+        f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
+        f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
+        f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
+        f"pkill -f chromium 2>/dev/null ; "
+        f"systemctl restart picochess"
+    )
+    try:
+        subprocess.Popen(
+            ["sudo", "sh", "-c", cmd],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logger.info("PicoChess update started in background (2-pass install + service restart).")
+    except Exception as exc:
+        logger.error("Failed to start PicoChess update: %s", exc)
+
+
 async def update_picochess(dgtpi: bool, auto_reboot: bool, dgttranslate: DgtTranslate):
     """Update picochess from git."""
     git = git_name()

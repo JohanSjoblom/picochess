@@ -922,6 +922,14 @@ class DgtBoard(EBoard):
                         dev = path.join("/dev", file)
                         if self._open_serial(dev):
                             return _success(dev)
+                # rfcomm123 may have been created externally (e.g. reconnect-dgt-bt.sh).
+                # Only use the shortcut when the internal BT state machine is idle
+                # (bt_state == -1); if it is running it will handle rfcomm123 itself
+                # at state 7 — intercepting it here would skip the btctl cleanup and
+                # leave the bluetoothctl subprocess in a broken state.
+                if self.bt_state == -1 and path.exists("/dev/rfcomm123"):
+                    if self._open_serial("/dev/rfcomm123"):
+                        return _success("/dev/rfcomm123")
                 if self._open_bluetooth():
                     return _success("/dev/rfcomm123")
 

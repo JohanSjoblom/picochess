@@ -186,6 +186,7 @@ class MessageApi:
     LOST_ON_TIME = "MSG_LOST_ON_TIME"
     SET_NOBOOK = "MSG_SET_NOBOOK"
     PICOTUTOR_MSG = "MSG_PICOTUTOR_MSG"
+    TUTOR_MOVE_REVEAL = "MSG_TUTOR_MOVE_REVEAL"
     POSITION_FAIL = "MSG_POSITION_FAIL"
     TIMECONTROL_CHECK = "MSG_TIMECONTROL_CHECK"
     REMOTE_ROOM = "MSG_REMOTE_ROOM"  # User enters/leaves a remote room
@@ -276,6 +277,7 @@ class Message:
     CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, ["devs"])
     CLOCK_TIME = ClassFactory(MessageApi.CLOCK_TIME, ["time_white", "time_black", "low_time"])
     USER_MOVE_DONE = ClassFactory(MessageApi.USER_MOVE_DONE, ["move", "fen", "turn", "game"])
+    TUTOR_MOVE_REVEAL = ClassFactory(MessageApi.TUTOR_MOVE_REVEAL, ["move"])
     GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ["tc_init", "result", "play_mode", "game", "mode"])
 
     SYSTEM_INFO = ClassFactory(MessageApi.SYSTEM_INFO, ["info"])

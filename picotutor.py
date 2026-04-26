@@ -1352,3 +1352,46 @@ class PicoTutor:
         if score is not None:
             score = score / 100.0
         return best_move, score, mate, self.alt_best_moves[turn]
+
+    async def get_best_move_for_piece_type(self, piece_type: chess.PieceType):
+        """Return the best available move for any piece of the requested type."""
+        result = await self.get_pos_analysis()
+        if result:
+            best_move, _score, _mate, alt_best_moves = result
+            for move in [best_move] + list(alt_best_moves):
+                if move != chess.Move.null() and self.board.piece_type_at(move.from_square) == piece_type:
+                    return move
+
+        candidates = [
+            move for move in self.board.legal_moves
+            if self.board.piece_type_at(move.from_square) == piece_type
+        ]
+        if not candidates:
+            return None
+
+        piece_values = {
+            chess.PAWN: 1,
+            chess.KNIGHT: 3,
+            chess.BISHOP: 3,
+            chess.ROOK: 5,
+            chess.QUEEN: 9,
+            chess.KING: 0,
+        }
+        center = {chess.D4, chess.D5, chess.E4, chess.E5}
+
+        def score_move(move: chess.Move) -> int:
+            score = 0
+            if self.board.is_capture(move):
+                victim = self.board.piece_type_at(move.to_square)
+                score += 10 * piece_values.get(victim, 0) - piece_values.get(piece_type, 0)
+            board = self.board.copy()
+            board.push(move)
+            if board.is_check():
+                score += 5
+            if move.to_square in center:
+                score += 2
+            return score
+
+        candidates.sort(key=score_move, reverse=True)
+        logger.info("Brain and hand fallback for piece type %s: returning %s", piece_type, candidates[0])
+        return candidates[0]

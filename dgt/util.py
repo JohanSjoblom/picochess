@@ -254,11 +254,19 @@ class PicoCoach(MyEnum):
 
     COACH_ON = "B00_picocoach_on"
     COACH_LIFT = "B00_picocoach_lift"
+    COACH_BRAIN = "B00_picocoach_brain"
+    COACH_HAND = "B00_picocoach_hand"
     COACH_OFF = "B00_picocoach_off"
 
     @classmethod
     def items(cls):
-        return [PicoCoach.COACH_ON, PicoCoach.COACH_LIFT, PicoCoach.COACH_OFF]
+        return [
+            PicoCoach.COACH_ON,
+            PicoCoach.COACH_LIFT,
+            PicoCoach.COACH_BRAIN,
+            PicoCoach.COACH_HAND,
+            PicoCoach.COACH_OFF,
+        ]
 
     @classmethod
     def from_str(cls, s):
@@ -268,6 +276,10 @@ class PicoCoach(MyEnum):
             return PicoCoach.COACH_OFF
         elif s == "lift":
             return PicoCoach.COACH_LIFT
+        elif s == "brain":
+            return PicoCoach.COACH_BRAIN
+        elif s == "hand":
+            return PicoCoach.COACH_HAND
         else:
             return PicoCoach.COACH_OFF
 
@@ -554,10 +566,11 @@ class SystemLoop(object):
 class Bluetooth(MyEnum):
     PAIR_PHONE = "B00_bluetooth_pair_menu"
     FIX_BT = "B00_bluetooth_fix_menu"
+    RECONNECT_DGT = "B00_bluetooth_reconnect_menu"
 
     @classmethod
     def items(cls):
-        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT]
+        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT, Bluetooth.RECONNECT_DGT]
 
 
 class BluetoothLoop(object):

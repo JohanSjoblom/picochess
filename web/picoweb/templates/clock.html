@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="{{ 'light' if theme=='light' else 'dark' }}">
 
 <head>
     <meta charset="utf-8">
@@ -25,37 +25,14 @@
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
     <link rel="stylesheet" href="/static/css/base.css" />
-    <link rel="stylesheet" href="/static/css/responsive/1024x600.css" />
-    <link rel="stylesheet" href="/static/css/responsive/1280x800.css" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
-        /* 3check variant: check counter styles */
-        .check-counter {
-            font-size: 1.1em;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin: 0 3px;
-        }
-
-        .check-counter.white-checks {
-            background: #fff;
-            color: #000;
-            border: 1px solid #000;
-        }
-
-        .check-counter.black-checks {
-            background: #333;
-            color: #fff;
-            border: 1px solid #fff;
-        }
-
-        /* Enable vertical scrolling for mobile portrait mode */
+        /* Let the page own vertical scrolling in portrait mode.
+           Keeping a separate .scroll-portrait scrollbar leaves the footer
+           outside the scrolled area and creates double vertical scrollbars. */
         @media (max-width: 768px) {
             .scroll-portrait {
-                height: 98vh;
-                overflow-y: auto;
                 overflow-x: hidden;
                 -webkit-overflow-scrolling: touch;
             }
@@ -66,59 +43,7 @@
             }
         }
 
-        /* Barra de evaluación horizontal */
-        .evaluation-bar-horizontal {
-            margin-bottom: 10px;
-        }
-
-        .evaluation-container-horizontal {
-            position: relative;
-            width: 100%;
-            height: 20px;
-            background: linear-gradient(to right, #f8f9fa 0%, #f8f9fa 50%, #343a40 50%, #343a40 100%);
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .evaluation-fill-horizontal {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            height: 100%;
-            background-color: rgba(248, 249, 250, 0.9);
-            transition: all 0.3s ease;
-        }
-
-        .evaluation-fill-horizontal.negative {
-            background-color: rgba(52, 58, 64, 0.9);
-        }
-
-        .evaluation-center-line-horizontal {
-            position: absolute;
-            left: 50%;
-            top: 0;
-            width: 1px;
-            height: 100%;
-            background-color: #6c757d;
-            transform: translateX(-50%);
-        }
-
-        .evaluation-value-horizontal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-weight: bold;
-            font-size: 20px;
-            color: #000;
-            background: transparent;
-            padding: 2px 4px;
-            border-radius: 3px;
-            white-space: nowrap;
-            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
-        }
+        /* Vertical evaluation bar styles are in base.css (.pico-eval-bar) */
 
         /* Book moves table: fixed layout so width is constant */
         #BookTable {
@@ -249,29 +174,6 @@
         .btn-light:hover {
             background: linear-gradient(145deg, #ffffff, #f8f9fa) !important;
             color: #495057 !important;
-        }
-
-        /* Board controls: keep Get PGN / Upload labels non-bold */
-        #uploadBtn,
-        #downloadBtn,
-        #uploadBtn .btn-text,
-        #downloadBtn .btn-text {
-            font-weight: 400 !important;
-        }
-
-        @media (max-width: 768px) and (orientation: portrait) {
-
-            #uploadBtn,
-            #downloadBtn {
-                background: linear-gradient(145deg, #5bc0de, #31b0d5) !important;
-                color: white !important;
-            }
-
-            #uploadBtn:hover,
-            #downloadBtn:hover {
-                background: linear-gradient(145deg, #6bd0ee, #41c0e5) !important;
-                color: white !important;
-            }
         }
 
         /* Universal active state - all buttons turn green when active */
@@ -601,81 +503,56 @@
                     <div class="card">
                         <div id="board_panel" class="panel panel-primary">
                             <div class="card-body" style="position:relative;">
-                                <div id="evaluationBar" class="evaluation-bar-horizontal" style="visibility: hidden;">
-                                    <div class="evaluation-container-horizontal">
-                                        <div class="evaluation-fill-horizontal" id="evaluationFill"></div>
-                                        <div class="evaluation-center-line-horizontal"></div>
-                                        <div class="evaluation-value-horizontal" id="evaluationValue">0.0</div>
+                                <div class="board-eval-wrapper">
+                                    <div id="evaluationBar" class="pico-eval-bar" style="visibility:hidden;" title="" aria-label="Evaluation bar" role="meter" aria-valuemin="-8" aria-valuemax="8" aria-valuenow="0">
+                                        <div id="evaluationFill"></div>
+                                        <div id="evaluationValue"></div>
                                     </div>
+                                    <section id="xboardsection" class="{{ board.replace('_', '-') }} {{ pieces }} svg-container" title="Click a piece to move, or type a move (e.g. e2e4)" aria-label="Chess board">
+                                        <div class="board-container">
+                                            <div id="board" class="svg-content" style="margin-bottom: 10px;"></div>
+                                        </div>
+                                    </section>
                                 </div>
-                                <section id="xboardsection" class="{{ board.replace('_', '-') }} {{ pieces }} svg-container">
-                                    <div class="board-container">
-                                        <div id="board" class="svg-content" style="margin-bottom: 10px;"></div>
-                                    </div>
-                                </section>
-                                <div class="container-fluid" id="boardcontrol" style="height:79px; border-bottom-width:20px;
-                                                                margin-bottom: 0px;">
+                                <div class="container-fluid" id="boardcontrol" style="border-bottom-width:20px; margin-bottom: 0px;">
                                     <div class="row" id="boardButtons">
                                         <div class="text-center">
-                                            <div class="btn-group btn-group-sm d-flex" role="group">
-                                                <button type="button" id="flipOrientationBtn" class="btn btn-light">
-                                                    <i class="fa fa-refresh"></i></button>
-                                                <button type="button" id="DgtSyncBtn" class="btn btn-light">
-                                                    <i class="fa fa-delicious"></i></button>
+                                            <div class="btn-group btn-group-sm d-flex" role="group" aria-label="Board controls">
+                                                <button type="button" id="flipOrientationBtn" class="btn btn-light" aria-label="Flip board" title="Flip board">
+                                                    <i class="fa fa-refresh" aria-hidden="true"></i></button>
+                                                <button type="button" id="DgtSyncBtn" class="btn btn-light" aria-label="Sync with DGT board" title="Sync with DGT board">
+                                                    <i class="fa fa-delicious" aria-hidden="true"></i></button>
                                                 <button type="button" id="colorBtn" class="btn btn-light"
-                                                    style="font-size: 0.7em;">
+                                                    style="font-size: 0.7em; display:none;" aria-label="Board color">
                                                     CLR</button>
                                                 <button type="button" id="piecesBtn" class="btn btn-light"
-                                                    style="font-size: 0.7em;">
+                                                    style="font-size: 0.7em; display:none;" aria-label="Piece set">
                                                     PCS</button>
-                                                <button type="button" id="startBtn" class="btn btn-light">
-                                                    <i class='fa fa-fast-backward'></i></button>
-                                                <button type="button" id="backBtn" class="btn btn-light">
-                                                    <i class='fa fa-arrow-left'></i></button>
-                                                <button type="button" id="fwdBtn" class="btn btn-light">
-                                                    <i class='fa fa-arrow-right'></i></button>
-                                                <button type="button" id="endBtn" class="btn btn-light">
-                                                    <i class='fa fa-fast-forward'></i></button>
+                                                <button type="button" id="startBtn" class="btn btn-light" aria-label="First move" title="First move">
+                                                    <i class='fa fa-fast-backward' aria-hidden="true"></i></button>
+                                                <button type="button" id="backBtn" class="btn btn-light" aria-label="Previous move" title="Previous move">
+                                                    <i class='fa fa-arrow-left' aria-hidden="true"></i></button>
+                                                <button type="button" id="fwdBtn" class="btn btn-light" aria-label="Next move" title="Next move">
+                                                    <i class='fa fa-arrow-right' aria-hidden="true"></i></button>
+                                                <button type="button" id="endBtn" class="btn btn-light" aria-label="Last move" title="Last move">
+                                                    <i class='fa fa-fast-forward' aria-hidden="true"></i></button>
+                                                <button type="button" id="downloadBtn" class="btn btn-light" aria-label="Download PGN" title="Download PGN">
+                                                    <i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+                                                <button type="button" id="uploadBtn" class="btn btn-light" aria-label="Upload PGN" title="Upload PGN">
+                                                    <i class="fa fa-arrow-up" aria-hidden="true"></i></button>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="row">
-                                        <div class="col">
-                                            <div class="pull-left">
-                                                <div class="boardinfo">
-                                                    <span id="sidetomove"></span>&nbsp;<span id="BoardStatus"></span>
-                                                    <!-- 3check variant: check counters -->
-                                                    <span id="checkCounters" style="display: none; margin-left: 10px;">
-                                                        <span class="check-counter white-checks"
-                                                            title="White checks remaining">&#9812; <span
-                                                                id="whiteChecks">3</span></span>
-                                                        <span class="check-counter black-checks"
-                                                            title="Black checks remaining">&#9818; <span
-                                                                id="blackChecks">3</span></span>
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div id="boardControlButtons" class="col">
-                                            <div class="d-flex justify-content-end flex-wrap gap-2">
-                                                <!-- Download button -->
-                                                <button type="button" id="downloadBtn" class="btn btn-info btn-sm">
-                                                    <i class="fa fa-download"></i>
-                                                    <span class="btn-text"> Get PGN</span>
-                                                </button>
-
-                                                <!-- Upload button (now consistent as a real button) -->
-                                                <button type="button" id="uploadBtn" class="btn btn-info btn-sm">
-                                                    <i class="fa fa-upload"></i>
-                                                    <span class="btn-text"> Upload</span>
-                                                </button>
-                                                <!-- Mute button -->
-                                                <button id="btn-mute" class="btn-action" onclick="toggleMute()"
-                                                    title="Silenciar">
-                                                    <span>🔊</span>
-                                                </button>
-                                            </div>
-                                        </div>
+                                    <!-- 3-check counters: shown only in ThreeCheck variant -->
+                                    <div id="checkCounters" class="check-counter-row" style="display:{% if variant == '3check' %}flex{% else %}none{% end %};" aria-label="Three-check counters" role="status">
+                                        <span class="check-badge check-badge-white" title="Checks given by White"><img id="checkKingW" class="check-king-icon" alt="♔"> <span id="whiteChecks">0</span></span>
+                                        <span class="check-badge check-badge-black" title="Checks given by Black"><img id="checkKingB" class="check-king-icon" alt="♚"> <span id="blackChecks">0</span></span>
+                                    </div>
+                                    <!-- boardinfo IDs kept hidden for JS compatibility -->
+                                    <div style="display:none" aria-hidden="true">
+                                        <span id="sidetomove"></span>
+                                        <span id="BoardStatus"></span>
+                                        <div id="boardControlButtons"></div>
                                     </div>
                                 </div>
 
@@ -685,71 +562,61 @@
 
                 </div>
 
-                <div class="col">
-                    <div class="container">
-                        <div class="row">
-                            <div class="card">
-                                <div class="card-header"
-                                    style="font-size: 2.5vh; display: flex; justify-content: center; align-items: center;">
-                                    <span>PicoChess Version 4.2.3</span>
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <form id="moveForm" autocomplete="off" style="margin: 0;">
-                                            <input id="moveInput" type="text" inputmode="none" value="" style="
-                                                position:absolute;
-                                                left:0; top:0;
-                                                opacity:0;
-                                                caret-color:transparent;
-                                                border:none;
-                                                outline:none;
-                                                width:1px; height:1px;" maxlength="5" autocomplete="off"
-                                                autocorrect="off" autocapitalize="off" spellcheck="false" title="Move"
-                                                data-bs-toggle="" />
-                                        </form>
-                                    </div>
+                <div class="col" id="col-info">
+                    <div class="container h-100 d-flex flex-column p-0" id="right-panel">
+                        <!-- ── CLOCK HEADER ─────────────────────────────── -->
+                        <div class="row g-0" id="row-clock">
+                            <div class="pico-clock-header">
+                                <div class="clock-control-row" aria-label="Clock controls">
+                                    <span class="clock-control-spacer" aria-hidden="true"></span>
+                                    <span class="clock-control-main">
+                                        <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn pico-clock-action-separated" aria-label="Switch sides" title="Switch sides">
+                                            <i class="fa fa-arrows-v" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockEvalBtn" class="pico-clock-action" aria-label="Show evaluation" title="Show evaluation">
+                                            <i class="fa fa-bar-chart-o" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockPauseResumeBtn" class="pico-clock-action pico-clock-pause-btn" aria-label="Pause or resume clock" title="Pause or resume clock">
+                                            <i class="fa fa-play" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" id="clockHintBtn" class="pico-clock-action" aria-label="Show hint" title="Show hint">
+                                            <i class="fa fa-lightbulb-o" aria-hidden="true"></i>
+                                        </button>
+                                    </span>
+                                    <button id="btn-mute" class="pico-clock-action pico-clock-mute-btn" onclick="toggleMute()" aria-label="Toggle web audio" title="Toggle web audio">
+                                        <span>🔊</span>
+                                    </button>
                                 </div>
-                                <div class="card-body">
-                                    <div class="pull-left">
-                                        <div id="DGTClockText"></div>
-                                    </div>
-                                    <div class="pull-right">
-                                        <div id="DGTClockStatus"></div>
-                                    </div>
+                                <div class="clock-label-row">
+                                    <span class="clock-label-left" id="clockLabelLeft">White</span>
+                                    <span class="clock-label-right" id="clockLabelRight">Black</span>
                                 </div>
+                                <div class="clock-time-row" id="DGTClockText" aria-live="polite" aria-label="Clock" role="timer"></div>
+                                <div class="clock-status-row d-none" id="DGTClockStatus"></div>
                             </div>
                         </div>
-
-                        <div class="row">
-                            <div id="clockbuttons" class="text-center">
-                                <div class="btn-group btn-group-lg d-flex" role="group">
-                                    <button type="button" id="ClockLeverBtn" class="btn btn-danger"
-                                        data-placement="auto">
-                                        <i id="leverUp" class='fa fa-long-arrow-up fa-lg'></i><i id="leverDown"
-                                            class='fa fa-long-arrow-down fa-lg' style="display: none;"></i>
-                                    </button>
-                                    <button type="button" id="ClockBtn0" class="btn btn-light" data-placement="auto">
-                                        <i class='fa fa-backward fa-lg'></i>
-                                    </button>
-                                    <button type="button" id="ClockBtn1" class="btn btn-light" data-placement="auto">
-                                        <i class='fa fa-minus fa-lg'></i>
-                                    </button>
-                                    <button type="button" id="ClockBtn2" class="btn btn-light" data-placement="auto">
-                                        <i class='fa fa-pause fa-lg'></i>
-                                    </button>
-                                    <button type="button" id="ClockBtn3" class="btn btn-light" data-placement="auto">
-                                        <i class='fa fa-plus fa-lg'></i>
-                                    </button>
-                                    <button type="button" id="ClockBtn4" class="btn btn-warning" data-placement="auto">
-                                        <i class='fa fa-forward fa-lg'></i>
-                                    </button>
-                                </div>
-                            </div>
+                        <!-- Hidden: keep clock button IDs for JS compatibility -->
+                        <div id="clockbuttons" style="display:none">
+                            <button id="ClockLeverBtn"><i id="leverUp" class='fa fa-long-arrow-up fa-lg'></i><i id="leverDown" class='fa fa-long-arrow-down fa-lg' style="display:none;"></i></button>
+                            <button id="ClockBtn0"></button>
+                            <button id="ClockBtn1"></button>
+                            <button id="ClockBtn2"></button>
+                            <button id="ClockBtn3"></button>
+                            <button id="ClockBtn4"></button>
                         </div>
+                        <!-- Hidden: moveForm for keyboard move input -->
+                        <form id="moveForm" autocomplete="off">
+                            <input id="moveInput" type="text" inputmode="none" value="" style="position:absolute;left:0;top:0;opacity:0;caret-color:transparent;border:none;outline:none;width:1px;height:1px;" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" title="Type a move in algebraic notation, e.g. e2e4" aria-label="Move input" data-bs-toggle="" />
+                        </form>
+                        <!-- Hidden: menuButtons div (JS scan toggle compatibility) -->
+                        <div id="menuButtons" style="display:none;"></div>
 
-                        <div class="row">
-                            <div class="card">
-                                <div class="scroll_movelist" id="moveList">
+                        <!-- ── MOVE LIST ─────────────────────────────────── -->
+                        <div class="row g-0 flex-grow-1 min-h-0" id="row-movelist">
+                            <div class="card h-100">
+                                <div class="scroll_movelist h-100" id="moveList">
                                     <div class="card-body">
-                                        <div id="pgn"></div>
+                                        <div id="pgn" aria-live="polite" aria-label="Move list" role="log"></div>
                                     </div>
                                 </div>
                             </div>
@@ -759,23 +626,16 @@
                             <div id="data" class="card">
                                 <div class="card-header">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <ul class="nav nav-pills mb-0" id="pills-tab" role="tablist">
+                                        <ul class="nav nav-pills mb-0 flex-grow-1" id="pills-tab" role="tablist">
                                             <li class="nav-item" role="presentation">
-                                                <button class="nav-link active" id="pills-menu-tab"
-                                                    data-bs-toggle="pill" data-bs-target="#menu" type="button"
-                                                    role="tab">Menu
+                                                <button class="nav-link active" id="pills-home-tab"
+                                                    data-bs-toggle="pill" data-bs-target="#engine" type="button"
+                                                    role="tab">Analyses
                                                 </button>
-                                            </li>
-                                            <li class="nav-item" role="presentation">
-                                                <button class="nav-link" id="pills-home-tab" data-bs-toggle="pill"
-                                                    data-bs-target="#engine" type="button" role="tab">Engine
-                                                </button>
-                                            </li>
-                                            <li class="nav-item" role="presentation">
                                             </li>
                                             <li class="nav-item" role="presentation">
                                                 <button class="nav-link" id="pills-tutor-tab" data-bs-toggle="pill"
-                                                    data-bs-target="#tutor" type="button" role="tab">Tutor
+                                                    data-bs-target="#tutor" type="button" role="tab">Watcher
                                                 </button>
                                             </li>
                                             <li class="nav-item" role="presentation">
@@ -788,246 +648,63 @@
                                                     data-bs-target="#games" type="button" role="tab">Games
                                                 </button>
                                             </li>
-
                                         </ul>
-                                        <span id="engine-version-text"
-                                            style="display: none; font-weight: bold; color: #666;">Stockfish 18 </span>
+                                        <button class="pico-gear-btn" id="picoMenuBtn" title="Menu" aria-label="Open menu">⚙</button>
                                     </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="tab-content" id="pills-tabContent">
-                                        <div class="tab-pane fade show active" id="menu" role="tabpanel">
-                                            <div id="menuButtons" style="padding: 5px;">
-                                                <div class="row g-1">
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="newGameBtn" class="btn menu-button">
-                                                            <i class="fa fa-plus"></i>
-                                                            <span>New Game</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="resignBtn" class="btn menu-button">
-                                                            <i class="fa fa-flag"></i>
-                                                            <span>Resign</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="scanBtn" class="btn menu-button">
-                                                            <i class="fa fa-delicious"></i>
-                                                            <span>Scan</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="tutorWatchBtn"
-                                                            class="btn menu-button">
-                                                            <i class="fa fa-eye-slash"></i>
-                                                            <span>Tutor</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="replayBtn" class="btn menu-button">
-                                                            <i class="fa fa-play"></i>
-                                                            <span>Open Game</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <button type="button" id="saveGameBtn" class="btn menu-button">
-                                                            <i class="fa fa-save"></i>
-                                                            <span>Save Game</span>
-                                                        </button>
-                                                    </div>
-                                                    <div class="col-4 menu-col">
-                                                        <a href="/settings" class="btn menu-button">
-                                                            <i class="fa fa-cog"></i>
-                                                            <span>Config</span>
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div id="scanContainer" class="scroll_obooklist" style="display: none;">
-                                                <div class="d-flex justify-content-between align-items-center mb-3"
-                                                    style="padding: 0 15px;">
-                                                    <button type="button" id="scanActiveBtn" class="btn btn-danger"
-                                                        style="width: 70%; height: 40px;">
-                                                        <i class="fa fa-delicious"></i>
-                                                        <span>Sync Board</span>
-                                                    </button>
-                                                    <button type="button" id="backToMenuBtn" class="btn btn-secondary"
-                                                        style="width: 25%; height: 40px;">
-                                                        <i class="fa fa-arrow-left"></i>
-                                                    </button>
-                                                </div>
-                                                <div class="scan-controls" style="padding: 15px;">
-                                                    <div class="row mb-3 align-items-center">
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="sideToPlaySwitch">
-                                                                </div>
-                                                                <div id="pawnPreview"
-                                                                    style="display: flex; align-items: center; gap: 3px;">
-                                                                    <div id="pawnPiece"
-                                                                        style="width: 30px; height: 30px; background-color: white; border: 0.5px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: black;">
-                                                                        ♙</div>
-                                                                    <div style="font-size: 20px; font-weight: bold;">↑
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2"
-                                                                style="justify-content: center;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="boardSideSwitch">
-                                                                </div>
-                                                                <div id="boardPreview"
-                                                                    style="display: flex; flex-direction: column; align-items: center;">
-                                                                    <div
-                                                                        style="display: flex; flex-direction: column; width: 30px; height: 30px; border: 2px solid #333;">
-                                                                        <div
-                                                                            style="display: flex; width: 100%; height: 50%;">
-                                                                            <div id="topLeftSquare"
-                                                                                style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;">
-                                                                            </div>
-                                                                            <div id="topRightSquare"
-                                                                                style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;">
-                                                                            </div>
-                                                                        </div>
-                                                                        <div
-                                                                            style="display: flex; width: 100%; height: 50%;">
-                                                                            <div id="bottomLeftSquare"
-                                                                                style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;">
-                                                                            </div>
-                                                                            <div id="bottomRightSquare"
-                                                                                style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;">
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div id="sideIndicator"
-                                                                        style="width: 20px; height: 6px; background-color: white; margin-top: 3px; border: 0.5px solid #333;">
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-4">
-                                                            <div class="d-flex align-items-center gap-2"
-                                                                style="justify-content: flex-end;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="uci960Switch">
-                                                                </div>
-                                                                <label class="form-check-label" for="uci960Switch"
-                                                                    id="uci960Label"
-                                                                    style="font-size: 14px; font-weight: bold;">
-                                                                    UCI960 No
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div class="row mb-3">
-                                                        <div class="col-6">
-                                                            <div
-                                                                style="display: flex; flex-direction: column; gap: 10px;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="whiteCastleKingSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="whiteCastleKingSwitch">
-                                                                        <span
-                                                                            style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span>
-                                                                        O-O
-                                                                    </label>
-                                                                </div>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="whiteCastleQueenSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="whiteCastleQueenSwitch">
-                                                                        <span
-                                                                            style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span>
-                                                                        O-O-O
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-6">
-                                                            <div
-                                                                style="display: flex; flex-direction: column; gap: 10px;">
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="blackCastleKingSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="blackCastleKingSwitch">
-                                                                        <span
-                                                                            style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span>
-                                                                        O-O
-                                                                    </label>
-                                                                </div>
-                                                                <div class="form-check form-switch">
-                                                                    <input class="form-check-input" type="checkbox"
-                                                                        id="blackCastleQueenSwitch" checked>
-                                                                    <label class="form-check-label"
-                                                                        for="blackCastleQueenSwitch">
-                                                                        <span
-                                                                            style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span>
-                                                                        O-O-O
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div class="tab-pane fade" id="menu" role="tabpanel">
+                                            <!-- menuButtons emptied: buttons moved to #row-remote -->
+                                            <!-- scanContainer moved to #pico-menu-overlay -->
                                         </div>
-                                        <div class="tab-pane fade" id="engine" role="tabpanel">
+                                        <div class="tab-pane fade show active" id="engine" role="tabpanel">
                                             <div class="scroll_engine">
-                                                <div class="row">
-                                                    <div class="col-12">
-                                                    </div>
+                                                <!-- NaCl embed (hidden, functional) -->
+                                                <div id="listener">
+                                                    <embed name="nacl_module" id='stockfish_module' width="0"
+                                                        height="0" src='/static/stockfish/stockfish.nmf'
+                                                        type='application/x-pnacl' />
+                                                </div>
+                                                <div id="engineStatus"></div>
 
-                                                    <div id="listener">
-                                                        <embed name="nacl_module" id='stockfish_module' width="0"
-                                                            height="0" src='/static/stockfish/stockfish.nmf'
-                                                            type='application/x-pnacl' />
+                                                <!-- Server engine analysis (static structure, JS updates content) -->
+                                                <div class="pv-two-row" id="engineRow" aria-live="polite">
+                                                    <div class="pv-header">
+                                                        <span class="engine-name-badge" id="engineNameBadge">Pico</span>
+                                                        <span class="backend-source-badge engine-source" id="backendAnalysisSourceBadge" title="Pico backend analysis source: selected engine">E</span>
+                                                        <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
+                                                            <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
+                                                        </button>
+                                                        <div id="engineMeta"></div>
+                                                        <div class="pv-spacer"></div>
+                                                        <button id="engineToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
                                                     </div>
-                                                    <div id="engineStatus"></div>
+                                                    <div id="enginePvBody" class="pv-body"></div>
                                                 </div>
-                                                <div class="row">
-                                                    <div class="analysis-sources">
-                                                        <div id="analysisLineEngine" class="pv-container"></div>
-                                                        <div id="analysisLineTutor" class="pv-container"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="row">
-                                                    <div class="col-12">
-                                                        <div class="engine-controls">
-                                                            <div class="btn-group btn-group-xs" role="group">
-                                                                <button id="analyzeMinus"
-                                                                    class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto">
-                                                                    <span id="analyzeMinusText">
-                                                                        <i class='fa fa-minus'></i>
-                                                                    </span>
-                                                                </button>
-                                                                <button id="analyzePlus"
-                                                                    class="btn btn-sm btn-primary book-switch-btn"
-                                                                    data-placement="auto">
-                                                                    <span id="analyzePlusText"><i
-                                                                            class='fa fa-plus'></i></span>
-                                                                </button>
-                                                            </div>
-                                                            <span class="engine-version-label">Stockfish 18 js</span>
+
+                                                <hr class="my-1">
+
+                                                <!-- SF18 analysis (static header, JS updates content + extra PVs) -->
+                                                <div class="pv-two-row" id="sf18Row">
+                                                    <div class="pv-header">
+                                                        <span class="engine-name-badge">Web client Stockfish 18</span>
+                                                        <div id="sf18Meta"></div>
+                                                        <div class="pv-spacer"></div>
+                                                        <div class="btn-group btn-group-xs" id="sf18PmGroup" style="display:none">
+                                                            <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn" aria-label="Fewer lines">
+                                                                <i class="fa fa-minus" aria-hidden="true"></i>
+                                                            </button>
+                                                            <button id="analyzePlus" class="btn btn-sm btn-primary book-switch-btn" aria-label="More lines">
+                                                                <i class="fa fa-plus" aria-hidden="true"></i>
+                                                            </button>
                                                         </div>
+                                                        <button id="sf18ToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
                                                     </div>
+                                                    <div id="sf18Pv1Body" class="pv-body"></div>
                                                 </div>
-                                                <div class="row">
-                                                    <div id="pv_output" class="gameMoves list-group">
-                                                        <div id="pv_1" class="pv-container">
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                <!-- Extra SF18 PV lines (pv_2, pv_3 ...) -->
+                                                <div id="pv_output"></div>
                                             </div>
                                         </div>
                                         <div class="tab-pane fade" id="tutor" role="tabpanel">
@@ -1042,16 +719,18 @@
                                                     <div class="alert alert-secondary py-1 px-2 text-center mb-2">
                                                         <div class="book-header-row">
                                                             <button type="button" id="bookPrev"
-                                                                class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-left"></i>
+                                                                class="btn btn-sm btn-primary book-switch-btn"
+                                                                aria-label="Previous opening book" title="Previous book">
+                                                                <i class="fa fa-chevron-left" aria-hidden="true"></i>
                                                             </button>
                                                             <span class="book-title">
                                                                 <span class="fw-bold">Book:&nbsp;</span>
                                                                 <span id="currentBookName">No book</span>
                                                             </span>
                                                             <button type="button" id="bookNext"
-                                                                class="btn btn-sm btn-primary book-switch-btn">
-                                                                <i class="fa fa-chevron-right"></i>
+                                                                class="btn btn-sm btn-primary book-switch-btn"
+                                                                aria-label="Next opening book" title="Next book">
+                                                                <i class="fa fa-chevron-right" aria-hidden="true"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1089,16 +768,29 @@
                                     </div>
                                 </div>
                             </div>
+                        </div><!-- #row-tabs -->
+
+                        <!-- Hidden: button IDs kept for inline JS handlers -->
+                        <div id="row-remote" style="display:none" aria-hidden="true">
+                            <button id="newGameBtn"></button>
+                            <button id="resignBtn"></button>
+                            <button id="scanBtn"></button>
+                            <button id="replayBtn"></button>
+                            <button id="saveGameBtn"></button>
                         </div>
-                    </div>
-                </div>
+
+                    </div><!-- #right-panel -->
+                </div><!-- #col-info -->
             </div>
         </div>
-        <script>
+    </div><!-- .scroll-portrait -->
+    <script>
             window.picoWebConfig = window.picoWebConfig || {};
             window.picoWebConfig.webSpeech = {{ "true" if web_speech else "false" }};
+            window.picoWebConfig.webSpeechFallback = {{ "true" if web_speech_fallback else "false" }};
             window.picoWebConfig.webAudioBackend = {{ "true" if web_audio_backend else "false" }};
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
+            window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
         <script type="text/javascript" src="/static/js/app.js?v=2"></script>
         <script>
@@ -1107,6 +799,16 @@
                 const moveInput = document.getElementById('moveInput');
                 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
                 if (moveInput) {
+                    let keyboardMoveBuffer = '';
+                    const submitKeyboardMove = async function(move) {
+                        move = (move || '').toString().trim();
+                        if (!move) return;
+                        await fetch('/channel', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=command&command=' + encodeURIComponent(move)
+                        });
+                    };
                     const focusMoveInput = () => {
                         try {
                             moveInput.focus({ preventScroll: true });
@@ -1122,18 +824,50 @@
                             e.preventDefault();
                             const move = (this.value || '').toString();
                             if (move && move.length > 0) {
-                                await fetch('/channel', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                    body: 'action=command&command=' + encodeURIComponent(move)
-                                });
+                                await submitKeyboardMove(move);
                                 this.value = "";
+                                keyboardMoveBuffer = '';
                             }
                         }
                     });
+                    document.addEventListener('keydown', async function(e) {
+                        if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey) return;
+                        var _ovl = document.getElementById('pico-menu-overlay');
+                        if (_ovl && _ovl.classList.contains('open')) return;
+                        var target = e.target;
+                        if (target === moveInput) return;
+                        if (target && (
+                            target.tagName === 'INPUT' ||
+                            target.tagName === 'TEXTAREA' ||
+                            target.tagName === 'SELECT' ||
+                            target.isContentEditable
+                        )) return;
+
+                        if (e.key === 'Enter') {
+                            if (keyboardMoveBuffer.length > 0) {
+                                e.preventDefault();
+                                await submitKeyboardMove(keyboardMoveBuffer);
+                                keyboardMoveBuffer = '';
+                                moveInput.value = '';
+                            }
+                        } else if (e.key === 'Backspace') {
+                            if (keyboardMoveBuffer.length > 0) {
+                                e.preventDefault();
+                                keyboardMoveBuffer = keyboardMoveBuffer.slice(0, -1);
+                            }
+                        } else if (e.key === 'Escape') {
+                            keyboardMoveBuffer = '';
+                            moveInput.value = '';
+                        } else if (/^[a-hA-H1-8qQrRbBnN]$/.test(e.key)) {
+                            keyboardMoveBuffer = (keyboardMoveBuffer + e.key.toLowerCase()).slice(0, 5);
+                        }
+                    });
                     // Mantener el foco siempre en el input de jugada
+                    // (but never steal focus away from the overlay's own inputs)
                     if (!isTouchDevice) {
                         document.addEventListener('click', function (e) {
+                            var _ovl = document.getElementById('pico-menu-overlay');
+                            if (_ovl && _ovl.contains(e.target)) return; // overlay is open and was clicked
                             if (e.target !== moveInput && moveInput) {
                                 setTimeout(focusMoveInput, 10);
                             }
@@ -1248,28 +982,90 @@
                     });
                 }
 
-                // Scan button event handler
-                const scanBtn = document.getElementById('scanBtn');
-                const backToMenuBtn = document.getElementById('backToMenuBtn');
-                const scanActiveBtn = document.getElementById('scanActiveBtn');
-                const menuButtons = document.getElementById('menuButtons');
-                const scanContainer = document.getElementById('scanContainer');
+                // Sync label dim/bright and smart quick-action icon to clock/replay/engine state.
+                (function () {
+                    var clockEl   = document.getElementById('DGTClockText');
+                    var labelLeft = document.getElementById('clockLabelLeft');
+                    var labelRight= document.getElementById('clockLabelRight');
+                    var pauseBtn  = document.getElementById('clockPauseResumeBtn');
+                    if (!clockEl) return;
+                    function getFenTurnColor() {
+                        var fen = (typeof currentPosition !== 'undefined') && currentPosition && currentPosition.fen;
+                        if (typeof fen !== 'string') return '';
+                        var parts = fen.trim().split(/\s+/);
+                        if (parts.length < 2) return '';
+                        return parts[1] === 'b' ? 'black' : 'white';
+                    }
+                    window.syncClockControls = function (runningOverride) {
+                        if (typeof runningOverride === 'boolean') {
+                            clockEl.dataset.running = runningOverride ? '1' : '0';
+                        }
+                        var leftActive  = clockEl.querySelector('.ctime-l.ctime-active');
+                        var rightActive = clockEl.querySelector('.ctime-r.ctime-active');
+                        var clockRunning = clockEl.dataset.running ? clockEl.dataset.running === '1' : !!(leftActive || rightActive);
+                        var systemInfo = window._picoSystemInfo || {};
+                        var pgnReplayMode = systemInfo.interaction_mode === 'pgnreplay';
+                        var pgnReplayRunning = pgnReplayMode && systemInfo.pgn_replay_autoplay === true;
+                        var engineMode = ['normal', 'brain', 'training'].indexOf(systemInfo.interaction_mode) !== -1;
+                        var hasUserColor = systemInfo.play_mode === 'user_white' || systemInfo.play_mode === 'user_black';
+                        var userColor = systemInfo.play_mode === 'user_black' ? 'black' : 'white';
+                        var turnColor = getFenTurnColor();
+                        var pendingEngineMove = systemInfo.pending_engine_move === true;
+                        var engineThinking = clockRunning && engineMode && hasUserColor && turnColor && turnColor !== userColor;
+                        var running = clockRunning || pgnReplayRunning;
+                        if (leftActive) {
+                            labelLeft  && labelLeft.classList.remove('clock-label-inactive');
+                            labelRight && labelRight.classList.add('clock-label-inactive');
+                        } else if (rightActive) {
+                            labelRight && labelRight.classList.remove('clock-label-inactive');
+                            labelLeft  && labelLeft.classList.add('clock-label-inactive');
+                        } else {
+                            labelLeft  && labelLeft.classList.remove('clock-label-inactive');
+                            labelRight && labelRight.classList.remove('clock-label-inactive');
+                        }
+                        if (pauseBtn) {
+                            var icon = pauseBtn.querySelector('.fa');
+                            if (icon) {
+                                icon.classList.toggle('fa-random', pendingEngineMove);
+                                icon.classList.toggle('fa-stop', !pendingEngineMove && engineThinking);
+                                icon.classList.toggle('fa-pause', !pendingEngineMove && !engineThinking && running);
+                                icon.classList.toggle('fa-play', !pendingEngineMove && !engineThinking && !running);
+                            }
+                            pauseBtn.title = pendingEngineMove ? 'Alternative move' : (engineThinking ? 'Move now' : (pgnReplayMode
+                                ? (running ? 'Pause replay' : 'Resume replay')
+                                : (running ? 'Pause clock' : 'Resume clock')));
+                            pauseBtn.setAttribute('aria-label', pauseBtn.title);
+                        }
+                    };
+                    new MutationObserver(function () { window.syncClockControls(); }).observe(clockEl, { childList: true, subtree: true });
+                    window.syncClockControls();
+                })();
 
-                if (scanBtn && menuButtons && scanContainer) {
-                    scanBtn.addEventListener('click', function () {
-                        menuButtons.style.display = 'none';
-                        scanContainer.style.display = 'block';
-                    });
+                // Patch setHeaders so PGN White/Black names update the clock labels
+                if (typeof window.setHeaders === 'function') {
+                    var _origSetHeaders = window.setHeaders;
+                    window.setHeaders = function (data) {
+                        _origSetHeaders.call(this, data);
+                        var leftEl  = document.getElementById('clockLabelLeft');
+                        var rightEl = document.getElementById('clockLabelRight');
+                        if (leftEl  && data && data.White) leftEl.textContent = data.White;
+                        if (rightEl && data && data.Black) rightEl.textContent = data.Black;
+                    };
                 }
 
-                if (backToMenuBtn && menuButtons && scanContainer) {
-                    backToMenuBtn.addEventListener('click', function () {
-                        scanContainer.style.display = 'none';
-                        menuButtons.style.display = 'block';
+                // scanBtn in remote bar → open overlay on DGT scan panel
+                const scanBtn = document.getElementById('scanBtn');
+                if (scanBtn) {
+                    scanBtn.addEventListener('click', function () {
+                        if (window.picoOverlay) {
+                            window.picoOverlay.open();
+                            window.picoOverlay.showScan();
+                        }
                     });
                 }
 
                 // Scan active button functionality
+                const scanActiveBtn = document.getElementById('scanActiveBtn');
                 if (scanActiveBtn) {
                     scanActiveBtn.addEventListener('click', async function () {
                         const sideToPlaySwitch = document.getElementById('sideToPlaySwitch');
@@ -1321,6 +1117,1209 @@
             });
         </script>
 
+        <!-- ── PICO CONTEXT MENU OVERLAY CONTROLLER ───────────────── -->
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+        (function () {
+            var overlay  = document.getElementById('pico-menu-overlay');
+            var backdrop = document.getElementById('picoOverlayBackdrop');
+            var closeBtn = document.getElementById('picoOverlayClose');
+            var stateEl  = document.getElementById('picoOverlayState');
+            var tilesEl  = document.getElementById('overlay-tiles');
+            var menuBtn  = document.getElementById('picoMenuBtn');
+
+            var gameActive = false;
+            var engineTurn = false;
+
+            /* ── helpers ─────────────────────────────── */
+            function post(body) {
+                return fetch('/channel', { method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body }).catch(function() {});
+            }
+
+            function showSubpanel(id) {
+                tilesEl.style.display = 'none';
+                document.querySelectorAll('.pico-subpanel').forEach(function(el) {
+                    el.style.display = 'none';
+                });
+                var el = document.getElementById(id);
+                if (el) el.style.display = 'flex';
+            }
+
+            /* ── navigation ──────────────────────────── */
+            function showTiles() {
+                document.querySelectorAll('.pico-subpanel').forEach(function(el) { el.style.display = 'none'; });
+                tilesEl.style.display = '';
+            }
+            function showScan()   { showSubpanel('overlay-scan'); }
+            function showMode()   { showSubpanel('overlay-mode');   updateModeSubpanel(); }
+            function showTime()   { showSubpanel('overlay-time');   updateTimeSubpanel(); }
+            function refreshTutorSettings() {
+                return fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        if (window.setTutorSettings) window.setTutorSettings(d);
+                    })
+                    .catch(function() {
+                        if (window.setTutorSettings) window.setTutorSettings(window._picoTutorSettings || {});
+                    });
+            }
+            function applyCachedTutorSettings() {
+                if (!window.setTutorSettings) return;
+                window.setTutorSettings(
+                    window._picoTutorSettings ||
+                    (window.picoWebConfig && window.picoWebConfig.tutorSettings) ||
+                    { tutor_watcher: Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive) }
+                );
+            }
+            function showTutor()  {
+                applyCachedTutorSettings();
+                showSubpanel('overlay-tutor');
+                refreshTutorSettings();
+            }
+            function showGame()   {
+                showSubpanel('overlay-game');
+                document.getElementById('ovl-game-opt-col').style.display = 'none';
+                document.getElementById('ovl-game-opt-list').innerHTML = '';
+                updateGameSubpanel();
+            }
+            function showSystem() {
+                showSubpanel('overlay-system');
+                document.getElementById('ovl-sys-opt-col').style.display = 'none';
+                document.getElementById('ovl-sys-opt-list').innerHTML = '';
+                document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                updateSystemSubpanel();
+                // Pre-fetch current settings so tick marks are ready when a category is opened
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        if (Object.prototype.hasOwnProperty.call(d, 'web_audio_backend_remote')) {
+                            window._picoSystemInfo = window._picoSystemInfo || {};
+                            window._picoSystemInfo.web_audio_backend_remote = Boolean(d.web_audio_backend_remote);
+                        }
+                        updateSystemSubpanel();
+                        updateTileStates();
+                    })
+                    .catch(function() {});
+            }
+
+            function showPlayer() {
+                showSubpanel('overlay-player');
+                var si = window._picoSystemInfo || {};
+                var nameEl = document.getElementById('ovl-player-name');
+                var eloEl  = document.getElementById('ovl-player-elo');
+                if (nameEl) nameEl.value = si.user_name || '';
+                if (eloEl)  eloEl.value  = (si.user_elo && si.user_elo !== '-') ? si.user_elo : '';
+                // Wire save button (once, idempotent via flag)
+                var saveBtn = document.getElementById('ovl-player-save');
+                if (saveBtn && !saveBtn._picoWired) {
+                    saveBtn._picoWired = true;
+                    saveBtn.addEventListener('click', function() {
+                        var name = (document.getElementById('ovl-player-name').value || '').trim();
+                        var elo  = (document.getElementById('ovl-player-elo').value  || '').trim();
+                        if (!name) return;
+                        var eloNum = parseInt(elo, 10);
+                        elo = (isNaN(eloNum) || eloNum < 0 || eloNum > 3000) ? '1500' : String(eloNum);
+                        document.getElementById('ovl-player-elo').value = elo;
+                        post('action=set_player&name=' + encodeURIComponent(name) + '&elo=' + encodeURIComponent(elo));
+                        // Update local cache immediately
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.user_name = name;
+                        window._picoSystemInfo.user_elo  = elo || '-';
+                        updateTileStates();
+                        close();
+                    });
+                }
+            }
+
+            /* ── display picker (board / pieces / theme) ─ */
+            var DISPLAY_CATS = {
+                board: {
+                    label: 'Board Color',
+                    items: [
+                        ['Blue',         'blue'],
+                        ['Green',        'green'],
+                        ['Metal',        'metal'],
+                        ['Natural Wood', 'natural-wood'],
+                        ['Newspaper',    'newspaper'],
+                        ['Soft',         'soft'],
+                        ['Wood',         'wood']
+                    ],
+                    getCurrent: function() {
+                        var sec = document.getElementById('xboardsection');
+                        if (!sec) return '';
+                        var themes = ['blue','green','metal','natural-wood','newspaper','soft','wood'];
+                        for (var i = 0; i < themes.length; i++) {
+                            if (sec.classList.contains(themes[i])) return themes[i];
+                        }
+                        return 'natural-wood';
+                    },
+                    apply: function(val) {
+                        var sec = document.getElementById('xboardsection');
+                        if (!sec) return;
+                        ['blue','green','metal','natural-wood','newspaper','soft','wood'].forEach(function(t) { sec.classList.remove(t); });
+                        sec.classList.add(val);
+                        // Dynamically load CSS if not already present
+                        var cssId = 'theme-css-' + val;
+                        if (!document.getElementById(cssId)) {
+                            var link = document.createElement('link');
+                            link.id = cssId;
+                            link.rel = 'stylesheet';
+                            link.href = '/static/css/chessground/theme_' + val.replace(/-/g,'_') + '.css';
+                            document.head.appendChild(link);
+                        }
+                        var stored = val.replace(/-/g,'_');
+                        fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify({entries:[{key:'web-board-theme',value:stored,enabled:true}]})}).catch(function(){});
+                        var sub = document.getElementById('ovl-display-sub');
+                        if (sub) sub.textContent = val.replace('-',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+                    }
+                },
+                pieces: {
+                    label: 'Piece Set',
+                    items: [
+                        ['Alpha',   'alpha'],
+                        ['Berlin',  'berlin'],
+                        ['Leipzig', 'leipzig'],
+                        ['Merida',  'merida'],
+                        ['USCF',    'uscf']
+                    ],
+                    getCurrent: function() {
+                        var sec = document.getElementById('xboardsection');
+                        if (!sec) return 'merida';
+                        var sets = ['alpha','berlin','leipzig','merida','uscf'];
+                        for (var i = 0; i < sets.length; i++) {
+                            if (sec.classList.contains(sets[i])) return sets[i];
+                        }
+                        return 'merida';
+                    },
+                    apply: function(val) {
+                        var sec = document.getElementById('xboardsection');
+                        if (!sec) return;
+                        ['alpha','berlin','leipzig','merida','uscf'].forEach(function(p) { sec.classList.remove(p); });
+                        sec.classList.add(val);
+                        syncKingBadgeIcons();
+                        fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify({entries:[{key:'pieces',value:val,enabled:true}]})}).catch(function(){});
+                    }
+                },
+                theme: {
+                    label: 'UI Theme',
+                    items: [
+                        ['🌙 Dark',  'dark'],
+                        ['☀️ Light', 'light'],
+                        ['⚙️ Auto',  'auto']
+                    ],
+                    getCurrent: function() {
+                        var dark = document.querySelector('link[href*="mdb.dark"]');
+                        var light = document.querySelector('link[href*="mdb.min"]');
+                        if (dark) return 'dark';
+                        if (light) return 'light';
+                        return 'auto';
+                    },
+                    apply: function(val) {
+                        // Swap MDB stylesheet client-side
+                        ['link[href*="mdb.dark"]','link[href*="mdb.min"]'].forEach(function(sel) {
+                            var el = document.querySelector(sel);
+                            if (el) el.parentNode.removeChild(el);
+                        });
+                        var link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = val === 'light' ? '/static/css/mdb.min.css' : '/static/css/mdb.dark.min.css';
+                        document.documentElement.setAttribute('data-theme', val === 'light' ? 'light' : 'dark');
+                        // After the new stylesheet is applied, Chessground must
+                        // recalculate piece positions because the layout reflowed.
+                        link.onload = function() {
+                            if (window.chessground1) {
+                                window.chessground1.redrawAll();
+                            }
+                        };
+                        document.head.appendChild(link);
+                        // Persist for next server start
+                        fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify({entries:[{key:'theme',value:val,enabled:true}]})}).catch(function(){});
+                    }
+                }
+            };
+
+            function showDisplayCat(cat) {
+                var dc = DISPLAY_CATS[cat];
+                if (!dc) return;
+                document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) {
+                    el.classList.toggle('selected', el.dataset.dispCat === cat);
+                });
+                var col    = document.getElementById('ovl-disp-opt-col');
+                var lbl    = document.getElementById('ovl-disp-opt-label');
+                var listEl = document.getElementById('ovl-disp-opt-list');
+                lbl.textContent = dc.label;
+                listEl.innerHTML = '';
+                var current = dc.getCurrent();
+                dc.items.forEach(function(pair) {
+                    var label = pair[0], val = pair[1];
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    btn.classList.toggle('selected', val === current);
+                    btn.innerHTML = '<strong>' + label + '</strong>';
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                        btn.classList.add('selected');
+                        dc.apply(val);
+                        setTimeout(close, 180);
+                    });
+                    listEl.appendChild(btn);
+                });
+                col.style.display = 'flex';
+            }
+
+            function showDisplay() {
+                showSubpanel('overlay-display');
+                document.getElementById('ovl-disp-opt-col').style.display = 'none';
+                document.getElementById('ovl-disp-opt-list').innerHTML = '';
+                document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+            }
+            function showEngine() {
+                showSubpanel('overlay-engine');
+                var listEl  = document.getElementById('ovl-engine-list');
+                var levelEl = document.getElementById('ovl-level-col');
+                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
+                levelEl.style.display = 'none';
+                document.getElementById('ovl-level-list').innerHTML = '';
+                _engAllData = [];
+                // Fetch current settings (for level tick) alongside engine list
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) { window._picoCurrentSettings = d; })
+                    .catch(function() {});
+                fetch('/info?action=get_engines')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        _engAllData = data.engines || [];
+                        if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
+                        showEngineCat(_engCurrentCat);
+                    })
+                    .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
+            }
+
+            function populateLevels(file, levels) {
+                var col    = document.getElementById('ovl-level-col');
+                var listEl = document.getElementById('ovl-level-list');
+                listEl.innerHTML = '';
+                if (!levels || !levels.length) { col.style.display = 'none'; applyEngine(file, ''); return; }
+                col.style.display = 'flex';
+                var _curLevel = (window._picoCurrentSettings && window._picoCurrentSettings.engine_level) || '';
+                levels.forEach(function(level) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    btn.textContent = level;
+                    if (level === _curLevel) btn.classList.add('selected');
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                        btn.classList.add('selected');
+                        setTimeout(function() { applyEngine(file, level); }, 180);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            function applyEngine(file, level) {
+                post('action=new_engine&file=' + encodeURIComponent(file) + '&level=' + encodeURIComponent(level));
+                close();
+            }
+
+            /* ── time picker ─────────────────────────── */
+            var TIME_DATA = {
+                blitz:      { label: 'Minutes / game',    mode_id: 1,
+                              values: ['1 min','3 min','5 min','10 min','15 min','30 min','60 min','90 min'],
+                              raw: [1,3,5,10,15,30,60,90] },
+                fischer:    { label: 'Game + increment',  mode_id: 2,
+                              values: ['1+1','3+2','5+3','10+5','15+10','30+15','60+20','90+30','0+5','0+10','0+15','0+20','0+30','0+60','0+90'],
+                              raw: [[1,1],[3,2],[5,3],[10,5],[15,10],[30,15],[60,20],[90,30],[0,5],[0,10],[0,15],[0,20],[0,30],[0,60],[0,90]] },
+                tournament: { label: 'Tournament format', mode_id: 3,
+                              values: ['10m/10 +5s','20m/15 +15s','30m/40 +15s','40m/120 +90s','40m/60 +15+30s','40m/60 +30+30s','40m/90 +30+30s','40m/90 +15+60s','40m/90 +30+60s'],
+                              raw: ['10 10 0 5','20 15 0 15','30 40 0 15','40 120 0 90','40 60 15 30','40 60 30 30','40 90 30 30','40 90 15 60','40 90 30 60'] },
+                fixed:      { label: 'Seconds / move',    mode_id: 0,
+                              values: ['1 s','3 s','5 s','10 s','15 s','30 s','60 s','90 s'],
+                              raw: [1,3,5,10,15,30,60,90] },
+                depth:      { label: 'Search depth (plies)', mode_id: 4,
+                              values: ['1','2','3','4','10','15','20','25'],
+                              raw: [1,2,3,4,10,15,20,25] },
+                nodes:      { label: 'Search nodes (k)',  mode_id: 5,
+                              values: ['1k','5k','10k','25k','50k','100k','250k','500k'],
+                              raw: [1,5,10,25,50,100,250,500] }
+            };
+
+            function showTimeValues(mode) {
+                var td = TIME_DATA[mode];
+                if (!td) return;
+                var col    = document.getElementById('ovl-time-value-col');
+                var lbl    = document.getElementById('ovl-time-value-label');
+                var listEl = document.getElementById('ovl-time-value-list');
+                lbl.textContent = td.label;
+                listEl.innerHTML = '';
+                td.values.forEach(function(val, i) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    btn.dataset.timeMode  = mode;
+                    btn.dataset.timeIndex = i;
+                    btn.innerHTML = '<strong>' + val + '</strong>';
+                    listEl.appendChild(btn);
+                });
+                col.style.display = 'flex';
+            }
+
+            function applyTime(mode, idx) {
+                var td = TIME_DATA[mode];
+                if (!td) return;
+                var i   = parseInt(idx, 10);
+                var raw = td.raw[i];
+                var body;
+                if (mode === 'fischer') {
+                    body = 'action=new_time&time_mode=' + td.mode_id + '&time=' + raw[0] + '&fischer=' + raw[1];
+                } else if (mode === 'tournament') {
+                    body = 'action=new_time&time_mode=' + td.mode_id + '&tournament=' + encodeURIComponent(raw);
+                } else {
+                    body = 'action=new_time&time_mode=' + td.mode_id + '&time=' + raw;
+                }
+                post(body);
+                var timeSub = document.getElementById('ovl-time-sub');
+                if (timeSub) timeSub.textContent = td.values[i];
+                // Cache the human-readable label so updateTileStates() shows it
+                // when the overlay is reopened (the server's SystemInfo reply
+                // carries the raw internal text; this friendly label wins).
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.time_label = td.values[i];
+                close();
+            }
+
+            /* ── engine book picker ──────────────────── */
+            function showEngineBook() {
+                showSubpanel('overlay-book');
+                var listEl = document.getElementById('ovl-book-list');
+                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
+                fetch('/book?action=get_engine_book_list')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        listEl.innerHTML = '';
+                        var currentIdx = (data.current_index !== undefined) ? data.current_index : 0;
+                        var books = data.books || [];
+                        books.forEach(function(b) {
+                            var btn = document.createElement('button');
+                            btn.className = 'pico-picker-item';
+                            btn.classList.toggle('selected', b.index === currentIdx);
+                            var label = b.label || b.file || ('Book ' + (b.index + 1));
+                            var sub   = '';
+                            btn.innerHTML = '<strong>' + label + '</strong>' + (sub ? '<span class="picker-sub">' + sub + '</span>' : '');
+                            // Keep tile subtitle in sync with the current selection.
+                            if (b.index === currentIdx) {
+                                var bookSub = document.getElementById('ovl-book-sub');
+                                if (bookSub) bookSub.textContent = label;
+                                window._picoSystemInfo = window._picoSystemInfo || {};
+                                window._picoSystemInfo.book_name = label;
+                            }
+                            btn.addEventListener('click', function() {
+                                listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                                btn.classList.add('selected');
+                                post('action=new_engine_book&file=' + encodeURIComponent(b.file || ''));
+                                var bookSub = document.getElementById('ovl-book-sub');
+                                if (bookSub) bookSub.textContent = label;
+                                window._picoSystemInfo = window._picoSystemInfo || {};
+                                window._picoSystemInfo.book_name = label;
+                                setTimeout(close, 180);
+                            });
+                            listEl.appendChild(btn);
+                        });
+                        if (!books.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No books found</div>'; }
+                    })
+                    .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
+            }
+
+            /* ── engine category filter ──────────────── */
+            var _engCurrentCat = 'modern';
+            var _engAllData    = [];
+            function showEngineCat(cat) {
+                _engCurrentCat = cat;
+                document.querySelectorAll('#ovl-engine-cats .pico-cat-tab').forEach(function(el) {
+                    el.classList.toggle('selected', el.dataset.engCat === cat);
+                });
+                var listEl  = document.getElementById('ovl-engine-list');
+                var levelEl = document.getElementById('ovl-level-col');
+                levelEl.style.display = 'none';
+                document.getElementById('ovl-level-list').innerHTML = '';
+                listEl.innerHTML = '';
+                var filtered = _engAllData.filter(function(e) { return !cat || cat === 'all' || (e.category || 'modern') === cat; });
+                if (!filtered.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">None</div>'; return; }
+                var _curEngineName = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
+                filtered.forEach(function(eng) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    var engName = eng.name || eng.file;
+                    btn.innerHTML = '<strong>' + engName + '</strong>' +
+                        (eng.elo ? '<span class="picker-sub">Elo ' + eng.elo + '</span>' : '');
+                    if (engName === _curEngineName) btn.classList.add('selected');
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                        btn.classList.add('selected');
+                        populateLevels(eng.file, eng.levels);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            /* ── game action picker ──────────────────── */
+            var GAME_OPT = {
+                'save':    { label: 'Save to Slot', items: [['Slot 1','save_game&slot=1'],['Slot 2','save_game&slot=2'],['Slot 3','save_game&slot=3']] },
+                'read':    { label: 'Load from Slot', items: [['Last Game','load_game&slot=0'],['Slot 1','load_game&slot=1'],['Slot 2','load_game&slot=2'],['Slot 3','load_game&slot=3']] },
+                'end':     { label: 'Set Result', items: [['White wins','game_end&result=white'],['Black wins','game_end&result=black'],['Draw','game_end&result=draw']] }
+            };
+            function showGameOpts(action) {
+                var go = GAME_OPT[action];
+                if (!go) return;
+                var col    = document.getElementById('ovl-game-opt-col');
+                var lbl    = document.getElementById('ovl-game-opt-label');
+                var listEl = document.getElementById('ovl-game-opt-list');
+                lbl.textContent = go.label;
+                listEl.innerHTML = '';
+                go.items.forEach(function(pair) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                        btn.classList.add('selected');
+                        setTimeout(function() { post('action=' + pair[1]); close(); }, 180);
+                    });
+                    listEl.appendChild(btn);
+                });
+                col.style.display = 'flex';
+            }
+
+            /* ── system category picker ──────────────── */
+            var SYS_OPT = {
+                power:   { label: 'Power', items: [['Shutdown','sys_shutdown'],['Reboot','sys_reboot'],['Exit PicoChess','sys_exit'],['Update PicoChess','sys_update'],['Update Engines','sys_update_engines']] },
+                sound:   { label: 'Sound (Beep)', items: [['Off','beep&val=off'],['Some','beep&val=some'],['On','beep&val=on'],['Sample','beep&val=sample']] },
+                lang:    { label: 'Language', items: [['English','lang&val=en'],['Deutsch','lang&val=de'],['Nederlands','lang&val=nl'],['Français','lang&val=fr'],['Español','lang&val=es'],['Italiano','lang&val=it']] },
+                display: { label: 'Display', items: [['Clock Left','display&side=left'],['Clock Right','display&side=right'],['Short notation','display&notation=short'],['Long notation','display&notation=long'],['Ponder On','display&ponder=on'],['Ponder Off','display&ponder=off'],['Confirm On','display&confirm=on'],['Confirm Off','display&confirm=off'],['Capital On','display&capital=on'],['Capital Off','display&capital=off'],['Engine Name On','display&enginename=on'],['Engine Name Off','display&enginename=off']] },
+                eboard:  { label: 'E-Board Type', items: [['DGT','eboard&type=dgt'],['Certabo','eboard&type=certabo'],['ChessLink','eboard&type=chesslink'],['ChessNut','eboard&type=chessnut'],['iChessOne','eboard&type=ichessone'],['None','eboard&type=none']] },
+                wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix']] }
+            };
+            // Build set of action strings matching current picochess.ini settings
+            function _activeSettingsActions(s) {
+                var a = {};
+                if (!s) return a;
+                if (s.language)    a['lang&val='     + s.language]    = true;
+                if (s.beep)        a['beep&val='     + s.beep]        = true;
+                if (s.board_type) {
+                    var bt = s.board_type === 'noeboard' ? 'none' : s.board_type;
+                    a['eboard&type=' + bt] = true;
+                }
+                if (s.clockside)   a['display&side='      + s.clockside]   = true;
+                if (s.notation)    a['display&notation='  + s.notation]    = true;
+                if (s.ponder)      a['display&ponder='    + s.ponder]      = true;
+                if (s.confirm)     a['display&confirm='   + s.confirm]     = true;
+                if (s.capital)     a['display&capital='   + s.capital]     = true;
+                if (s.show_engine) a['display&enginename='+ s.show_engine] = true;
+                if (s.audio_backend) a['audio_backend&backend=' + s.audio_backend] = true;
+                return a;
+            }
+            function showSysCat(cat) {
+                document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
+                    el.classList.toggle('selected', el.dataset.sysCat === cat);
+                });
+                var col    = document.getElementById('ovl-sys-opt-col');
+                var lbl    = document.getElementById('ovl-sys-opt-label');
+                var listEl = document.getElementById('ovl-sys-opt-list');
+                // Info category: display read-only info
+                if (cat === 'info') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'System Info';
+                    var si = window._picoSystemInfo || {};
+                    var html = '<div style="font-size:0.8rem;line-height:2;padding:0.3rem;">' +
+                        '<div>Version: ' + (si.version || '—') + '</div>' +
+                        '<div>IP (local): ' + (si.ip || '—') + '</div>' +
+                        '<div>IP (external): ' + (si.ext_ip || '—') + '</div>' +
+                        '<div>Location: ' + (si.location || '—') + '</div>' +
+                        '<div>Battery: ' + (si.battery || '—') + '</div>' +
+                        '</div>';
+                    listEl.innerHTML = html;
+                    return;
+                }
+                // Voice (comp / user): fetch speakers for current language, show list
+                if (cat === 'comp-voice' || cat === 'user-voice') {
+                    var vtype = (cat === 'user-voice') ? 'user' : 'comp';
+                    col.style.display = 'flex';
+                    lbl.textContent = (cat === 'user-voice') ? 'User Speaker' : 'Comp Speaker';
+                    listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
+                    fetch('/info?action=get_voices')
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            listEl.innerHTML = '';
+                            var speakers = (data && data.speakers) || [];
+                            if (!speakers.length) {
+                                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No voices found for language ' + (data.lang || '') + '</div>';
+                                return;
+                            }
+                            var _cs = window._picoCurrentSettings || {};
+                            var _curVoice = (cat === 'user-voice') ? (_cs.user_voice || '') : (_cs.comp_voice || '');
+                            // prepend Mute option
+                            ['mute'].concat(speakers).forEach(function(sp) {
+                                var btn = document.createElement('button');
+                                btn.className = 'pico-picker-item';
+                                if (sp === _curVoice) btn.classList.add('selected');
+                                btn.innerHTML = '<strong>' + sp + '</strong>';
+                                btn.addEventListener('click', function() {
+                                    listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                                    btn.classList.add('selected');
+                                    post('action=set_voice&type=' + vtype + '&speaker=' + encodeURIComponent(sp));
+                                    setTimeout(close, 180);
+                                });
+                                listEl.appendChild(btn);
+                            });
+                        })
+                        .catch(function() {
+                            listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load voices</div>';
+                        });
+                    return;
+                }
+                // Voice Speed: factor 1–9
+                if (cat === 'voice-speed') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Voice Speed';
+                    listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curSpeed = parseInt(_cs.speed_voice) || 2;
+                    [1,2,3,4,5,6,7,8,9].forEach(function(n) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + n + '</strong>';
+                        if (n === _curSpeed) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=voice_speed&val=' + n);
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
+                // Voice Volume: factor 1–20 (each step = 5%)
+                if (cat === 'voice-volume') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Volume (×5%)';
+                    listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curVol = parseInt(_cs.volume_voice) || 10;
+                    for (var v = 1; v <= 20; v++) {
+                        (function(n) {
+                            var btn = document.createElement('button');
+                            btn.className = 'pico-picker-item';
+                            btn.innerHTML = '<strong>' + (n * 5) + '%</strong>';
+                            if (n === _curVol) btn.classList.add('selected');
+                            btn.addEventListener('click', function() {
+                                listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                                btn.classList.add('selected');
+                                post('action=voice_volume&val=' + n);
+                                setTimeout(close, 180);
+                            });
+                            listEl.appendChild(btn);
+                        })(v);
+                    }
+                    return;
+                }
+                // Retro Speed: percentage values matching dgt/menu.py retrospeed_list
+                if (cat === 'rspeed') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Retro Speed';
+                    listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curRspeed = _cs.rspeed || '100';
+                    [['25%','25'],['50%','50'],['100%','100'],['200%','200'],['300%','300'],
+                     ['400%','400'],['500%','500'],['600%','600'],['700%','700'],
+                     ['800%','800'],['900%','900'],['1000%','1000'],['Max (instant)','max']
+                    ].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                        if (pair[1] === _curRspeed) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=rspeed&val=' + pair[1]);
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
+                if (cat === 'audio-backend') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Audio Backend';
+                    listEl.innerHTML = '<div style="font-size:0.78rem;line-height:1.55;opacity:0.72;padding:0.35rem 0.55rem 0.75rem;">Technical setting. Saved for next PicoChess restart. Native is intended for Wayland/PipeWire and needs pipewire-alsa; if native has no sound, rerun the installer or see README.</div>';
+                    var _curAudioBackend = (window._picoCurrentSettings || {}).audio_backend || 'sox';
+                    [
+                        ['Native (Wayland / PipeWire)', 'native', 'Requires pipewire-alsa · restart PicoChess'],
+                        ['SoX (X11 / legacy)', 'sox', 'Older playback backend · restart PicoChess']
+                    ].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong><span class="picker-sub">' + pair[2] + '</span>';
+                        if (pair[1] === _curAudioBackend) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            window._picoCurrentSettings = window._picoCurrentSettings || {};
+                            window._picoCurrentSettings.audio_backend = pair[1];
+                            post('action=audio_backend&backend=' + pair[1]);
+                            setTimeout(close, 220);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
+                var so = SYS_OPT[cat];
+                if (!so) { col.style.display = 'none'; return; }
+                col.style.display = 'flex';
+                lbl.textContent = so.label;
+                listEl.innerHTML = '';
+                var _activeActions = _activeSettingsActions(window._picoCurrentSettings);
+                so.items.forEach(function(pair) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item';
+                    btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                    var action = pair[1];
+                    if (_activeActions[action]) btn.classList.add('selected');
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                        btn.classList.add('selected');
+                        if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
+                        if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
+                        var postBody = 'action=' + action;
+                        setTimeout(function() { post(postBody); close(); }, 180);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            /* ── subpanel state updaters ─────────────── */
+            function modeLabel(mode) {
+                var labels = {
+                    normal: 'Normal',
+                    brain: 'Ponder On',
+                    analysis: 'Move Hint',
+                    kibitz: 'Eval.Score',
+                    observe: 'Observe',
+                    ponder: 'Analysis',
+                    training: 'Training',
+                    remote: 'Remote',
+                    pgnreplay: 'PGN Replay'
+                };
+                return labels[String(mode || '').toLowerCase()] || 'Normal';
+            }
+
+            function updateTileStates() {
+                var audioState = getPhoneSpeakerControlState();
+                var sysInfo = window._picoSystemInfo || {};
+                if (Object.prototype.hasOwnProperty.call(sysInfo, 'game_started')) {
+                    gameActive = Boolean(sysInfo.game_started);
+                    if (!gameActive) engineTurn = false;
+                }
+                var el;
+                if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
+                if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
+                if ((el = document.getElementById('ovl-mode-sub')))   el.textContent = modeLabel(sysInfo.interaction_mode);
+                if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
+                if ((el = document.getElementById('ovl-book-sub')))   el.textContent = sysInfo.book_name  || 'Off';
+                if ((el = document.getElementById('ovl-time-sub')))   el.textContent = sysInfo.time_label || '—';
+                if ((el = document.getElementById('ovl-player-sub'))) {
+                    var pName = sysInfo.user_name || '';
+                    var pElo  = (sysInfo.user_elo && sysInfo.user_elo !== '-') ? sysInfo.user_elo : '';
+                    el.textContent = pName ? (pElo ? pName + ' · ' + pElo : pName) : '—';
+                }
+                stateEl.textContent = gameActive ? '● Game in progress' : '○ No active game';
+                stateEl.style.color = gameActive ? '#4caf50' : '#888';
+            }
+
+            function updateGameSubpanel() {
+                // Clear stale tick marks — game actions are commands, not persistent settings
+                document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) {
+                    el.classList.remove('selected');
+                });
+                document.querySelectorAll('[data-requires-game]').forEach(function(el) {
+                    el.disabled = !gameActive;
+                    el.style.opacity = gameActive ? '1' : '0.38';
+                });
+                document.querySelectorAll('[data-requires-engine-turn]').forEach(function(el) {
+                    el.disabled = !(gameActive && engineTurn);
+                    el.style.opacity = (gameActive && engineTurn) ? '1' : '0.38';
+                });
+            }
+
+            function updateModeSubpanel() {
+                var current = (window._picoSystemInfo || {}).interaction_mode || 'normal';
+                document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) {
+                    el.classList.toggle('active', el.dataset.action === 'mode-' + current.toLowerCase());
+                });
+                var coach = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
+                var handBrainItem = document.getElementById('mode-handbrain-item');
+                if (handBrainItem) {
+                    handBrainItem.classList.toggle(
+                        'active',
+                        current === 'normal' && (coach === 'brain' || coach === 'hand')
+                    );
+                }
+            }
+
+            function updateTimeSubpanel() {
+                var current  = String((window._picoSystemInfo || {}).time_mode || '').toLowerCase();
+                var modeMap  = { '0':'fixed','1':'blitz','2':'fischer','3':'tournament','4':'depth','5':'nodes',
+                                 'fixed':'fixed','blitz':'blitz','fischer':'fischer','tournament':'tournament','depth':'depth','nodes':'nodes' };
+                var active   = modeMap[current] || '';
+                var modeList = document.getElementById('ovl-time-mode-list');
+                if (!modeList) return;
+                modeList.querySelectorAll('.pico-picker-item').forEach(function(el) {
+                    el.classList.toggle('selected', el.dataset.timeMode === active);
+                });
+                var valCol = document.getElementById('ovl-time-value-col');
+                if (valCol) valCol.style.display = 'none';
+                if (active) showTimeValues(active);
+            }
+
+            function getPhoneSpeakerEnabled() {
+                var sysInfo = window._picoSystemInfo || {};
+                if (Object.prototype.hasOwnProperty.call(sysInfo, 'web_audio_backend_remote')) {
+                    return Boolean(sysInfo.web_audio_backend_remote);
+                }
+                var settings = window._picoCurrentSettings || {};
+                if (Object.prototype.hasOwnProperty.call(settings, 'web_audio_backend_remote')) {
+                    return Boolean(settings.web_audio_backend_remote);
+                }
+                return Boolean(window.picoWebConfig && window.picoWebConfig.webAudioBackend);
+            }
+
+            function setPhoneSpeakerState(enabled) {
+                enabled = Boolean(enabled);
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.web_audio_backend_remote = enabled;
+                window._picoCurrentSettings = window._picoCurrentSettings || {};
+                window._picoCurrentSettings.web_audio_backend_remote = enabled;
+                if (typeof applyWebAudioBackendRemote === 'function') {
+                    applyWebAudioBackendRemote(enabled);
+                }
+                updateSystemSubpanel();
+                updateTileStates();
+            }
+
+            window.setPicoPhoneSpeaker = setPhoneSpeakerState;
+
+            function getPhoneSpeakerControlState() {
+                var enabled = getPhoneSpeakerEnabled();
+                return {
+                    disabled: false,
+                    enabled: enabled,
+                    icon: enabled ? '🔊' : '🔇',
+                    label: 'Phone Speaker',
+                    subtitle: enabled ? 'Remote PicoTalker stream on' : 'Remote PicoTalker stream off',
+                    tileText: enabled ? 'Phone speaker on' : 'Phone speaker off'
+                };
+            }
+
+            function updateSystemSubpanel() {
+                var audioState = getPhoneSpeakerControlState();
+                var icon  = document.getElementById('system-sound-icon');
+                var badge = document.getElementById('system-sound-badge');
+                var item  = document.getElementById('system-sound-item');
+                if (icon)  icon.textContent  = audioState.icon;
+                if (badge) badge.textContent = audioState.enabled ? 'On' : 'Off';
+                if (item)  item.classList.toggle('active', audioState.enabled);
+                var speakerBtn  = document.getElementById('sys-phone-speaker-btn');
+                var speakerIcon = document.getElementById('sys-phone-speaker-icon');
+                var speakerSub  = document.getElementById('sys-phone-speaker-sub');
+                if (speakerBtn) {
+                    speakerBtn.classList.toggle('selected', audioState.enabled);
+                    speakerBtn.title = audioState.subtitle;
+                }
+                if (speakerIcon) speakerIcon.textContent = audioState.icon + ' ' + audioState.label;
+                if (speakerSub)  speakerSub.textContent  = audioState.subtitle;
+            }
+
+            function normalizeTutorSettings(settings) {
+                settings = settings || {};
+                var coach = String(settings.tutor_coach || 'off').toLowerCase();
+                if (['on', 'lift', 'brain', 'hand'].indexOf(coach) === -1) coach = 'off';
+                var comment = String(settings.tutor_comment || 'off').toLowerCase();
+                if (comment === 'single') comment = 'engine';
+                if (comment !== 'engine' && comment !== 'all') comment = 'off';
+                var prob = parseInt(settings.tutor_prob, 10);
+                if (isNaN(prob)) prob = 50;
+                prob = Math.max(0, Math.min(100, prob));
+                var normalized = {
+                    tutor_watcher: Boolean(settings.tutor_watcher),
+                    tutor_coach: coach,
+                    tutor_explorer: Boolean(settings.tutor_explorer),
+                    tutor_comment: comment,
+                    tutor_prob: prob
+                };
+                normalized.tutor_active = Boolean(
+                    normalized.tutor_watcher ||
+                    normalized.tutor_coach !== 'off' ||
+                    settings.tutor_active
+                );
+                return normalized;
+            }
+
+            function updateTutorSummary(settings) {
+                var parts = [];
+                if (settings.tutor_watcher) parts.push('Watcher');
+                if (settings.tutor_coach !== 'off') {
+                    var coachLabels = {
+                        on: 'Coach On',
+                        lift: 'Coach Lift',
+                        brain: 'Brain and hand: Brain',
+                        hand: 'Brain and hand: Hand'
+                    };
+                    parts.push(coachLabels[settings.tutor_coach] || 'Coach');
+                }
+                if (settings.tutor_explorer) parts.push('Explorer');
+                if (settings.tutor_comment !== 'off') parts.push(settings.tutor_comment === 'all' ? 'Comment All' : 'Comment Engine');
+                var sub = document.getElementById('ovl-tutor-sub');
+                if (sub) sub.textContent = parts.length ? parts.join(' · ') : 'Off';
+            }
+
+            function applyTutorSettings(settings) {
+                settings = normalizeTutorSettings(settings);
+                window._picoTutorSettings = settings;
+
+                var watcherBadge = document.getElementById('tutor-watcher-badge');
+                var watcherItem = document.getElementById('tutor-watcher-item');
+                if (watcherBadge) watcherBadge.textContent = settings.tutor_watcher ? 'On' : 'Off';
+                if (watcherItem) watcherItem.classList.toggle('active', settings.tutor_watcher);
+
+                ['off', 'on', 'lift', 'brain', 'hand'].forEach(function(coachMode) {
+                    document.querySelectorAll('[data-coach-value="' + coachMode + '"]').forEach(function(coachModeBtn) {
+                        coachModeBtn.classList.toggle('active', settings.tutor_coach === coachMode);
+                    });
+                });
+                var coachItem = document.getElementById('tutor-coach-item');
+                if (coachItem) coachItem.classList.toggle('active', settings.tutor_coach !== 'off');
+                var modeHandBrainItem = document.getElementById('mode-handbrain-item');
+                if (modeHandBrainItem) {
+                    var currentMode = (window._picoSystemInfo || {}).interaction_mode || 'normal';
+                    modeHandBrainItem.classList.toggle(
+                        'active',
+                        currentMode === 'normal' && (settings.tutor_coach === 'brain' || settings.tutor_coach === 'hand')
+                    );
+                }
+
+                var expBadge = document.getElementById('tutor-explorer-badge');
+                var expItem = document.getElementById('tutor-explorer-item');
+                if (expBadge) expBadge.textContent = settings.tutor_explorer ? 'On' : 'Off';
+                if (expItem) expItem.classList.toggle('active', settings.tutor_explorer);
+
+                var commentBadge = document.getElementById('tutor-comment-badge');
+                var commentItem = document.getElementById('tutor-comment-item');
+                if (commentBadge) commentBadge.textContent = settings.tutor_comment === 'all' ? 'All' : (settings.tutor_comment === 'engine' ? 'Engine' : 'Off');
+                if (commentItem) commentItem.classList.toggle('active', settings.tutor_comment !== 'off');
+
+                var probBadge = document.getElementById('tutor-prob-badge');
+                if (probBadge) probBadge.textContent = settings.tutor_prob + '%';
+
+                updateTutorSummary(settings);
+                return settings;
+            }
+
+            function setTutorSettingsOptimistic(settings) {
+                if (window.setTutorSettings) {
+                    window.setTutorSettings(settings);
+                } else {
+                    applyTutorSettings(settings);
+                }
+            }
+
+            /* ── subpanel action dispatcher ──────────── */
+            function handleSubpanelAction(action, itemEl) {
+                switch (action) {
+                    // GAME
+                    case 'new-game':
+                        if (!confirm('Start a new game?')) return;
+                        post('action=new_game'); close(); break;
+                    case 'resign':
+                        if (!gameActive) return;
+                        if (!confirm('Resign the current game?')) return;
+                        post('action=resign_game'); close(); break;
+                    case 'takeback':
+                        if (!gameActive) return;
+                        post('action=take_back'); close(); break;
+                    case 'save-game':
+                        post('action=save_game&slot=1'); close(); break;
+                    case 'load-game':
+                        post('action=pgn_replay'); close(); break;
+                    case 'position':
+                        close(); break; // TODO: open position editor
+                    // ENGINE (handled by tile click → showEngine())
+                    // MODE
+                    case 'mode-normal':
+                    case 'mode-training':
+                    case 'mode-brain':
+                    case 'mode-analysis':
+                    case 'mode-kibitz':
+                    case 'mode-observe':
+                    case 'mode-remote':
+                    case 'mode-ponder':
+                    case 'mode-pgnreplay':
+                        document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) { el.classList.remove('active'); });
+                        itemEl && itemEl.classList.add('active');
+                        var modeSub = document.getElementById('ovl-mode-sub');
+                        if (modeSub && itemEl) modeSub.textContent = itemEl.querySelector('.pico-subpanel-label').textContent;
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var clearHandBrainCoach = tutorSettings.tutor_coach === 'brain' || tutorSettings.tutor_coach === 'hand';
+                        if (clearHandBrainCoach) {
+                            tutorSettings.tutor_coach = 'on';
+                            setTutorSettingsOptimistic(tutorSettings);
+                        }
+                        post('action=set_mode&mode=' + action.replace('mode-', '')).finally(function() {
+                            if (clearHandBrainCoach) post('action=picotutor&tutor=coach&val=on');
+                        });
+                        close(); break;
+                    case 'mode-handbrain': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var nextCoach = itemEl && itemEl.getAttribute('data-coach-value');
+                        if (nextCoach !== 'brain' && nextCoach !== 'hand') return;
+                        tutorSettings.tutor_coach = nextCoach;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) { el.classList.remove('active'); });
+                        var handBrainItem = document.getElementById('mode-handbrain-item');
+                        if (handBrainItem) handBrainItem.classList.add('active');
+                        var modeSub = document.getElementById('ovl-mode-sub');
+                        if (modeSub) modeSub.textContent = 'Normal';
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.interaction_mode = 'normal';
+                        post('action=set_mode&mode=normal').finally(function() {
+                            post('action=picotutor&tutor=coach&val=' + tutorSettings.tutor_coach);
+                        });
+                        close(); break; }
+                    // TIME — handled by time picker (see overlay click handler above)
+                    // TUTOR
+                    case 'tutor-watcher': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        tutorSettings.tutor_watcher = !tutorSettings.tutor_watcher;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=watcher&val=' + (tutorSettings.tutor_watcher ? '1' : '0'));
+                        break; }
+                    case 'tutor-coach': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var nextCoach = itemEl && itemEl.getAttribute('data-coach-value');
+                        if (['on', 'lift', 'brain', 'hand'].indexOf(nextCoach) === -1) nextCoach = 'off';
+                        if (tutorSettings.tutor_coach !== nextCoach) {
+                            tutorSettings.tutor_coach = nextCoach;
+                            setTutorSettingsOptimistic(tutorSettings);
+                            post('action=picotutor&tutor=coach&val=' + tutorSettings.tutor_coach);
+                        }
+                        break; }
+                    case 'tutor-explorer': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        tutorSettings.tutor_explorer = !tutorSettings.tutor_explorer;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=explorer&val=' + (tutorSettings.tutor_explorer ? '1' : '0'));
+                        break; }
+                    case 'tutor-comment': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var commentCycle = ['off','engine','all'];
+                        var comIdx = (commentCycle.indexOf(tutorSettings.tutor_comment) + 1) % commentCycle.length;
+                        tutorSettings.tutor_comment = commentCycle[comIdx];
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=comment&val=' + tutorSettings.tutor_comment);
+                        break; }
+                    case 'tutor-prob': {
+                        var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
+                        var probSteps = [0,5,10,15,20,25,30,40,50,60,70,80,90,100];
+                        var probCur = tutorSettings.tutor_prob;
+                        var probNext = probSteps[(probSteps.indexOf(probCur) + 1) % probSteps.length];
+                        tutorSettings.tutor_prob = probNext;
+                        setTutorSettingsOptimistic(tutorSettings);
+                        post('action=picotutor&tutor=prob&val=' + probNext);
+                        break; }
+                    case 'tutor-hint':
+                        post('action=clockbutton&button=3'); close(); break;
+                    // SYSTEM
+                    case 'phone-speaker': {
+                        var nextPhoneSpeaker = !getPhoneSpeakerEnabled();
+                        setPhoneSpeakerState(nextPhoneSpeaker);
+                        post('action=phone_speaker&enabled=' + (nextPhoneSpeaker ? 'true' : 'false'));
+                        break; }
+                    case 'sound':
+                        // dead-code path — Sound tile uses data-sys-cat, not data-action
+                        close(); break;
+                    case 'dgt':
+                        showScan(); break;
+                    case 'wifi':
+                        fetch('/settings/wifi-hotspot', { method: 'POST' }).catch(function(){});
+                        close(); break;
+                    case 'power':
+                        window.location.href = '/settings'; break;
+                }
+            }
+
+            /* ── open / close ────────────────────────── */
+            function open() {
+                applyCachedTutorSettings();
+                showTiles();
+                overlay.classList.add('open');
+                document.body.style.overflow = 'hidden';
+                // Fetch fresh system info so tile subtitles reflect current
+                // engine/book/time even if the page was loaded before these
+                // values arrived via WebSocket.
+                fetch('/info?action=get_system_info')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        Object.assign(window._picoSystemInfo, data);
+                    })
+                    .catch(function() {})
+                    .finally(function() { updateTileStates(); });
+            }
+
+            function close() {
+                overlay.classList.remove('open');
+                document.body.style.overflow = '';
+            }
+
+            /* ── event delegation ────────────────────── */
+            // Tile grid: each tile opens its sub-panel
+            tilesEl.addEventListener('click', function(e) {
+                var tile = e.target.closest('.pico-tile');
+                if (!tile) return;
+                var fns = { 'ovl-mode': showMode, 'ovl-engine': showEngine, 'ovl-time': showTime,
+                            'ovl-book': showEngineBook, 'ovl-tutor': showTutor, 'ovl-player': showPlayer,
+                            'ovl-game': showGame, 'ovl-system': showSystem, 'ovl-display': showDisplay };
+                var fn = fns[tile.id];
+                if (fn) fn();
+            });
+
+            // Sub-panels: back buttons → tiles; item clicks → dispatcher
+            overlay.addEventListener('click', function(e) {
+                if (e.target.closest('.pico-overlay-back')) { showTiles(); return; }
+                if (e.target.closest('#backToMenuBtn')) { showTiles(); return; }
+
+                // Engine category tabs
+                var engCatTab = e.target.closest('#ovl-engine-cats .pico-cat-tab');
+                if (engCatTab && engCatTab.dataset.engCat) { showEngineCat(engCatTab.dataset.engCat); return; }
+
+                // Time: mode column
+                var timeModeBtn = e.target.closest('#ovl-time-mode-list .pico-picker-item');
+                if (timeModeBtn && timeModeBtn.dataset.timeMode) {
+                    document.querySelectorAll('#ovl-time-mode-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    timeModeBtn.classList.add('selected');
+                    showTimeValues(timeModeBtn.dataset.timeMode);
+                    return;
+                }
+                // Time: value column
+                var timeValBtn = e.target.closest('#ovl-time-value-list .pico-picker-item');
+                if (timeValBtn && timeValBtn.dataset.timeIndex !== undefined) {
+                    document.querySelectorAll('#ovl-time-value-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    timeValBtn.classList.add('selected');
+                    setTimeout(function() { applyTime(timeValBtn.dataset.timeMode, timeValBtn.dataset.timeIndex); }, 180);
+                    return;
+                }
+
+                // Game: action column
+                var gameActionBtn = e.target.closest('#ovl-game-action-list .pico-picker-item');
+                if (gameActionBtn && gameActionBtn.dataset.gameAction) {
+                    var ga = gameActionBtn.dataset.gameAction;
+                    document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    gameActionBtn.classList.add('selected');
+                    if (ga === 'new-game') { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
+                    if (ga === 'hint')    { post('action=clockbutton&button=3'); close(); return; }
+                    if (ga === 'takeback') { post('action=take_back'); close(); return; }
+                    if (ga === 'altmove') {
+                        post('action=altmove');
+                        close(); return;
+                    }
+                    if (ga === 'contlast') { post('action=contlast'); close(); return; }
+                    if (ga === 'switchsides') { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
+                    if (ga === 'resign') { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
+                    if (ga === 'move-now') { if (!engineTurn) return; post('action=pause_resume'); close(); return; }
+                    showGameOpts(ga); return;
+                }
+
+                // System: category column
+                var sysCatBtn = e.target.closest('#ovl-sys-cat-list .pico-picker-item');
+                if (sysCatBtn && sysCatBtn.disabled) return;
+                if (sysCatBtn && sysCatBtn.dataset.sysCat) { showSysCat(sysCatBtn.dataset.sysCat); return; }
+                if (sysCatBtn && sysCatBtn.dataset.action) { handleSubpanelAction(sysCatBtn.dataset.action, sysCatBtn); return; }
+
+                // Display: category column
+                var dispCatBtn = e.target.closest('#ovl-disp-cat-list .pico-picker-item');
+                if (dispCatBtn && dispCatBtn.dataset.dispCat) { showDisplayCat(dispCatBtn.dataset.dispCat); return; }
+
+                var segmentedBtn = e.target.closest('.pico-segmented-button');
+                if (segmentedBtn && segmentedBtn.dataset.action) { handleSubpanelAction(segmentedBtn.dataset.action, segmentedBtn); return; }
+
+                // Generic subpanel items
+                var item = e.target.closest('.pico-subpanel-item');
+                if (item && item.dataset.action) handleSubpanelAction(item.dataset.action, item);
+            });
+
+            if (menuBtn)  menuBtn.addEventListener('click', open);
+            if (backdrop) backdrop.addEventListener('click', close);
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+            });
+
+            /* ── public API ──────────────────────────── */
+            window.picoOverlay = { open: open, close: close,
+                showTiles: showTiles, showScan: showScan, showEngine: showEngine,
+                showMode: showMode, showTime: showTime, showBook: showEngineBook,
+                showTutor: showTutor, showPlayer: showPlayer, showGame: showGame,
+                showSystem: showSystem, showDisplay: showDisplay };
+
+            window.setPicoGameActive = function(active) {
+                gameActive = Boolean(active);
+                window._picoSystemInfo = window._picoSystemInfo || {};
+                window._picoSystemInfo.game_started = gameActive;
+                if (!gameActive) engineTurn = false;
+                if (overlay.classList.contains('open')) updateTileStates();
+            };
+
+            window.setPicoEngineTurn = function(active) {
+                engineTurn = Boolean(active);
+                if (overlay.classList.contains('open')) updateGameSubpanel();
+            };
+
+            // Keep tutor watch state in sync with overlay
+            window.setTutorWatchState = window.setTutorWatchState || function() {};
+            var _origSetTutorWatch = window.setTutorWatchState;
+            window.setTutorSettings = function(settings) {
+                settings = applyTutorSettings(settings);
+                _origSetTutorWatch(settings.tutor_active);
+            };
+            window.setTutorWatchState = function(active, settings) {
+                if (settings) {
+                    window.setTutorSettings(settings);
+                    return;
+                }
+                _origSetTutorWatch(active);
+                var fallback = normalizeTutorSettings(window._picoTutorSettings);
+                fallback.tutor_active = Boolean(active);
+                updateTutorSummary(fallback);
+            };
+            // Sync overlay with the server-side initial state (the earlier call at
+            // page-load ran before this wrapper existed and only updated the button).
+            window.setTutorSettings(
+                (window.picoWebConfig && window.picoWebConfig.tutorSettings) ||
+                { tutor_watcher: Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive) }
+            );
+            refreshTutorSettings();
+
+        })();
+            // Initialise ThreeCheck king badge icons to match the current piece set
+            syncKingBadgeIcons();
+
+        }); // DOMContentLoaded
+        </script>
 
         <!-- JavaScript for consistent tab rendering and board display -->
         <script>
@@ -1373,19 +2372,6 @@
                     updateEngineVersionVisibility();
                 });
 
-                // Ajustar el ancho de la barra de evaluación al ancho del tablero
-                function adjustEvaluationBarWidth() {
-                    var boardElement = document.getElementById('board');
-                    var evaluationContainer = document.querySelector('.evaluation-container-horizontal');
-                    if (boardElement && evaluationContainer) {
-                        var boardWidth = boardElement.offsetWidth;
-                        evaluationContainer.style.width = boardWidth + 'px';
-                    }
-                }
-
-                setTimeout(adjustEvaluationBarWidth, 500);
-                window.addEventListener('resize', adjustEvaluationBarWidth);
-
                 // Forzar redibujado del tablero
                 setTimeout(function () {
                     if (window.chessground1) {
@@ -1396,6 +2382,9 @@
 
             function toggleMute() {
                 var btn = document.getElementById('btn-mute');
+                if (!btn || (typeof webAudioMode === 'string' && webAudioMode === 'off')) {
+                    return;
+                }
 
                 // 1. Cambiamos el aspecto visual (Rojo/Normal)
                 btn.classList.toggle('is-muted');
@@ -1461,6 +2450,448 @@
 
             });
         </script>
+    <!-- ── PICO CONTEXT MENU OVERLAY ──────────────────────────────────── -->
+    <div id="pico-menu-overlay" aria-modal="true" role="dialog">
+        <div class="pico-overlay-backdrop" id="picoOverlayBackdrop"></div>
+        <div class="pico-overlay-panel">
+
+            <div class="pico-overlay-header">
+                <span class="pico-overlay-title">PicoChess Menu</span>
+                <span class="pico-overlay-state" id="picoOverlayState">○ No active game</span>
+                <button class="pico-overlay-close" id="picoOverlayClose" aria-label="Close">✕</button>
+            </div>
+
+            <!-- CONTENT AREA (tiles / sub-panels) -->
+            <div class="pico-overlay-content">
+
+            <!-- TILE GRID — 9 gateway tiles (3-col × 3-row) -->
+            <div class="pico-tile-grid" id="overlay-tiles">
+                <button class="pico-tile" id="ovl-mode">
+                    <span class="pico-tile-label">Mode</span>
+                    <span class="pico-tile-sub" id="ovl-mode-sub">Normal</span>
+                </button>
+                <button class="pico-tile" id="ovl-engine">
+                    <span class="pico-tile-label">Engine</span>
+                    <span class="pico-tile-sub" id="ovl-engine-sub">—</span>
+                </button>
+                <button class="pico-tile" id="ovl-time">
+                    <span class="pico-tile-label">Time</span>
+                    <span class="pico-tile-sub" id="ovl-time-sub">—</span>
+                </button>
+                <button class="pico-tile" id="ovl-book">
+                    <span class="pico-tile-label">Engine Book</span>
+                    <span class="pico-tile-sub" id="ovl-book-sub">Off</span>
+                </button>
+                <button class="pico-tile" id="ovl-tutor">
+                    <span class="pico-tile-label">Tutor</span>
+                    <span class="pico-tile-sub" id="ovl-tutor-sub">Off</span>
+                </button>
+                <button class="pico-tile" id="ovl-player">
+                    <span class="pico-tile-label">Player</span>
+                    <span class="pico-tile-sub" id="ovl-player-sub">—</span>
+                </button>
+                <button class="pico-tile" id="ovl-game">
+                    <span class="pico-tile-label">Game</span>
+                    <span class="pico-tile-sub" id="ovl-game-sub">No active game</span>
+                </button>
+                <button class="pico-tile" id="ovl-system">
+                    <span class="pico-tile-label">System</span>
+                    <span class="pico-tile-sub" id="ovl-system-sub">Sound On</span>
+                </button>
+                <button class="pico-tile" id="ovl-display">
+                    <span class="pico-tile-label">Display</span>
+                    <span class="pico-tile-sub" id="ovl-display-sub">Board · Pieces · Theme</span>
+                </button>
+            </div>
+
+            <!-- DGT SCAN SUB-PANEL -->
+            <div id="overlay-scan" class="pico-subpanel" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-3" style="padding: 0 15px;">
+                    <button type="button" id="scanActiveBtn" class="btn btn-danger" style="width: 70%; height: 40px;">
+                        <i class="fa fa-delicious"></i>
+                        <span>Sync Board</span>
+                    </button>
+                    <button type="button" id="backToMenuBtn" class="btn btn-secondary" style="width: 25%; height: 40px;">
+                        <i class="fa fa-arrow-left"></i>
+                    </button>
+                </div>
+                <div class="scan-controls" style="padding: 15px;">
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-4">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="sideToPlaySwitch">
+                                </div>
+                                <div id="pawnPreview" style="display: flex; align-items: center; gap: 3px;">
+                                    <div id="pawnPiece" style="width: 30px; height: 30px; background-color: white; border: 0.5px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: black;">♙</div>
+                                    <div style="font-size: 20px; font-weight: bold;">↑</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="d-flex align-items-center gap-2" style="justify-content: center;">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="boardSideSwitch">
+                                </div>
+                                <div id="boardPreview" style="display: flex; flex-direction: column; align-items: center;">
+                                    <div style="display: flex; flex-direction: column; width: 30px; height: 30px; border: 2px solid #333;">
+                                        <div style="display: flex; width: 100%; height: 50%;">
+                                            <div id="topLeftSquare" style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;"></div>
+                                            <div id="topRightSquare" style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;"></div>
+                                        </div>
+                                        <div style="display: flex; width: 100%; height: 50%;">
+                                            <div id="bottomLeftSquare" style="width: 50%; height: 100%; background-color: black; border: 1px solid #666;"></div>
+                                            <div id="bottomRightSquare" style="width: 50%; height: 100%; background-color: white; border: 1px solid #666;"></div>
+                                        </div>
+                                    </div>
+                                    <div id="sideIndicator" style="width: 20px; height: 6px; background-color: white; margin-top: 3px; border: 0.5px solid #333;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="d-flex align-items-center gap-2" style="justify-content: flex-end;">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="uci960Switch">
+                                </div>
+                                <label class="form-check-label" for="uci960Switch" id="uci960Label" style="font-size: 14px; font-weight: bold;">UCI960 No</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="whiteCastleKingSwitch" checked>
+                                    <label class="form-check-label" for="whiteCastleKingSwitch">
+                                        <span style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span> O-O
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="whiteCastleQueenSwitch" checked>
+                                    <label class="form-check-label" for="whiteCastleQueenSwitch">
+                                        <span style="color: white; text-shadow: 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;">&#9632;</span> O-O-O
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="blackCastleKingSwitch" checked>
+                                    <label class="form-check-label" for="blackCastleKingSwitch">
+                                        <span style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span> O-O
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="blackCastleQueenSwitch" checked>
+                                    <label class="form-check-label" for="blackCastleQueenSwitch">
+                                        <span style="color: black; text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white;">&#9632;</span> O-O-O
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- #overlay-scan -->
+
+            <!-- ENGINE / LEVEL PICKER SUB-PANEL -->
+            <div id="overlay-engine" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back" id="ovl-engine-back">‹ Back</button>
+                    <span class="pico-picker-title">Engine</span>
+                </div>
+                <!-- category tabs -->
+                <div class="pico-cat-tabs" id="ovl-engine-cats">
+                    <button class="pico-cat-tab selected" data-eng-cat="modern">Modern</button>
+                    <button class="pico-cat-tab" data-eng-cat="retro">Retro</button>
+                    <button class="pico-cat-tab" data-eng-cat="favorites">⭐ Favorites</button>
+                </div>
+                <div class="pico-picker-columns">
+                    <div class="pico-picker-col" id="ovl-engine-col">
+                        <div class="pico-picker-col-label">Engine</div>
+                        <div id="ovl-engine-list"></div>
+                    </div>
+                    <div class="pico-picker-col" id="ovl-level-col" style="display:none;">
+                        <div class="pico-picker-col-label">Level</div>
+                        <div id="ovl-level-list"></div>
+                    </div>
+                </div>
+            </div><!-- #overlay-engine -->
+
+            <!-- MODE SUB-PANEL -->
+            <div id="overlay-mode" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Playing Mode</span>
+                </div>
+                <div class="pico-subpanel-list">
+                    <div class="pico-subpanel-group">Play against Pico</div>
+                    <button class="pico-subpanel-item" data-action="mode-normal">
+                        <span class="pico-subpanel-icon">♟️</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Normal</span><span class="pico-subpanel-desc">Play a standard game against the engine</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-training">
+                        <span class="pico-subpanel-icon">🎓</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Play against the engine with Force Pico move</span></span>
+                    </button>
+                    <div class="pico-subpanel-group">Analyze positions</div>
+                    <button class="pico-subpanel-item" data-action="mode-analysis">
+                        <span class="pico-subpanel-icon">🔬</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Move Hint</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows best move and records PGN</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-kibitz">
+                        <span class="pico-subpanel-icon">💬</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Eval.Score</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows score and depth and records PGN</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-ponder">
+                        <span class="pico-subpanel-icon">⏳</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free position analysis; set any legal position without PGN tracking</span></span>
+                    </button>
+                    <div class="pico-subpanel-group">Replay</div>
+                    <button class="pico-subpanel-item" data-action="mode-pgnreplay">
+                        <span class="pico-subpanel-icon">📖</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">PGN Replay</span><span class="pico-subpanel-desc">Step through a saved PGN game</span></span>
+                    </button>
+                    <div class="pico-subpanel-group">Special modes</div>
+                    <div class="pico-subpanel-item pico-subpanel-item-control" id="mode-handbrain-item">
+                        <span class="pico-subpanel-icon">🧑‍🏫</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Hand and brain</span><span class="pico-subpanel-desc">Start normal play with a Brain or Hand coach</span></span>
+                        <span class="pico-segmented-control" role="group" aria-label="Hand and brain coach mode">
+                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="brain">Brain</button>
+                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="hand">Hand</button>
+                        </span>
+                    </div>
+                    <button class="pico-subpanel-item" data-action="mode-observe">
+                        <span class="pico-subpanel-icon">👁️</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch a game with clocks and silent engine thinking</span></span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="mode-remote">
+                        <span class="pico-subpanel-icon">🌐</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Remote</span><span class="pico-subpanel-desc">Play a game against a remote human opponent</span></span>
+                    </button>
+                </div>
+            </div><!-- #overlay-mode -->
+
+            <!-- TIME SUB-PANEL -->
+            <div id="overlay-time" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Time Control</span>
+                </div>
+                <div class="pico-picker-columns">
+                    <div class="pico-picker-col" id="ovl-time-mode-col">
+                        <div class="pico-picker-col-label">Mode</div>
+                        <div id="ovl-time-mode-list">
+                            <button class="pico-picker-item" data-time-mode="blitz">
+                                <strong>🎮 Blitz</strong>
+                                <span class="picker-sub">Minutes per game</span>
+                            </button>
+                            <button class="pico-picker-item" data-time-mode="fischer">
+                                <strong>⚡ Fischer</strong>
+                                <span class="picker-sub">Game + increment</span>
+                            </button>
+                            <button class="pico-picker-item" data-time-mode="tournament">
+                                <strong>🏆 Tournament</strong>
+                                <span class="picker-sub">Moves / time + bonus</span>
+                            </button>
+                            <button class="pico-picker-item" data-time-mode="fixed">
+                                <strong>⏱ Fixed</strong>
+                                <span class="picker-sub">Seconds per move</span>
+                            </button>
+                            <button class="pico-picker-item" data-time-mode="depth">
+                                <strong>🔬 Depth</strong>
+                                <span class="picker-sub">Search plies</span>
+                            </button>
+                            <button class="pico-picker-item" data-time-mode="nodes">
+                                <strong>⚙ Nodes</strong>
+                                <span class="picker-sub">Search nodes (k)</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pico-picker-col" id="ovl-time-value-col" style="display:none;">
+                        <div class="pico-picker-col-label" id="ovl-time-value-label">Value</div>
+                        <div id="ovl-time-value-list"></div>
+                    </div>
+                </div>
+            </div><!-- #overlay-time -->
+
+            <!-- ENGINE BOOK SUB-PANEL -->
+            <div id="overlay-book" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Engine Book</span>
+                </div>
+                <div class="pico-picker-col" style="flex:1; overflow-y:auto;">
+                    <div class="pico-picker-col-label">Select Engine Book</div>
+                    <div id="ovl-book-list"><div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div></div>
+                </div>
+            </div><!-- #overlay-book -->
+
+            <!-- TUTOR SUB-PANEL -->
+            <div id="overlay-tutor" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">PicoTutor</span>
+                </div>
+                <div class="pico-subpanel-list">
+                    <button class="pico-subpanel-item" data-action="tutor-watcher" id="tutor-watcher-item">
+                        <span class="pico-subpanel-icon">👁️</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Watcher</span><span class="pico-subpanel-desc">Alert on blunders in real time</span></span>
+                        <span class="pico-subpanel-badge" id="tutor-watcher-badge">Off</span>
+                    </button>
+                    <div class="pico-subpanel-item pico-subpanel-item-control" id="tutor-coach-item">
+                        <span class="pico-subpanel-icon">🧑‍🏫</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Coach</span><span class="pico-subpanel-desc">Tutor coaching; Brain and Hand are special play modes.</span></span>
+                        <span class="pico-segmented-control" role="group" aria-label="Coach mode">
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="off">Off</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="on">On</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="lift">Lift</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="brain">Brain</button>
+                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="hand">Hand</button>
+                        </span>
+                    </div>
+                    <button class="pico-subpanel-item" data-action="tutor-explorer" id="tutor-explorer-item">
+                        <span class="pico-subpanel-icon">🗺️</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Explorer</span><span class="pico-subpanel-desc">Opening book exploration mode</span></span>
+                        <span class="pico-subpanel-badge" id="tutor-explorer-badge">Off</span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="tutor-comment" id="tutor-comment-item">
+                        <span class="pico-subpanel-icon">💬</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Comment</span><span class="pico-subpanel-desc">Move commentary (Off · Engine · All)</span></span>
+                        <span class="pico-subpanel-badge" id="tutor-comment-badge">Off</span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="tutor-prob" id="tutor-prob-item">
+                        <span class="pico-subpanel-icon">📊</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Probability</span><span class="pico-subpanel-desc">Blunder alert threshold</span></span>
+                        <span class="pico-subpanel-badge" id="tutor-prob-badge">50%</span>
+                    </button>
+                    <button class="pico-subpanel-item" data-action="tutor-hint">
+                        <span class="pico-subpanel-icon">💡</span>
+                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Hint</span><span class="pico-subpanel-desc">Request a move suggestion</span></span>
+                    </button>
+                </div>
+            </div><!-- #overlay-tutor -->
+
+            <!-- PLAYER SUB-PANEL -->
+            <div id="overlay-player" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Player</span>
+                </div>
+                <div style="padding:1rem 1.2rem;">
+                    <div style="margin-bottom:1rem;">
+                        <label for="ovl-player-name" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">Name</label>
+                        <input type="text" id="ovl-player-name"
+                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
+                               maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    </div>
+                    <div style="margin-bottom:1.4rem;">
+                        <label for="ovl-player-elo" style="display:block;font-size:0.85rem;opacity:0.7;margin-bottom:0.3rem;">ELO Rating</label>
+                        <input type="number" id="ovl-player-elo"
+                               style="width:100%;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:inherit;font-size:1rem;"
+                               min="0" max="3000" step="50" placeholder="1500">
+                    </div>
+                    <button id="ovl-player-save"
+                            style="width:100%;padding:0.7rem;background:rgba(76,175,80,0.55);border:none;border-radius:4px;color:inherit;font-size:1rem;font-weight:600;cursor:pointer;transition:background 0.12s;">
+                        Save
+                    </button>
+                </div>
+            </div><!-- #overlay-player -->
+
+            <!-- GAME SUB-PANEL -->
+            <div id="overlay-game" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Game</span>
+                </div>
+                <div class="pico-picker-columns">
+                    <div class="pico-picker-col" id="ovl-game-action-col">
+                        <div class="pico-picker-col-label">Action</div>
+                        <div id="ovl-game-action-list">
+                            <button class="pico-picker-item" data-game-action="new-game"><strong>🆕 New Game</strong><span class="picker-sub">Start fresh</span></button>
+                            <button class="pico-picker-item" data-game-action="hint"><strong>💡 Hint</strong><span class="picker-sub">Show best move suggestion</span></button>
+                            <button class="pico-picker-item" data-game-action="takeback"><strong>↩️ Takeback</strong><span class="picker-sub">Undo last move</span></button>
+                            <button class="pico-picker-item" data-game-action="save"><strong>💾 Save</strong><span class="picker-sub">Save to slot</span></button>
+                            <button class="pico-picker-item" data-game-action="read"><strong>📂 Read</strong><span class="picker-sub">Load from slot</span></button>
+                            <button class="pico-picker-item" data-game-action="end"><strong>🏁 End Game</strong><span class="picker-sub">Set result</span></button>
+                            <button class="pico-picker-item" data-game-action="altmove"><strong>↔️ Alt Move</strong><span class="picker-sub" id="game-altmove-sub">Off</span></button>
+                            <button class="pico-picker-item" data-game-action="contlast"><strong>▶️ Cont Last</strong><span class="picker-sub">Resume last game</span></button>
+                            <button class="pico-picker-item" data-game-action="switchsides"><strong>🔄 Switch Sides</strong><span class="picker-sub">Swap colors with engine</span></button>
+                            <button class="pico-picker-item" data-game-action="resign"><strong>🏳️ Resign</strong><span class="picker-sub">Concede the game</span></button>
+                            <button class="pico-picker-item" data-game-action="move-now" data-requires-engine-turn><strong>⚡ Move Now</strong><span class="picker-sub">Force engine to move</span></button>
+                        </div>
+                    </div>
+                    <div class="pico-picker-col" id="ovl-game-opt-col" style="display:none;">
+                        <div class="pico-picker-col-label" id="ovl-game-opt-label">Options</div>
+                        <div id="ovl-game-opt-list"></div>
+                    </div>
+                </div>
+            </div><!-- #overlay-game -->
+
+            <!-- SYSTEM SUB-PANEL -->
+            <div id="overlay-system" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">System</span>
+                </div>
+                <div class="pico-picker-columns">
+                    <div class="pico-picker-col" id="ovl-sys-cat-col">
+                        <div class="pico-picker-col-label">Category</div>
+                        <div id="ovl-sys-cat-list">
+                            <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
+                            <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
+                            <button class="pico-picker-item" data-action="phone-speaker" id="sys-phone-speaker-btn"><strong id="sys-phone-speaker-icon">🔊 Phone Speaker</strong><span class="picker-sub" id="sys-phone-speaker-sub">Remote PicoTalker stream on</span></button>
+                            <button class="pico-picker-item" data-sys-cat="audio-backend"><strong>🛠 Audio Backend</strong><span class="picker-sub">Native / SoX · restart required</span></button>
+                            <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
+                            <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
+                            <button class="pico-picker-item" data-sys-cat="comp-voice"><strong>🎙️ Comp Voice</strong><span class="picker-sub">Computer speaker</span></button>
+                            <button class="pico-picker-item" data-sys-cat="user-voice"><strong>👤 User Voice</strong><span class="picker-sub">Human player speaker</span></button>
+                            <button class="pico-picker-item" data-sys-cat="voice-speed"><strong>⏩ Voice Speed</strong><span class="picker-sub">Playback rate 1–9</span></button>
+                            <button class="pico-picker-item" data-sys-cat="voice-volume"><strong>🔊 Volume</strong><span class="picker-sub">System volume 1–20</span></button>
+                            <button class="pico-picker-item" data-sys-cat="rspeed"><strong>🕹️ Retro Speed</strong><span class="picker-sub">Retro engine playback speed</span></button>
+                            <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock · Notation · Confirm · Engine</span></button>
+                            <button class="pico-picker-item" data-sys-cat="eboard"><strong>🎲 EBoard</strong><span class="picker-sub">Hardware type</span></button>
+                            <button class="pico-picker-item" data-sys-cat="wifi"><strong>📶 WiFi/BT</strong><span class="picker-sub">Connection settings</span></button>
+                        </div>
+                    </div>
+                    <div class="pico-picker-col" id="ovl-sys-opt-col" style="display:none;">
+                        <div class="pico-picker-col-label" id="ovl-sys-opt-label">Options</div>
+                        <div id="ovl-sys-opt-list"></div>
+                    </div>
+                </div>
+            </div><!-- #overlay-system -->
+
+            <!-- DISPLAY SUB-PANEL -->
+            <div id="overlay-display" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Display</span>
+                </div>
+                <div class="pico-picker-columns">
+                    <div class="pico-picker-col" id="ovl-disp-cat-col">
+                        <div class="pico-picker-col-label">Category</div>
+                        <div id="ovl-disp-cat-list">
+                            <button class="pico-picker-item" data-disp-cat="board"><strong>🎨 Board</strong><span class="picker-sub">Board color</span></button>
+                            <button class="pico-picker-item" data-disp-cat="pieces"><strong>♟️ Pieces</strong><span class="picker-sub">Piece set</span></button>
+                            <button class="pico-picker-item" data-disp-cat="theme"><strong>🌓 Theme</strong><span class="picker-sub">Dark · Light · Auto</span></button>
+                        </div>
+                    </div>
+                    <div class="pico-picker-col" id="ovl-disp-opt-col" style="display:none;">
+                        <div class="pico-picker-col-label" id="ovl-disp-opt-label">Options</div>
+                        <div id="ovl-disp-opt-list"></div>
+                    </div>
+                </div>
+            </div><!-- #overlay-display -->
+
+            </div><!-- .pico-overlay-content -->
+
+        </div><!-- .pico-overlay-panel -->
+    </div><!-- #pico-menu-overlay -->
+
+    <footer id="pico-footer">
+        <span id="picoFooterDgt" class="footer-status">{{ eboard_name }}</span>
+        <span class="footer-version">PicoChess {{ pico_version }}</span>
+    </footer>
 </body>
 
 </html>

@@ -1,67 +1,72 @@
 @media (min-width: 769px) {
 
-    .container-fluid>.row {
+    /* Body is a flex column: main content + footer share 100vh.
+       overflow:hidden prevents touchscreen bounce without clipping the footer. */
+    html {
+        height: 100vh;
+        overflow: hidden !important;
+    }
+    body {
+        height: 100vh;
+        overflow: hidden !important;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Main content area grows to fill whatever height remains after the footer */
+    .scroll-portrait {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .scroll-portrait>.container-fluid,
+    .scroll-portrait>.container-fluid>.row {
+        height: 100%;
+    }
+
+    .scroll-portrait>.container-fluid>.row {
         display: flex;
         align-items: stretch;
         flex-wrap: nowrap;
     }
 
-    .scroll-portrait > .container-fluid > .row {
-        min-height: 98vh;
-        max-height: 98vh;
-    }
-
-    .container-fluid>.row>.col {
+    .scroll-portrait>.container-fluid>.row>.col {
         display: flex;
         flex-direction: column;
         min-width: 0;
+        min-height: 0;
     }
 
-    .container-fluid>.row>.col:last-child>.container {
+    /* Left column: board column.
+       Formula: min(60vw, calc(100vh - 78px))
+         - 100vh minus footer (~30px) minus board overhead (~48px) = 78px total
+         - 60vw: caps the board column on very wide monitors so the right
+           column always gets at least 40% of the viewport width.
+       The right column (flex: 1 1 0) takes whatever is left. */
+    .scroll-portrait>.container-fluid>.row>.col:first-child {
+        flex: 0 0 min(60vw, calc(100vh - 78px));
+        width: min(60vw, calc(100vh - 78px));
+    }
+
+    /* Right column: flex column, fills remaining height */
+    #col-info {
+        flex: 1 1 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        height: 100%;
     }
 
-    .container-fluid>.row>.col:last-child>.container>.row:nth-child(1) {
-        flex: 0 0 auto;
-    }
-
-    .container-fluid>.row>.col:last-child>.container>.row:nth-child(2) {
-        flex: 0 0 auto;
-    }
-
-    .container-fluid>.row>.col:last-child>.container>.row:nth-child(3) {
-        flex: 1 1 40%;
-        min-height: 0;
-    }
-
-    .container-fluid>.row>.col:last-child>.container>.row:nth-child(4) {
-        flex: 1 1 60%;
-        min-height: 0;
-    }
-
-    .scroll_movelist,
-    .scroll_obooklist,
-    .scroll_engine,
-
-    .container-fluid>.row>.col:last-child>.container>.row>.card {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .container-fluid>.row>.col:last-child>.container>.row>.card>.card-body,
-    .container-fluid>.row>.col:last-child>.container>.row>#data>.card-body {
+    #right-panel {
         flex: 1;
         min-height: 0;
     }
 
-    .container-fluid > .row > .col:last-child {
-    min-height: 0 !important;
+    /* Footer: fixed height at the bottom of the flex body */
+    #pico-footer {
+        flex-shrink: 0;
     }
-    
+
 }@media (prefers-color-scheme: dark) {
     .continuation-moves {
         color: #adb5bd;

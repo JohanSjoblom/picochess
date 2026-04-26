@@ -108,6 +108,9 @@ games/
 # Local Codex tool artifact
 .codex
 
+# Local Codex issue/case planning artifacts
+.codex-cases/
+
 # Game database files
 # some small twic 2024 files included
 

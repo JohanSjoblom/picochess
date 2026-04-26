@@ -125,9 +125,13 @@ explicitly requires it.
   - backend PicoTalker audio streamed from the Pi to a remote browser
   - browser synthesized speech fallback
 - The backend PicoTalker stream is the primary "phone as speaker" feature.
+- Backend stream ownership is in `PicoTalkerDisplay`; the web client only
+  receives `WebAudio` events and queues playback.
 - The System menu `Phone Speaker` setting toggles
   `web-audio-backend-remote` globally and persistently. It may update live via
   shared state.
+- Backend audio is remote-only. Localhost must not enable the backend stream.
+- When backend audio is active, it takes priority over browser speech synthesis.
 - Remote clients have one per-client mute button. It mutes whichever source is
   currently active: backend stream when available, otherwise browser speech.
 - Do not add a localhost mute for the Pi's local PicoTalker voice. Local voice

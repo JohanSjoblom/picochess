@@ -2096,29 +2096,8 @@
                         })(pairs, startIdx);
                         _prefGrid.appendChild(btn);
                     });
-                    // Phone Speaker toggle tile (7th tile)
-                    (function() {
-                        var _psBtn = document.createElement('button');
-                        _psBtn.className = 'pico-sub-tile';
-                        var _psLbl = document.createElement('span');
-                        _psLbl.className = 'pico-sub-tile-label';
-                        _psLbl.textContent = 'Phone Spkr';
-                        var _psSub = document.createElement('span');
-                        _psSub.className = 'pico-sub-tile-sub';
-                        _psSub.textContent = getPhoneSpeakerEnabled() ? 'On' : 'Off';
-                        _psBtn.appendChild(_psLbl);
-                        _psBtn.appendChild(_psSub);
-                        _psBtn.addEventListener('click', function() {
-                            var next = !getPhoneSpeakerEnabled();
-                            setPhoneSpeakerState(next);
-                            post('action=phone_speaker&enabled=' + (next ? 'true' : 'false'));
-                            _psSub.textContent = next ? 'On' : 'Off';
-                        });
-                        _prefGrid.appendChild(_psBtn);
-                    })();
-
-                    // 2 empty filler tiles to complete the 3×3 grid
-                    for (var _fi = 0; _fi < 2; _fi++) {
+                    // 3 empty filler tiles to complete the 3×3 grid
+                    for (var _fi = 0; _fi < 3; _fi++) {
                         var _fe = document.createElement('button');
                         _fe.className = 'pico-sub-tile pico-empty-tile';
                         _fe.setAttribute('aria-hidden', 'true');
@@ -2273,14 +2252,12 @@
 
             function updateSystemSubpanel() {
                 var audioState = getPhoneSpeakerControlState();
-                var icon  = document.getElementById('system-sound-icon');
-                var badge = document.getElementById('system-sound-badge');
-                var item  = document.getElementById('system-sound-item');
-                if (icon)  icon.textContent  = audioState.icon;
-                if (badge) badge.textContent = audioState.enabled ? 'On' : 'Off';
-                if (item)  item.classList.toggle('active', audioState.enabled);
-                // Phone Speaker is now a toggle tile inside the Preferences grid;
-                // its sub-label is updated directly in the tile's click handler.
+                var icon  = document.getElementById('sys-ps-icon');
+                var sub   = document.getElementById('sys-ps-sub');
+                var item  = document.getElementById('ovl-sys-phone-speaker');
+                if (icon) icon.textContent = audioState.icon;
+                if (sub)  sub.textContent  = audioState.enabled ? 'On' : 'Off';
+                if (item) item.classList.toggle('active', audioState.enabled);
             }
 
             function normalizeTutorSettings(settings) {
@@ -2666,6 +2643,13 @@
                 // System: category column
                 var sysCatBtn = e.target.closest('#ovl-sys-cat-list .pico-picker-item');
                 if (sysCatBtn && sysCatBtn.disabled) return;
+                if (sysCatBtn && sysCatBtn.dataset.sysCat === 'phone-speaker') {
+                    var _next = !getPhoneSpeakerEnabled();
+                    setPhoneSpeakerState(_next);
+                    post('action=phone_speaker&enabled=' + (_next ? 'true' : 'false'));
+                    updateSystemSubpanel();
+                    return;
+                }
                 if (sysCatBtn && sysCatBtn.dataset.sysCat) { showSysCat(sysCatBtn.dataset.sysCat); return; }
                 if (sysCatBtn && sysCatBtn.dataset.action) { handleSubpanelAction(sysCatBtn.dataset.action, sysCatBtn); return; }
 
@@ -3275,6 +3259,7 @@
                         <div id="ovl-sys-cat-list">
                             <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
                             <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
+                            <button class="pico-picker-item" id="ovl-sys-phone-speaker" data-sys-cat="phone-speaker"><strong id="sys-ps-icon">🔇</strong> <strong>Phone Speaker</strong><span class="picker-sub" id="sys-ps-sub">Off</span></button>
                             <button class="pico-picker-item" data-sys-cat="audio-backend"><strong>🛠 Audio Backend</strong><span class="picker-sub">Native / SoX · restart required</span></button>
                             <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>

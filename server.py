@@ -55,10 +55,9 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Dgt, DgtApi, Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
+from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice, EBoard
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
-from eboard.eboard import EBoard
 from pgn import ModeInfo
 
 # This needs to be reworked to be session based (probably by token)

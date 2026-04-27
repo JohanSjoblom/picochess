@@ -1968,53 +1968,92 @@
                     });
                     return;
                 }
-                // Voice Volume: factor 1–20 (each step = 5%)
+                // Voice Volume: factor 1–20 (each step = 5%) — slider
                 if (cat === 'voice-volume') {
-                    col.style.display = 'flex';
-                    lbl.textContent = 'Volume (×5%)';
+                    lbl.textContent = 'Volume';
                     listEl.innerHTML = '';
-                    var _cs = window._picoCurrentSettings || {};
-                    var _curVol = parseInt(_cs.volume_voice) || 10;
-                    for (var v = 1; v <= 20; v++) {
-                        (function(n) {
-                            var btn = document.createElement('button');
-                            btn.className = 'pico-picker-item';
-                            btn.innerHTML = '<strong>' + (n * 5) + '%</strong>';
-                            if (n === _curVol) btn.classList.add('selected');
-                            btn.addEventListener('click', function() {
-                                listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                                btn.classList.add('selected');
-                                post('action=voice_volume&val=' + n);
-                                setTimeout(close, 180);
-                            });
-                            listEl.appendChild(btn);
-                        })(v);
-                    }
+                    var _cs  = window._picoCurrentSettings || {};
+                    var _vol = Math.max(1, Math.min(20, parseInt(_cs.volume_voice) || 10));
+                    var _volWrap    = document.createElement('div');
+                    _volWrap.className = 'pico-slider-wrap';
+                    var _volReadout = document.createElement('div');
+                    _volReadout.className = 'pico-slider-readout';
+                    _volReadout.textContent = (_vol * 5) + '%';
+                    var _volSub = document.createElement('div');
+                    _volSub.className = 'pico-slider-sub';
+                    _volSub.textContent = 'Step ' + _vol + ' of 20';
+                    var _volSlider  = document.createElement('input');
+                    _volSlider.type  = 'range';
+                    _volSlider.className = 'pico-slider-track';
+                    _volSlider.min   = '1';
+                    _volSlider.max   = '20';
+                    _volSlider.step  = '1';
+                    _volSlider.value = String(_vol);
+                    var _volEnds = document.createElement('div');
+                    _volEnds.className = 'pico-slider-ends';
+                    _volEnds.innerHTML = '<span>5%</span><span>100%</span>';
+                    _volSlider.addEventListener('input', function() {
+                        var n = parseInt(this.value, 10);
+                        _volReadout.textContent = (n * 5) + '%';
+                        _volSub.textContent = 'Step ' + n + ' of 20';
+                    });
+                    _volSlider.addEventListener('change', function() {
+                        post('action=voice_volume&val=' + this.value);
+                        setTimeout(close, 300);
+                    });
+                    _volWrap.appendChild(_volReadout);
+                    _volWrap.appendChild(_volSub);
+                    _volWrap.appendChild(_volSlider);
+                    _volWrap.appendChild(_volEnds);
+                    listEl.appendChild(_volWrap);
                     return;
                 }
-                // Retro Speed: percentage values matching dgt/menu.py retrospeed_list
+                // Retro Speed: indexed slider over discrete non-linear values
                 if (cat === 'rspeed') {
-                    col.style.display = 'flex';
                     lbl.textContent = 'Retro Speed';
                     listEl.innerHTML = '';
-                    var _cs = window._picoCurrentSettings || {};
-                    var _curRspeed = _cs.rspeed || '100';
-                    [['25%','25'],['50%','50'],['100%','100'],['200%','200'],['300%','300'],
-                     ['400%','400'],['500%','500'],['600%','600'],['700%','700'],
-                     ['800%','800'],['900%','900'],['1000%','1000'],['Max (instant)','max']
-                    ].forEach(function(pair) {
-                        var btn = document.createElement('button');
-                        btn.className = 'pico-picker-item';
-                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
-                        if (pair[1] === _curRspeed) btn.classList.add('selected');
-                        btn.addEventListener('click', function() {
-                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                            btn.classList.add('selected');
-                            post('action=rspeed&val=' + pair[1]);
-                            setTimeout(close, 180);
-                        });
-                        listEl.appendChild(btn);
+                    var _rspeedVals   = [['25%','25'],['50%','50'],['100%','100'],
+                                         ['200%','200'],['300%','300'],['400%','400'],
+                                         ['500%','500'],['600%','600'],['700%','700'],
+                                         ['800%','800'],['900%','900'],['1000%','1000'],
+                                         ['Max','max']];
+                    var _cs2 = window._picoCurrentSettings || {};
+                    var _curRs = _cs2.rspeed || '100';
+                    var _rsIdx = 2; // default to 100%
+                    for (var _ri = 0; _ri < _rspeedVals.length; _ri++) {
+                        if (_rspeedVals[_ri][1] === _curRs) { _rsIdx = _ri; break; }
+                    }
+                    var _rsWrap    = document.createElement('div');
+                    _rsWrap.className = 'pico-slider-wrap';
+                    var _rsReadout = document.createElement('div');
+                    _rsReadout.className = 'pico-slider-readout';
+                    _rsReadout.textContent = _rspeedVals[_rsIdx][0];
+                    var _rsSub = document.createElement('div');
+                    _rsSub.className = 'pico-slider-sub';
+                    _rsSub.textContent = 'Retro engine playback speed';
+                    var _rsSlider  = document.createElement('input');
+                    _rsSlider.type  = 'range';
+                    _rsSlider.className = 'pico-slider-track';
+                    _rsSlider.min   = '0';
+                    _rsSlider.max   = String(_rspeedVals.length - 1);
+                    _rsSlider.step  = '1';
+                    _rsSlider.value = String(_rsIdx);
+                    var _rsEnds = document.createElement('div');
+                    _rsEnds.className = 'pico-slider-ends';
+                    _rsEnds.innerHTML = '<span>25%</span><span>Max</span>';
+                    _rsSlider.addEventListener('input', function() {
+                        _rsReadout.textContent = _rspeedVals[parseInt(this.value, 10)][0];
                     });
+                    _rsSlider.addEventListener('change', function() {
+                        var val = _rspeedVals[parseInt(this.value, 10)][1];
+                        post('action=rspeed&val=' + val);
+                        setTimeout(close, 300);
+                    });
+                    _rsWrap.appendChild(_rsReadout);
+                    _rsWrap.appendChild(_rsSub);
+                    _rsWrap.appendChild(_rsSlider);
+                    _rsWrap.appendChild(_rsEnds);
+                    listEl.appendChild(_rsWrap);
                     return;
                 }
                 if (cat === 'audio-backend') {

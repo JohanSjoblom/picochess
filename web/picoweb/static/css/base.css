@@ -2009,6 +2009,78 @@ html[data-theme="dark"] .promotion-overlay square {
     min-height: 0;
 }
 
+/* ── SETTING SLIDER ─────────────────────────────────────
+   Used for Voice Volume and Retro Speed in the System panel.
+   ─────────────────────────────────────────────────────── */
+.pico-slider-wrap {
+    padding: 0.9rem 0.6rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.pico-slider-readout {
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+
+.pico-slider-sub {
+    font-size: 0.72rem;
+    opacity: 0.6;
+    text-align: center;
+    margin-top: -0.3rem;
+}
+
+.pico-slider-track {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.18);
+    outline: none;
+    cursor: pointer;
+    margin: 0.4rem 0;
+}
+
+.pico-slider-track::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(13, 110, 253, 0.9);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    transition: background 0.12s, transform 0.1s;
+}
+
+.pico-slider-track::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(13, 110, 253, 0.9);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+
+.pico-slider-track:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+    background: rgba(13, 110, 253, 1);
+}
+
+.pico-slider-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    opacity: 0.5;
+    padding: 0 2px;
+}
+
 /* Inline back button used within a sub-panel column */
 .pico-col-back {
     background: none;

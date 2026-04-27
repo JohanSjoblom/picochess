@@ -1137,6 +1137,26 @@
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: body }).catch(function() {});
             }
+            function overlayTurnColor() {
+                var fen = (typeof currentPosition !== 'undefined') && currentPosition && currentPosition.fen;
+                if (typeof fen !== 'string') return '';
+                var parts = fen.trim().split(/\s+/);
+                if (parts.length < 2) return '';
+                return parts[1] === 'b' ? 'black' : 'white';
+            }
+            function refreshEngineTurnFromPosition() {
+                var sysInfo = window._picoSystemInfo || {};
+                var mode = String(sysInfo.interaction_mode || '').toLowerCase();
+                var engineMode = ['normal', 'brain', 'training'].indexOf(mode) !== -1;
+                var userColor = sysInfo.play_mode === 'user_black' ? 'black' :
+                    (sysInfo.play_mode === 'user_white' ? 'white' : '');
+                var turnColor = overlayTurnColor();
+                if (gameActive && engineMode && userColor && turnColor) {
+                    engineTurn = turnColor !== userColor;
+                } else if (!gameActive) {
+                    engineTurn = false;
+                }
+            }
 
             function showSubpanel(id) {
                 tilesEl.style.display = 'none';
@@ -1967,6 +1987,7 @@
                     gameActive = Boolean(sysInfo.game_started);
                     if (!gameActive) engineTurn = false;
                 }
+                refreshEngineTurnFromPosition();
                 var el;
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
@@ -1982,6 +2003,7 @@
             }
 
             function updateGameSubpanel() {
+                refreshEngineTurnFromPosition();
                 // Clear stale tick marks — game actions are commands, not persistent settings
                 document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) {
                     el.classList.remove('selected');
@@ -2492,11 +2514,16 @@
                 window._picoSystemInfo = window._picoSystemInfo || {};
                 window._picoSystemInfo.game_started = gameActive;
                 if (!gameActive) engineTurn = false;
-                if (overlay.classList.contains('open')) updateTileStates();
+                refreshEngineTurnFromPosition();
+                if (overlay.classList.contains('open')) {
+                    updateTileStates();
+                    updateGameSubpanel();
+                }
             };
 
             window.setPicoEngineTurn = function(active) {
                 engineTurn = Boolean(active);
+                refreshEngineTurnFromPosition();
                 if (overlay.classList.contains('open')) updateGameSubpanel();
             };
 

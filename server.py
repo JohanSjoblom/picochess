@@ -56,9 +56,10 @@ from web.picoweb import picoweb as pw
 
 from dgt.api import Dgt, DgtApi, Event, Message
 from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
+from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
-from eboard.eboard import EBoard
+from eboard.eboard import EBoard as EBoardProtocol
 from pgn import ModeInfo
 
 # This needs to be reworked to be session based (probably by token)
@@ -1869,7 +1870,7 @@ class WebServer:
 class WebVr(DgtIface):
     """Handle the web (clock) communication."""
 
-    def __init__(self, shared, dgtboard: EBoard, loop: asyncio.AbstractEventLoop):
+    def __init__(self, shared, dgtboard: EBoardProtocol, loop: asyncio.AbstractEventLoop):
         super(WebVr, self).__init__(dgtboard, loop)
         self.shared = shared
         # virtual_timer is a web clock updater, loop is started in parent
@@ -2501,7 +2502,7 @@ class WebDisplay(DisplayMsg):
             # Let the web client know whether a physical board is connected so it
             # can make the diagram read-only when appropriate.
             self.shared["system_info"]["has_board"] = (
-                ModeInfo.get_eboard_type() != EBoard.NOEBOARD
+                ModeInfo.get_eboard_type() != EBoardType.NOEBOARD
             )
             # store old/original values of everything from start
             if "engine_name" in self.shared["system_info"]:

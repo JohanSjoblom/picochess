@@ -1401,10 +1401,10 @@
                     ]
                 },
                 uci960: {
-                    label: 'UCI960 Mode',
+                    label: 'Chess960 Mode',
                     items: [
                         { label: '♟ Standard chess', value: 'false' },
-                        { label: '♞ UCI960 / FRC',   value: 'true'  }
+                        { label: '♞ Chess960 / FRC', value: 'true'  }
                     ]
                 },
                 castling: {
@@ -1420,7 +1420,7 @@
 
             function _positionSubLabel() {
                 var side = _positionSettings.sideToMove === 'white' ? 'White' : 'Black';
-                var mode = _positionSettings.uci960 ? 'UCI960' : 'Std';
+                var mode = _positionSettings.uci960 ? 'Chess960' : 'Std';
                 return side + ' · ' + mode;
             }
 
@@ -1445,7 +1445,7 @@
                 el = document.getElementById('ovl-pos-orient-sub');
                 if (el) el.textContent = _positionSettings.boardOrientation === 'normal' ? 'White bottom' : 'Black bottom';
                 el = document.getElementById('ovl-pos-uci960-sub');
-                if (el) el.textContent = _positionSettings.uci960 ? 'UCI960' : 'Standard';
+                if (el) el.textContent = _positionSettings.uci960 ? 'Chess960' : 'Standard';
                 el = document.getElementById('ovl-pos-castling-sub');
                 if (el) el.textContent = _castlingSub();
             }
@@ -1488,16 +1488,183 @@
                 col.style.display = 'flex';
             }
 
+            function renderPositionTiles() {
+                var gridEl = document.getElementById('ovl-pos-tile-grid');
+                if (!gridEl) return;
+                gridEl.innerHTML = '';
+
+                function _pTile(icon, label, sub, isActive, onClick) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = icon ? icon + ' ' + label : label;
+                    var sEl = document.createElement('span'); sEl.className = 'pico-sub-tile-sub';
+                    sEl.textContent = sub;
+                    btn.appendChild(lEl); btn.appendChild(sEl);
+                    btn.addEventListener('click', onClick);
+                    return btn;
+                }
+
+                // 1. Side to Move — toggle white ↔ black
+                var sideActive = _positionSettings.sideToMove === 'white';
+                gridEl.appendChild(_pTile('♟', 'Side to Move',
+                    sideActive ? 'White' : 'Black', false, function() {
+                    _positionSettings.sideToMove = sideActive ? 'black' : 'white';
+                    var sub = document.getElementById('ovl-position-sub');
+                    if (sub) sub.textContent = _positionSubLabel();
+                    renderPositionTiles();
+                }));
+
+                // 2. Board Side — toggle white bottom ↔ black bottom
+                var orientNormal = _positionSettings.boardOrientation === 'normal';
+                gridEl.appendChild(_pTile('🎲', 'Board Side',
+                    orientNormal ? 'White bottom' : 'Black bottom', false, function() {
+                    _positionSettings.boardOrientation = orientNormal ? 'flipped' : 'normal';
+                    renderPositionTiles();
+                }));
+
+                // 3. Chess960 — toggle No ↔ Yes
+                var c960 = _positionSettings.uci960;
+                gridEl.appendChild(_pTile('♞', 'Chess960',
+                    c960 ? 'Yes' : 'No', c960, function() {
+                    _positionSettings.uci960 = !c960;
+                    var sub = document.getElementById('ovl-position-sub');
+                    if (sub) sub.textContent = _positionSubLabel();
+                    renderPositionTiles();
+                }));
+
+                // 4. Castling — opens sub-grid
+                gridEl.appendChild(_pTile('🏰', 'Castling', _castlingSub(), false, function() {
+                    showPositionCastlingGrid();
+                }));
+
+                // 5. Scan — one-shot
+                var scanTile = _pTile('📷', 'Scan', 'Read board & start', false, function() {
+                    _doPositionScan(scanTile);
+                });
+                gridEl.appendChild(scanTile);
+
+                // 4 empty fillers
+                for (var _pi = 0; _pi < 4; _pi++) {
+                    var _pe = document.createElement('button');
+                    _pe.className = 'pico-sub-tile pico-empty-tile';
+                    _pe.setAttribute('aria-hidden', 'true'); _pe.tabIndex = -1;
+                    gridEl.appendChild(_pe);
+                }
+            }
+
+            function showPositionCastlingGrid() {
+                var subPanel  = document.getElementById('ovl-pos-sub-panel');
+                var subLabel  = document.getElementById('ovl-pos-sub-label');
+                var subContent= document.getElementById('ovl-pos-sub-content');
+                var mainGrid  = document.getElementById('ovl-pos-tile-grid');
+                if (!subPanel || !subContent) return;
+                mainGrid.style.display = 'none';
+                subPanel.style.display = '';
+                subLabel.textContent = 'Castling Rights';
+                subContent.innerHTML = '';
+
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+                var castleDefs = [
+                    { label: 'White 0-0',   key: 'wk' },
+                    { label: 'White 0-0-0', key: 'wq' },
+                    { label: 'Black 0-0',   key: 'bk' },
+                    { label: 'Black 0-0-0', key: 'bq' }
+                ];
+                castleDefs.forEach(function(def) {
+                    var enabled = _positionSettings.castling[def.key];
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile' + (enabled ? ' selected' : '');
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = def.label;
+                    var sEl = document.createElement('span'); sEl.className = 'pico-sub-tile-sub';
+                    sEl.textContent = enabled ? '✅' : '❌';
+                    btn.appendChild(lEl); btn.appendChild(sEl);
+                    btn.addEventListener('click', function() {
+                        _positionSettings.castling[def.key] = !_positionSettings.castling[def.key];
+                        var now = _positionSettings.castling[def.key];
+                        btn.classList.toggle('selected', now);
+                        sEl.textContent = now ? '✅' : '❌';
+                        // refresh castling summary on main tile after returning
+                    });
+                    grid.appendChild(btn);
+                });
+                // 5 empty fillers
+                for (var _ci = 0; _ci < 5; _ci++) {
+                    var _ce = document.createElement('button'); _ce.className = 'pico-sub-tile pico-empty-tile';
+                    _ce.setAttribute('aria-hidden','true'); _ce.tabIndex = -1; grid.appendChild(_ce);
+                }
+                subContent.appendChild(grid);
+            }
+
+            function hidePositionSubPanel() {
+                var subPanel = document.getElementById('ovl-pos-sub-panel');
+                var mainGrid = document.getElementById('ovl-pos-tile-grid');
+                if (subPanel) subPanel.style.display = 'none';
+                if (mainGrid) mainGrid.style.display = '';
+                renderPositionTiles();
+            }
+
+            function _doPositionScan(tileEl) {
+                if (tileEl) {
+                    var lEl = tileEl.querySelector('.pico-sub-tile-label');
+                    var sEl = tileEl.querySelector('.pico-sub-tile-sub');
+                    if (lEl) lEl.textContent = '⏳ Scanning…';
+                    if (sEl) sEl.textContent = 'Please wait';
+                    tileEl.disabled = true;
+                }
+                var c = _positionSettings.castling;
+                fetch('/channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action:           'scan_board',
+                        sideToPlay:       _positionSettings.sideToMove === 'white' ? 'true' : 'false',
+                        boardSide:        _positionSettings.boardOrientation === 'flipped' ? 'true' : 'false',
+                        uci960:           _positionSettings.uci960 ? 'true' : 'false',
+                        whiteCastleKing:  c.wk,
+                        whiteCastleQueen: c.wq,
+                        blackCastleKing:  c.bk,
+                        blackCastleQueen: c.bq
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.success) {
+                        var sub = document.getElementById('ovl-position-sub');
+                        if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+                        close();
+                    } else {
+                        if (tileEl) {
+                            var lEl = tileEl.querySelector('.pico-sub-tile-label');
+                            var sEl = tileEl.querySelector('.pico-sub-tile-sub');
+                            if (lEl) lEl.textContent = '⚠ Invalid';
+                            if (sEl) sEl.textContent = 'Check board & retry';
+                            tileEl.disabled = false;
+                            setTimeout(function() { renderPositionTiles(); }, 2500);
+                        }
+                    }
+                })
+                .catch(function() {
+                    if (tileEl) {
+                        var lEl = tileEl.querySelector('.pico-sub-tile-label');
+                        var sEl = tileEl.querySelector('.pico-sub-tile-sub');
+                        if (lEl) lEl.textContent = '⚠ Scan failed';
+                        if (sEl) sEl.textContent = 'Check connection';
+                        tileEl.disabled = false;
+                        setTimeout(function() { renderPositionTiles(); }, 2500);
+                    }
+                });
+            }
+
             function showPosition() {
                 showSubpanel('overlay-position');
-                // Hide right column until a param is selected
-                var col = document.getElementById('ovl-pos-value-col');
-                if (col) col.style.display = 'none';
-                _updatePositionParamSubs();
-                // Clear any previous param selection highlight
-                document.querySelectorAll('#ovl-pos-param-list .pico-picker-item').forEach(function(el) {
-                    el.classList.remove('selected');
-                });
+                var sp = document.getElementById('ovl-pos-sub-panel');
+                var mg = document.getElementById('ovl-pos-tile-grid');
+                if (sp) sp.style.display = 'none';
+                if (mg) mg.style.display = '';
+                renderPositionTiles();
             }
 
             /* ── display picker (board / pieces / theme) ─ */
@@ -2693,6 +2860,10 @@
                     hideTutorSubPanel();
                     return;
                 }
+                if (e.target.closest('#ovl-pos-back')) {
+                    hidePositionSubPanel();
+                    return;
+                }
                 if (e.target.closest('#ovl-sys-cat-back')) {
                     document.getElementById('ovl-sys-cat-col').style.display = '';
                     document.getElementById('ovl-sys-opt-col').style.display = 'none';
@@ -3326,38 +3497,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Position Setup</span>
                 </div>
-                <div class="pico-picker-columns">
-                    <!-- LEFT COLUMN: parameters -->
-                    <div class="pico-picker-col" id="ovl-pos-param-col">
-                        <div class="pico-picker-col-label">Setting</div>
-                        <div id="ovl-pos-param-list">
-                            <button class="pico-picker-item" data-pos-param="side">
-                                <strong>Side to Move</strong>
-                                <span class="picker-sub" id="ovl-pos-side-sub">White</span>
-                            </button>
-                            <button class="pico-picker-item" data-pos-param="orientation">
-                                <strong>Board Side</strong>
-                                <span class="picker-sub" id="ovl-pos-orient-sub">White bottom</span>
-                            </button>
-                            <button class="pico-picker-item" data-pos-param="uci960">
-                                <strong>UCI960</strong>
-                                <span class="picker-sub" id="ovl-pos-uci960-sub">Standard</span>
-                            </button>
-                            <button class="pico-picker-item" data-pos-param="castling">
-                                <strong>Castling</strong>
-                                <span class="picker-sub" id="ovl-pos-castling-sub">All enabled</span>
-                            </button>
-                            <button class="pico-picker-item" data-pos-action="scan" id="ovl-pos-scan-btn">
-                                <strong>Scan Board Now</strong>
-                                <span class="picker-sub">Read position &amp; start</span>
-                            </button>
-                        </div>
-                    </div>
-                    <!-- RIGHT COLUMN: choices (hidden until a parameter is selected) -->
-                    <div class="pico-picker-col" id="ovl-pos-value-col" style="display:none;">
-                        <div class="pico-picker-col-label" id="ovl-pos-value-label">Choice</div>
-                        <div id="ovl-pos-value-list"></div>
-                    </div>
+                <div id="ovl-pos-tile-grid" class="pico-sub-tile-grid"></div>
+                <div id="ovl-pos-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-pos-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-pos-sub-label"></div>
+                    <div id="ovl-pos-sub-content"></div>
                 </div>
             </div><!-- #overlay-position -->
 

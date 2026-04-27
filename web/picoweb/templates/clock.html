@@ -2151,8 +2151,29 @@
                         })(pairs, startIdx);
                         _prefGrid.appendChild(btn);
                     });
-                    // 3 empty filler tiles to complete the 3×3 grid
-                    for (var _fi = 0; _fi < 3; _fi++) {
+                    // Phone Speaker toggle tile (7th tile)
+                    (function() {
+                        var _psBtn = document.createElement('button');
+                        _psBtn.className = 'pico-sub-tile';
+                        var _psLbl = document.createElement('span');
+                        _psLbl.className = 'pico-sub-tile-label';
+                        _psLbl.textContent = 'Phone Spkr';
+                        var _psSub = document.createElement('span');
+                        _psSub.className = 'pico-sub-tile-sub';
+                        _psSub.textContent = getPhoneSpeakerEnabled() ? 'On' : 'Off';
+                        _psBtn.appendChild(_psLbl);
+                        _psBtn.appendChild(_psSub);
+                        _psBtn.addEventListener('click', function() {
+                            var next = !getPhoneSpeakerEnabled();
+                            setPhoneSpeakerState(next);
+                            post('action=phone_speaker&enabled=' + (next ? 'true' : 'false'));
+                            _psSub.textContent = next ? 'On' : 'Off';
+                        });
+                        _prefGrid.appendChild(_psBtn);
+                    })();
+
+                    // 2 empty filler tiles to complete the 3×3 grid
+                    for (var _fi = 0; _fi < 2; _fi++) {
                         var _fe = document.createElement('button');
                         _fe.className = 'pico-sub-tile pico-empty-tile';
                         _fe.setAttribute('aria-hidden', 'true');
@@ -2315,15 +2336,8 @@
                 if (icon)  icon.textContent  = audioState.icon;
                 if (badge) badge.textContent = audioState.enabled ? 'On' : 'Off';
                 if (item)  item.classList.toggle('active', audioState.enabled);
-                var speakerBtn  = document.getElementById('sys-phone-speaker-btn');
-                var speakerIcon = document.getElementById('sys-phone-speaker-icon');
-                var speakerSub  = document.getElementById('sys-phone-speaker-sub');
-                if (speakerBtn) {
-                    speakerBtn.classList.toggle('selected', audioState.enabled);
-                    speakerBtn.title = audioState.subtitle;
-                }
-                if (speakerIcon) speakerIcon.textContent = audioState.icon + ' ' + audioState.label;
-                if (speakerSub)  speakerSub.textContent  = audioState.subtitle;
+                // Phone Speaker is now a toggle tile inside the Preferences grid;
+                // its sub-label is updated directly in the tile's click handler.
             }
 
             function normalizeTutorSettings(settings) {
@@ -3323,7 +3337,6 @@
                         <div id="ovl-sys-cat-list">
                             <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
                             <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
-                            <button class="pico-picker-item" data-action="phone-speaker" id="sys-phone-speaker-btn"><strong id="sys-phone-speaker-icon">🔊 Phone Speaker</strong><span class="picker-sub" id="sys-phone-speaker-sub">Remote PicoTalker stream on</span></button>
                             <button class="pico-picker-item" data-sys-cat="audio-backend"><strong>🛠 Audio Backend</strong><span class="picker-sub">Native / SoX · restart required</span></button>
                             <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
                             <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>

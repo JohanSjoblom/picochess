@@ -1900,17 +1900,42 @@
                         });
                     return;
                 }
-                // Voice Speed: factor 1–9  (fits exactly in 3×3)
+                // Voice Speed: factor 1–9 — slider
                 if (cat === 'voice-speed') {
                     lbl.textContent = 'Voice Speed';
                     listEl.innerHTML = '';
                     var _cs = window._picoCurrentSettings || {};
-                    var _curSpeed = parseInt(_cs.speed_voice) || 2;
-                    var _speedItems = [1,2,3,4,5,6,7,8,9].map(function(n) { return {label:String(n), value:n}; });
-                    renderSubTileGrid(listEl, _speedItems, 0, _curSpeed, function(item) {
-                        post('action=voice_speed&val=' + item.value);
-                        setTimeout(close, 180);
+                    var _curSpeed = Math.max(1, Math.min(9, parseInt(_cs.speed_voice) || 2));
+                    var _vsWrap    = document.createElement('div');
+                    _vsWrap.className = 'pico-slider-wrap';
+                    var _vsReadout = document.createElement('div');
+                    _vsReadout.className = 'pico-slider-readout';
+                    _vsReadout.textContent = String(_curSpeed);
+                    var _vsSub = document.createElement('div');
+                    _vsSub.className = 'pico-slider-sub';
+                    _vsSub.textContent = 'Playback rate (1 = slowest, 9 = fastest)';
+                    var _vsSlider  = document.createElement('input');
+                    _vsSlider.type  = 'range';
+                    _vsSlider.className = 'pico-slider-track';
+                    _vsSlider.min   = '1';
+                    _vsSlider.max   = '9';
+                    _vsSlider.step  = '1';
+                    _vsSlider.value = String(_curSpeed);
+                    var _vsEnds = document.createElement('div');
+                    _vsEnds.className = 'pico-slider-ends';
+                    _vsEnds.innerHTML = '<span>1 · slow</span><span>fast · 9</span>';
+                    _vsSlider.addEventListener('input', function() {
+                        _vsReadout.textContent = this.value;
                     });
+                    _vsSlider.addEventListener('change', function() {
+                        post('action=voice_speed&val=' + this.value);
+                        setTimeout(close, 300);
+                    });
+                    _vsWrap.appendChild(_vsReadout);
+                    _vsWrap.appendChild(_vsSub);
+                    _vsWrap.appendChild(_vsSlider);
+                    _vsWrap.appendChild(_vsEnds);
+                    listEl.appendChild(_vsWrap);
                     return;
                 }
                 // Voice Volume: factor 1–20 (each step = 5%) — slider

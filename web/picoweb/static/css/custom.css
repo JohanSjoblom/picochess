@@ -846,3 +846,154 @@ td.result {
         display: inline !important;
     }
 }
+
+/* =====================================================================
+   TOUCH / COARSE-POINTER IMPROVEMENTS
+   Applies to any device without a precise pointer (touch screens,
+   styluses).  Works independently of screen size so it covers both
+   phones and tablets in landscape mode.
+   ===================================================================== */
+@media (pointer: coarse) {
+
+    /* ------------------------------------------------------------------
+       Wider, finger-friendly scrollbars (WebKit/Blink engines)
+    ------------------------------------------------------------------ */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.35);
+        border-radius: 5px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:active {
+        background: rgba(0, 0, 0, 0.55);
+        background-clip: content-box;
+    }
+
+    /* Standard (Firefox 64+) */
+    * {
+        scrollbar-width: thin;          /* 'thin' gives ~8 px in Firefox */
+        scrollbar-color: rgba(0,0,0,.35) rgba(0,0,0,.08);
+    }
+
+    /* ------------------------------------------------------------------
+       DataTables rows — engine list, time-control list, game list.
+       Min 44 px height satisfies Apple HIG; 48 dp is the Material target.
+    ------------------------------------------------------------------ */
+    table.dataTable tbody td {
+        padding-top:    0.55rem !important;
+        padding-bottom: 0.55rem !important;
+        font-size: 1rem !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Larger "show N entries" select */
+    div.dataTables_wrapper div.dataTables_length select {
+        min-height: 44px;
+        font-size: 1rem;
+    }
+
+    /* ------------------------------------------------------------------
+       Nav-pills (Moves / Book / Engine / Games tab buttons)
+    ------------------------------------------------------------------ */
+    .nav-pills .nav-link {
+        padding: 0.7rem 1rem !important;
+        font-size: 0.95rem !important;
+        min-height: 44px !important;
+    }
+
+    /* ------------------------------------------------------------------
+       List-group items (settings panel lists)
+    ------------------------------------------------------------------ */
+    .list-group-item {
+        padding-top:    0.65rem !important;
+        padding-bottom: 0.65rem !important;
+        font-size: 1rem !important;
+        min-height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    /* ------------------------------------------------------------------
+       Buttons — all board-control and toolbar buttons
+    ------------------------------------------------------------------ */
+    .btn {
+        min-height: 44px !important;
+        padding-left:  0.7rem !important;
+        padding-right: 0.7rem !important;
+    }
+
+    /* Keep the tiny upload/download buttons reasonable on touch */
+    #uploadBtn,
+    #downloadBtn {
+        min-height: 44px !important;
+        font-size: 0.9rem !important;
+        padding: 0.4rem 0.6rem !important;
+    }
+
+    /* ------------------------------------------------------------------
+       Select elements and text inputs in settings
+    ------------------------------------------------------------------ */
+    select,
+    input[type="text"],
+    input[type="number"],
+    input[type="search"] {
+        min-height: 44px !important;
+        font-size: 1rem !important;
+        padding: 0.4rem 0.5rem !important;
+    }
+
+    /* DataTables search box */
+    div.dataTables_wrapper div.dataTables_filter input {
+        min-height: 44px !important;
+        font-size: 1rem !important;
+    }
+
+    /* ------------------------------------------------------------------
+       Checkboxes and their labels — bigger tap area
+    ------------------------------------------------------------------ */
+    input[type="checkbox"] {
+        width:  20px !important;
+        height: 20px !important;
+        margin-right: 6px !important;
+        cursor: pointer;
+    }
+
+    label {
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        cursor: pointer;
+    }
+
+    /* ------------------------------------------------------------------
+       Card headers (collapsible settings sections)
+    ------------------------------------------------------------------ */
+    .card-header {
+        padding: 0.6rem 0.75rem !important;
+        font-size: 1rem !important;
+        min-height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+        cursor: pointer;
+    }
+
+    /* ------------------------------------------------------------------
+       Mute button — already 60 × 50 px on desktop, keep it generous
+    ------------------------------------------------------------------ */
+    #btn-mute {
+        width:  56px !important;
+        height: 56px !important;
+        font-size: 26px !important;
+    }
+}

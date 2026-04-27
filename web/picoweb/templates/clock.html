@@ -1812,7 +1812,6 @@
                 power:   { label: 'Power', items: [['Shutdown','sys_shutdown'],['Reboot','sys_reboot'],['Exit PicoChess','sys_exit'],['Update PicoChess','sys_update'],['Update Engines','sys_update_engines']] },
                 sound:   { label: 'Sound (Beep)', items: [['Off','beep&val=off'],['Some','beep&val=some'],['On','beep&val=on'],['Sample','beep&val=sample']] },
                 lang:    { label: 'Language', items: [['English','lang&val=en'],['Deutsch','lang&val=de'],['Nederlands','lang&val=nl'],['Français','lang&val=fr'],['Español','lang&val=es'],['Italiano','lang&val=it']] },
-                display: { label: 'Display', items: [['Clock Left','display&side=left'],['Clock Right','display&side=right'],['Short notation','display&notation=short'],['Long notation','display&notation=long'],['Ponder On','display&ponder=on'],['Ponder Off','display&ponder=off'],['Confirm On','display&confirm=on'],['Confirm Off','display&confirm=off'],['Capital On','display&capital=on'],['Capital Off','display&capital=off'],['Engine Name On','display&enginename=on'],['Engine Name Off','display&enginename=off']] },
                 eboard:  { label: 'E-Board Type', items: [['DGT','eboard&type=dgt'],['Certabo','eboard&type=certabo'],['ChessLink','eboard&type=chesslink'],['ChessNut','eboard&type=chessnut'],['iChessOne','eboard&type=ichessone'],['None','eboard&type=none']] },
                 wifi:    { label: 'WiFi / BT', items: [['Toggle Hotspot','wifi_hotspot'],['Toggle BT','bt_toggle'],['Fix BT','bt_fix']] }
             };
@@ -2051,6 +2050,64 @@
                     });
                     return;
                 }
+                // Preferences: 6 toggle tiles, each showing current value; click flips it
+                if (cat === 'display') {
+                    lbl.textContent = 'Preferences';
+                    listEl.innerHTML = '';
+                    var _cs3 = window._picoCurrentSettings || {};
+                    // Each entry: [tile label, settings key, [[display label, action], ...]]
+                    var _prefToggles = [
+                        ['Clock Side',   'clockside',   [['Left',  'display&side=left'],   ['Right', 'display&side=right']]],
+                        ['Notation',     'notation',    [['Short', 'display&notation=short'],['Long', 'display&notation=long']]],
+                        ['Ponder',       'ponder',      [['On',    'display&ponder=on'],    ['Off',  'display&ponder=off']]],
+                        ['Confirm',      'confirm',     [['On',    'display&confirm=on'],   ['Off',  'display&confirm=off']]],
+                        ['Capital',      'capital',     [['On',    'display&capital=on'],   ['Off',  'display&capital=off']]],
+                        ['Engine Name',  'show_engine', [['On',    'display&enginename=on'],['Off',  'display&enginename=off']]]
+                    ];
+                    var _prefGrid = document.createElement('div');
+                    _prefGrid.className = 'pico-sub-tile-grid';
+                    _prefToggles.forEach(function(def) {
+                        var name     = def[0], key = def[1], pairs = def[2];
+                        var curRaw   = (_cs3[key] || pairs[0][1].split('=')[1]);
+                        var startIdx = 0;
+                        for (var _pi = 0; _pi < pairs.length; _pi++) {
+                            if (pairs[_pi][1].split('=')[1] === curRaw) { startIdx = _pi; break; }
+                        }
+                        var btn    = document.createElement('button');
+                        btn.className = 'pico-sub-tile';
+                        var lblEl  = document.createElement('span');
+                        lblEl.className = 'pico-sub-tile-label';
+                        lblEl.textContent = name;
+                        var subEl  = document.createElement('span');
+                        subEl.className = 'pico-sub-tile-sub';
+                        subEl.textContent = pairs[startIdx][0];
+                        btn.appendChild(lblEl);
+                        btn.appendChild(subEl);
+                        // Closure to capture mutable index per tile
+                        (function(ps, initIdx) {
+                            var idx = initIdx;
+                            btn.addEventListener('click', function() {
+                                idx = (idx + 1) % ps.length;
+                                subEl.textContent = ps[idx][0];
+                                window._picoCurrentSettings = window._picoCurrentSettings || {};
+                                window._picoCurrentSettings[key] = ps[idx][1].split('=')[1];
+                                post('action=' + ps[idx][1]);
+                            });
+                        })(pairs, startIdx);
+                        _prefGrid.appendChild(btn);
+                    });
+                    // 3 empty filler tiles to complete the 3×3 grid
+                    for (var _fi = 0; _fi < 3; _fi++) {
+                        var _fe = document.createElement('button');
+                        _fe.className = 'pico-sub-tile pico-empty-tile';
+                        _fe.setAttribute('aria-hidden', 'true');
+                        _fe.tabIndex = -1;
+                        _prefGrid.appendChild(_fe);
+                    }
+                    listEl.appendChild(_prefGrid);
+                    return;
+                }
+
                 var so = SYS_OPT[cat];
                 if (!so) { col.style.display = 'none'; return; }
                 lbl.textContent = so.label;
@@ -3213,7 +3270,7 @@
                             <button class="pico-picker-item" data-sys-cat="voice-speed"><strong>⏩ Voice Speed</strong><span class="picker-sub">Playback rate 1–9</span></button>
                             <button class="pico-picker-item" data-sys-cat="voice-volume"><strong>🔊 Volume</strong><span class="picker-sub">System volume 1–20</span></button>
                             <button class="pico-picker-item" data-sys-cat="rspeed"><strong>🕹️ Retro Speed</strong><span class="picker-sub">Retro engine playback speed</span></button>
-                            <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock · Notation · Confirm · Engine</span></button>
+                            <button class="pico-picker-item" data-sys-cat="display"><strong>⚙️ Preferences</strong><span class="picker-sub">Clock · Notation · Ponder · Confirm</span></button>
                             <button class="pico-picker-item" data-sys-cat="eboard"><strong>🎲 EBoard</strong><span class="picker-sub">Hardware type</span></button>
                             <button class="pico-picker-item" data-sys-cat="wifi"><strong>📶 WiFi/BT</strong><span class="picker-sub">Connection settings</span></button>
                         </div>

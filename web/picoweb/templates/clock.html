@@ -1189,6 +1189,8 @@
                 showSubpanel('overlay-system');
                 document.getElementById('ovl-sys-opt-col').style.display = 'none';
                 document.getElementById('ovl-sys-opt-list').innerHTML = '';
+                document.getElementById('ovl-sys-cat-col').style.display = '';
+                document.getElementById('ovl-sys-cat-back').style.display = 'none';
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                 updateSystemSubpanel();
                 // Pre-fetch current settings so tick marks are ready when a category is opened
@@ -1446,25 +1448,23 @@
                 document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) {
                     el.classList.toggle('selected', el.dataset.dispCat === cat);
                 });
-                var col    = document.getElementById('ovl-disp-opt-col');
-                var lbl    = document.getElementById('ovl-disp-opt-label');
-                var listEl = document.getElementById('ovl-disp-opt-list');
+                var col     = document.getElementById('ovl-disp-opt-col');
+                var catCol  = document.getElementById('ovl-disp-cat-col');
+                var catBack = document.getElementById('ovl-disp-cat-back');
+                var lbl     = document.getElementById('ovl-disp-opt-label');
+                var listEl  = document.getElementById('ovl-disp-opt-list');
+                // Expand to full width
+                if (catCol)  catCol.style.display  = 'none';
+                if (catBack) catBack.style.display  = '';
                 lbl.textContent = dc.label;
                 listEl.innerHTML = '';
-                var current = dc.getCurrent();
-                dc.items.forEach(function(pair) {
-                    var label = pair[0], val = pair[1];
-                    var btn = document.createElement('button');
-                    btn.className = 'pico-picker-item';
-                    btn.classList.toggle('selected', val === current);
-                    btn.innerHTML = '<strong>' + label + '</strong>';
-                    btn.addEventListener('click', function() {
-                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                        btn.classList.add('selected');
-                        dc.apply(val);
-                        setTimeout(close, 180);
-                    });
-                    listEl.appendChild(btn);
+                var current  = dc.getCurrent();
+                var dcItems  = dc.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
+                renderSubTileGrid(listEl, dcItems, 0, current, function(item, btn, grid) {
+                    grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
+                    btn.classList.add('selected');
+                    dc.apply(item.value);
+                    setTimeout(close, 180);
                 });
                 col.style.display = 'flex';
             }
@@ -1473,6 +1473,8 @@
                 showSubpanel('overlay-display');
                 document.getElementById('ovl-disp-opt-col').style.display = 'none';
                 document.getElementById('ovl-disp-opt-list').innerHTML = '';
+                document.getElementById('ovl-disp-cat-col').style.display = '';
+                document.getElementById('ovl-disp-cat-back').style.display = 'none';
                 document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
             }
             function showEngine() {
@@ -1549,20 +1551,15 @@
             function showTimeValues(mode) {
                 var td = TIME_DATA[mode];
                 if (!td) return;
-                var col    = document.getElementById('ovl-time-value-col');
                 var lbl    = document.getElementById('ovl-time-value-label');
                 var listEl = document.getElementById('ovl-time-value-list');
-                lbl.textContent = td.label;
-                listEl.innerHTML = '';
-                td.values.forEach(function(val, i) {
-                    var btn = document.createElement('button');
-                    btn.className = 'pico-picker-item';
-                    btn.dataset.timeMode  = mode;
-                    btn.dataset.timeIndex = i;
-                    btn.innerHTML = '<strong>' + val + '</strong>';
-                    listEl.appendChild(btn);
+                if (lbl) { lbl.textContent = td.label; lbl.style.display = ''; }
+                var items = td.values.map(function(val, i) { return { label: val, value: i }; });
+                renderSubTileGrid(listEl, items, 0, undefined, function(item, btn, grid) {
+                    grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
+                    btn.classList.add('selected');
+                    setTimeout(function() { applyTime(mode, item.value); }, 180);
                 });
-                col.style.display = 'flex';
             }
 
             function applyTime(mode, idx) {
@@ -1691,6 +1688,79 @@
                 col.style.display = 'flex';
             }
 
+            /* ── sub-menu 3×3 tile grid renderer ────────
+               items:  [{label, sub, value}]
+               page:   0-based; page 0 has 8 content slots,
+                       subsequent pages have 7 (slot 0 = Prev).
+               selectedVal: item.value that gets .selected class
+               onSelect(item, tileEl, gridEl): called on tap     */
+            function renderSubTileGrid(container, items, page, selectedVal, onSelect) {
+                container.innerHTML = '';
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+
+                var hasPrev  = page > 0;
+                var start    = hasPrev ? (8 + (page - 1) * 7) : 0;
+                var slots    = hasPrev ? 7 : 8;
+                var end      = Math.min(start + slots, items.length);
+                var hasNext  = end < items.length;
+                var tileIdx  = 0;
+
+                function makeTile(cls, text, onClick) {
+                    var b = document.createElement('button');
+                    b.className = 'pico-sub-tile ' + cls;
+                    if (cls.indexOf('empty') !== -1) { b.setAttribute('aria-hidden','true'); b.tabIndex = -1; }
+                    if (text)    b.textContent = text;
+                    if (onClick) b.addEventListener('click', onClick);
+                    return b;
+                }
+
+                if (hasPrev) {
+                    grid.appendChild(makeTile('pico-nav-tile', '◄ Prev', function() {
+                        renderSubTileGrid(container, items, page - 1, selectedVal, onSelect);
+                    }));
+                    tileIdx = 1;
+                }
+
+                for (var i = start; i < end; i++) {
+                    var item = items[i];
+                    var btn  = document.createElement('button');
+                    btn.className = 'pico-sub-tile';
+                    if (selectedVal !== undefined && item.value === selectedVal) btn.classList.add('selected');
+                    var lbl = document.createElement('span');
+                    lbl.className = 'pico-sub-tile-label';
+                    lbl.textContent = item.label;
+                    btn.appendChild(lbl);
+                    if (item.sub) {
+                        var sub = document.createElement('span');
+                        sub.className = 'pico-sub-tile-sub';
+                        sub.textContent = item.sub;
+                        btn.appendChild(sub);
+                    }
+                    (function(it, b) {
+                        b.addEventListener('click', function() { onSelect(it, b, grid); });
+                    })(item, btn);
+                    grid.appendChild(btn);
+                    tileIdx++;
+                }
+
+                // Pad up to slot 8
+                while (tileIdx < 8) {
+                    grid.appendChild(makeTile('pico-empty-tile', '', null));
+                    tileIdx++;
+                }
+
+                // Slot 8: Next or filler
+                grid.appendChild(hasNext
+                    ? makeTile('pico-nav-tile', 'Next ►', function() {
+                          renderSubTileGrid(container, items, page + 1, selectedVal, onSelect);
+                      })
+                    : makeTile('pico-empty-tile', '', null)
+                );
+
+                container.appendChild(grid);
+            }
+
             function showPlayerOpts() {
                 var col    = document.getElementById('ovl-game-opt-col');
                 var lbl    = document.getElementById('ovl-game-opt-label');
@@ -1769,9 +1839,15 @@
                 document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
                     el.classList.toggle('selected', el.dataset.sysCat === cat);
                 });
-                var col    = document.getElementById('ovl-sys-opt-col');
-                var lbl    = document.getElementById('ovl-sys-opt-label');
-                var listEl = document.getElementById('ovl-sys-opt-list');
+                var col     = document.getElementById('ovl-sys-opt-col');
+                var catCol  = document.getElementById('ovl-sys-cat-col');
+                var catBack = document.getElementById('ovl-sys-cat-back');
+                var lbl     = document.getElementById('ovl-sys-opt-label');
+                var listEl  = document.getElementById('ovl-sys-opt-list');
+                // Expand opt column to full width: hide category column
+                if (catCol)  catCol.style.display  = 'none';
+                if (catBack) catBack.style.display  = '';
+                col.style.display = 'flex';
                 // Info category: display read-only info
                 if (cat === 'info') {
                     col.style.display = 'flex';
@@ -1824,25 +1900,16 @@
                         });
                     return;
                 }
-                // Voice Speed: factor 1–9
+                // Voice Speed: factor 1–9  (fits exactly in 3×3)
                 if (cat === 'voice-speed') {
-                    col.style.display = 'flex';
                     lbl.textContent = 'Voice Speed';
                     listEl.innerHTML = '';
                     var _cs = window._picoCurrentSettings || {};
                     var _curSpeed = parseInt(_cs.speed_voice) || 2;
-                    [1,2,3,4,5,6,7,8,9].forEach(function(n) {
-                        var btn = document.createElement('button');
-                        btn.className = 'pico-picker-item';
-                        btn.innerHTML = '<strong>' + n + '</strong>';
-                        if (n === _curSpeed) btn.classList.add('selected');
-                        btn.addEventListener('click', function() {
-                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                            btn.classList.add('selected');
-                            post('action=voice_speed&val=' + n);
-                            setTimeout(close, 180);
-                        });
-                        listEl.appendChild(btn);
+                    var _speedItems = [1,2,3,4,5,6,7,8,9].map(function(n) { return {label:String(n), value:n}; });
+                    renderSubTileGrid(listEl, _speedItems, 0, _curSpeed, function(item) {
+                        post('action=voice_speed&val=' + item.value);
+                        setTimeout(close, 180);
                     });
                     return;
                 }
@@ -1922,25 +1989,19 @@
                 }
                 var so = SYS_OPT[cat];
                 if (!so) { col.style.display = 'none'; return; }
-                col.style.display = 'flex';
                 lbl.textContent = so.label;
                 listEl.innerHTML = '';
                 var _activeActions = _activeSettingsActions(window._picoCurrentSettings);
-                so.items.forEach(function(pair) {
-                    var btn = document.createElement('button');
-                    btn.className = 'pico-picker-item';
-                    btn.innerHTML = '<strong>' + pair[0] + '</strong>';
-                    var action = pair[1];
-                    if (_activeActions[action]) btn.classList.add('selected');
-                    btn.addEventListener('click', function() {
-                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                        btn.classList.add('selected');
-                        if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
-                        if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
-                        var postBody = 'action=' + action;
-                        setTimeout(function() { post(postBody); close(); }, 180);
-                    });
-                    listEl.appendChild(btn);
+                var _soItems = so.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
+                var _selectedAction = so.items
+                    .filter(function(pair) { return _activeActions[pair[1]]; })
+                    .map(function(pair)    { return pair[1]; })[0];
+                renderSubTileGrid(listEl, _soItems, 0, _selectedAction, function(item) {
+                    var action = item.value;
+                    if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
+                    if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
+                    post('action=' + action);
+                    setTimeout(close, 180);
                 });
             }
 
@@ -2018,11 +2079,14 @@
                 var active   = modeMap[current] || '';
                 var modeList = document.getElementById('ovl-time-mode-list');
                 if (!modeList) return;
-                modeList.querySelectorAll('.pico-picker-item').forEach(function(el) {
+                modeList.querySelectorAll('.pico-sub-tile[data-time-mode]').forEach(function(el) {
                     el.classList.toggle('selected', el.dataset.timeMode === active);
                 });
-                var valCol = document.getElementById('ovl-time-value-col');
-                if (valCol) valCol.style.display = 'none';
+                // Hide value grid label+list until a mode is tapped (or re-show for active)
+                var lbl    = document.getElementById('ovl-time-value-label');
+                var listEl = document.getElementById('ovl-time-value-list');
+                if (lbl)    lbl.style.display = 'none';
+                if (listEl) listEl.innerHTML  = '';
                 if (active) showTimeValues(active);
             }
 
@@ -2339,6 +2403,23 @@
 
             // Sub-panels: back buttons → tiles; item clicks → dispatcher
             overlay.addEventListener('click', function(e) {
+                // Inline column-back buttons (System / Display) — must come before
+                // the generic .pico-overlay-back handler that goes all the way back.
+                if (e.target.closest('#ovl-sys-cat-back')) {
+                    document.getElementById('ovl-sys-cat-col').style.display = '';
+                    document.getElementById('ovl-sys-opt-col').style.display = 'none';
+                    document.getElementById('ovl-sys-cat-back').style.display = 'none';
+                    document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    return;
+                }
+                if (e.target.closest('#ovl-disp-cat-back')) {
+                    document.getElementById('ovl-disp-cat-col').style.display = '';
+                    document.getElementById('ovl-disp-opt-col').style.display = 'none';
+                    document.getElementById('ovl-disp-cat-back').style.display = 'none';
+                    document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    return;
+                }
+
                 if (e.target.closest('.pico-overlay-back')) { showTiles(); return; }
                 if (e.target.closest('#backToMenuBtn')) { showTiles(); return; }
 
@@ -2346,20 +2427,12 @@
                 var engCatTab = e.target.closest('#ovl-engine-cats .pico-cat-tab');
                 if (engCatTab && engCatTab.dataset.engCat) { showEngineCat(engCatTab.dataset.engCat); return; }
 
-                // Time: mode column
-                var timeModeBtn = e.target.closest('#ovl-time-mode-list .pico-picker-item');
+                // Time: mode tile
+                var timeModeBtn = e.target.closest('#ovl-time-mode-list .pico-sub-tile[data-time-mode]');
                 if (timeModeBtn && timeModeBtn.dataset.timeMode) {
-                    document.querySelectorAll('#ovl-time-mode-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    document.querySelectorAll('#ovl-time-mode-list .pico-sub-tile').forEach(function(el) { el.classList.remove('selected'); });
                     timeModeBtn.classList.add('selected');
                     showTimeValues(timeModeBtn.dataset.timeMode);
-                    return;
-                }
-                // Time: value column
-                var timeValBtn = e.target.closest('#ovl-time-value-list .pico-picker-item');
-                if (timeValBtn && timeValBtn.dataset.timeIndex !== undefined) {
-                    document.querySelectorAll('#ovl-time-value-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                    timeValBtn.classList.add('selected');
-                    setTimeout(function() { applyTime(timeValBtn.dataset.timeMode, timeValBtn.dataset.timeIndex); }, 180);
                     return;
                 }
 
@@ -2889,40 +2962,40 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Time Control</span>
                 </div>
-                <div class="pico-picker-columns">
-                    <div class="pico-picker-col" id="ovl-time-mode-col">
-                        <div class="pico-picker-col-label">Mode</div>
-                        <div id="ovl-time-mode-list">
-                            <button class="pico-picker-item" data-time-mode="blitz">
-                                <strong>🎮 Blitz</strong>
-                                <span class="picker-sub">Minutes per game</span>
-                            </button>
-                            <button class="pico-picker-item" data-time-mode="fischer">
-                                <strong>⚡ Fischer</strong>
-                                <span class="picker-sub">Game + increment</span>
-                            </button>
-                            <button class="pico-picker-item" data-time-mode="tournament">
-                                <strong>🏆 Tournament</strong>
-                                <span class="picker-sub">Moves / time + bonus</span>
-                            </button>
-                            <button class="pico-picker-item" data-time-mode="fixed">
-                                <strong>⏱ Fixed</strong>
-                                <span class="picker-sub">Seconds per move</span>
-                            </button>
-                            <button class="pico-picker-item" data-time-mode="depth">
-                                <strong>🔬 Depth</strong>
-                                <span class="picker-sub">Search plies</span>
-                            </button>
-                            <button class="pico-picker-item" data-time-mode="nodes">
-                                <strong>⚙ Nodes</strong>
-                                <span class="picker-sub">Search nodes (k)</span>
-                            </button>
-                        </div>
+                <!-- Stacked layout: mode grid on top, value grid below -->
+                <div class="pico-time-scroll">
+                    <div class="pico-sub-grid-label">Mode</div>
+                    <div id="ovl-time-mode-list" class="pico-sub-tile-grid">
+                        <button class="pico-sub-tile" data-time-mode="blitz">
+                            <span class="pico-sub-tile-label">🎮 Blitz</span>
+                            <span class="pico-sub-tile-sub">Min / game</span>
+                        </button>
+                        <button class="pico-sub-tile" data-time-mode="fischer">
+                            <span class="pico-sub-tile-label">⚡ Fischer</span>
+                            <span class="pico-sub-tile-sub">Game + incr.</span>
+                        </button>
+                        <button class="pico-sub-tile" data-time-mode="tournament">
+                            <span class="pico-sub-tile-label">🏆 Tourn.</span>
+                            <span class="pico-sub-tile-sub">Moves / time</span>
+                        </button>
+                        <button class="pico-sub-tile" data-time-mode="fixed">
+                            <span class="pico-sub-tile-label">⏱ Fixed</span>
+                            <span class="pico-sub-tile-sub">Sec / move</span>
+                        </button>
+                        <button class="pico-sub-tile" data-time-mode="depth">
+                            <span class="pico-sub-tile-label">🔬 Depth</span>
+                            <span class="pico-sub-tile-sub">Search plies</span>
+                        </button>
+                        <button class="pico-sub-tile" data-time-mode="nodes">
+                            <span class="pico-sub-tile-label">⚙ Nodes</span>
+                            <span class="pico-sub-tile-sub">Nodes (k)</span>
+                        </button>
+                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
+                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
+                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
                     </div>
-                    <div class="pico-picker-col" id="ovl-time-value-col" style="display:none;">
-                        <div class="pico-picker-col-label" id="ovl-time-value-label">Value</div>
-                        <div id="ovl-time-value-list"></div>
-                    </div>
+                    <div class="pico-sub-grid-label" id="ovl-time-value-label" style="margin-top:8px;display:none;">Value</div>
+                    <div id="ovl-time-value-list"></div>
                 </div>
             </div><!-- #overlay-time -->
 
@@ -3082,6 +3155,7 @@
                         </div>
                     </div>
                     <div class="pico-picker-col" id="ovl-sys-opt-col" style="display:none;">
+                        <button class="pico-col-back" id="ovl-sys-cat-back" style="display:none;">‹ Category</button>
                         <div class="pico-picker-col-label" id="ovl-sys-opt-label">Options</div>
                         <div id="ovl-sys-opt-list"></div>
                     </div>
@@ -3104,6 +3178,7 @@
                         </div>
                     </div>
                     <div class="pico-picker-col" id="ovl-disp-opt-col" style="display:none;">
+                        <button class="pico-col-back" id="ovl-disp-cat-back" style="display:none;">‹ Category</button>
                         <div class="pico-picker-col-label" id="ovl-disp-opt-label">Options</div>
                         <div id="ovl-disp-opt-list"></div>
                     </div>

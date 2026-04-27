@@ -953,6 +953,15 @@ class ChannelHandler(ServerRequestHandler):
                 self.shared["system_info"]["user_elo"] = str(elo_int)
                 write_picochess_ini("pgn-elo", str(elo_int))
                 logger.info("web set_player: elo=%r", elo_int)
+            # Broadcast the updated values to all connected webclient tabs so
+            # the move-list header and player display refresh immediately.
+            update = {}
+            if name:
+                update["user_name"] = name
+            if elo:
+                update["user_elo"] = str(elo_int)
+            if update:
+                EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
         elif action == "phone_speaker":
             enabled = self.get_argument("enabled", "false").lower() in ("1", "true", "yes", "on")
             self.shared["web_audio_backend_remote"] = enabled

@@ -2898,6 +2898,34 @@ $(function () {
                         if (window.setTutorSettings && Object.prototype.hasOwnProperty.call(data.msg, 'tutor_watcher')) {
                             window.setTutorSettings(data.msg);
                         }
+                        // If the player name or ELO was updated, patch the PGN header
+                        // object and re-render the move list so the change is visible
+                        // immediately without waiting for the next game.
+                        if ('user_name' in data.msg || 'user_elo' in data.msg) {
+                            var _h = gameHistory.originalHeader;
+                            if (_h) {
+                                var _si = window._picoSystemInfo;
+                                var _newName = _si.user_name || '';
+                                var _newElo  = _si.user_elo  || '-';
+                                // play_mode is "user_white" or "user_black" — use it
+                                // directly so the correct PGN tag is always patched.
+                                if (_si.play_mode === 'user_black') {
+                                    if (_newName) { _h.Black    = _newName; }
+                                    _h.BlackElo = _newElo;
+                                } else {
+                                    // user_white or unknown — default to White
+                                    if (_newName) { _h.White    = _newName; }
+                                    _h.WhiteElo = _newElo;
+                                }
+                                gameHistory.gameHeader = getWebGameHeader(_h);
+                                var _pgnEl = document.getElementById('pgn');
+                                if (_pgnEl) {
+                                    var _exp = new WebExporter();
+                                    exportGame(gameHistory, _exp, true, true, undefined, false);
+                                    writeVariationTree(_pgnEl, _exp.toString(), gameHistory);
+                                }
+                            }
+                        }
                         if (window.chessground1) { updateChessGround(); }
                         if (window.syncClockControls) { window.syncClockControls(); }
                         break;

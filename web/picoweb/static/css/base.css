@@ -1624,7 +1624,8 @@ piece {
 }
 
 .pico-picker-item {
-    padding: 0.42rem 0.65rem;
+    min-height: 44px;
+    padding: 0.55rem 0.75rem;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.8rem;
@@ -1637,6 +1638,10 @@ piece {
     flex-shrink: 0;
     line-height: 1.35;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    touch-action: manipulation;
 }
 
 .pico-picker-item:hover {

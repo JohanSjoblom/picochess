@@ -1153,7 +1153,87 @@
                 tilesEl.style.display = '';
             }
             function showScan()   { showSubpanel('overlay-scan'); }
-            function showMode()   { showSubpanel('overlay-mode');   updateModeSubpanel(); }
+            var _modeDefs = [
+                { icon:'♟️',  label:'Normal',      action:'mode-normal',    key:'normal'    },
+                { icon:'🎓',  label:'Training',    action:'mode-training',  key:'training'  },
+                { icon:'🔬',  label:'Move Hint',   action:'mode-analysis',  key:'analysis'  },
+                { icon:'💬',  label:'Eval.Score',  action:'mode-kibitz',    key:'kibitz'    },
+                { icon:'⏳',  label:'Analysis',    action:'mode-ponder',    key:'ponder'    },
+                { icon:'📖',  label:'PGN Replay',  action:'mode-pgnreplay', key:'pgnreplay' },
+                { icon:'🧠',  label:'Hand & Brain',action:'mode-handbrain', key:'handbrain' },
+                { icon:'👁️', label:'Observe',     action:'mode-observe',   key:'observe'   },
+                { icon:'🌐',  label:'Remote',      action:'mode-remote',    key:'remote'    }
+            ];
+
+            function renderModeTiles() {
+                var gridEl = document.getElementById('ovl-mode-tile-grid');
+                if (!gridEl) return;
+                gridEl.innerHTML = '';
+                var current = String((window._picoSystemInfo || {}).interaction_mode || 'normal').toLowerCase();
+                var coach   = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
+                var hbActive = current === 'normal' && (coach === 'brain' || coach === 'hand');
+
+                _modeDefs.forEach(function(def) {
+                    var isActive = def.key === 'handbrain'
+                        ? hbActive
+                        : (current === def.key);
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = def.icon + ' ' + def.label;
+                    btn.appendChild(lEl);
+                    btn.addEventListener('click', function() {
+                        if (def.key === 'handbrain') {
+                            showModeHandBrainGrid();
+                        } else {
+                            handleSubpanelAction(def.action, null);
+                        }
+                    });
+                    gridEl.appendChild(btn);
+                });
+            }
+
+            function showModeHandBrainGrid() {
+                var mainGrid = document.getElementById('ovl-mode-tile-grid');
+                var subPanel = document.getElementById('ovl-mode-hb-panel');
+                var subContent = document.getElementById('ovl-mode-hb-content');
+                if (!subPanel) return;
+                mainGrid.style.display = 'none';
+                subPanel.style.display = '';
+                subContent.innerHTML = '';
+
+                var coach = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+                [['🧠 Brain','brain'],['✋ Hand','hand']].forEach(function(p) {
+                    var isActive = coach === p[1];
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = p[0];
+                    btn.appendChild(lEl);
+                    btn.setAttribute('data-coach-value', p[1]);
+                    btn.addEventListener('click', function() {
+                        handleSubpanelAction('mode-handbrain', btn);
+                    });
+                    grid.appendChild(btn);
+                });
+                // 7 empty fillers
+                for (var _mi = 0; _mi < 7; _mi++) {
+                    var _me = document.createElement('button'); _me.className = 'pico-sub-tile pico-empty-tile';
+                    _me.setAttribute('aria-hidden','true'); _me.tabIndex = -1; grid.appendChild(_me);
+                }
+                subContent.appendChild(grid);
+            }
+
+            function showMode() {
+                showSubpanel('overlay-mode');
+                var mg = document.getElementById('ovl-mode-tile-grid');
+                var sp = document.getElementById('ovl-mode-hb-panel');
+                if (mg) mg.style.display = '';
+                if (sp) sp.style.display = 'none';
+                renderModeTiles();
+            }
             function showTime() {
                 showSubpanel('overlay-time');
                 // Always start at the mode grid; sub-panel is opened on mode tap
@@ -2530,18 +2610,8 @@
             }
 
             function updateModeSubpanel() {
-                var current = (window._picoSystemInfo || {}).interaction_mode || 'normal';
-                document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) {
-                    el.classList.toggle('active', el.dataset.action === 'mode-' + current.toLowerCase());
-                });
-                var coach = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
-                var handBrainItem = document.getElementById('mode-handbrain-item');
-                if (handBrainItem) {
-                    handBrainItem.classList.toggle(
-                        'active',
-                        current === 'normal' && (coach === 'brain' || coach === 'hand')
-                    );
-                }
+                // Re-render tile grid to reflect current active mode
+                renderModeTiles();
             }
 
             function updateTimeSubpanel() {
@@ -2733,10 +2803,8 @@
                     case 'mode-remote':
                     case 'mode-ponder':
                     case 'mode-pgnreplay':
-                        document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) { el.classList.remove('active'); });
-                        itemEl && itemEl.classList.add('active');
                         var modeSub = document.getElementById('ovl-mode-sub');
-                        if (modeSub && itemEl) modeSub.textContent = itemEl.querySelector('.pico-subpanel-label').textContent;
+                        if (modeSub) modeSub.textContent = modeLabel(action.replace('mode-', ''));
                         var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
                         var clearHandBrainCoach = tutorSettings.tutor_coach === 'brain' || tutorSettings.tutor_coach === 'hand';
                         if (clearHandBrainCoach) {
@@ -2753,9 +2821,6 @@
                         if (nextCoach !== 'brain' && nextCoach !== 'hand') return;
                         tutorSettings.tutor_coach = nextCoach;
                         setTutorSettingsOptimistic(tutorSettings);
-                        document.querySelectorAll('#overlay-mode .pico-subpanel-item').forEach(function(el) { el.classList.remove('active'); });
-                        var handBrainItem = document.getElementById('mode-handbrain-item');
-                        if (handBrainItem) handBrainItem.classList.add('active');
                         var modeSub = document.getElementById('ovl-mode-sub');
                         if (modeSub) modeSub.textContent = 'Normal';
                         window._picoSystemInfo = window._picoSystemInfo || {};
@@ -2866,6 +2931,11 @@
             overlay.addEventListener('click', function(e) {
                 // Inline column-back buttons (System / Display) — must come before
                 // the generic .pico-overlay-back handler that goes all the way back.
+                if (e.target.closest('#ovl-mode-hb-back')) {
+                    document.getElementById('ovl-mode-tile-grid').style.display = '';
+                    document.getElementById('ovl-mode-hb-panel').style.display = 'none';
+                    return;
+                }
                 if (e.target.closest('#ovl-time-back')) {
                     var _tmg = document.getElementById('ovl-time-mode-list');
                     var _tsp = document.getElementById('ovl-time-sub-panel');
@@ -3391,51 +3461,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Playing Mode</span>
                 </div>
-                <div class="pico-subpanel-list">
-                    <div class="pico-subpanel-group">Play against Pico</div>
-                    <button class="pico-subpanel-item" data-action="mode-normal">
-                        <span class="pico-subpanel-icon">♟️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Normal</span><span class="pico-subpanel-desc">Play a standard game against the engine</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-training">
-                        <span class="pico-subpanel-icon">🎓</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Training</span><span class="pico-subpanel-desc">Play against the engine with Force Pico move</span></span>
-                    </button>
-                    <div class="pico-subpanel-group">Analyze positions</div>
-                    <button class="pico-subpanel-item" data-action="mode-analysis">
-                        <span class="pico-subpanel-icon">🔬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Move Hint</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows best move and records PGN</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-kibitz">
-                        <span class="pico-subpanel-icon">💬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Eval.Score</span><span class="pico-subpanel-desc">Strict move-by-move analysis; shows score and depth and records PGN</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-ponder">
-                        <span class="pico-subpanel-icon">⏳</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Analysis</span><span class="pico-subpanel-desc">Free position analysis; set any legal position without PGN tracking</span></span>
-                    </button>
-                    <div class="pico-subpanel-group">Replay</div>
-                    <button class="pico-subpanel-item" data-action="mode-pgnreplay">
-                        <span class="pico-subpanel-icon">📖</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">PGN Replay</span><span class="pico-subpanel-desc">Step through a saved PGN game</span></span>
-                    </button>
-                    <div class="pico-subpanel-group">Special modes</div>
-                    <div class="pico-subpanel-item pico-subpanel-item-control" id="mode-handbrain-item">
-                        <span class="pico-subpanel-icon">🧑‍🏫</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Hand and brain</span><span class="pico-subpanel-desc">Start normal play with a Brain or Hand coach</span></span>
-                        <span class="pico-segmented-control" role="group" aria-label="Hand and brain coach mode">
-                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="brain">Brain</button>
-                            <button type="button" class="pico-segmented-button" data-action="mode-handbrain" data-coach-value="hand">Hand</button>
-                        </span>
-                    </div>
-                    <button class="pico-subpanel-item" data-action="mode-observe">
-                        <span class="pico-subpanel-icon">👁️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Observe</span><span class="pico-subpanel-desc">Watch a game with clocks and silent engine thinking</span></span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="mode-remote">
-                        <span class="pico-subpanel-icon">🌐</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Remote</span><span class="pico-subpanel-desc">Play a game against a remote human opponent</span></span>
-                    </button>
+                <div id="ovl-mode-tile-grid" class="pico-sub-tile-grid"></div>
+                <div id="ovl-mode-hb-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-mode-hb-back">‹ Back</button>
+                    <div class="pico-sub-grid-label">Hand &amp; Brain — choose role</div>
+                    <div id="ovl-mode-hb-content"></div>
                 </div>
             </div><!-- #overlay-mode -->
 

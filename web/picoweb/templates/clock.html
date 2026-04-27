@@ -1174,9 +1174,178 @@
                     { tutor_watcher: Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive) }
                 );
             }
+            function renderTutorTiles() {
+                var gridEl = document.getElementById('ovl-tutor-tile-grid');
+                if (!gridEl) return;
+                var s = normalizeTutorSettings(window._picoTutorSettings);
+                gridEl.innerHTML = '';
+
+                function _tTile(icon, label, sub, isActive, onClick) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = icon ? icon + ' ' + label : label;
+                    var sEl = document.createElement('span'); sEl.className = 'pico-sub-tile-sub';
+                    sEl.textContent = sub;
+                    btn.appendChild(lEl); btn.appendChild(sEl);
+                    btn.addEventListener('click', onClick);
+                    return btn;
+                }
+
+                var coachLabels = {off:'Off', on:'On', lift:'Lift', brain:'Brain', hand:'Hand'};
+
+                // 1. Watcher
+                gridEl.appendChild(_tTile('👁️', 'Watcher', s.tutor_watcher ? 'On' : 'Off', s.tutor_watcher, function() {
+                    var ts = normalizeTutorSettings(window._picoTutorSettings);
+                    ts.tutor_watcher = !ts.tutor_watcher;
+                    setTutorSettingsOptimistic(ts);
+                    post('action=picotutor&tutor=watcher&val=' + (ts.tutor_watcher ? '1' : '0'));
+                    renderTutorTiles();
+                }));
+                // 2. Coach
+                gridEl.appendChild(_tTile('🧑‍🏫', 'Coach', coachLabels[s.tutor_coach] || 'Off', s.tutor_coach !== 'off', function() {
+                    showTutorSubGrid('coach');
+                }));
+                // 3. Explorer
+                gridEl.appendChild(_tTile('🗺️', 'Explorer', s.tutor_explorer ? 'On' : 'Off', s.tutor_explorer, function() {
+                    var ts = normalizeTutorSettings(window._picoTutorSettings);
+                    ts.tutor_explorer = !ts.tutor_explorer;
+                    setTutorSettingsOptimistic(ts);
+                    post('action=picotutor&tutor=explorer&val=' + (ts.tutor_explorer ? '1' : '0'));
+                    renderTutorTiles();
+                }));
+                // 4. Comment
+                var commentLabel = {off:'Off', engine:'Engine', all:'All'}[s.tutor_comment] || 'Off';
+                gridEl.appendChild(_tTile('💬', 'Comment', commentLabel, s.tutor_comment !== 'off', function() {
+                    showTutorSubGrid('comment');
+                }));
+                // 5. Probability
+                gridEl.appendChild(_tTile('📊', 'Probability', s.tutor_prob + '%', false, function() {
+                    showTutorProbSlider();
+                }));
+                // 6. Hint
+                gridEl.appendChild(_tTile('💡', 'Hint', 'Show hint', false, function() {
+                    post('action=clockbutton&button=3');
+                    close();
+                }));
+                // 3 empty fillers
+                for (var _ti = 0; _ti < 3; _ti++) {
+                    var _te = document.createElement('button');
+                    _te.className = 'pico-sub-tile pico-empty-tile';
+                    _te.setAttribute('aria-hidden', 'true'); _te.tabIndex = -1;
+                    gridEl.appendChild(_te);
+                }
+            }
+
+            function showTutorSubGrid(type) {
+                var subPanel  = document.getElementById('ovl-tutor-sub-panel');
+                var subLabel  = document.getElementById('ovl-tutor-sub-label');
+                var subContent= document.getElementById('ovl-tutor-sub-content');
+                var mainGrid  = document.getElementById('ovl-tutor-tile-grid');
+                if (!subPanel || !subContent) return;
+                mainGrid.style.display = 'none';
+                subPanel.style.display = '';
+                subContent.innerHTML = '';
+
+                var s = normalizeTutorSettings(window._picoTutorSettings);
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+
+                if (type === 'coach') {
+                    subLabel.textContent = 'Coach Mode';
+                    [['Off','off'],['On','on'],['Lift','lift'],['Brain','brain'],['Hand','hand']].forEach(function(p) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-sub-tile' + (s.tutor_coach === p[1] ? ' selected' : '');
+                        var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label'; lEl.textContent = p[0];
+                        btn.appendChild(lEl);
+                        btn.addEventListener('click', function() {
+                            var ts = normalizeTutorSettings(window._picoTutorSettings);
+                            ts.tutor_coach = p[1];
+                            setTutorSettingsOptimistic(ts);
+                            post('action=picotutor&tutor=coach&val=' + p[1]);
+                            hideTutorSubPanel();
+                        });
+                        grid.appendChild(btn);
+                    });
+                    for (var _ci = 0; _ci < 4; _ci++) {
+                        var _ce = document.createElement('button'); _ce.className = 'pico-sub-tile pico-empty-tile';
+                        _ce.setAttribute('aria-hidden','true'); _ce.tabIndex = -1; grid.appendChild(_ce);
+                    }
+                } else if (type === 'comment') {
+                    subLabel.textContent = 'Comment Mode';
+                    [['Off','off'],['Engine','engine'],['All','all']].forEach(function(p) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-sub-tile' + (s.tutor_comment === p[1] ? ' selected' : '');
+                        var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label'; lEl.textContent = p[0];
+                        btn.appendChild(lEl);
+                        btn.addEventListener('click', function() {
+                            var ts = normalizeTutorSettings(window._picoTutorSettings);
+                            ts.tutor_comment = p[1];
+                            setTutorSettingsOptimistic(ts);
+                            post('action=picotutor&tutor=comment&val=' + p[1]);
+                            hideTutorSubPanel();
+                        });
+                        grid.appendChild(btn);
+                    });
+                    for (var _mi = 0; _mi < 6; _mi++) {
+                        var _me = document.createElement('button'); _me.className = 'pico-sub-tile pico-empty-tile';
+                        _me.setAttribute('aria-hidden','true'); _me.tabIndex = -1; grid.appendChild(_me);
+                    }
+                }
+                subContent.appendChild(grid);
+            }
+
+            function showTutorProbSlider() {
+                var subPanel  = document.getElementById('ovl-tutor-sub-panel');
+                var subLabel  = document.getElementById('ovl-tutor-sub-label');
+                var subContent= document.getElementById('ovl-tutor-sub-content');
+                var mainGrid  = document.getElementById('ovl-tutor-tile-grid');
+                if (!subPanel || !subContent) return;
+                mainGrid.style.display = 'none';
+                subPanel.style.display = '';
+                subLabel.textContent = 'Probability';
+                subContent.innerHTML = '';
+
+                var s = normalizeTutorSettings(window._picoTutorSettings);
+                var wrap = document.createElement('div'); wrap.className = 'pico-slider-wrap';
+                var readout = document.createElement('div'); readout.className = 'pico-slider-readout';
+                readout.textContent = s.tutor_prob + '%';
+                var ends = document.createElement('div'); ends.className = 'pico-slider-ends';
+                var eL = document.createElement('span'); eL.textContent = '0%';
+                var eR = document.createElement('span'); eR.textContent = '100%';
+                ends.appendChild(eL); ends.appendChild(eR);
+                var inp = document.createElement('input');
+                inp.type = 'range'; inp.min = '0'; inp.max = '100'; inp.step = '5';
+                inp.value = String(s.tutor_prob); inp.className = 'pico-slider-track';
+                inp.addEventListener('input', function() { readout.textContent = inp.value + '%'; });
+                inp.addEventListener('change', function() {
+                    var val = parseInt(inp.value, 10);
+                    var ts = normalizeTutorSettings(window._picoTutorSettings);
+                    ts.tutor_prob = val;
+                    setTutorSettingsOptimistic(ts);
+                    post('action=picotutor&tutor=prob&val=' + val);
+                });
+                wrap.appendChild(readout); wrap.appendChild(inp); wrap.appendChild(ends);
+                subContent.appendChild(wrap);
+            }
+
+            function hideTutorSubPanel() {
+                var subPanel = document.getElementById('ovl-tutor-sub-panel');
+                var mainGrid = document.getElementById('ovl-tutor-tile-grid');
+                if (subPanel) subPanel.style.display = 'none';
+                if (mainGrid) mainGrid.style.display = '';
+                renderTutorTiles();
+            }
+
             function showTutor()  {
                 applyCachedTutorSettings();
                 showSubpanel('overlay-tutor');
+                // hide sub-panel, show main tile grid
+                var sp = document.getElementById('ovl-tutor-sub-panel');
+                var mg = document.getElementById('ovl-tutor-tile-grid');
+                if (sp) sp.style.display = 'none';
+                if (mg) mg.style.display = '';
+                renderTutorTiles();
                 refreshTutorSettings();
             }
             function showGame()   {
@@ -2342,6 +2511,9 @@
                 if (probBadge) probBadge.textContent = settings.tutor_prob + '%';
 
                 updateTutorSummary(settings);
+                // Refresh tile grid if tutor sub-panel is open
+                var _tGrid = document.getElementById('ovl-tutor-tile-grid');
+                if (_tGrid && _tGrid.style.display !== 'none') renderTutorTiles();
                 return settings;
             }
 
@@ -2517,6 +2689,10 @@
             overlay.addEventListener('click', function(e) {
                 // Inline column-back buttons (System / Display) — must come before
                 // the generic .pico-overlay-back handler that goes all the way back.
+                if (e.target.closest('#ovl-tutor-back')) {
+                    hideTutorSubPanel();
+                    return;
+                }
                 if (e.target.closest('#ovl-sys-cat-back')) {
                     document.getElementById('ovl-sys-cat-col').style.display = '';
                     document.getElementById('ovl-sys-opt-col').style.display = 'none';
@@ -3136,42 +3312,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">PicoTutor</span>
                 </div>
-                <div class="pico-subpanel-list">
-                    <button class="pico-subpanel-item" data-action="tutor-watcher" id="tutor-watcher-item">
-                        <span class="pico-subpanel-icon">👁️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Watcher</span><span class="pico-subpanel-desc">Alert on blunders in real time</span></span>
-                        <span class="pico-subpanel-badge" id="tutor-watcher-badge">Off</span>
-                    </button>
-                    <div class="pico-subpanel-item pico-subpanel-item-control" id="tutor-coach-item">
-                        <span class="pico-subpanel-icon">🧑‍🏫</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Coach</span><span class="pico-subpanel-desc">Tutor coaching; Brain and Hand are special play modes.</span></span>
-                        <span class="pico-segmented-control" role="group" aria-label="Coach mode">
-                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="off">Off</button>
-                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="on">On</button>
-                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="lift">Lift</button>
-                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="brain">Brain</button>
-                            <button type="button" class="pico-segmented-button" data-action="tutor-coach" data-coach-value="hand">Hand</button>
-                        </span>
-                    </div>
-                    <button class="pico-subpanel-item" data-action="tutor-explorer" id="tutor-explorer-item">
-                        <span class="pico-subpanel-icon">🗺️</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Explorer</span><span class="pico-subpanel-desc">Opening book exploration mode</span></span>
-                        <span class="pico-subpanel-badge" id="tutor-explorer-badge">Off</span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="tutor-comment" id="tutor-comment-item">
-                        <span class="pico-subpanel-icon">💬</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Comment</span><span class="pico-subpanel-desc">Move commentary (Off · Engine · All)</span></span>
-                        <span class="pico-subpanel-badge" id="tutor-comment-badge">Off</span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="tutor-prob" id="tutor-prob-item">
-                        <span class="pico-subpanel-icon">📊</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Probability</span><span class="pico-subpanel-desc">Blunder alert threshold</span></span>
-                        <span class="pico-subpanel-badge" id="tutor-prob-badge">50%</span>
-                    </button>
-                    <button class="pico-subpanel-item" data-action="tutor-hint">
-                        <span class="pico-subpanel-icon">💡</span>
-                        <span class="pico-subpanel-text"><span class="pico-subpanel-label">Hint</span><span class="pico-subpanel-desc">Request a move suggestion</span></span>
-                    </button>
+                <div id="ovl-tutor-tile-grid" class="pico-sub-tile-grid"></div>
+                <div id="ovl-tutor-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-tutor-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-tutor-sub-label"></div>
+                    <div id="ovl-tutor-sub-content"></div>
                 </div>
             </div><!-- #overlay-tutor -->
 

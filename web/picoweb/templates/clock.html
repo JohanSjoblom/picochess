@@ -1154,7 +1154,15 @@
             }
             function showScan()   { showSubpanel('overlay-scan'); }
             function showMode()   { showSubpanel('overlay-mode');   updateModeSubpanel(); }
-            function showTime()   { showSubpanel('overlay-time');   updateTimeSubpanel(); }
+            function showTime() {
+                showSubpanel('overlay-time');
+                // Always start at the mode grid; sub-panel is opened on mode tap
+                var mg = document.getElementById('ovl-time-mode-list');
+                var sp = document.getElementById('ovl-time-sub-panel');
+                if (mg) mg.style.display = '';
+                if (sp) sp.style.display = 'none';
+                updateTimeSubpanel();
+            }
             function refreshTutorSettings() {
                 return fetch('/info?action=get_current_settings')
                     .then(function(r) { return r.json(); })
@@ -1887,9 +1895,14 @@
             function showTimeValues(mode) {
                 var td = TIME_DATA[mode];
                 if (!td) return;
-                var lbl    = document.getElementById('ovl-time-value-label');
-                var listEl = document.getElementById('ovl-time-value-list');
-                if (lbl) { lbl.textContent = td.label; lbl.style.display = ''; }
+                // Switch to sub-panel view
+                var modeGrid = document.getElementById('ovl-time-mode-list');
+                var subPanel = document.getElementById('ovl-time-sub-panel');
+                var lbl      = document.getElementById('ovl-time-value-label');
+                var listEl   = document.getElementById('ovl-time-value-list');
+                if (modeGrid) modeGrid.style.display = 'none';
+                if (subPanel) subPanel.style.display = '';
+                if (lbl) lbl.textContent = td.label;
                 var items = td.values.map(function(val, i) { return { label: val, value: i }; });
                 renderSubTileGrid(listEl, items, 0, undefined, function(item, btn, grid) {
                     grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
@@ -2037,7 +2050,9 @@
 
                 var hasPrev  = page > 0;
                 var start    = hasPrev ? (8 + (page - 1) * 7) : 0;
-                var slots    = hasPrev ? 7 : 8;
+                // On page 0: if everything fits in 9 slots, use all 9 (no pagination)
+                var allFit   = !hasPrev && items.length <= 9;
+                var slots    = hasPrev ? 7 : (allFit ? 9 : 8);
                 var end      = Math.min(start + slots, items.length);
                 var hasNext  = end < items.length;
                 var tileIdx  = 0;
@@ -2536,15 +2551,10 @@
                 var active   = modeMap[current] || '';
                 var modeList = document.getElementById('ovl-time-mode-list');
                 if (!modeList) return;
+                // Highlight active mode tile; user taps to open its value sub-panel
                 modeList.querySelectorAll('.pico-sub-tile[data-time-mode]').forEach(function(el) {
                     el.classList.toggle('selected', el.dataset.timeMode === active);
                 });
-                // Hide value grid label+list until a mode is tapped (or re-show for active)
-                var lbl    = document.getElementById('ovl-time-value-label');
-                var listEl = document.getElementById('ovl-time-value-list');
-                if (lbl)    lbl.style.display = 'none';
-                if (listEl) listEl.innerHTML  = '';
-                if (active) showTimeValues(active);
             }
 
             function getPhoneSpeakerEnabled() {
@@ -2856,6 +2866,13 @@
             overlay.addEventListener('click', function(e) {
                 // Inline column-back buttons (System / Display) — must come before
                 // the generic .pico-overlay-back handler that goes all the way back.
+                if (e.target.closest('#ovl-time-back')) {
+                    var _tmg = document.getElementById('ovl-time-mode-list');
+                    var _tsp = document.getElementById('ovl-time-sub-panel');
+                    if (_tmg) _tmg.style.display = '';
+                    if (_tsp) _tsp.style.display = 'none';
+                    return;
+                }
                 if (e.target.closest('#ovl-tutor-back')) {
                     hideTutorSubPanel();
                     return;
@@ -3428,39 +3445,40 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Time Control</span>
                 </div>
-                <!-- Stacked layout: mode grid on top, value grid below -->
-                <div class="pico-time-scroll">
-                    <div class="pico-sub-grid-label">Mode</div>
-                    <div id="ovl-time-mode-list" class="pico-sub-tile-grid">
-                        <button class="pico-sub-tile" data-time-mode="blitz">
-                            <span class="pico-sub-tile-label">🎮 Blitz</span>
-                            <span class="pico-sub-tile-sub">Min / game</span>
-                        </button>
-                        <button class="pico-sub-tile" data-time-mode="fischer">
-                            <span class="pico-sub-tile-label">⚡ Fischer</span>
-                            <span class="pico-sub-tile-sub">Game + incr.</span>
-                        </button>
-                        <button class="pico-sub-tile" data-time-mode="tournament">
-                            <span class="pico-sub-tile-label">🏆 Tourn.</span>
-                            <span class="pico-sub-tile-sub">Moves / time</span>
-                        </button>
-                        <button class="pico-sub-tile" data-time-mode="fixed">
-                            <span class="pico-sub-tile-label">⏱ Fixed</span>
-                            <span class="pico-sub-tile-sub">Sec / move</span>
-                        </button>
-                        <button class="pico-sub-tile" data-time-mode="depth">
-                            <span class="pico-sub-tile-label">🔬 Depth</span>
-                            <span class="pico-sub-tile-sub">Search plies</span>
-                        </button>
-                        <button class="pico-sub-tile" data-time-mode="nodes">
-                            <span class="pico-sub-tile-label">⚙ Nodes</span>
-                            <span class="pico-sub-tile-sub">Nodes (k)</span>
-                        </button>
-                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
-                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
-                        <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
-                    </div>
-                    <div class="pico-sub-grid-label" id="ovl-time-value-label" style="margin-top:8px;display:none;">Value</div>
+                <!-- Mode grid (shown first); value sub-panel shown after tapping a mode -->
+                <div id="ovl-time-mode-list" class="pico-sub-tile-grid">
+                    <button class="pico-sub-tile" data-time-mode="blitz">
+                        <span class="pico-sub-tile-label">🎮 Blitz</span>
+                        <span class="pico-sub-tile-sub">Min / game</span>
+                    </button>
+                    <button class="pico-sub-tile" data-time-mode="fischer">
+                        <span class="pico-sub-tile-label">⚡ Fischer</span>
+                        <span class="pico-sub-tile-sub">Game + incr.</span>
+                    </button>
+                    <button class="pico-sub-tile" data-time-mode="tournament">
+                        <span class="pico-sub-tile-label">🏆 Tournament</span>
+                        <span class="pico-sub-tile-sub">Moves / time</span>
+                    </button>
+                    <button class="pico-sub-tile" data-time-mode="fixed">
+                        <span class="pico-sub-tile-label">⏱ Fixed</span>
+                        <span class="pico-sub-tile-sub">Sec / move</span>
+                    </button>
+                    <button class="pico-sub-tile" data-time-mode="depth">
+                        <span class="pico-sub-tile-label">🔬 Depth</span>
+                        <span class="pico-sub-tile-sub">Search plies</span>
+                    </button>
+                    <button class="pico-sub-tile" data-time-mode="nodes">
+                        <span class="pico-sub-tile-label">⚙ Nodes</span>
+                        <span class="pico-sub-tile-sub">Nodes (k)</span>
+                    </button>
+                    <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
+                    <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
+                    <button class="pico-sub-tile pico-empty-tile" aria-hidden="true" tabindex="-1"></button>
+                </div>
+                <!-- Value sub-panel: hidden until a mode tile is tapped -->
+                <div id="ovl-time-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-time-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-time-value-label">Value</div>
                     <div id="ovl-time-value-list"></div>
                 </div>
             </div><!-- #overlay-time -->

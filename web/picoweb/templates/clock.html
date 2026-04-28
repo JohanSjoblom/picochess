@@ -1436,20 +1436,21 @@
                 renderTutorTiles();
                 refreshTutorSettings();
             }
-            function showGame()   {
+            function showGame() {
                 showSubpanel('overlay-game');
-                document.getElementById('ovl-game-opt-col').style.display = 'none';
-                document.getElementById('ovl-game-opt-list').innerHTML = '';
-                updateGameSubpanel();
+                var tg = document.getElementById('ovl-game-tile-grid');
+                var sp = document.getElementById('ovl-game-sub-panel');
+                if (tg) tg.style.display = '';
+                if (sp) sp.style.display = 'none';
+                renderGameTiles();
             }
             function showSystem() {
                 showSubpanel('overlay-system');
-                document.getElementById('ovl-sys-opt-col').style.display = 'none';
-                document.getElementById('ovl-sys-opt-list').innerHTML = '';
-                document.getElementById('ovl-sys-cat-col').style.display = '';
-                document.getElementById('ovl-sys-cat-back').style.display = 'none';
-                document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                document.getElementById('ovl-sys-sub-panel').style.display = 'none';
+                document.getElementById('ovl-sys-sub-content').innerHTML = '';
+                document.getElementById('ovl-sys-cat-grid').style.display = '';
                 updateSystemSubpanel();
+                renderSysCatGrid();
                 // Pre-fetch current settings so tick marks are ready when a category is opened
                 fetch('/info?action=get_current_settings')
                     .then(function(r) { return r.json(); })
@@ -1866,40 +1867,71 @@
                 }
             };
 
+            function renderDisplayTiles() {
+                var gridEl = document.getElementById('ovl-disp-tile-grid');
+                if (!gridEl) return;
+                gridEl.innerHTML = '';
+                var cats = [
+                    { icon:'🎨', label:'Board',  key:'board'  },
+                    { icon:'♟️', label:'Pieces', key:'pieces' },
+                    { icon:'🌓', label:'Theme',  key:'theme'  }
+                ];
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+                cats.forEach(function(cat) {
+                    var dc = DISPLAY_CATS[cat.key];
+                    var curLabel = '';
+                    if (dc) {
+                        var cur = dc.getCurrent();
+                        for (var i = 0; i < dc.items.length; i++) {
+                            if (dc.items[i][1] === cur) { curLabel = dc.items[i][0]; break; }
+                        }
+                    }
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile';
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = cat.icon + ' ' + cat.label;
+                    var sEl = document.createElement('span'); sEl.className = 'pico-sub-tile-sub';
+                    sEl.textContent = curLabel;
+                    btn.appendChild(lEl); btn.appendChild(sEl);
+                    btn.addEventListener('click', function() { showDisplayCat(cat.key); });
+                    grid.appendChild(btn);
+                });
+                for (var _di = 0; _di < 6; _di++) {
+                    var _de = document.createElement('button'); _de.className = 'pico-sub-tile pico-empty-tile';
+                    _de.setAttribute('aria-hidden','true'); _de.tabIndex = -1; grid.appendChild(_de);
+                }
+                gridEl.appendChild(grid);
+            }
+
             function showDisplayCat(cat) {
                 var dc = DISPLAY_CATS[cat];
                 if (!dc) return;
-                document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) {
-                    el.classList.toggle('selected', el.dataset.dispCat === cat);
-                });
-                var col     = document.getElementById('ovl-disp-opt-col');
-                var catCol  = document.getElementById('ovl-disp-cat-col');
-                var catBack = document.getElementById('ovl-disp-cat-back');
-                var lbl     = document.getElementById('ovl-disp-opt-label');
-                var listEl  = document.getElementById('ovl-disp-opt-list');
-                // Expand to full width
-                if (catCol)  catCol.style.display  = 'none';
-                if (catBack) catBack.style.display  = '';
+                var tileGrid = document.getElementById('ovl-disp-tile-grid');
+                var subPanel = document.getElementById('ovl-disp-sub-panel');
+                var lbl      = document.getElementById('ovl-disp-sub-label');
+                var listEl   = document.getElementById('ovl-disp-sub-content');
+                tileGrid.style.display = 'none';
+                subPanel.style.display = '';
                 lbl.textContent = dc.label;
                 listEl.innerHTML = '';
-                var current  = dc.getCurrent();
-                var dcItems  = dc.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
+                var current = dc.getCurrent();
+                var dcItems = dc.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
                 renderSubTileGrid(listEl, dcItems, 0, current, function(item, btn, grid) {
                     grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
                     btn.classList.add('selected');
                     dc.apply(item.value);
                     setTimeout(close, 180);
                 });
-                col.style.display = 'flex';
             }
 
             function showDisplay() {
                 showSubpanel('overlay-display');
-                document.getElementById('ovl-disp-opt-col').style.display = 'none';
-                document.getElementById('ovl-disp-opt-list').innerHTML = '';
-                document.getElementById('ovl-disp-cat-col').style.display = '';
-                document.getElementById('ovl-disp-cat-back').style.display = 'none';
-                document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                var tg = document.getElementById('ovl-disp-tile-grid');
+                var sp = document.getElementById('ovl-disp-sub-panel');
+                if (tg) tg.style.display = '';
+                if (sp) sp.style.display = 'none';
+                renderDisplayTiles();
             }
             function showEngine() {
                 showSubpanel('overlay-engine');
@@ -2090,6 +2122,118 @@
             }
 
             /* ── game action picker ──────────────────── */
+            var _gameItemDefs = [
+                { icon:'🆕', label:'New Game',    value:'new-game' },
+                { icon:'💡', label:'Hint',         value:'hint' },
+                { icon:'↩️', label:'Takeback',     value:'takeback' },
+                { icon:'💾', label:'Save',          value:'save' },
+                { icon:'📂', label:'Read',          value:'read' },
+                { icon:'🏁', label:'End Game',     value:'end' },
+                { icon:'↔️', label:'Alt Move',     value:'altmove' },
+                { icon:'▶️', label:'Cont Last',    value:'contlast' },
+                { icon:'🔄', label:'Switch Sides', value:'switchsides' },
+                { icon:'🏳️',label:'Resign',       value:'resign',   needsGame: true },
+                { icon:'⚡', label:'Move Now',     value:'move-now', needsEngTurn: true },
+                { icon:'👤', label:'Player',        value:'player' }
+            ];
+
+            function renderGameTiles() {
+                var gridEl = document.getElementById('ovl-game-tile-grid');
+                if (!gridEl) return;
+                var items = _gameItemDefs.map(function(def) {
+                    var disabled = (def.needsGame && !gameActive) ||
+                                   (def.needsEngTurn && !(gameActive && engineTurn));
+                    return { label: def.icon + ' ' + def.label, value: def.value,
+                             disabled: disabled };
+                });
+                renderSubTileGrid(gridEl, items, 0, undefined, function(item) {
+                    if (item.disabled) return;
+                    handleGameTileAction(item.value);
+                });
+            }
+
+            function handleGameTileAction(value) {
+                if (value === 'new-game')     { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
+                if (value === 'hint')          { post('action=clockbutton&button=3'); close(); return; }
+                if (value === 'takeback')      { post('action=take_back'); close(); return; }
+                if (value === 'altmove')       { post('action=altmove'); close(); return; }
+                if (value === 'contlast')      { post('action=contlast'); close(); return; }
+                if (value === 'switchsides')   { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
+                if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
+                if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
+                if (value === 'save' || value === 'read' || value === 'end') { showGameSubPanel(value); return; }
+                if (value === 'player')        { showGameSubPanel('player'); return; }
+            }
+
+            function showGameSubPanel(key) {
+                var tileGrid = document.getElementById('ovl-game-tile-grid');
+                var subPanel = document.getElementById('ovl-game-sub-panel');
+                var subLabel = document.getElementById('ovl-game-sub-label');
+                var subContent = document.getElementById('ovl-game-sub-content');
+                if (!subPanel) return;
+                tileGrid.style.display = 'none';
+                subPanel.style.display = '';
+
+                if (key === 'player') {
+                    subLabel.textContent = 'Player Info';
+                    subContent.innerHTML = '';
+                    var si = window._picoSystemInfo || {};
+                    var curName = (si.user_name || '').trim();
+                    var curElo  = (si.user_elo && si.user_elo !== '-') ? si.user_elo : '';
+                    var grid = document.createElement('div');
+                    grid.className = 'pico-sub-tile-grid';
+                    // Name tile
+                    var nameBtn = document.createElement('button'); nameBtn.className = 'pico-sub-tile';
+                    var nLbl = document.createElement('span'); nLbl.className = 'pico-sub-tile-label'; nLbl.textContent = '👤 Name';
+                    var nSub = document.createElement('span'); nSub.className = 'pico-sub-tile-sub'; nSub.textContent = curName || '—';
+                    nameBtn.appendChild(nLbl); nameBtn.appendChild(nSub);
+                    nameBtn.addEventListener('click', function() {
+                        var val = prompt('Player name:', curName);
+                        if (val === null) return;
+                        val = val.trim().slice(0, 20);
+                        if (!val) return;
+                        curName = val; nSub.textContent = val;
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.user_name = val;
+                        post('action=set_player&name=' + encodeURIComponent(val) + '&elo=' + encodeURIComponent(curElo || '1500'));
+                    });
+                    // ELO tile
+                    var eloBtn = document.createElement('button'); eloBtn.className = 'pico-sub-tile';
+                    var eLbl = document.createElement('span'); eLbl.className = 'pico-sub-tile-label'; eLbl.textContent = '📊 ELO';
+                    var eSub = document.createElement('span'); eSub.className = 'pico-sub-tile-sub'; eSub.textContent = curElo || '—';
+                    eloBtn.appendChild(eLbl); eloBtn.appendChild(eSub);
+                    eloBtn.addEventListener('click', function() {
+                        var val = prompt('ELO rating (0–3000):', curElo || '1500');
+                        if (val === null) return;
+                        var n = parseInt(val, 10);
+                        if (isNaN(n) || n < 0 || n > 3000) return;
+                        curElo = String(n); eSub.textContent = curElo;
+                        window._picoSystemInfo = window._picoSystemInfo || {};
+                        window._picoSystemInfo.user_elo = curElo;
+                        post('action=set_player&name=' + encodeURIComponent(curName) + '&elo=' + encodeURIComponent(curElo));
+                    });
+                    grid.appendChild(nameBtn); grid.appendChild(eloBtn);
+                    for (var _pi = 0; _pi < 7; _pi++) {
+                        var _pe = document.createElement('button'); _pe.className = 'pico-sub-tile pico-empty-tile';
+                        _pe.setAttribute('aria-hidden','true'); _pe.tabIndex = -1; grid.appendChild(_pe);
+                    }
+                    subContent.appendChild(grid);
+                    return;
+                }
+
+                var go = GAME_OPT[key];
+                if (!go) return;
+                subLabel.textContent = go.label;
+                subContent.innerHTML = '';
+                var goItems = go.items.map(function(pair) { return { label: pair[0], value: pair[1] }; });
+                renderSubTileGrid(subContent, goItems, 0, undefined, function(item, btn, grid) {
+                    grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
+                    btn.classList.add('selected');
+                    post('action=' + item.value);
+                    setTimeout(close, 180);
+                });
+            }
+
             var GAME_OPT = {
                 'save':    { label: 'Save to Slot', items: [['Slot 1','save_game&slot=1'],['Slot 2','save_game&slot=2'],['Slot 3','save_game&slot=3']] },
                 'read':    { label: 'Load from Slot', items: [['Last Game','load_game&slot=0'],['Slot 1','load_game&slot=1'],['Slot 2','load_game&slot=2'],['Slot 3','load_game&slot=3']] },
@@ -2157,6 +2301,7 @@
                     var item = items[i];
                     var btn  = document.createElement('button');
                     btn.className = 'pico-sub-tile';
+                    if (item.disabled) { btn.disabled = true; btn.style.opacity = '0.38'; btn.style.cursor = 'default'; }
                     if (selectedVal !== undefined && item.value === selectedVal) btn.classList.add('selected');
                     var lbl = document.createElement('span');
                     lbl.className = 'pico-sub-tile-label';
@@ -2265,22 +2410,56 @@
                 if (s.audio_backend) a['audio_backend&backend=' + s.audio_backend] = true;
                 return a;
             }
-            function showSysCat(cat) {
-                document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) {
-                    el.classList.toggle('selected', el.dataset.sysCat === cat);
+            var _sysCatItems = [
+                { label:'⏻ Power',          value:'power' },
+                { label:'ℹ️ Info',           value:'info'  },
+                { label:'🔇 Phone Speaker',  value:'phone-speaker' },
+                { label:'🛠 Audio Backend',  value:'audio-backend' },
+                { label:'🔔 DGT Beep',       value:'sound' },
+                { label:'🌐 Language',       value:'lang'  },
+                { label:'🎙️ Comp Voice',    value:'comp-voice' },
+                { label:'👤 User Voice',     value:'user-voice' },
+                { label:'⏩ Voice Speed',    value:'voice-speed' },
+                { label:'🔊 Volume',         value:'voice-volume' },
+                { label:'🕹️ Retro Speed',   value:'rspeed' },
+                { label:'⚙️ Preferences',   value:'display' },
+                { label:'🎲 EBoard',         value:'eboard' },
+                { label:'📶 WiFi/BT',        value:'wifi'  }
+            ];
+
+            function renderSysCatGrid() {
+                var gridEl = document.getElementById('ovl-sys-cat-grid');
+                if (!gridEl) return;
+                var items = _sysCatItems.map(function(it) {
+                    if (it.value === 'phone-speaker') {
+                        var on = getPhoneSpeakerEnabled();
+                        return { label: (on ? '🔊' : '🔇') + ' Phone Speaker',
+                                 value: 'phone-speaker', sub: on ? 'On' : 'Off' };
+                    }
+                    return it;
                 });
-                var col     = document.getElementById('ovl-sys-opt-col');
-                var catCol  = document.getElementById('ovl-sys-cat-col');
-                var catBack = document.getElementById('ovl-sys-cat-back');
-                var lbl     = document.getElementById('ovl-sys-opt-label');
-                var listEl  = document.getElementById('ovl-sys-opt-list');
-                // Expand opt column to full width: hide category column
-                if (catCol)  catCol.style.display  = 'none';
-                if (catBack) catBack.style.display  = '';
-                col.style.display = 'flex';
+                renderSubTileGrid(gridEl, items, 0, undefined, function(item) {
+                    if (item.value === 'phone-speaker') {
+                        var next = !getPhoneSpeakerEnabled();
+                        setPhoneSpeakerState(next);
+                        post('action=phone_speaker&enabled=' + (next ? 'true' : 'false'));
+                        renderSysCatGrid();
+                        return;
+                    }
+                    showSysCat(item.value);
+                });
+            }
+
+            function showSysCat(cat) {
+                var col    = document.getElementById('ovl-sys-sub-panel');
+                var lbl    = document.getElementById('ovl-sys-sub-label');
+                var listEl = document.getElementById('ovl-sys-sub-content');
+                // Hide cat grid, show sub-panel
+                var catGrid = document.getElementById('ovl-sys-cat-grid');
+                if (catGrid) catGrid.style.display = 'none';
+                col.style.display = '';
                 // Info category: display read-only info
                 if (cat === 'info') {
-                    col.style.display = 'flex';
                     lbl.textContent = 'System Info';
                     var si = window._picoSystemInfo || {};
                     var html = '<div style="font-size:0.8rem;line-height:2;padding:0.3rem;">' +
@@ -2296,7 +2475,6 @@
                 // Voice (comp / user): fetch speakers for current language, show list
                 if (cat === 'comp-voice' || cat === 'user-voice') {
                     var vtype = (cat === 'user-voice') ? 'user' : 'comp';
-                    col.style.display = 'flex';
                     lbl.textContent = (cat === 'user-voice') ? 'User Speaker' : 'Comp Speaker';
                     listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
                     fetch('/info?action=get_voices')
@@ -2457,7 +2635,6 @@
                     return;
                 }
                 if (cat === 'audio-backend') {
-                    col.style.display = 'flex';
                     lbl.textContent = 'Audio Backend';
                     listEl.innerHTML = '<div style="font-size:0.78rem;line-height:1.55;opacity:0.72;padding:0.35rem 0.55rem 0.75rem;">Technical setting. Saved for next PicoChess restart. Native is intended for Wayland/PipeWire and needs pipewire-alsa; if native has no sound, rerun the installer or see README.</div>';
                     var _curAudioBackend = (window._picoCurrentSettings || {}).audio_backend || 'sox';
@@ -2540,7 +2717,7 @@
                 }
 
                 var so = SYS_OPT[cat];
-                if (!so) { col.style.display = 'none'; return; }
+                if (!so) { col.style.display = 'none'; if (catGrid) catGrid.style.display = ''; return; }
                 lbl.textContent = so.label;
                 listEl.innerHTML = '';
                 var _activeActions = _activeSettingsActions(window._picoCurrentSettings);
@@ -2595,18 +2772,9 @@
             }
 
             function updateGameSubpanel() {
-                // Clear stale tick marks — game actions are commands, not persistent settings
-                document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) {
-                    el.classList.remove('selected');
-                });
-                document.querySelectorAll('[data-requires-game]').forEach(function(el) {
-                    el.disabled = !gameActive;
-                    el.style.opacity = gameActive ? '1' : '0.38';
-                });
-                document.querySelectorAll('[data-requires-engine-turn]').forEach(function(el) {
-                    el.disabled = !(gameActive && engineTurn);
-                    el.style.opacity = (gameActive && engineTurn) ? '1' : '0.38';
-                });
+                // Re-render game tiles so disabled states reflect current gameActive/engineTurn
+                var tg = document.getElementById('ovl-game-tile-grid');
+                if (tg && tg.style.display !== 'none') renderGameTiles();
             }
 
             function updateModeSubpanel() {
@@ -2951,18 +3119,22 @@
                     hidePositionSubPanel();
                     return;
                 }
-                if (e.target.closest('#ovl-sys-cat-back')) {
-                    document.getElementById('ovl-sys-cat-col').style.display = '';
-                    document.getElementById('ovl-sys-opt-col').style.display = 'none';
-                    document.getElementById('ovl-sys-cat-back').style.display = 'none';
-                    document.querySelectorAll('#ovl-sys-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                if (e.target.closest('#ovl-sys-back')) {
+                    document.getElementById('ovl-sys-cat-grid').style.display = '';
+                    document.getElementById('ovl-sys-sub-panel').style.display = 'none';
+                    renderSysCatGrid();
                     return;
                 }
-                if (e.target.closest('#ovl-disp-cat-back')) {
-                    document.getElementById('ovl-disp-cat-col').style.display = '';
-                    document.getElementById('ovl-disp-opt-col').style.display = 'none';
-                    document.getElementById('ovl-disp-cat-back').style.display = 'none';
-                    document.querySelectorAll('#ovl-disp-cat-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                if (e.target.closest('#ovl-disp-back')) {
+                    document.getElementById('ovl-disp-tile-grid').style.display = '';
+                    document.getElementById('ovl-disp-sub-panel').style.display = 'none';
+                    renderDisplayTiles();
+                    return;
+                }
+                if (e.target.closest('#ovl-game-back')) {
+                    document.getElementById('ovl-game-tile-grid').style.display = '';
+                    document.getElementById('ovl-game-sub-panel').style.display = 'none';
+                    renderGameTiles();
                     return;
                 }
 
@@ -3052,44 +3224,6 @@
                     _updatePositionParamSubs();
                     return;
                 }
-
-                // Game: action column
-                var gameActionBtn = e.target.closest('#ovl-game-action-list .pico-picker-item');
-                if (gameActionBtn && gameActionBtn.dataset.gameAction) {
-                    var ga = gameActionBtn.dataset.gameAction;
-                    document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
-                    gameActionBtn.classList.add('selected');
-                    if (ga === 'new-game') { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
-                    if (ga === 'hint')    { post('action=clockbutton&button=3'); close(); return; }
-                    if (ga === 'takeback') { post('action=take_back'); close(); return; }
-                    if (ga === 'altmove') {
-                        post('action=altmove');
-                        close(); return;
-                    }
-                    if (ga === 'contlast') { post('action=contlast'); close(); return; }
-                    if (ga === 'switchsides') { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
-                    if (ga === 'resign') { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
-                    if (ga === 'move-now') { if (!engineTurn) return; post('action=pause_resume'); close(); return; }
-                    if (ga === 'player') { showPlayerOpts(); return; }
-                    showGameOpts(ga); return;
-                }
-
-                // System: category column
-                var sysCatBtn = e.target.closest('#ovl-sys-cat-list .pico-picker-item');
-                if (sysCatBtn && sysCatBtn.disabled) return;
-                if (sysCatBtn && sysCatBtn.dataset.sysCat === 'phone-speaker') {
-                    var _next = !getPhoneSpeakerEnabled();
-                    setPhoneSpeakerState(_next);
-                    post('action=phone_speaker&enabled=' + (_next ? 'true' : 'false'));
-                    updateSystemSubpanel();
-                    return;
-                }
-                if (sysCatBtn && sysCatBtn.dataset.sysCat) { showSysCat(sysCatBtn.dataset.sysCat); return; }
-                if (sysCatBtn && sysCatBtn.dataset.action) { handleSubpanelAction(sysCatBtn.dataset.action, sysCatBtn); return; }
-
-                // Display: category column
-                var dispCatBtn = e.target.closest('#ovl-disp-cat-list .pico-picker-item');
-                if (dispCatBtn && dispCatBtn.dataset.dispCat) { showDisplayCat(dispCatBtn.dataset.dispCat); return; }
 
                 var segmentedBtn = e.target.closest('.pico-segmented-button');
                 if (segmentedBtn && segmentedBtn.dataset.action) { handleSubpanelAction(segmentedBtn.dataset.action, segmentedBtn); return; }
@@ -3559,28 +3693,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Game</span>
                 </div>
-                <div class="pico-picker-columns">
-                    <div class="pico-picker-col" id="ovl-game-action-col">
-                        <div class="pico-picker-col-label">Action</div>
-                        <div id="ovl-game-action-list">
-                            <button class="pico-picker-item" data-game-action="new-game"><strong>🆕 New Game</strong><span class="picker-sub">Start fresh</span></button>
-                            <button class="pico-picker-item" data-game-action="hint"><strong>💡 Hint</strong><span class="picker-sub">Show best move suggestion</span></button>
-                            <button class="pico-picker-item" data-game-action="takeback"><strong>↩️ Takeback</strong><span class="picker-sub">Undo last move</span></button>
-                            <button class="pico-picker-item" data-game-action="save"><strong>💾 Save</strong><span class="picker-sub">Save to slot</span></button>
-                            <button class="pico-picker-item" data-game-action="read"><strong>📂 Read</strong><span class="picker-sub">Load from slot</span></button>
-                            <button class="pico-picker-item" data-game-action="end"><strong>🏁 End Game</strong><span class="picker-sub">Set result</span></button>
-                            <button class="pico-picker-item" data-game-action="altmove"><strong>↔️ Alt Move</strong><span class="picker-sub" id="game-altmove-sub">Off</span></button>
-                            <button class="pico-picker-item" data-game-action="contlast"><strong>▶️ Cont Last</strong><span class="picker-sub">Resume last game</span></button>
-                            <button class="pico-picker-item" data-game-action="switchsides"><strong>🔄 Switch Sides</strong><span class="picker-sub">Swap colors with engine</span></button>
-                            <button class="pico-picker-item" data-game-action="resign"><strong>🏳️ Resign</strong><span class="picker-sub">Concede the game</span></button>
-                            <button class="pico-picker-item" data-game-action="move-now" data-requires-engine-turn><strong>⚡ Move Now</strong><span class="picker-sub">Force engine to move</span></button>
-                            <button class="pico-picker-item" data-game-action="player"><strong>Player</strong><span class="picker-sub" id="game-player-sub">Name &amp; ELO</span></button>
-                        </div>
-                    </div>
-                    <div class="pico-picker-col" id="ovl-game-opt-col" style="display:none;">
-                        <div class="pico-picker-col-label" id="ovl-game-opt-label">Options</div>
-                        <div id="ovl-game-opt-list"></div>
-                    </div>
+                <div id="ovl-game-tile-grid"></div>
+                <div id="ovl-game-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-game-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-game-sub-label"></div>
+                    <div id="ovl-game-sub-content"></div>
                 </div>
             </div><!-- #overlay-game -->
 
@@ -3590,31 +3707,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">System</span>
                 </div>
-                <div class="pico-picker-columns">
-                    <div class="pico-picker-col" id="ovl-sys-cat-col">
-                        <div class="pico-picker-col-label">Category</div>
-                        <div id="ovl-sys-cat-list">
-                            <button class="pico-picker-item" data-sys-cat="power"><strong>⏻ Power</strong><span class="picker-sub">Shutdown · Reboot · Update</span></button>
-                            <button class="pico-picker-item" data-sys-cat="info"><strong>ℹ️ Info</strong><span class="picker-sub">Version · IP · Battery</span></button>
-                            <button class="pico-picker-item" id="ovl-sys-phone-speaker" data-sys-cat="phone-speaker"><strong id="sys-ps-icon">🔇</strong> <strong>Phone Speaker</strong><span class="picker-sub" id="sys-ps-sub">Off</span></button>
-                            <button class="pico-picker-item" data-sys-cat="audio-backend"><strong>🛠 Audio Backend</strong><span class="picker-sub">Native / SoX · restart required</span></button>
-                            <button class="pico-picker-item" data-sys-cat="sound"><strong>🔔 DGT Beep</strong><span class="picker-sub">Clock beep settings</span></button>
-                            <button class="pico-picker-item" data-sys-cat="lang"><strong>🌐 Language</strong><span class="picker-sub">EN DE NL FR ES IT</span></button>
-                            <button class="pico-picker-item" data-sys-cat="comp-voice"><strong>🎙️ Comp Voice</strong><span class="picker-sub">Computer speaker</span></button>
-                            <button class="pico-picker-item" data-sys-cat="user-voice"><strong>👤 User Voice</strong><span class="picker-sub">Human player speaker</span></button>
-                            <button class="pico-picker-item" data-sys-cat="voice-speed"><strong>⏩ Voice Speed</strong><span class="picker-sub">Playback rate 1–9</span></button>
-                            <button class="pico-picker-item" data-sys-cat="voice-volume"><strong>🔊 Volume</strong><span class="picker-sub">System volume 1–20</span></button>
-                            <button class="pico-picker-item" data-sys-cat="rspeed"><strong>🕹️ Retro Speed</strong><span class="picker-sub">Retro engine playback speed</span></button>
-                            <button class="pico-picker-item" data-sys-cat="display"><strong>⚙️ Preferences</strong><span class="picker-sub">Clock · Notation · Ponder · Confirm</span></button>
-                            <button class="pico-picker-item" data-sys-cat="eboard"><strong>🎲 EBoard</strong><span class="picker-sub">Hardware type</span></button>
-                            <button class="pico-picker-item" data-sys-cat="wifi"><strong>📶 WiFi/BT</strong><span class="picker-sub">Connection settings</span></button>
-                        </div>
-                    </div>
-                    <div class="pico-picker-col" id="ovl-sys-opt-col" style="display:none;">
-                        <button class="pico-col-back" id="ovl-sys-cat-back" style="display:none;">‹ Category</button>
-                        <div class="pico-picker-col-label" id="ovl-sys-opt-label">Options</div>
-                        <div id="ovl-sys-opt-list"></div>
-                    </div>
+                <div id="ovl-sys-cat-grid"></div>
+                <div id="ovl-sys-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-sys-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-sys-sub-label"></div>
+                    <div id="ovl-sys-sub-content"></div>
                 </div>
             </div><!-- #overlay-system -->
 
@@ -3624,20 +3721,11 @@
                     <button class="pico-overlay-back">‹ Back</button>
                     <span class="pico-picker-title">Display</span>
                 </div>
-                <div class="pico-picker-columns">
-                    <div class="pico-picker-col" id="ovl-disp-cat-col">
-                        <div class="pico-picker-col-label">Category</div>
-                        <div id="ovl-disp-cat-list">
-                            <button class="pico-picker-item" data-disp-cat="board"><strong>🎨 Board</strong><span class="picker-sub">Board color</span></button>
-                            <button class="pico-picker-item" data-disp-cat="pieces"><strong>♟️ Pieces</strong><span class="picker-sub">Piece set</span></button>
-                            <button class="pico-picker-item" data-disp-cat="theme"><strong>🌓 Theme</strong><span class="picker-sub">Dark · Light · Auto</span></button>
-                        </div>
-                    </div>
-                    <div class="pico-picker-col" id="ovl-disp-opt-col" style="display:none;">
-                        <button class="pico-col-back" id="ovl-disp-cat-back" style="display:none;">‹ Category</button>
-                        <div class="pico-picker-col-label" id="ovl-disp-opt-label">Options</div>
-                        <div id="ovl-disp-opt-list"></div>
-                    </div>
+                <div id="ovl-disp-tile-grid"></div>
+                <div id="ovl-disp-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-disp-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-disp-sub-label"></div>
+                    <div id="ovl-disp-sub-content"></div>
                 </div>
             </div><!-- #overlay-display -->
 

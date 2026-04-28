@@ -1933,15 +1933,33 @@
                 if (sp) sp.style.display = 'none';
                 renderDisplayTiles();
             }
-            function showEngine() {
-                showSubpanel('overlay-engine');
+            var _engCatDefs = [
+                { icon: '💻', label: 'Modern',    value: 'modern'    },
+                { icon: '🕰️', label: 'Retro',     value: 'retro'     },
+                { icon: '⭐',  label: 'Favorites', value: 'favorites' }
+            ];
+
+            function renderEngineCatTiles() {
+                var gridEl = document.getElementById('ovl-engine-cat-grid');
+                if (!gridEl) return;
+                renderSubTileGrid(gridEl, _engCatDefs, 0, null, function(item) {
+                    openEngineCat(item.value);
+                });
+            }
+
+            function openEngineCat(cat) {
+                _engCurrentCat = cat;
+                var catDef = _engCatDefs.find(function(d) { return d.value === cat; }) || { icon: '', label: cat };
+                document.getElementById('ovl-engine-cat-grid').style.display = 'none';
+                var sp = document.getElementById('ovl-engine-sub-panel');
+                sp.style.display = 'flex';
+                document.getElementById('ovl-engine-sub-label').textContent = catDef.icon + ' ' + catDef.label;
                 var listEl  = document.getElementById('ovl-engine-list');
                 var levelEl = document.getElementById('ovl-level-col');
                 listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 _engAllData = [];
-                // Fetch current settings (for level tick) alongside engine list
                 fetch('/info?action=get_current_settings')
                     .then(function(r) { return r.json(); })
                     .then(function(d) { window._picoCurrentSettings = d; })
@@ -1951,9 +1969,16 @@
                     .then(function(data) {
                         _engAllData = data.engines || [];
                         if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
-                        showEngineCat(_engCurrentCat);
+                        _showEngineList(cat);
                     })
                     .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
+            }
+
+            function showEngine() {
+                showSubpanel('overlay-engine');
+                document.getElementById('ovl-engine-cat-grid').style.display = '';
+                document.getElementById('ovl-engine-sub-panel').style.display = 'none';
+                renderEngineCatTiles();
             }
 
             function populateLevels(file, levels) {
@@ -2092,11 +2117,7 @@
             /* ── engine category filter ──────────────── */
             var _engCurrentCat = 'modern';
             var _engAllData    = [];
-            function showEngineCat(cat) {
-                _engCurrentCat = cat;
-                document.querySelectorAll('#ovl-engine-cats .pico-cat-tab').forEach(function(el) {
-                    el.classList.toggle('selected', el.dataset.engCat === cat);
-                });
+            function _showEngineList(cat) {
                 var listEl  = document.getElementById('ovl-engine-list');
                 var levelEl = document.getElementById('ovl-level-col');
                 levelEl.style.display = 'none';
@@ -3119,6 +3140,12 @@
                     hidePositionSubPanel();
                     return;
                 }
+                if (e.target.closest('#ovl-engine-cat-back')) {
+                    document.getElementById('ovl-engine-cat-grid').style.display = '';
+                    document.getElementById('ovl-engine-sub-panel').style.display = 'none';
+                    renderEngineCatTiles();
+                    return;
+                }
                 if (e.target.closest('#ovl-sys-back')) {
                     document.getElementById('ovl-sys-cat-grid').style.display = '';
                     document.getElementById('ovl-sys-sub-panel').style.display = 'none';
@@ -3142,8 +3169,6 @@
                 if (e.target.closest('#backToMenuBtn')) { showTiles(); return; }
 
                 // Engine category tabs
-                var engCatTab = e.target.closest('#ovl-engine-cats .pico-cat-tab');
-                if (engCatTab && engCatTab.dataset.engCat) { showEngineCat(engCatTab.dataset.engCat); return; }
 
                 // Time: mode tile
                 var timeModeBtn = e.target.closest('#ovl-time-mode-list .pico-sub-tile[data-time-mode]');
@@ -3571,20 +3596,18 @@
                     <button class="pico-overlay-back" id="ovl-engine-back">‹ Back</button>
                     <span class="pico-picker-title">Engine</span>
                 </div>
-                <!-- category tabs -->
-                <div class="pico-cat-tabs" id="ovl-engine-cats">
-                    <button class="pico-cat-tab selected" data-eng-cat="modern">Modern</button>
-                    <button class="pico-cat-tab" data-eng-cat="retro">Retro</button>
-                    <button class="pico-cat-tab" data-eng-cat="favorites">⭐ Favorites</button>
-                </div>
-                <div class="pico-picker-columns">
-                    <div class="pico-picker-col" id="ovl-engine-col">
-                        <div class="pico-picker-col-label">Engine</div>
-                        <div id="ovl-engine-list"></div>
-                    </div>
-                    <div class="pico-picker-col" id="ovl-level-col" style="display:none;">
-                        <div class="pico-picker-col-label">Level</div>
-                        <div id="ovl-level-list"></div>
+                <div id="ovl-engine-cat-grid" class="pico-sub-tile-grid"></div>
+                <div id="ovl-engine-sub-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-engine-cat-back">‹ Back</button>
+                    <div class="pico-sub-grid-label" id="ovl-engine-sub-label"></div>
+                    <div class="pico-picker-columns" style="flex:1; overflow:hidden;">
+                        <div class="pico-picker-col" id="ovl-engine-col">
+                            <div id="ovl-engine-list"></div>
+                        </div>
+                        <div class="pico-picker-col" id="ovl-level-col" style="display:none;">
+                            <div class="pico-picker-col-label">Level</div>
+                            <div id="ovl-level-list"></div>
+                        </div>
                     </div>
                 </div>
             </div><!-- #overlay-engine -->

@@ -71,6 +71,7 @@ logger = logging.getLogger(__name__)
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
+MAX_CLOCK_ENGINE_LABEL_CHARS = 20
 INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
 INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
@@ -424,6 +425,26 @@ def _clock_event(shared: dict, text, running: bool = False):
     shared["clock_text"] = text
     shared["clock_running"] = bool(running)
     return {"event": "Clock", "msg": text, "running": shared["clock_running"]}
+
+
+def _normalize_clock_label(value):
+    value = str(value or "").strip()[:MAX_CLOCK_ENGINE_LABEL_CHARS]
+    return re.sub(r"\s+", "", value).casefold()
+
+
+def _display_text_labels(text):
+    labels = []
+    for attr in ("web_text", "large_text", "medium_text", "small_text"):
+        value = getattr(text, attr, "")
+        if value:
+            labels.append(str(value).strip())
+    return labels
+
+
+def _store_engine_display_text(shared: dict, text):
+    labels = _display_text_labels(text)
+    if labels:
+        shared["engine_display_texts"] = labels
 
 
 def _channel_action_requires_remote_auth(action: str) -> bool:
@@ -1879,6 +1900,8 @@ class WebVr(DgtIface):
         self.clock_show_time = True
         self._last_runclock_time = 0.0  # wall-clock time of last _runclock tick
         self._runclock_elapsed_carry = 0.0  # keep sub-second drift until it adds up to a full second
+        self._clock_restore_task = None
+        self._clock_display_token = 0
 
         # keep the last time to find out errorous DGT_MSG_BWTIME messages (error: current time > last time)
         self.r_time = 3600 * 10  # max value cause 10h cant be reached by clock
@@ -1898,6 +1921,53 @@ class WebVr(DgtIface):
     def _clock_event(self, text):
         self._create_clock_text()
         return _clock_event(self.shared, text, running=self.side_running != ClockSide.NONE)
+
+    def _is_startup_engine_name_text(self, message):
+        system_info = self.shared.get("system_info", {})
+        if system_info.get("game_started", False):
+            return False
+
+        shown_labels = {
+            _normalize_clock_label(label)
+            for label in _display_text_labels(message)
+        }
+        shown_labels.discard("")
+        if not shown_labels:
+            return False
+
+        engine_labels = {
+            _normalize_clock_label(label)
+            for label in self.shared.get("engine_display_texts", [])
+        }
+        engine_labels.add(_normalize_clock_label(system_info.get("engine_name", "")))
+        engine_labels.add(_normalize_clock_label(WebDisplay.engine_name))
+        engine_labels.discard("")
+
+        return bool(shown_labels & engine_labels)
+
+    def _next_clock_display_token(self):
+        self._clock_display_token += 1
+        if self._clock_restore_task is not None:
+            self._clock_restore_task.cancel()
+            self._clock_restore_task = None
+        return self._clock_display_token
+
+    def _schedule_clock_restore(self, message):
+        maxtime = float(getattr(message, "maxtime", 0) or 0)
+        if maxtime <= 0:
+            return
+        token = self._clock_display_token
+        self._clock_restore_task = self.loop.create_task(self._restore_clock_after_message(token, maxtime))
+
+    async def _restore_clock_after_message(self, token, maxtime):
+        try:
+            await asyncio.sleep(maxtime)
+            if token != self._clock_display_token:
+                return
+            self.clock_show_time = True
+            self._display_time(self.l_time, self.r_time)
+        except asyncio.CancelledError:
+            pass
 
     async def _runclock(self):
         """callback from AsyncRepeatingTimer once every second"""
@@ -1982,9 +2052,11 @@ class WebVr(DgtIface):
         if self.get_name() not in message.devs:
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True
+        self._next_clock_display_token()
         self.clock_show_time = False
         logger.debug("[%s]", text)
         EventHandler.write_to_clients(self._clock_event(text))
+        self._schedule_clock_restore(message)
         return True
 
     def display_text_on_clock(self, message):
@@ -1996,9 +2068,14 @@ class WebVr(DgtIface):
         if self.get_name() not in message.devs:
             logger.debug("ignored %s - devs: %s", text, message.devs)
             return True
+        if self._is_startup_engine_name_text(message):
+            logger.debug("ignored startup engine name on web clock: %s", text)
+            return True
+        self._next_clock_display_token()
         self.clock_show_time = False
         logger.debug("[%s]", text)
         EventHandler.write_to_clients(self._clock_event(text))
+        self._schedule_clock_restore(message)
         return True
 
     def display_time_on_clock(self, message):
@@ -2007,6 +2084,7 @@ class WebVr(DgtIface):
             logger.debug("ignored endText - devs: %s", message.devs)
             return True
         if self.side_running != ClockSide.NONE or message.force:
+            self._next_clock_display_token()
             self.clock_show_time = True
             self._display_time(self.l_time, self.r_time)
         else:
@@ -2020,6 +2098,7 @@ class WebVr(DgtIface):
             return True
         if self.virtual_timer.is_running():
             self.virtual_timer.stop()
+        self._next_clock_display_token()
         self._resume_clock(ClockSide.NONE)
         self._create_clock_text()
         EventHandler.write_to_clients(_clock_event(self.shared, self.shared["clock_text"], running=False))
@@ -2036,6 +2115,7 @@ class WebVr(DgtIface):
             return True
         if self.virtual_timer.is_running():
             self.virtual_timer.stop()
+        self._next_clock_display_token()
         if side != ClockSide.NONE:
             self._last_runclock_time = time.time()
             self._runclock_elapsed_carry = 0.0
@@ -2522,6 +2602,7 @@ class WebDisplay(DisplayMsg):
                 eng = message.installed_engines[index]
                 if eng["file"] == message.file:
                     self.shared["system_info"]["engine_elo"] = eng["elo"]
+                    _store_engine_display_text(self.shared, eng.get("text"))
                     #  @todo check if eng["name"] should be set here also
                     #  probably  not needed as its set in SYSTEM_INFO on startup
                     break
@@ -2533,6 +2614,7 @@ class WebDisplay(DisplayMsg):
             WebDisplay.engine_name = message.engine_name
             self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"] = message.engine_name
             WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"] = message.eng["elo"]
+            _store_engine_display_text(self.shared, message.eng.get("text"))
             if not message.has_levels:
                 if "level_text" in self.shared["game_info"]:
                     del self.shared["game_info"]["level_text"]

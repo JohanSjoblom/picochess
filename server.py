@@ -1003,6 +1003,8 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.EXIT(dev="web"))
         elif action == "sys_update":
             await Observable.fire(Event.UPDATE_PICO(tag=""))
+            await asyncio.sleep(1)
+            await Observable.fire(Event.REBOOT(dev="web"))
         elif action == "sys_update_engines":
             await Observable.fire(Event.UPDATE_ENGINES())
             await asyncio.sleep(1)

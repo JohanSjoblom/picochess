@@ -1966,9 +1966,23 @@
             function renderEngineCatTiles() {
                 var gridEl = document.getElementById('ovl-engine-cat-grid');
                 if (!gridEl) return;
-                renderSubTileGrid(gridEl, _engCatDefs, 0, null, function(item) {
-                    openEngineCat(item.value);
+                gridEl.innerHTML = '';
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+                _engCatDefs.forEach(function(cat) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile';
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = cat.icon + ' ' + cat.label;
+                    btn.appendChild(lEl);
+                    btn.addEventListener('click', function() { openEngineCat(cat.value); });
+                    grid.appendChild(btn);
                 });
+                for (var i = 0; i < 6; i++) {
+                    var e = document.createElement('button'); e.className = 'pico-sub-tile pico-empty-tile';
+                    e.setAttribute('aria-hidden','true'); e.tabIndex = -1; grid.appendChild(e);
+                }
+                gridEl.appendChild(grid);
             }
 
             function openEngineCat(cat) {

@@ -1953,6 +1953,8 @@ class WebVr(DgtIface):
         return self._clock_display_token
 
     def _schedule_clock_restore(self, message):
+        if getattr(message, "web_clock_no_restore", False):
+            return
         maxtime = float(getattr(message, "maxtime", 0) or 0)
         if maxtime <= 0:
             return

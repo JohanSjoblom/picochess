@@ -1914,3 +1914,188 @@ html[data-theme="dark"] .promotion-overlay square {
     background-color: #505050;
     box-shadow: inset 0 0 25px 3px #1a1a1a;
 }
+
+/* ── SUB-MENU TILE GRID ─────────────────────────────────────
+   3×3 grid used inside sub-panels (Engine, Time, System …).
+   Shares the visual language of .pico-tile-grid but scaled
+   for the narrower overlay sub-panel area.
+   ─────────────────────────────────────────────────────────── */
+.pico-sub-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.pico-sub-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.75rem 0.3rem;
+    min-height: 60px;
+    background: rgba(255, 255, 255, 0.04);
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    text-align: center;
+    transition: background 0.12s;
+    line-height: 1.2;
+}
+
+.pico-sub-tile:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: inherit;
+}
+
+.pico-sub-tile:active {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.pico-sub-tile.selected {
+    background: rgba(13, 110, 253, 0.18);
+    outline: 1px solid rgba(13, 110, 253, 0.60);
+    outline-offset: -1px;
+}
+
+.pico-sub-tile-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.pico-sub-tile-sub {
+    font-size: 0.65rem;
+    opacity: 0.65;
+    line-height: 1.2;
+}
+
+/* Navigation tile used for pagination (◄ Prev / Next ►) */
+.pico-sub-tile.pico-nav-tile {
+    background: rgba(255, 255, 255, 0.07);
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.pico-sub-tile.pico-nav-tile:hover {
+    background: rgba(255, 255, 255, 0.14);
+    opacity: 1;
+}
+
+/* Empty filler tile — preserves the grid shape, not interactive */
+.pico-sub-tile.pico-empty-tile {
+    cursor: default;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.01);
+    opacity: 0;
+}
+
+/* Section label above a sub-tile grid */
+.pico-sub-grid-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+    padding: 0.4rem 0.5rem 0.15rem;
+    flex-shrink: 0;
+}
+
+/* Scrollable wrapper used in the Time sub-panel */
+.pico-time-scroll {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── SETTING SLIDER ─────────────────────────────────────
+   Used for Voice Volume and Retro Speed in the System panel.
+   ─────────────────────────────────────────────────────── */
+.pico-slider-wrap {
+    padding: 0.9rem 0.6rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.pico-slider-readout {
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+
+.pico-slider-sub {
+    font-size: 0.72rem;
+    opacity: 0.6;
+    text-align: center;
+    margin-top: -0.3rem;
+}
+
+.pico-slider-track {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.18);
+    outline: none;
+    cursor: pointer;
+    margin: 0.4rem 0;
+}
+
+.pico-slider-track::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(13, 110, 253, 0.9);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    transition: background 0.12s, transform 0.1s;
+}
+
+.pico-slider-track::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(13, 110, 253, 0.9);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+
+.pico-slider-track:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+    background: rgba(13, 110, 253, 1);
+}
+
+.pico-slider-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    opacity: 0.5;
+    padding: 0 2px;
+}
+
+/* Inline back button used within a sub-panel column */
+.pico-col-back {
+    background: none;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 5px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: inherit;
+    line-height: 1.4;
+    flex-shrink: 0;
+    margin-bottom: 0.4rem;
+    align-self: flex-start;
+}
+
+.pico-col-back:hover {
+    background: rgba(255, 255, 255, 0.08);
+}

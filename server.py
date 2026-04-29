@@ -1025,8 +1025,7 @@ class ChannelHandler(ServerRequestHandler):
                 write_picochess_ini("disable-short-notation", True)
             if ponder == "on":
                 write_picochess_ini("ponder-interval", 1)
-            elif ponder == "off":
-                write_picochess_ini("ponder-interval", 0)
+            # ponder == "off": do not write ponder-interval=0; 0 is not a valid choice (range 1-8)
             if confirm == "on":
                 # "disable-confirm-message=False" means confirm messages ARE shown
                 write_picochess_ini("disable-confirm-message", False)

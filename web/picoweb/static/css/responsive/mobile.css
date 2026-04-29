@@ -1,11 +1,12 @@
 @media (max-width: 768px) and (orientation: portrait) {
 
-    /* INCREASED: Font size for the actual chess clock display */
+    /* Keep startup/status text compact enough for portrait controls. */
     #DGTClockText {
-        font-size: 1.5rem !important;
-        /* Increased from 1.1rem */
+        font-size: 1.1rem !important;
         font-weight: bold !important;
-        /* Make it more visible */
+        line-height: 1.15 !important;
+        overflow-wrap: anywhere !important;
+        text-align: center !important;
     }
 
     /* Also slightly increase the clock status text */

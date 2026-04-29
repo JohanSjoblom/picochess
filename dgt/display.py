@@ -1582,8 +1582,6 @@ class DgtDisplay(DisplayMsg):
                 pass  # avoid filling logbook with DGT search
                 # logger.debug("inside menu => board error not displayed")
             else:
-                if self._is_no_eboard_spinner_text(message.text):
-                    message.text.web_clock_no_restore = True
                 await DispatchDgt.fire(message.text)
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):

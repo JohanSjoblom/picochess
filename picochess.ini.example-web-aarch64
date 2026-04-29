@@ -371,6 +371,21 @@ tutor-watcher = False
 #tutor-coach = lift
 tutor-coach = off
 
+## Brain/Hand coach: seconds the "Play a Rook move" text stays on the DGT clock (0=until
+## player moves, 1-8 seconds). Default is 0.
+#tutor-brain-hint-display = 0
+tutor-brain-hint-display = 0
+
+## Brain/Hand coach: if True, the clock counts down while the piece-type hint is shown.
+## Default is False (clock paused during the hint so you can read it without losing time).
+#countdown-during-brain-display = False
+countdown-during-brain-display = False
+
+## Brain/Hand coach: minimum seconds the tutor's revealed-move circles stay on the web
+## diagram before the opponent engine's arrow replaces them. 0 = instant, 1-8 s. Default is 3.
+#tutor-brain-reveal-display = 3
+tutor-brain-reveal-display = 3
+
 ## Engine used for PicoTutor analysis. Default is /opt/picochess/engines/aarch64/a-stockf.
 tutor-engine = /opt/picochess/engines/aarch64/a-stockf
 ## Optional: use a tutor engine on a remote machine; falls back to tutor-engine if not found

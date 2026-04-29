@@ -276,6 +276,7 @@ class PicochessState:
         self.last_hand_coach_move: chess.Move | None = None
         self.hand_coach_task: asyncio.Task | None = None
         self.brain_hint_task: asyncio.Task | None = None
+        self.brain_hint_clock_paused: bool = False
         self.brain_required_piece_type: chess.PieceType | None = None
         self.brain_best_move: chess.Move | None = None
         self.coach_triggered_piece_type: chess.PieceType | None = None
@@ -1039,6 +1040,7 @@ async def main() -> None:
         state.dgttranslate,
         brain_hint_display=args.tutor_brain_hint_display,
         brain_reveal_text=args.tutor_brain_reveal_text == "on",
+        brain_hint_countdown=args.countdown_during_brain_display,
     )
 
     dgtdispatcher = Dispatcher(state.dgtmenu, main_loop)
@@ -1097,7 +1099,10 @@ async def main() -> None:
         "web_speech_local": args.web_speech_local,
         "web_speech_remote": args.web_speech_remote,
         "web_audio_backend_remote": bool(args.web_audio_backend_remote),
-        "system_info": {"web_audio_backend_remote": bool(args.web_audio_backend_remote)},
+        "system_info": {
+            "web_audio_backend_remote": bool(args.web_audio_backend_remote),
+            "brain_reveal_min_secs": args.tutor_brain_reveal_display,
+        },
     }
 
     def _emit_web_audio(audio_data: dict):
@@ -1638,6 +1643,7 @@ async def main() -> None:
             self,
             msg: Message,
             searchlist=False,
+            tutor_reveal_move: chess.Move | None = None,
         ):
             """
             Start a new search on the current game.
@@ -1646,6 +1652,8 @@ async def main() -> None:
             """
             self._set_game_started(True)
             await DisplayMsg.show(msg)
+            if tutor_reveal_move is not None:
+                await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
             book_res = None
@@ -1975,8 +1983,19 @@ async def main() -> None:
             logger.info("Brain and hand: use a %s", piece_name)
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BRAIN_" + piece_name))
             hint_display = self.state.dgtmenu.get_brain_hint_display()
+            countdown = self.state.dgtmenu.get_brain_hint_countdown()
+            if not countdown:
+                await self.state.stop_clock()
+                self.state.brain_hint_clock_paused = True
             if hint_display > 0:
-                await asyncio.sleep(hint_display)
+                try:
+                    await asyncio.sleep(hint_display)
+                    if self.state.brain_hint_clock_paused:
+                        self.state.brain_hint_clock_paused = False
+                        await self.state.start_clock()
+                except asyncio.CancelledError:
+                    self.state.brain_hint_clock_paused = False
+                    raise
 
         def start_brain_hint_timer(self):
             """Start/restart the experimental Brain and hand piece-type hint."""
@@ -1995,6 +2014,7 @@ async def main() -> None:
             if self.state.brain_hint_task and not self.state.brain_hint_task.done():
                 self.state.brain_hint_task.cancel()
             self.state.brain_hint_task = None
+            self.state.brain_hint_clock_paused = False
             self.state.brain_required_piece_type = None
             if not preserve_best_move:
                 self.state.brain_best_move = None
@@ -3231,8 +3251,6 @@ async def main() -> None:
                         ):
                             tutor_reveal_move = self.state.brain_best_move
                             self.state.brain_best_move = None
-                    if tutor_reveal_move is not None:
-                        await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
                     game_end = self.state.check_game_state()
                     if game_end:
                         await self.update_elo(game_end.result)
@@ -3278,7 +3296,7 @@ async def main() -> None:
                                         # Allow additional takebacks to settle before starting engine search.
                                         await asyncio.sleep(0.6)
                                     if self.state.is_not_user_turn():
-                                        await self.think(msg)
+                                        await self.think(msg, tutor_reveal_move=tutor_reveal_move)
                                     else:
                                         logger.debug("skipping think() after takeback debounce: user turn")
                         else:
@@ -3289,7 +3307,7 @@ async def main() -> None:
                                 # Allow additional takebacks to settle before starting engine search.
                                 await asyncio.sleep(0.6)
                             if self.state.is_not_user_turn():
-                                await self.think(msg)
+                                await self.think(msg, tutor_reveal_move=tutor_reveal_move)
                             else:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 

@@ -54,8 +54,16 @@ function isLocalWebClient() {
 }
 
 function updateWebAudioMuteButtonVisibility() {
+    const isRemoteClient = !isLocalWebClient();
+    const pgnActions = $('#clockPgnActions');
+    if (isRemoteClient) {
+        pgnActions.addClass('is-visible').css('display', '');
+    } else {
+        pgnActions.removeClass('is-visible').css('display', 'none');
+    }
+
     const muteButton = $('#btn-mute');
-    if (isLocalWebClient() || webAudioMode === "off") {
+    if (!isRemoteClient || webAudioMode === "off") {
         muteButton.hide();
     } else {
         muteButton.addClass('is-muted is-visible').show();

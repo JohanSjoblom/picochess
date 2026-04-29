@@ -73,6 +73,13 @@ class DgtDisplay(DisplayMsg):
         self._task = None  # task for message consumer
         self.timer = AsyncRepeatingTimer(1, self._process_once_per_second, loop=self.loop)
 
+    @staticmethod
+    def _is_no_eboard_spinner_text(text):
+        """Return true for the short rotating no-eboard status messages."""
+        marker = getattr(text, "small_text", "")
+        web_text = getattr(text, "web_text", "")
+        return marker in {"/", "-", "\\", "|"} and "e-Board" in web_text
+
     def start_once_per_second_timer(self):
         """start the once per second timer for rolling display"""
         self.timer.start()
@@ -1575,6 +1582,8 @@ class DgtDisplay(DisplayMsg):
                 pass  # avoid filling logbook with DGT search
                 # logger.debug("inside menu => board error not displayed")
             else:
+                if self._is_no_eboard_spinner_text(message.text):
+                    message.text.web_clock_no_restore = True
                 await DispatchDgt.fire(message.text)
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):

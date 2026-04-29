@@ -447,6 +447,38 @@
             overflow-x: hidden;
         }
 
+        .pico-gear-btn {
+            flex: 0 0 auto;
+            width: 44px;
+            height: 44px;
+            margin-left: 8px;
+            padding: 0;
+            border: 1px solid rgba(108, 117, 125, 0.55);
+            border-radius: 8px;
+            background: rgba(128, 128, 128, 0.12);
+            color: inherit;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 2px rgba(0, 0, 0, 0.12);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            line-height: 1;
+            touch-action: manipulation;
+            cursor: pointer;
+            transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.08s ease;
+        }
+
+        .pico-gear-btn:hover,
+        .pico-gear-btn:focus-visible {
+            background: rgba(128, 128, 128, 0.22);
+            border-color: rgba(108, 117, 125, 0.85);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 4px rgba(0, 0, 0, 0.16);
+        }
+
+        .pico-gear-btn:active {
+            transform: translateY(1px);
+        }
+
         body {
             overflow-x: hidden;
         }
@@ -560,10 +592,6 @@
                                                     <i class='fa fa-arrow-right' aria-hidden="true"></i></button>
                                                 <button type="button" id="endBtn" class="btn btn-light" aria-label="Last move" title="Last move">
                                                     <i class='fa fa-fast-forward' aria-hidden="true"></i></button>
-                                                <button type="button" id="downloadBtn" class="btn btn-light" aria-label="Download PGN" title="Download PGN">
-                                                    <i class="fa fa-arrow-down" aria-hidden="true"></i></button>
-                                                <button type="button" id="uploadBtn" class="btn btn-light" aria-label="Upload PGN" title="Upload PGN">
-                                                    <i class="fa fa-arrow-up" aria-hidden="true"></i></button>
                                             </div>
                                         </div>
                                     </div>
@@ -607,9 +635,16 @@
                                             <i class="fa fa-lightbulb-o" aria-hidden="true"></i>
                                         </button>
                                     </span>
-                                    <button id="btn-mute" class="pico-clock-action pico-clock-mute-btn" onclick="toggleMute()" aria-label="Toggle web audio" title="Toggle web audio">
-                                        <span>🔊</span>
-                                    </button>
+                                    <span class="clock-control-right">
+                                        <span id="clockPgnActions" class="pico-clock-pgn-actions" role="group" aria-label="PGN controls">
+                                            <button type="button" id="downloadBtn" class="pico-clock-action pico-clock-pgn-btn" aria-label="Download PGN" title="Download PGN">
+                                                <i class="fa fa-download" aria-hidden="true"></i>
+                                            </button>
+                                        </span>
+                                        <button id="btn-mute" class="pico-clock-action pico-clock-mute-btn" onclick="toggleMute()" aria-label="Toggle web audio" title="Toggle web audio">
+                                            <span>🔊</span>
+                                        </button>
+                                    </span>
                                 </div>
                                 <div class="clock-label-row">
                                     <span class="clock-label-left" id="clockLabelLeft">White</span>
@@ -1160,6 +1195,26 @@
                 return fetch('/channel', { method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: body }).catch(function() {});
+            }
+            function overlayTurnColor() {
+                var fen = (typeof currentPosition !== 'undefined') && currentPosition && currentPosition.fen;
+                if (typeof fen !== 'string') return '';
+                var parts = fen.trim().split(/\s+/);
+                if (parts.length < 2) return '';
+                return parts[1] === 'b' ? 'black' : 'white';
+            }
+            function refreshEngineTurnFromPosition() {
+                var sysInfo = window._picoSystemInfo || {};
+                var mode = String(sysInfo.interaction_mode || '').toLowerCase();
+                var engineMode = ['normal', 'brain', 'training'].indexOf(mode) !== -1;
+                var userColor = sysInfo.play_mode === 'user_black' ? 'black' :
+                    (sysInfo.play_mode === 'user_white' ? 'white' : '');
+                var turnColor = overlayTurnColor();
+                if (gameActive && engineMode && userColor && turnColor) {
+                    engineTurn = turnColor !== userColor;
+                } else if (!gameActive) {
+                    engineTurn = false;
+                }
             }
 
             function showSubpanel(id) {
@@ -2820,6 +2875,7 @@
                     gameActive = Boolean(sysInfo.game_started);
                     if (!gameActive) engineTurn = false;
                 }
+                refreshEngineTurnFromPosition();
                 var el;
                 if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
@@ -2835,6 +2891,19 @@
             }
 
             function updateGameSubpanel() {
+                refreshEngineTurnFromPosition();
+                // Clear stale tick marks — game actions are commands, not persistent settings
+                document.querySelectorAll('#ovl-game-action-list .pico-picker-item').forEach(function(el) {
+                    el.classList.remove('selected');
+                });
+                document.querySelectorAll('[data-requires-game]').forEach(function(el) {
+                    el.disabled = !gameActive;
+                    el.style.opacity = gameActive ? '1' : '0.38';
+                });
+                document.querySelectorAll('[data-requires-engine-turn]').forEach(function(el) {
+                    el.disabled = !(gameActive && engineTurn);
+                    el.style.opacity = (gameActive && engineTurn) ? '1' : '0.38';
+                });
                 // Re-render game tiles so disabled states reflect current gameActive/engineTurn
                 var tg = document.getElementById('ovl-game-tile-grid');
                 if (tg && tg.style.display !== 'none') renderGameTiles();
@@ -3321,11 +3390,16 @@
                 window._picoSystemInfo = window._picoSystemInfo || {};
                 window._picoSystemInfo.game_started = gameActive;
                 if (!gameActive) engineTurn = false;
-                if (overlay.classList.contains('open')) updateTileStates();
+                refreshEngineTurnFromPosition();
+                if (overlay.classList.contains('open')) {
+                    updateTileStates();
+                    updateGameSubpanel();
+                }
             };
 
             window.setPicoEngineTurn = function(active) {
                 engineTurn = Boolean(active);
+                refreshEngineTurnFromPosition();
                 if (overlay.classList.contains('open')) updateGameSubpanel();
             };
 

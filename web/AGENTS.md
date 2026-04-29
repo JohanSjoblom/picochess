@@ -92,6 +92,8 @@ explicitly requires it.
 - The web client needs quick clock-like controls outside the overlay menu.
 - Keep switch-sides and pause/resume controls visually attached to the clock,
   not buried only inside the menu.
+- The four quick clock controls, switch sides, evaluation, pause/play, and hint,
+  should remain large enough for touch use on local and remote clients.
 - The web action is `pause_resume`; avoid reintroducing the misleading
   `move_now` naming for this control.
 - The same button intentionally has context-dependent meaning:
@@ -101,6 +103,20 @@ explicitly requires it.
   - engine move announced but waiting on physical board: request alternative
     move
   - PGN replay running: pause replay
+- The web clock should show usable clock time on startup, not a persistent
+  engine name.
+- Timed DGT text messages shown on the web clock, such as Engine Setup, must
+  restore the clock display after `maxtime`.
+
+## Touch Layout
+
+- Primary touch targets should be at least 44px where practical.
+- The settings gear target must remain visibly framed, not just invisibly
+  enlarged.
+- Picker/menu rows should remain finger-sized and scrollable.
+- Keep the chessboard control row compact for touchscreen use.
+- Avoid layout moves that improve desktop landscape but regress mobile
+  landscape or portrait.
 
 ## Tutor Menu
 
@@ -145,8 +161,12 @@ explicitly requires it.
 
 ## PGN Controls
 
-- PGN upload/download controls are board controls, not clock controls.
-- They should remain available consistently in the board control row.
+- Do not add PGN controls back to the board control row without checking mobile
+  touch layout.
+- PGN upload is available only on remote web clients, near the clock/mute
+  controls.
+- PGN download is currently not exposed as a quick touch control; if needed,
+  prefer adding it to a menu rather than the board row.
 - PGN replay must keep the smart clock control state in sync with replay
   autoplay.
 

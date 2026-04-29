@@ -57,7 +57,6 @@ from utilities import (
     get_location,
     update_pico_v4,
     update_pico_engines,
-    update_picochess_now,
     get_opening_books,
     shutdown,
     reboot,
@@ -5619,6 +5618,11 @@ async def main() -> None:
                     cond1 = self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_BLACK
                     cond2 = self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_WHITE
                     if cond1 or cond2:
+                        # The side switch itself starts the new game when it hands
+                        # the move to the engine from the initial position.  Without
+                        # clearing this guard, the resulting BEST_MOVE is mistaken
+                        # for a stale result from the pre-new-game search.
+                        self.state.newgame_happened = False
                         self.state.time_control.reset_start_time()
                         await self.think(msg)  # PLAY_MODE
                     else:
@@ -6816,9 +6820,8 @@ async def main() -> None:
             elif isinstance(event, Event.UPDATE_PICO):
                 await DisplayMsg.show(Message.UPDATE_PICO())
                 if not event.tag or event.tag == "":
-                    # Run install-picochess.sh twice in the background, then
-                    # restart the picochess service (no full reboot required).
-                    update_picochess_now()
+                    # Full update on next boot through picochess-update.service.
+                    update_pico_v4()
                 else:
                     # only update code to a specific tag
                     checkout_tag(event.tag)

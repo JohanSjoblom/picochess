@@ -2444,13 +2444,15 @@
                     tileIdx++;
                 }
 
-                // Slot 8: Next or filler
-                grid.appendChild(hasNext
-                    ? makeTile('pico-nav-tile', 'Next ►', function() {
-                          renderSubTileGrid(container, items, page + 1, selectedVal, onSelect);
-                      })
-                    : makeTile('pico-empty-tile', '', null)
-                );
+                // Slot 8: Next or filler, but only if a slot remains.
+                if (tileIdx < 9) {
+                    grid.appendChild(hasNext
+                        ? makeTile('pico-nav-tile', 'Next ►', function() {
+                              renderSubTileGrid(container, items, page + 1, selectedVal, onSelect);
+                          })
+                        : makeTile('pico-empty-tile', '', null)
+                    );
+                }
 
                 container.appendChild(grid);
             }

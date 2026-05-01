@@ -2521,7 +2521,6 @@
                 }
                 if (s.clockside)   a['display&side='      + s.clockside]   = true;
                 if (s.notation)    a['display&notation='  + s.notation]    = true;
-                if (s.ponder)      a['display&ponder='    + s.ponder]      = true;
                 if (s.confirm)     a['display&confirm='   + s.confirm]     = true;
                 if (s.capital)     a['display&capital='   + s.capital]     = true;
                 if (s.show_engine) a['display&enginename='+ s.show_engine] = true;
@@ -2776,7 +2775,7 @@
                     });
                     return;
                 }
-                // Preferences: 6 toggle tiles, each showing current value; click flips it
+                // Preferences: toggle tiles, each showing current value; click flips it
                 if (cat === 'display') {
                     lbl.textContent = 'Preferences';
                     listEl.innerHTML = '';
@@ -2785,7 +2784,6 @@
                     var _prefToggles = [
                         ['Clock Side',   'clockside',   [['Left',  'display&side=left'],   ['Right', 'display&side=right']]],
                         ['Notation',     'notation',    [['Short', 'display&notation=short'],['Long', 'display&notation=long']]],
-                        ['Ponder',       'ponder',      [['On',    'display&ponder=on'],    ['Off',  'display&ponder=off']]],
                         ['Confirm',      'confirm',     [['On',    'display&confirm=on'],   ['Off',  'display&confirm=off']]],
                         ['Capital',      'capital',     [['On',    'display&capital=on'],   ['Off',  'display&capital=off']]],
                         ['Engine Name',  'show_engine', [['On',    'display&enginename=on'],['Off',  'display&enginename=off']]]
@@ -2822,8 +2820,8 @@
                         })(pairs, startIdx);
                         _prefGrid.appendChild(btn);
                     });
-                    // 3 empty filler tiles to complete the 3×3 grid
-                    for (var _fi = 0; _fi < 3; _fi++) {
+                    // Empty filler tiles complete the 3×3 grid.
+                    for (var _fi = _prefToggles.length; _fi < 9; _fi++) {
                         var _fe = document.createElement('button');
                         _fe.className = 'pico-sub-tile pico-empty-tile';
                         _fe.setAttribute('aria-hidden', 'true');

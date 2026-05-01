@@ -1990,16 +1990,17 @@ async def main() -> None:
             if hint_display > 0:
                 try:
                     await asyncio.sleep(hint_display)
-                    if self.state.brain_hint_clock_paused:
+                    if self.state.brain_hint_clock_paused and self.state.brain_hint_task is asyncio.current_task():
                         self.state.brain_hint_clock_paused = False
                         await self.state.start_clock()
                 except asyncio.CancelledError:
-                    self.state.brain_hint_clock_paused = False
+                    if self.state.brain_hint_task is asyncio.current_task():
+                        self.state.brain_hint_clock_paused = False
                     raise
 
         def start_brain_hint_timer(self):
             """Start/restart the experimental Brain and hand piece-type hint."""
-            self.cancel_brain_hint_timer()
+            self.cancel_brain_hint_timer(resume_paused_clock=False)
             self.state.brain_required_piece_type = None
             if (
                 self.picotutor_mode()
@@ -2009,8 +2010,24 @@ async def main() -> None:
             ):
                 self.state.brain_hint_task = asyncio.ensure_future(self._brain_hint_after_delay())
 
-        def cancel_brain_hint_timer(self, preserve_best_move: bool = False):
+        async def _resume_clock_after_brain_hint_cancel(self):
+            """Resume the clock if a Brain hint, not a move, ended the pause."""
+            await asyncio.sleep(0)
+            if (
+                not self.state.brain_hint_clock_paused
+                and self.state.game_started
+                and self._user_turn_and_alive()
+                and self.state.interaction_mode == Mode.NORMAL
+                and not self.state.position_mode
+                and not self.state.takeback_active
+                and not self.state.error_fen
+                and not self.state.done_computer_fen
+            ):
+                await self.state.start_clock()
+
+        def cancel_brain_hint_timer(self, preserve_best_move: bool = False, resume_paused_clock: bool = True):
             """Cancel pending Brain and hand hints without touching playing modes."""
+            clock_was_paused = self.state.brain_hint_clock_paused
             if self.state.brain_hint_task and not self.state.brain_hint_task.done():
                 self.state.brain_hint_task.cancel()
             self.state.brain_hint_task = None
@@ -2018,6 +2035,8 @@ async def main() -> None:
             self.state.brain_required_piece_type = None
             if not preserve_best_move:
                 self.state.brain_best_move = None
+            if clock_was_paused and resume_paused_clock:
+                asyncio.ensure_future(self._resume_clock_after_brain_hint_cancel())
 
         async def _handle_same_square_input(self, from_square: chess.Square):
             """Use a same-square web move as a Brain and hand re-request gesture."""
@@ -3058,7 +3077,7 @@ async def main() -> None:
                         )
                         return False
 
-                self.cancel_brain_hint_timer(preserve_best_move=True)
+                self.cancel_brain_hint_timer(preserve_best_move=True, resume_paused_clock=False)
                 self.state.brain_required_piece_type = None
                 if self.state.hand_coach_task and not self.state.hand_coach_task.done():
                     self.state.hand_coach_task.cancel()

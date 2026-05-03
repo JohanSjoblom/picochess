@@ -67,15 +67,19 @@ class Parser(object):
                         value, battery = to_battery(data[i + 2], data[i + 3])
                         # Ignore invalid battery status (regular result from Chessnut Move)
                         if not (value == 0 and battery == Battery.EXHAUSTED):
-                            self.callback.board_type(BoardType.CHESSNUT_REGULAR)
                             self.callback.battery(value, battery)
                         i += 3
                     elif (i + 4) < len(data) and data[i] == 0x41 and data[i + 1] == 0x03 and data[i + 2] == 0x0C:
-                        self.callback.board_type(BoardType.CHESSNUT_MOVE)
                         value, battery = to_battery(data[i + 4], data[i + 3])
                         if not (value == 0 and battery == Battery.EXHAUSTED):
                             self.callback.battery(value, battery)
                         i += 4
+                    elif (i + 2) < len(data) and data[i] == 0x32 and data[i + 1] == 0x01:
+                        self.callback.board_type(BoardType.CHESSNUT_REGULAR)
+                        i += 2
+                    elif (i + 6) < len(data) and data[i] == 0x41 and data[i + 1] == 0x05 and data[i + 2] == 0x15:
+                        self.callback.board_type(BoardType.CHESSNUT_MOVE)
+                        i += 6
                 i += 1
         else:
             self._add_to_buffer(msg)

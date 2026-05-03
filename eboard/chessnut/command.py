@@ -105,6 +105,11 @@ def request_battery_status() -> bytes:
 def request_battery_status_chessnut_move() -> bytes:
     return b"\x41\x01\x0c"
 
+def query_files_count() -> bytes:
+    # query files count to determine e-board type
+    # query number of files of Chessnut Move (0x41, 0x01, 0x15) and regular Chessnut e-boards (0x31, 0x01, 0x00)
+    # regular Chessnut e-boards only return one result, Chessnut Move e-boards return two results
+    return b"\x41\x01\x15\x31\x01\x00"
 
 def _fen_to_board64(fen: str):
     """Convert piece-placement FEN to 64 nibbles in a1=0 order."""

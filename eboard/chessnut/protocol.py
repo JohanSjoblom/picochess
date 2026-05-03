@@ -221,7 +221,8 @@ class Protocol(ParserCallback):
         self.brd_reversed = value
 
     def board_type(self, btype: BoardType):
-        if self.brd_type is None:
+        if (self.brd_type is None
+                or (self.brd_type == BoardType.CHESSNUT_REGULAR and btype == BoardType.CHESSNUT_MOVE)):
             self.brd_type = btype
 
     def set_led(self, pos):
@@ -247,9 +248,11 @@ class Protocol(ParserCallback):
 
     def request_battery_status(self):
         if self.connected:
-            if self.brd_type is None or self.brd_type == BoardType.CHESSNUT_REGULAR:
+            if self.brd_type is None:
+                self.trans.write_mt(command.query_files_count())
+            elif self.brd_type == BoardType.CHESSNUT_REGULAR:
                 self.trans.write_mt(command.request_battery_status())
-            if self.brd_type is None or self.brd_type == BoardType.CHESSNUT_MOVE:
+            elif self.brd_type == BoardType.CHESSNUT_MOVE:
                 self.trans.write_mt(command.request_battery_status_chessnut_move())
 
     def realtime_mode(self):
@@ -271,4 +274,4 @@ class Protocol(ParserCallback):
         with self.board_mutex:
             fen = self.last_fen
         if fen is not None and self.connected and self.brd_type == BoardType.CHESSNUT_MOVE:
-            self.trans.write_mt(command.send_auto_move_fen(fen, uci_move))
+            self.trans.write_mt(command.send_auto_move_fen(fen, uci_move, self.brd_reversed))

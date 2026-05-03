@@ -274,4 +274,4 @@ class Protocol(ParserCallback):
         with self.board_mutex:
             fen = self.last_fen
         if fen is not None and self.connected and self.brd_type == BoardType.CHESSNUT_MOVE:
-            self.trans.write_mt(command.send_auto_move_fen(fen, uci_move))
+            self.trans.write_mt(command.send_auto_move_fen(fen, uci_move, self.brd_reversed))

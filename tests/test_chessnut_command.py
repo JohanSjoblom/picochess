@@ -72,8 +72,13 @@ class TestCommand(unittest.TestCase):
                          binascii.hexlify(arr))
 
     def test_send_auto_move_fen(self):
-        arr = cmd.send_auto_move_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", "e2e4")
+        arr = cmd.send_auto_move_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", "e2e4", False)
         self.assertEqual(b"422158233185444444440000000000000000007000000000000077077777a6c99b6a00",
+                         binascii.hexlify(arr))
+
+    def test_send_auto_move_fen_reversed(self):
+        arr = cmd.send_auto_move_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", "e2e4", True)
+        self.assertEqual(b"4221a6b99c6a7777707700000000000007000000000000000000444444445813328500",
                          binascii.hexlify(arr))
 
 

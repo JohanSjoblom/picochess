@@ -1659,10 +1659,10 @@ piece {
 
 .pico-picker-item {
     min-height: 44px;
-    padding: 0.55rem 0.75rem;
+    padding: 0.6rem 0.75rem;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     background: rgba(128, 128, 128, 0.08);
     border: 1px solid transparent;
     text-align: left;
@@ -1700,7 +1700,7 @@ piece {
 }
 
 .pico-picker-item .picker-sub {
-    font-size: 0.7em;
+    font-size: 0.75em;
     opacity: 0.55;
     display: block;
 }
@@ -1990,6 +1990,15 @@ html[data-theme="dark"] .promotion-overlay square {
 
     .pico-sub-tile-sub {
         font-size: 0.65rem;
+    }
+
+    .pico-picker-item {
+        padding: 0.55rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .pico-picker-item .picker-sub {
+        font-size: 0.7em;
     }
 }
 

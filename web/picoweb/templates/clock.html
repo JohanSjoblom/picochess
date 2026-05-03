@@ -2581,12 +2581,22 @@
                 if (cat === 'info') {
                     lbl.textContent = 'System Info';
                     var si = window._picoSystemInfo || {};
+                    var infoText = function(value) {
+                        if (value === undefined || value === null || value === '') return '—';
+                        return String(value)
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;');
+                    };
                     var html = '<div style="font-size:0.8rem;line-height:2;padding:0.3rem;">' +
-                        '<div>Version: ' + (si.version || '—') + '</div>' +
-                        '<div>IP (local): ' + (si.ip || '—') + '</div>' +
-                        '<div>IP (external): ' + (si.ext_ip || '—') + '</div>' +
-                        '<div>Location: ' + (si.location || '—') + '</div>' +
-                        '<div>Battery: ' + (si.battery || '—') + '</div>' +
+                        '<div>Version: ' + infoText(si.version) + '</div>' +
+                        '<div>Git: ' + infoText(si.git_status) + '</div>' +
+                        '<div>IP (local): ' + infoText(si.ip) + '</div>' +
+                        '<div>IP (external): ' + infoText(si.ext_ip) + '</div>' +
+                        '<div>Location: ' + infoText(si.location) + '</div>' +
+                        '<div>Battery: ' + infoText(si.battery) + '</div>' +
                         '</div>';
                     listEl.innerHTML = html;
                     return;

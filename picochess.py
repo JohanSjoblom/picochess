@@ -1456,6 +1456,8 @@ async def main() -> None:
                 "user_elo": self.args.pgn_elo,
                 "rspeed": round(float(args.rspeed), 2),
             }
+            if self.git_status:
+                sys_info["git_status"] = self.git_status
 
             await DisplayMsg.show(Message.SYSTEM_INFO(info=sys_info))
             await DisplayMsg.show(

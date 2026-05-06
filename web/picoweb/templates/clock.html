@@ -1950,6 +1950,35 @@
                     });
                     return;
                 }
+                if (cat === 'rinfo') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Retro Info';
+                    var features = (_cs.retro_features) || '/';
+                    listEl.innerHTML = '<div style="font-size:0.85rem;line-height:1.6;padding:0.4rem 0.55rem;">Engine features: <strong>' + features + '</strong></div>';
+                    return;
+                }
+                if (cat === 'rsound' || cat === 'rdisplay') {
+                    col.style.display = 'flex';
+                    lbl.textContent = cat === 'rsound' ? 'Retro Sound' : 'Retro Display';
+                    listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curVal = _cs[cat] || 'off';
+                    [['On', 'on'], ['Off', 'off']].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                        if (pair[1] === _curVal) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=' + cat + '&val=' + pair[1]);
+                            if (window._picoCurrentSettings) window._picoCurrentSettings[cat] = pair[1];
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
+                    return;
+                }
                 if (cat === 'audio-backend') {
                     col.style.display = 'flex';
                     lbl.textContent = 'Audio Backend';
@@ -3138,6 +3167,9 @@
                             <button class="pico-picker-item" data-sys-cat="voice-speed"><strong>⏩ Voice Speed</strong><span class="picker-sub">Playback rate 1–9</span></button>
                             <button class="pico-picker-item" data-sys-cat="voice-volume"><strong>🔊 Volume</strong><span class="picker-sub">System volume 1–20</span></button>
                             <button class="pico-picker-item" data-sys-cat="rspeed"><strong>🕹️ Retro Speed</strong><span class="picker-sub">Retro engine playback speed</span></button>
+                            <button class="pico-picker-item" data-sys-cat="rsound"><strong>🔈 Retro Sound</strong><span class="picker-sub">Retro engine sound effects</span></button>
+                            <button class="pico-picker-item" data-sys-cat="rdisplay"><strong>🖼️ Retro Display</strong><span class="picker-sub">Retro engine artwork display</span></button>
+                            <button class="pico-picker-item" data-sys-cat="rinfo"><strong>ℹ️ Retro Info</strong><span class="picker-sub">Engine features of loaded retro engine</span></button>
                             <button class="pico-picker-item" data-sys-cat="display"><strong>🖥️ Display</strong><span class="picker-sub">Clock · Notation · Confirm · Engine</span></button>
                             <button class="pico-picker-item" data-sys-cat="eboard"><strong>🎲 EBoard</strong><span class="picker-sub">Hardware type</span></button>
                             <button class="pico-picker-item" data-sys-cat="wifi"><strong>📶 WiFi/BT</strong><span class="picker-sub">Connection settings</span></button>

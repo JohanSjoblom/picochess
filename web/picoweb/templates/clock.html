@@ -2601,6 +2601,9 @@
                 { label:'⏩ Voice Speed',    value:'voice-speed' },
                 { label:'🔊 Volume',         value:'voice-volume' },
                 { label:'🕹️ Retro Speed',   value:'rspeed' },
+                { label:'🔈 Retro Sound',   value:'rsound' },
+                { label:'🖼️ Retro Display', value:'rdisplay' },
+                { label:'ℹ️ Retro Info',     value:'rinfo' },
                 { label:'⚙️ Preferences',   value:'display' },
                 { label:'🎲 EBoard',         value:'eboard' },
                 { label:'📶 WiFi/BT',        value:'wifi'  }
@@ -2845,6 +2848,45 @@
                     _rsWrap.appendChild(_rsSlider);
                     _rsWrap.appendChild(_rsEnds);
                     listEl.appendChild(_rsWrap);
+                    return;
+                }
+                if (cat === 'rinfo') {
+                    col.style.display = 'flex';
+                    lbl.textContent = 'Retro Info';
+                    var _retroSettings = window._picoCurrentSettings || {};
+                    var features = _retroSettings.retro_features || '/';
+                    listEl.innerHTML = '';
+                    var infoWrap = document.createElement('div');
+                    infoWrap.style.fontSize = '0.85rem';
+                    infoWrap.style.lineHeight = '1.6';
+                    infoWrap.style.padding = '0.4rem 0.55rem';
+                    infoWrap.appendChild(document.createTextNode('Engine features: '));
+                    var featuresEl = document.createElement('strong');
+                    featuresEl.textContent = features;
+                    infoWrap.appendChild(featuresEl);
+                    listEl.appendChild(infoWrap);
+                    return;
+                }
+                if (cat === 'rsound' || cat === 'rdisplay') {
+                    col.style.display = 'flex';
+                    lbl.textContent = cat === 'rsound' ? 'Retro Sound' : 'Retro Display';
+                    listEl.innerHTML = '';
+                    var _cs = window._picoCurrentSettings || {};
+                    var _curVal = _cs[cat] || 'off';
+                    [['On', 'on'], ['Off', 'off']].forEach(function(pair) {
+                        var btn = document.createElement('button');
+                        btn.className = 'pico-picker-item';
+                        btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                        if (pair[1] === _curVal) btn.classList.add('selected');
+                        btn.addEventListener('click', function() {
+                            listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                            btn.classList.add('selected');
+                            post('action=' + cat + '&val=' + pair[1]);
+                            if (window._picoCurrentSettings) window._picoCurrentSettings[cat] = pair[1];
+                            setTimeout(close, 180);
+                        });
+                        listEl.appendChild(btn);
+                    });
                     return;
                 }
                 if (cat === 'audio-backend') {

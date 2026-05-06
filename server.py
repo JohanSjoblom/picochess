@@ -97,6 +97,8 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "voice_speed",
         "voice_volume",
         "rspeed",
+        "rsound",
+        "rdisplay",
         "phone_speaker",
         "audio_backend",
     }
@@ -1121,6 +1123,32 @@ class ChannelHandler(ServerRequestHandler):
             write_picochess_ini("rspeed", rspeed_factor)
             await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
             logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
+        elif action == "rsound":
+            val_str = self.get_argument("val", "off").strip().lower()
+            rsound = val_str in ("on", "true", "1")
+            dgtmenu = self.shared.get("dgtmenu")
+            if dgtmenu:
+                if rsound != dgtmenu.get_engine_rsound():
+                    dgtmenu.engine_retrosound = rsound
+                    dgtmenu.res_engine_retrosound = rsound
+                    dgtmenu.engine_retrosound_onoff = rsound
+                    write_picochess_ini("rsound", rsound)
+                    rspeed_factor = dgtmenu.retrospeed_factor if hasattr(dgtmenu, "retrospeed_factor") else 1.0
+                    await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
+            logger.info("web rsound: %s", rsound)
+        elif action == "rdisplay":
+            val_str = self.get_argument("val", "off").strip().lower()
+            rdisplay = val_str in ("on", "true", "1")
+            dgtmenu = self.shared.get("dgtmenu")
+            if dgtmenu:
+                if rdisplay != dgtmenu.get_engine_rdisplay():
+                    dgtmenu.engine_retrodisplay = rdisplay
+                    dgtmenu.res_engine_retrodisplay = rdisplay
+                    dgtmenu.engine_retrodisplay_onoff = rdisplay
+                    write_picochess_ini("rdisplay", rdisplay)
+                    rspeed_factor = dgtmenu.retrospeed_factor if hasattr(dgtmenu, "retrospeed_factor") else 1.0
+                    await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
+            logger.info("web rdisplay: %s", rdisplay)
 
 
 class EventHandler(WebSocketHandler):
@@ -1299,6 +1327,17 @@ class InfoHandler(ServerRequestHandler):
                     settings["rspeed"] = "max" if rspeed_f == 0.0 else str(int(round(rspeed_f * 100)))
                 except (TypeError, ValueError):
                     settings["rspeed"] = "100"
+                # Retro sound / display (stored as bool)
+                rsound_raw = config.get("rsound", False)
+                settings["rsound"] = "on" if rsound_raw in (True, "True", "true", "1") else "off"
+                rdisplay_raw = config.get("rdisplay", False)
+                settings["rdisplay"] = "on" if rdisplay_raw in (True, "True", "true", "1") else "off"
+                # Retro engine feature info (live from ModeInfo)
+                try:
+                    from pgn import ModeInfo as _ModeInfo
+                    settings["retro_features"] = _ModeInfo.get_retro_features().strip() or "/"
+                except Exception:
+                    settings["retro_features"] = "/"
                 # Voice speed (1–9)
                 settings["speed_voice"] = str(config.get("speed-voice", "2"))
                 # Voice volume (1–20)

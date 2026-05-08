@@ -81,6 +81,16 @@ class TestCommand(unittest.TestCase):
         self.assertEqual(b"4221a6b99c6a7777707700000000000007000000000000000000444444445813328500",
                          binascii.hexlify(arr))
 
+    def test_send_auto_move_fen_white_en_passant(self):
+        arr = cmd.send_auto_move_fen("rnbqkbnr/ppp2ppp/4p3/3pP3/8/8/PPPP1PPP/RNBQKBNR", "e5d6", False)
+        self.assertIsNotNone(arr)
+        self.assertEqual(35, len(arr))
+
+    def test_send_auto_move_fen_black_en_passant(self):
+        arr = cmd.send_auto_move_fen("rnbqkbnr/pppp1ppp/8/8/3Pp3/1P4P1/P1P1PP1P/RNBQKBNR", "e4d3", False)
+        self.assertIsNotNone(arr)
+        self.assertEqual(35, len(arr))
+
 
 if __name__ == "__main__":
     unittest.main()

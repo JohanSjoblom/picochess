@@ -142,11 +142,26 @@ def _encode_board(board64) -> bytes:
     return out
 
 
+def _get_ep_square(fen: str, uci_move: str) -> str:
+    board = chess.Board(fen)
+    pm = board.piece_map()
+    move = chess.Move.from_uci(uci_move)
+    if pm.get(move.from_square).piece_type != chess.PAWN or pm.get(move.to_square):
+        return "-"
+    if (chess.square_file(move.from_square) == chess.square_file(move.to_square)
+            or chess.square_rank(move.from_square) == chess.square_rank(move.to_square)):
+        return "-"
+    if chess.square_rank(move.to_square) not in (2, 5):
+        return "-"
+    return chess.square_name(move.to_square)
+
+
 def send_auto_move_fen(fen: str, uci_move: str, is_reversed: bool) -> bytes:
-    board = chess.Board(fen + " w KQkq - 0 1")
+    ep = _get_ep_square(fen, uci_move)
+    board = chess.Board(fen + " w KQkq " + ep + " 0 1")
     move = chess.Move.from_uci(uci_move)
     if not board.is_legal(move):
-        board = chess.Board(fen + " b KQkq - 0 1")
+        board = chess.Board(fen + " b KQkq " + ep + " 0 1")
         if not board.is_legal(move):
             return bytearray(0)
     board.push(move)

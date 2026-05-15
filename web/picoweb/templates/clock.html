@@ -1196,6 +1196,27 @@
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: body }).catch(function() {});
             }
+            function settingInt(value, fallback, min, max) {
+                var n = parseInt(value, 10);
+                if (isNaN(n)) n = fallback;
+                return Math.max(min, Math.min(max, n));
+            }
+            function setCurrentSetting(key, value) {
+                window._picoCurrentSettings = window._picoCurrentSettings || {};
+                window._picoCurrentSettings[key] = value;
+            }
+            function setCurrentSettingFromAction(action) {
+                var m;
+                if ((m = /^lang&val=([^&]+)$/.exec(action))) {
+                    setCurrentSetting('language', decodeURIComponent(m[1]));
+                }
+                if ((m = /^beep&val=([^&]+)$/.exec(action))) {
+                    setCurrentSetting('beep', decodeURIComponent(m[1]));
+                }
+                if ((m = /^eboard&type=([^&]+)$/.exec(action))) {
+                    setCurrentSetting('board_type', decodeURIComponent(m[1]));
+                }
+            }
             function overlayTurnColor() {
                 var fen = (typeof currentPosition !== 'undefined') && currentPosition && currentPosition.fen;
                 if (typeof fen !== 'string') return '';
@@ -2626,6 +2647,7 @@
                                 btn.addEventListener('click', function() {
                                     listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                     btn.classList.add('selected');
+                                    setCurrentSetting(cat === 'user-voice' ? 'user_voice' : 'comp_voice', sp);
                                     post('action=set_voice&type=' + vtype + '&speaker=' + encodeURIComponent(sp));
                                     setTimeout(close, 180);
                                 });
@@ -2637,12 +2659,12 @@
                         });
                     return;
                 }
-                // Voice Speed: factor 1–9 — slider
+                // Voice Speed: factor 0-9 — slider
                 if (cat === 'voice-speed') {
                     lbl.textContent = 'Voice Speed';
                     listEl.innerHTML = '';
                     var _cs = window._picoCurrentSettings || {};
-                    var _curSpeed = Math.max(1, Math.min(9, parseInt(_cs.speed_voice) || 2));
+                    var _curSpeed = settingInt(_cs.speed_voice, 2, 0, 9);
                     var _vsWrap    = document.createElement('div');
                     _vsWrap.className = 'pico-slider-wrap';
                     var _vsReadout = document.createElement('div');
@@ -2650,21 +2672,22 @@
                     _vsReadout.textContent = String(_curSpeed);
                     var _vsSub = document.createElement('div');
                     _vsSub.className = 'pico-slider-sub';
-                    _vsSub.textContent = 'Playback rate (1 = slowest, 9 = fastest)';
+                    _vsSub.textContent = 'Playback rate (0 = slowest, 9 = fastest)';
                     var _vsSlider  = document.createElement('input');
                     _vsSlider.type  = 'range';
                     _vsSlider.className = 'pico-slider-track';
-                    _vsSlider.min   = '1';
+                    _vsSlider.min   = '0';
                     _vsSlider.max   = '9';
                     _vsSlider.step  = '1';
                     _vsSlider.value = String(_curSpeed);
                     var _vsEnds = document.createElement('div');
                     _vsEnds.className = 'pico-slider-ends';
-                    _vsEnds.innerHTML = '<span>1 · slow</span><span>fast · 9</span>';
+                    _vsEnds.innerHTML = '<span>0 · slow</span><span>fast · 9</span>';
                     _vsSlider.addEventListener('input', function() {
                         _vsReadout.textContent = this.value;
                     });
                     _vsSlider.addEventListener('change', function() {
+                        setCurrentSetting('speed_voice', this.value);
                         post('action=voice_speed&val=' + this.value);
                         setTimeout(close, 300);
                     });
@@ -2675,12 +2698,12 @@
                     listEl.appendChild(_vsWrap);
                     return;
                 }
-                // Voice Volume: factor 1–20 (each step = 5%) — slider
+                // Voice Volume: factor 0-20 (each step = 5%) — slider
                 if (cat === 'voice-volume') {
                     lbl.textContent = 'Volume';
                     listEl.innerHTML = '';
                     var _cs  = window._picoCurrentSettings || {};
-                    var _vol = Math.max(1, Math.min(20, parseInt(_cs.volume_voice) || 10));
+                    var _vol = settingInt(_cs.volume_voice, 14, 0, 20);
                     var _volWrap    = document.createElement('div');
                     _volWrap.className = 'pico-slider-wrap';
                     var _volReadout = document.createElement('div');
@@ -2692,19 +2715,20 @@
                     var _volSlider  = document.createElement('input');
                     _volSlider.type  = 'range';
                     _volSlider.className = 'pico-slider-track';
-                    _volSlider.min   = '1';
+                    _volSlider.min   = '0';
                     _volSlider.max   = '20';
                     _volSlider.step  = '1';
                     _volSlider.value = String(_vol);
                     var _volEnds = document.createElement('div');
                     _volEnds.className = 'pico-slider-ends';
-                    _volEnds.innerHTML = '<span>5%</span><span>100%</span>';
+                    _volEnds.innerHTML = '<span>0%</span><span>100%</span>';
                     _volSlider.addEventListener('input', function() {
                         var n = parseInt(this.value, 10);
                         _volReadout.textContent = (n * 5) + '%';
                         _volSub.textContent = 'Step ' + n + ' of 20';
                     });
                     _volSlider.addEventListener('change', function() {
+                        setCurrentSetting('volume_voice', this.value);
                         post('action=voice_volume&val=' + this.value);
                         setTimeout(close, 300);
                     });
@@ -2857,6 +2881,7 @@
                     var action = item.value;
                     if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
                     if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
+                    setCurrentSettingFromAction(action);
                     post('action=' + action);
                     setTimeout(close, 180);
                 });

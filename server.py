@@ -182,6 +182,42 @@ def _get_ini_path() -> str:
     return os.path.join(os.path.dirname(__file__), "picochess.ini")
 
 
+def _get_picochess_config():
+    from configobj import ConfigObj
+
+    return ConfigObj("picochess.ini", default_encoding="utf8")
+
+
+def _bounded_voice_speed(value) -> int:
+    try:
+        return max(0, min(9, int(value)))
+    except (TypeError, ValueError):
+        return 2
+
+
+def _bounded_voice_volume(value) -> int:
+    try:
+        return max(0, min(20, int(value)))
+    except (TypeError, ValueError):
+        return 14
+
+
+def _voice_speaker_from_config(config, key: str) -> str:
+    raw = str(config.get(key, "")).strip()
+    if not raw or raw.lower() in ("none", "mute"):
+        return "mute"
+    return raw.split(":", 1)[1] if ":" in raw else raw
+
+
+def _voice_type_and_ini_key(value: str):
+    voice_type_name = (value or "comp").strip().lower()
+    voice_map = {
+        "user": (Voice.USER, "user-voice"),
+        "comp": (Voice.COMP, "computer-voice"),
+    }
+    return voice_map.get(voice_type_name, voice_map["comp"])
+
+
 def _get_remote_ip(request) -> str:
     return request.remote_ip or ""
 
@@ -898,6 +934,8 @@ class ChannelHandler(ServerRequestHandler):
                 if dgttranslate:
                     dgttranslate.set_language(lang_code)
                     write_picochess_ini("language", lang_code)
+                    self.shared.setdefault("system_info", {})["language"] = lang_code
+                    EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"language": lang_code}})
                     logger.info("web lang: language set to %r", lang_code)
                 else:
                     logger.warning("web lang: dgttranslate not available in shared")
@@ -922,17 +960,19 @@ class ChannelHandler(ServerRequestHandler):
                     logger.warning("web beep: dgttranslate not available in shared")
         elif action == "set_voice":
             speaker = self.get_argument("speaker", "").strip()
-            voice_type = self.get_argument("type", "comp").strip()  # "user" or "comp"
+            voice_type_name = self.get_argument("type", "comp").strip().lower()
+            voice_type, ini_key = _voice_type_and_ini_key(voice_type_name)
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             if speaker:
-                voice_str = lang + ":" + speaker
-                ini_key = "user-voice" if voice_type == "user" else "comp-voice"
+                config = _get_picochess_config()
+                speed_factor = _bounded_voice_speed(config.get("speed-voice", "2"))
+                voice_str = None if speaker == "mute" else lang + ":" + speaker
                 write_picochess_ini(ini_key, voice_str)
                 await Observable.fire(
-                    Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=1)
+                    Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=speed_factor)
                 )
-                logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type, lang, speaker)
+                logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type_name, lang, speaker)
         elif action == "set_player":
             name = self.get_argument("name", "").strip()
             elo  = self.get_argument("elo",  "").strip()
@@ -1077,10 +1117,7 @@ class ChannelHandler(ServerRequestHandler):
             except Exception as exc:
                 logger.warning("Fix_bluetooth.sh failed: %s", exc)
         elif action == "voice_speed":
-            try:
-                speed_factor = max(1, min(9, int(self.get_argument("val", "2"))))
-            except (TypeError, ValueError):
-                speed_factor = 2
+            speed_factor = _bounded_voice_speed(self.get_argument("val", "2"))
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             write_picochess_ini("speed-voice", speed_factor)
@@ -1089,10 +1126,9 @@ class ChannelHandler(ServerRequestHandler):
             )
             logger.info("web voice_speed: factor=%d", speed_factor)
         elif action == "voice_volume":
-            try:
-                vol_factor = max(1, min(20, int(self.get_argument("val", "10"))))
-            except (TypeError, ValueError):
-                vol_factor = 10
+            vol_factor = _bounded_voice_volume(self.get_argument("val", "14"))
+            config = _get_picochess_config()
+            speed_factor = _bounded_voice_speed(config.get("speed-voice", "2"))
             write_picochess_ini("volume-voice", str(vol_factor))
             # Set system volume: each factor unit = 5 % (same as _set_volume_voice in menu.py)
             pct = str(vol_factor * 5)
@@ -1108,7 +1144,7 @@ class ChannelHandler(ServerRequestHandler):
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             await Observable.fire(
-                Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=1)
+                Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=speed_factor)
             )
             logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, pct)
         elif action == "rspeed":
@@ -1253,7 +1289,10 @@ class InfoHandler(ServerRequestHandler):
             # Speakers are sub-directories of talker/voices/{lang}/.
             voices_base = os.path.join(os.path.dirname(__file__), "talker", "voices")
             dgttranslate = self.shared.get("dgttranslate")
-            lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            if dgttranslate:
+                lang = getattr(dgttranslate, "language", "en")
+            else:
+                lang = str(_get_picochess_config().get("language", "en")).lower()
             lang_dir = os.path.join(voices_base, lang)
             speakers = []
             if os.path.isdir(lang_dir):
@@ -1264,10 +1303,9 @@ class InfoHandler(ServerRequestHandler):
             self.write(json.dumps({"lang": lang, "speakers": speakers}))
         if action == "get_current_settings":
             # Return current picker values so the overlay can pre-mark selections.
-            from configobj import ConfigObj as _ConfigObj
             settings = {}
             try:
-                config = _ConfigObj("picochess.ini", default_encoding="utf8")
+                config = _get_picochess_config()
                 dgttranslate = self.shared.get("dgttranslate")
                 # Language (live from dgttranslate, fallback to ini)
                 settings["language"] = (
@@ -1298,10 +1336,10 @@ class InfoHandler(ServerRequestHandler):
                     settings["rspeed"] = "max" if rspeed_f == 0.0 else str(int(round(rspeed_f * 100)))
                 except (TypeError, ValueError):
                     settings["rspeed"] = "100"
-                # Voice speed (1–9)
-                settings["speed_voice"] = str(config.get("speed-voice", "2"))
-                # Voice volume (1–20)
-                settings["volume_voice"] = str(config.get("volume-voice", "10"))
+                # Voice speed (0–9)
+                settings["speed_voice"] = str(_bounded_voice_speed(config.get("speed-voice", "2")))
+                # Voice volume (0–20)
+                settings["volume_voice"] = str(_bounded_voice_volume(config.get("volume-voice", "14")))
                 audio_backend = str(config.get("audio-backend", "sox")).lower()
                 settings["audio_backend"] = audio_backend if audio_backend in ("sox", "native") else "sox"
                 raw_phone_speaker = self.shared.get(
@@ -1314,10 +1352,9 @@ class InfoHandler(ServerRequestHandler):
                     "yes",
                     "on",
                 )
-                # Current voice speakers (stored as "lang:speaker")
-                for key in ("comp-voice", "user-voice"):
-                    raw = str(config.get(key, ""))
-                    settings[key.replace("-", "_")] = raw.split(":")[-1] if ":" in raw else raw
+                # Current voice speakers (stored as "lang:speaker"; missing/None means muted)
+                settings["comp_voice"] = _voice_speaker_from_config(config, "computer-voice")
+                settings["user_voice"] = _voice_speaker_from_config(config, "user-voice")
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
             # Engine name and level come from shared (live state, not ini)

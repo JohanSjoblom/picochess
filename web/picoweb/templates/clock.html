@@ -3058,21 +3058,9 @@
             }
 
             function updateTutorSummary(settings) {
-                var parts = [];
-                if (settings.tutor_watcher) parts.push('Watcher');
-                if (settings.tutor_coach !== 'off') {
-                    var coachLabels = {
-                        on: 'Coach On',
-                        lift: 'Coach Lift',
-                        brain: 'Brain and hand: Brain',
-                        hand: 'Brain and hand: Hand'
-                    };
-                    parts.push(coachLabels[settings.tutor_coach] || 'Coach');
-                }
-                if (settings.tutor_explorer) parts.push('Explorer');
-                if (settings.tutor_comment !== 'off') parts.push(settings.tutor_comment === 'all' ? 'Comment All' : 'Comment Engine');
+                var active = Boolean(settings.tutor_active || settings.tutor_watcher || settings.tutor_coach !== 'off');
                 var sub = document.getElementById('ovl-tutor-sub');
-                if (sub) sub.textContent = parts.length ? parts.join(' · ') : 'Off';
+                if (sub) sub.textContent = active ? 'Active' : 'Off';
             }
 
             function applyTutorSettings(settings) {

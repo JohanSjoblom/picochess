@@ -1712,6 +1712,10 @@ piece {
     display: block;
 }
 
+.pico-engine-picker-item {
+    font-size: 1rem;
+}
+
 /* ── GATEWAY SUB-PANEL ITEMS ────────────────────────── */
 .pico-subpanel {
     display: none;          /* shown as flex by JS */

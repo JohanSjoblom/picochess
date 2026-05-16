@@ -2246,10 +2246,11 @@
                 var _curEngineName = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
                 filtered.forEach(function(eng) {
                     var btn = document.createElement('button');
-                    btn.className = 'pico-picker-item';
+                    btn.className = 'pico-picker-item pico-engine-picker-item';
                     var engName = eng.name || eng.file;
-                    btn.innerHTML = '<strong>' + engName + '</strong>' +
-                        (eng.elo ? '<span class="picker-sub">Elo ' + eng.elo + '</span>' : '');
+                    var nameEl = document.createElement('strong');
+                    nameEl.textContent = engName;
+                    btn.appendChild(nameEl);
                     if (engName === _curEngineName) btn.classList.add('selected');
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });

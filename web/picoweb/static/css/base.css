@@ -43,12 +43,12 @@ body {
 }
 
 .bookMoves {
-    font-size: 1.4vw;
+    font-size: max(1.4vw, 1rem);
     font-family: Roboto, FreeSerif, sans-serif;
 }
 
 .gameMoves {
-    font-size: 1.4vw;
+    font-size: max(1.4vw, 1rem);
     font-weight: bolder;
     line-height: 150%;
     font-family: Roboto, FreeSerif, sans-serif;
@@ -63,7 +63,7 @@ body {
 
 .gameMoves .highlight {
     color: darkgreen;
-    font-size: 1.4vw;
+    font-size: max(1.4vw, 1rem);
 }
 
 .gameMoves a {
@@ -71,15 +71,15 @@ body {
 }
 
 .gameResult {
-    font-size: 1.4vw;
+    font-size: max(1.4vw, 1rem);
 }
 
 #pgn h4 {
-    font-size: 1.4vw;
+    font-size: max(1.4vw, 1rem);
 }
 
 #pgn h5 {
-    font-size: 1.2vw;
+    font-size: max(1.2vw, 0.9rem);
 }
 
 .panel-heading {

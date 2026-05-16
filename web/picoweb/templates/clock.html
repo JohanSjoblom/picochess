@@ -1183,12 +1183,15 @@
             var overlay  = document.getElementById('pico-menu-overlay');
             var backdrop = document.getElementById('picoOverlayBackdrop');
             var closeBtn = document.getElementById('picoOverlayClose');
+            var backBtn  = document.getElementById('picoOverlayBack');
             var stateEl  = document.getElementById('picoOverlayState');
             var tilesEl  = document.getElementById('overlay-tiles');
             var menuBtn  = document.getElementById('picoMenuBtn');
 
             var gameActive = false;
             var engineTurn = false;
+            var navStack = [];
+            var currentView = null;
 
             /* ── helpers ─────────────────────────────── */
             function post(body) {
@@ -1238,6 +1241,29 @@
                 }
             }
 
+            function updateOverlayBack() {
+                if (backBtn) backBtn.style.display = navStack.length ? '' : 'none';
+            }
+
+            function navigateTo(viewFn) {
+                if (currentView) navStack.push(currentView);
+                viewFn();
+                currentView = viewFn;
+                updateOverlayBack();
+            }
+
+            function goBack() {
+                var previous = navStack.pop();
+                if (previous) {
+                    previous();
+                    currentView = previous;
+                } else {
+                    showTiles();
+                    currentView = showTiles;
+                }
+                updateOverlayBack();
+            }
+
             function showSubpanel(id) {
                 tilesEl.style.display = 'none';
                 document.querySelectorAll('.pico-subpanel').forEach(function(el) {
@@ -1284,7 +1310,7 @@
                     btn.appendChild(lEl);
                     btn.addEventListener('click', function() {
                         if (def.key === 'handbrain') {
-                            showModeHandBrainGrid();
+                            navigateTo(showModeHandBrainGrid);
                         } else {
                             handleSubpanelAction(def.action, null);
                         }
@@ -1392,7 +1418,7 @@
                 }));
                 // 2. Coach
                 gridEl.appendChild(_tTile('🧑‍🏫', 'Coach', coachLabels[s.tutor_coach] || 'Off', s.tutor_coach !== 'off', function() {
-                    showTutorSubGrid('coach');
+                    navigateTo(function() { showTutorSubGrid('coach'); });
                 }));
                 // 3. Explorer
                 gridEl.appendChild(_tTile('🗺️', 'Explorer', s.tutor_explorer ? 'On' : 'Off', s.tutor_explorer, function() {
@@ -1405,11 +1431,11 @@
                 // 4. Comment
                 var commentLabel = {off:'Off', engine:'Engine', all:'All'}[s.tutor_comment] || 'Off';
                 gridEl.appendChild(_tTile('💬', 'Comment', commentLabel, s.tutor_comment !== 'off', function() {
-                    showTutorSubGrid('comment');
+                    navigateTo(function() { showTutorSubGrid('comment'); });
                 }));
                 // 5. Probability
                 gridEl.appendChild(_tTile('📊', 'Probability', s.tutor_prob + '%', false, function() {
-                    showTutorProbSlider();
+                    navigateTo(showTutorProbSlider);
                 }));
                 // 6. Hint
                 gridEl.appendChild(_tTile('💡', 'Hint', 'Show hint', false, function() {
@@ -1451,7 +1477,7 @@
                             ts.tutor_coach = p[1];
                             setTutorSettingsOptimistic(ts);
                             post('action=picotutor&tutor=coach&val=' + p[1]);
-                            hideTutorSubPanel();
+                            goBack();
                         });
                         grid.appendChild(btn);
                     });
@@ -1471,7 +1497,7 @@
                             ts.tutor_comment = p[1];
                             setTutorSettingsOptimistic(ts);
                             post('action=picotutor&tutor=comment&val=' + p[1]);
-                            hideTutorSubPanel();
+                            goBack();
                         });
                         grid.appendChild(btn);
                     });
@@ -1724,7 +1750,7 @@
 
                 // 4. Castling — opens sub-grid
                 gridEl.appendChild(_pTile('🏰', 'Castling', _castlingSub(), false, function() {
-                    showPositionCastlingGrid();
+                    navigateTo(showPositionCastlingGrid);
                 }));
 
                 // 5. Scan — one-shot
@@ -1994,7 +2020,7 @@
                     var sEl = document.createElement('span'); sEl.className = 'pico-sub-tile-sub';
                     sEl.textContent = curLabel;
                     btn.appendChild(lEl); btn.appendChild(sEl);
-                    btn.addEventListener('click', function() { showDisplayCat(cat.key); });
+                    btn.addEventListener('click', function() { navigateTo(function() { showDisplayCat(cat.key); }); });
                     grid.appendChild(btn);
                 });
                 for (var _di = 0; _di < 6; _di++) {
@@ -2051,7 +2077,7 @@
                     var lEl = document.createElement('span'); lEl.className = 'pico-tile-label';
                     lEl.textContent = cat.icon + ' ' + cat.label;
                     btn.appendChild(lEl);
-                    btn.addEventListener('click', function() { openEngineCat(cat.value); });
+                    btn.addEventListener('click', function() { navigateTo(function() { openEngineCat(cat.value); }); });
                     grid.appendChild(btn);
                 });
                 for (var i = 0; i < 6; i++) {
@@ -2301,8 +2327,14 @@
                 if (value === 'switchsides')   { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
                 if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
                 if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
-                if (value === 'save' || value === 'read' || value === 'end') { showGameSubPanel(value); return; }
-                if (value === 'player')        { showGameSubPanel('player'); return; }
+                if (value === 'save' || value === 'read' || value === 'end') {
+                    navigateTo(function() { showGameSubPanel(value); });
+                    return;
+                }
+                if (value === 'player') {
+                    navigateTo(function() { showGameSubPanel('player'); });
+                    return;
+                }
             }
 
             function showGameSubPanel(key) {
@@ -2587,7 +2619,7 @@
                         renderSysCatGrid();
                         return;
                     }
-                    showSysCat(item.value);
+                    navigateTo(function() { showSysCat(item.value); });
                 });
             }
 
@@ -3206,7 +3238,7 @@
                         // dead-code path — Sound tile uses data-sys-cat, not data-action
                         close(); break;
                     case 'dgt':
-                        showScan(); break;
+                        navigateTo(showScan); break;
                     case 'wifi':
                         fetch('/settings/wifi-hotspot', { method: 'POST' }).catch(function(){});
                         close(); break;
@@ -3218,7 +3250,10 @@
             /* ── open / close ────────────────────────── */
             function open() {
                 applyCachedTutorSettings();
+                navStack = [];
                 showTiles();
+                currentView = showTiles;
+                updateOverlayBack();
                 overlay.classList.add('open');
                 document.body.style.overflow = 'hidden';
                 // Fetch fresh system info so tile subtitles reflect current
@@ -3237,6 +3272,9 @@
             function close() {
                 overlay.classList.remove('open');
                 document.body.style.overflow = '';
+                navStack = [];
+                currentView = null;
+                updateOverlayBack();
             }
 
             /* ── event delegation ────────────────────── */
@@ -3248,62 +3286,48 @@
                             'ovl-book': showEngineBook, 'ovl-tutor': showTutor, 'ovl-position': showPosition,
                             'ovl-game': showGame, 'ovl-system': showSystem, 'ovl-display': showDisplay };
                 var fn = fns[tile.id];
-                if (fn) fn();
+                if (fn) navigateTo(fn);
             });
 
             // Sub-panels: back buttons → tiles; item clicks → dispatcher
             overlay.addEventListener('click', function(e) {
-                // Inline column-back buttons (System / Display) — must come before
-                // the generic .pico-overlay-back handler that goes all the way back.
+                // Local back buttons are kept in the markup for compatibility, but
+                // all back navigation now goes through the header stack.
                 if (e.target.closest('#ovl-mode-hb-back')) {
-                    document.getElementById('ovl-mode-tile-grid').style.display = '';
-                    document.getElementById('ovl-mode-hb-panel').style.display = 'none';
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-time-back')) {
-                    var _tmg = document.getElementById('ovl-time-mode-list');
-                    var _tsp = document.getElementById('ovl-time-sub-panel');
-                    if (_tmg) _tmg.style.display = '';
-                    if (_tsp) _tsp.style.display = 'none';
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-tutor-back')) {
-                    hideTutorSubPanel();
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-pos-back')) {
-                    hidePositionSubPanel();
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-engine-cat-back')) {
-                    document.getElementById('ovl-engine-sub-panel').style.display = 'none';
-                    document.getElementById('ovl-engine-cat-back').style.display = 'none';
-                    document.getElementById('ovl-engine-sub-label').style.display = 'none';
-                    document.getElementById('ovl-engine-cat-grid').style.display = '';
-                    renderEngineCatTiles();
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-sys-back')) {
-                    document.getElementById('ovl-sys-cat-grid').style.display = '';
-                    document.getElementById('ovl-sys-sub-panel').style.display = 'none';
-                    renderSysCatGrid();
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-disp-back')) {
-                    document.getElementById('ovl-disp-tile-grid').style.display = '';
-                    document.getElementById('ovl-disp-sub-panel').style.display = 'none';
-                    renderDisplayTiles();
+                    goBack();
                     return;
                 }
                 if (e.target.closest('#ovl-game-back')) {
-                    document.getElementById('ovl-game-tile-grid').style.display = '';
-                    document.getElementById('ovl-game-sub-panel').style.display = 'none';
-                    renderGameTiles();
+                    goBack();
                     return;
                 }
 
-                if (e.target.closest('.pico-overlay-back')) { showTiles(); return; }
-                if (e.target.closest('#backToMenuBtn')) { showTiles(); return; }
+                if (e.target.closest('.pico-overlay-back')) { goBack(); return; }
+                if (e.target.closest('#backToMenuBtn')) { goBack(); return; }
 
                 // Engine category tabs
 
@@ -3312,7 +3336,8 @@
                 if (timeModeBtn && timeModeBtn.dataset.timeMode) {
                     document.querySelectorAll('#ovl-time-mode-list .pico-sub-tile').forEach(function(el) { el.classList.remove('selected'); });
                     timeModeBtn.classList.add('selected');
-                    showTimeValues(timeModeBtn.dataset.timeMode);
+                    var selectedTimeMode = timeModeBtn.dataset.timeMode;
+                    navigateTo(function() { showTimeValues(selectedTimeMode); });
                     return;
                 }
 
@@ -3398,16 +3423,32 @@
             if (menuBtn)  menuBtn.addEventListener('click', open);
             if (backdrop) backdrop.addEventListener('click', close);
             if (closeBtn) closeBtn.addEventListener('click', close);
+            if (backBtn)  backBtn.addEventListener('click', goBack);
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && overlay.classList.contains('open')) close();
             });
 
             /* ── public API ──────────────────────────── */
-            window.picoOverlay = { open: open, close: close,
-                showTiles: showTiles, showScan: showScan, showEngine: showEngine,
-                showMode: showMode, showTime: showTime, showBook: showEngineBook,
-                showTutor: showTutor, showPosition: showPosition, showGame: showGame,
-                showSystem: showSystem, showDisplay: showDisplay };
+            window.picoOverlay = {
+                open: open,
+                close: close,
+                showTiles: function() {
+                    navStack = [];
+                    showTiles();
+                    currentView = showTiles;
+                    updateOverlayBack();
+                },
+                showScan: function() { navigateTo(showScan); },
+                showEngine: function() { navigateTo(showEngine); },
+                showMode: function() { navigateTo(showMode); },
+                showTime: function() { navigateTo(showTime); },
+                showBook: function() { navigateTo(showEngineBook); },
+                showTutor: function() { navigateTo(showTutor); },
+                showPosition: function() { navigateTo(showPosition); },
+                showGame: function() { navigateTo(showGame); },
+                showSystem: function() { navigateTo(showSystem); },
+                showDisplay: function() { navigateTo(showDisplay); }
+            };
 
             window.setPicoGameActive = function(active) {
                 gameActive = Boolean(active);
@@ -3595,6 +3636,7 @@
 
             <div class="pico-overlay-header">
                 <span class="pico-overlay-title">PicoChess Menu</span>
+                <button class="pico-overlay-header-back" id="picoOverlayBack" type="button" style="display:none;">‹ Back</button>
                 <span class="pico-overlay-state" id="picoOverlayState">○ No active game</span>
                 <button class="pico-overlay-close" id="picoOverlayClose" aria-label="Close">✕</button>
             </div>

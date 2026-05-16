@@ -1458,6 +1458,25 @@ piece {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.pico-overlay-header-back {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.2;
+    min-height: 34px;
+    min-width: 76px;
+    padding: 0.35rem 0.75rem;
+    flex-shrink: 0;
+}
+
+.pico-overlay-header-back:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
 .pico-overlay-title {
     font-weight: 600;
     font-size: 0.95rem;
@@ -1503,6 +1522,7 @@ piece {
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
+    min-height: 96px;
     padding: 1.0rem 0.4rem;
     background: rgba(255, 255, 255, 0.04);
     border: none;
@@ -1553,7 +1573,13 @@ piece {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    padding: 0.75rem 1rem 0.75rem;
+    padding: 0;
+}
+
+#pico-menu-overlay .pico-picker-header,
+#pico-menu-overlay .pico-col-back,
+#pico-menu-overlay .pico-sub-grid-label {
+    display: none !important;
 }
 
 .pico-picker-header {
@@ -1722,7 +1748,7 @@ piece {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    padding: 0.6rem 1rem 0.75rem;
+    padding: 0;
 }
 
 .pico-subpanel-list {
@@ -1943,16 +1969,17 @@ html[data-theme="dark"] .promotion-overlay square {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.2rem;
-    padding: 0.75rem 0.3rem;
-    min-height: 60px;
+    gap: 0.35rem;
+    min-height: 96px;
+    padding: 1.0rem 0.4rem;
     background: rgba(255, 255, 255, 0.04);
     border: none;
     cursor: pointer;
     color: inherit;
     text-align: center;
+    text-decoration: none;
     transition: background 0.12s;
-    line-height: 1.2;
+    line-height: 1.1;
 }
 
 .pico-sub-tile:hover {
@@ -1971,15 +1998,15 @@ html[data-theme="dark"] .promotion-overlay square {
 }
 
 .pico-sub-tile-label {
-    font-size: 0.95rem;
+    font-size: 1.35rem;
     font-weight: 600;
     line-height: 1.1;
 }
 
 .pico-sub-tile-sub {
-    font-size: 0.74rem;
-    opacity: 0.65;
-    line-height: 1.2;
+    font-size: 0.95rem;
+    opacity: 0.70;
+    line-height: 1.3;
 }
 
 @media (max-width: 420px), (max-height: 520px) {
@@ -1996,11 +2023,11 @@ html[data-theme="dark"] .promotion-overlay square {
     }
 
     .pico-sub-tile-label {
-        font-size: 0.82rem;
+        font-size: 1.2rem;
     }
 
     .pico-sub-tile-sub {
-        font-size: 0.65rem;
+        font-size: 0.82rem;
     }
 
     .pico-picker-item {

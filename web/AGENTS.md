@@ -114,6 +114,13 @@ explicitly requires it.
 - The settings gear target must remain visibly framed, not just invisibly
   enlarged.
 - Picker/menu rows should remain finger-sized and scrollable.
+- Overlay submenu tiles should preserve the main 3x3 tile size where practical.
+- Prefer a single one-step Back control in the overlay header over per-submenu
+  titles or multiple nested Back buttons when vertical space is tight.
+- Do not reintroduce secondary metadata in picker rows, such as engine Elo,
+  when it makes touch selection harder and the same choice is confirmed later.
+- PGN move-list text should keep a readable minimum size in landscape layouts,
+  especially around 7" 1024x600 screens.
 - Keep the chessboard control row compact for touchscreen use.
 - Avoid layout moves that improve desktop landscape but regress mobile
   landscape or portrait.

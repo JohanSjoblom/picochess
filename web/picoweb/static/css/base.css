@@ -1522,6 +1522,13 @@ piece {
     background: rgba(255, 255, 255, 0.18);
 }
 
+.pico-tile.pico-empty-tile {
+    cursor: default;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.01);
+    opacity: 0;
+}
+
 .pico-tile-label {
     font-size: 1.35rem;
     font-weight: 600;

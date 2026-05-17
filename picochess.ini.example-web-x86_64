@@ -23,8 +23,8 @@
 #disable-revelation-leds = True
 
 ## beep-config enables or disables the internal DGTPi beeper sounds or allows sound samples to be used instead. The options
-## are "Never", "Sometimes", "Always" or "Sample". "Never" disables all beeps. "Always" enables all beeps. "Sometimes" enables
-## beeps depending on the level set by the beep-some-level setting below. "Sample" is used to select audio samples for specific
+## are 'none', 'some', 'all' or 'sample'. 'none' disables all beeps. 'all' enables all beeps. 'some' enables
+## beeps depending on the level set by the beep-some-level setting below. 'sample' is used to select audio samples for specific
 ## actions and requires correctly named sound samples (in ogg format) to be installed in the talker/voices/en/beeper folder.
 ## These samples can be used with or without a DGTPi/DGT3000 but only support two settings of beep-some-level.
 #beep-config = ('none', 'some', 'all', or 'sample')
@@ -32,8 +32,8 @@ beep-config = none
 
 ## When beep-config is set to 'some', beep-some-level changes the frequency of occurrence of beeps. Minimum value is 0 (no beeps),
 ## maximum is 15 (all beeps). Please keep in mind: values 0 and 15 make no sense (but are allowed) since they are the same as 
-## "Never" and "Always" inside the clock menu or via the beep-config option above ('none' or 'all' setting). 
-## The value you give here, is when using the "Sometimes" menu selection (in System/Sound). Beeps are determined by a
+## selecting no beeps or all beeps in the clock menu, or via the beep-config option above ('none' or 'all' setting).
+## The value you give here is used when beep-config is set to 'some'. Beeps are determined by a
 ## special number which you get by adding the following events together to get the beep-some-level value:
 ##
 ## CONFIG = 1 Takeback, GameEnd, NewGame, ComputerMove and SetPieces

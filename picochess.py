@@ -111,6 +111,43 @@ ONLINE_PREFIX = "Online"
 
 logger = logging.getLogger(__name__)
 
+WEB_SERVER_DEFAULT_PORT = 80
+WEB_SERVER_PERMISSION_FALLBACK_PORT = 8080
+WEB_SERVER_SETCAP_HINT = "sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))"
+
+
+class WebServerListenError(RuntimeError):
+    """Capture the port and reason when Tornado cannot bind the web server."""
+
+    def __init__(self, port: int, reason: str, original_error: OSError):
+        super().__init__(str(original_error))
+        self.port = port
+        self.reason = reason
+        self.original_error = original_error
+
+
+def _listen_web_app(web_app: Any, requested_port: int) -> int:
+    try:
+        web_app.listen(requested_port)
+        return requested_port
+    except PermissionError as exc:
+        if requested_port != WEB_SERVER_DEFAULT_PORT:
+            raise WebServerListenError(requested_port, "permission", exc) from exc
+
+        fallback_port = WEB_SERVER_PERMISSION_FALLBACK_PORT
+        logger.warning("Could not start web server - port %d not allowed by operating system", requested_port)
+        logger.warning("Falling back to web server port %d", fallback_port)
+        logger.warning("To restore port %d, try: %s", requested_port, WEB_SERVER_SETCAP_HINT)
+        try:
+            web_app.listen(fallback_port)
+        except PermissionError as fallback_exc:
+            raise WebServerListenError(fallback_port, "permission", fallback_exc) from fallback_exc
+        except OSError as fallback_exc:
+            raise WebServerListenError(fallback_port, "unavailable", fallback_exc) from fallback_exc
+        return fallback_port
+    except OSError as exc:
+        raise WebServerListenError(requested_port, "unavailable", exc) from exc
+
 
 class AlternativeMover:
     """Keep track of alternative moves."""
@@ -1175,15 +1212,17 @@ async def main() -> None:
         shared["dgttranslate"] = state.dgttranslate
         web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
         try:
-            web_app.listen(args.web_server_port)
-        except PermissionError:
-            logger.error("Could not start web server - port %d not allowed by operating system", args.web_server_port)
-            logger.error("try: sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))")
+            active_web_server_port = _listen_web_app(web_app, args.web_server_port)
+        except WebServerListenError as exc:
+            if exc.reason == "permission":
+                logger.error("Could not start web server - port %d not allowed by operating system", exc.port)
+                logger.error("try: %s", WEB_SERVER_SETCAP_HINT)
+            else:
+                logger.error("Could not start web server - port %d not available", exc.port)
+                logger.error("is another Picochess, or other web application already running?")
             sys.exit(1)  # fatal, cannot continue without web server
-        except OSError:
-            logger.error("Could not start web server - port %d not available", args.web_server_port)
-            logger.error("is another Picochess, or other web application already running?")
-            sys.exit(1)  # fatal, cannot continue without web server
+        args.web_server_port = active_web_server_port
+        shared["system_info"]["web_server_port"] = active_web_server_port
 
     if board_type == dgt.util.EBoard.NOEBOARD:
         logger.debug("starting PicoChess in no eboard mode")

@@ -75,6 +75,52 @@ close_update_terminal() {
   UPDATE_TERM_PID=""
 }
 
+configured_web_port() {
+  awk -F= '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*web-server[[:space:]]*=/ {
+      value = $2
+      sub(/#.*/, "", value)
+      gsub(/[[:space:]]/, "", value)
+      print value
+    }
+  ' /opt/picochess/picochess.ini 2>/dev/null | tail -n 1
+}
+
+port_open() {
+  local port="$1"
+  [ -n "$port" ] || return 1
+  (: >/dev/tcp/127.0.0.1/"$port") >/dev/null 2>&1
+}
+
+picochess_url() {
+  local port
+  port="$(configured_web_port)"
+  [ -n "$port" ] || port=80
+  case "$port" in
+    *[!0-9]*)
+      port=80
+      ;;
+  esac
+
+  for _ in 1 2 3 4 5; do
+    if port_open "$port"; then
+      break
+    fi
+    if [ "$port" = "80" ] && port_open 8080; then
+      port=8080
+      break
+    fi
+    sleep 1
+  done
+
+  if [ "$port" = "80" ]; then
+    printf '%s\n' "http://127.0.0.1"
+  else
+    printf '%s\n' "http://127.0.0.1:$port"
+  fi
+}
+
 # This will wait for PicoChess to start before launching the browser
 while true; do
   if display_ready; then
@@ -101,10 +147,11 @@ while true; do
   systemctl is-active --quiet picochess
   if [ $? -eq 0 ]; then
     close_update_terminal
+    PICOCHESS_URL="$(picochess_url)"
     if is_wayland; then
-      /usr/bin/chromium --password-store=basic --kiosk http://127.0.0.1 &
+      /usr/bin/chromium --password-store=basic --kiosk "$PICOCHESS_URL" &
     else
-      /usr/bin/chromium --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk http://127.0.0.1 &
+      /usr/bin/chromium --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk "$PICOCHESS_URL" &
     fi
     exit 0
   else

@@ -2,10 +2,15 @@ name: Issue Agent
 
 on:
   workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to check. Leave empty to check the first open issue.
+        required: false
+        type: string
 
 permissions:
   contents: read
-  issues: read
+  issues: write
 
 jobs:
   run-agent:
@@ -34,5 +39,6 @@ jobs:
       - name: Run agent
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           python tools/issue_agent.py

@@ -36,6 +36,81 @@ FAIL_FILE="/var/log/picochess-last-update-fail"
 touch "$LOGFILE"
 # Do NOT touch timestamp file here, only update on success
 
+find_cap_tool() {
+    tool_name="$1"
+    tool_path=$(command -v "$tool_name" 2>/dev/null || true)
+    if [ -n "$tool_path" ]; then
+        echo "$tool_path"
+        return 0
+    fi
+    for tool_dir in /usr/sbin /sbin /usr/bin /bin; do
+        if [ -x "$tool_dir/$tool_name" ]; then
+            echo "$tool_dir/$tool_name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+repair_python_bind_capability() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "$(date): WARNING: cannot repair Python port-80 capability without root." >>"$LOGFILE"
+        return 0
+    fi
+    SETCAP=$(find_cap_tool setcap || true)
+    if [ -z "$SETCAP" ]; then
+        echo "$(date): WARNING: setcap not found; cannot repair Python port-80 capability." >>"$LOGFILE"
+        return 0
+    fi
+    GETCAP=$(find_cap_tool getcap || true)
+    if [ -z "$GETCAP" ]; then
+        echo "$(date): WARNING: getcap not found; cannot check Python port-80 capability." >>"$LOGFILE"
+        return 0
+    fi
+
+    PYTHON_LINK=""
+    for candidate in "$REPO_DIR/venv/bin/python3" "$REPO_DIR/venv/bin/python"; do
+        if [ -x "$candidate" ]; then
+            PYTHON_LINK="$candidate"
+            break
+        fi
+    done
+    if [ -z "$PYTHON_LINK" ]; then
+        echo "$(date): WARNING: PicoChess venv Python not found; skipping port-80 capability repair." >>"$LOGFILE"
+        return 0
+    fi
+
+    PYTHON_TARGET=$("$PYTHON_LINK" -c 'import os, sys; print(os.path.realpath(sys.executable))' 2>/dev/null || true)
+    if [ -z "$PYTHON_TARGET" ] || [ ! -x "$PYTHON_TARGET" ]; then
+        echo "$(date): WARNING: could not resolve executable Python from $PYTHON_LINK." >>"$LOGFILE"
+        return 0
+    fi
+
+    PYTHON_CAPS=$("$GETCAP" "$PYTHON_TARGET" 2>/dev/null || true)
+    case "$PYTHON_CAPS" in
+        *cap_net_bind_service*)
+            return 0
+            ;;
+    esac
+
+    if [ -n "$PYTHON_CAPS" ]; then
+        echo "$(date): WARNING: $PYTHON_TARGET has capabilities but not cap_net_bind_service; leaving unchanged: $PYTHON_CAPS" >>"$LOGFILE"
+        return 0
+    fi
+
+    if "$SETCAP" 'cap_net_bind_service=+ep' "$PYTHON_TARGET" 2>>"$LOGFILE"; then
+        echo "$(date): Repaired Python port-80 capability on $PYTHON_TARGET." >>"$LOGFILE"
+    else
+        echo "$(date): WARNING: failed to repair Python port-80 capability on $PYTHON_TARGET." >>"$LOGFILE"
+    fi
+    return 0
+}
+
+# This service runs as root before picochess.service. Repair this even when no
+# update flag exists, because an OS Python upgrade replaces the executable and
+# drops file capabilities.
+repair_python_bind_capability
+
 # Check if the flag file exists
 if [ -f "$FLAG" ]; then
     REASON=$(head -n 1 "$FLAG" 2>/dev/null | tr -d '\r')

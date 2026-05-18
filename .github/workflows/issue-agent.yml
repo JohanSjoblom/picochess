@@ -15,6 +15,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
+      - name: Show current files
+        run: |
+          git branch --show-current
+          git rev-parse --short HEAD
+          cat .github/workflows/issue-agent.yml
+          ls -la tools
+
       - name: Setup Python
         uses: actions/setup-python@v6
         with:

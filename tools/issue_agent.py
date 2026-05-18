@@ -6,7 +6,8 @@ import requests
 
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "JohanSjoblom/picochess")
-COMMENT_MARKER = "<!-- picochess-issue-agent:open-questions -->"
+OPEN_QUESTIONS_MARKER = "<!-- picochess-issue-agent:open-questions -->"
+SPECIFICATION_MARKER = "<!-- picochess-issue-agent:specification -->"
 
 
 def github_headers():
@@ -142,18 +143,18 @@ def build_specification(issue):
     )
 
 
-def find_existing_agent_comment(issue_number):
+def find_existing_agent_comment(issue_number, marker):
     response = github_request("GET", f"/issues/{issue_number}/comments", params={"per_page": 100})
     for comment in response.json():
         body = comment.get("body") or ""
         user = comment.get("user") or {}
-        if COMMENT_MARKER in body and user.get("login") == "github-actions[bot]":
+        if marker in body and user.get("login") == "github-actions[bot]":
             return comment
     return None
 
 
-def upsert_agent_comment(issue_number, body):
-    existing = find_existing_agent_comment(issue_number)
+def upsert_agent_comment(issue_number, marker, body):
+    existing = find_existing_agent_comment(issue_number, marker)
     if existing:
         github_request("PATCH", f"/issues/comments/{existing['id']}", json={"body": body})
         print(f"Updated existing agent comment on issue #{issue_number}")
@@ -167,7 +168,7 @@ def comment_open_questions(issue, questions):
     question_lines = "\n".join(f"- {question}" for question in questions)
     body = textwrap.dedent(
         f"""\
-        {COMMENT_MARKER}
+        {OPEN_QUESTIONS_MARKER}
         Issue Agent could not generate `specification.md` without open questions.
 
         Please clarify:
@@ -175,23 +176,34 @@ def comment_open_questions(issue, questions):
         {question_lines}
         """
     )
-    upsert_agent_comment(issue["number"], body)
+    upsert_agent_comment(issue["number"], OPEN_QUESTIONS_MARKER, body)
 
 
-def mark_spec_ready_if_needed(issue):
-    existing = find_existing_agent_comment(issue["number"])
+def comment_specification(issue, specification):
+    body = (
+        f"{SPECIFICATION_MARKER}\n"
+        "Issue Agent generated `specification.md` from the current issue description.\n\n"
+        "```markdown\n"
+        f"{specification.rstrip()}\n"
+        "```\n"
+    )
+    upsert_agent_comment(issue["number"], SPECIFICATION_MARKER, body)
+
+
+def mark_open_questions_resolved_if_needed(issue):
+    existing = find_existing_agent_comment(issue["number"], OPEN_QUESTIONS_MARKER)
     if not existing:
         return
     body = textwrap.dedent(
         f"""\
-        {COMMENT_MARKER}
+        {OPEN_QUESTIONS_MARKER}
         Issue Agent generated `specification.md` from the current issue description.
 
         No open questions were detected by the current checks.
         """
     )
     github_request("PATCH", f"/issues/comments/{existing['id']}", json={"body": body})
-    print(f"Marked existing agent comment as resolved on issue #{issue['number']}")
+    print(f"Marked open-questions comment as resolved on issue #{issue['number']}")
 
 
 def main():
@@ -212,7 +224,8 @@ def main():
         spec_file.write(specification)
     print("Generated specification.md")
     print(specification)
-    mark_spec_ready_if_needed(issue)
+    comment_specification(issue, specification)
+    mark_open_questions_resolved_if_needed(issue)
 
 
 if __name__ == "__main__":

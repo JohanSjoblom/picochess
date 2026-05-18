@@ -3,6 +3,10 @@ name: Issue Agent
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: read
+
 jobs:
   run-agent:
     runs-on: ubuntu-latest
@@ -16,6 +20,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run agent
+      - name: Install dependencies
         run: |
-          python -c "print('Hello from agent')"
+          python -m pip install requests
+
+      - name: Run agent
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/issue_agent.py

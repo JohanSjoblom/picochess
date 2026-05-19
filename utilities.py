@@ -1,6 +1,6 @@
 # Copyright (C) 2013-2018 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
-#                         Jürgen Précour (LocutusOfPenguin@posteo.de)
+#                         JÃ¼rgen PrÃ©cour (LocutusOfPenguin@posteo.de)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
 import logging
 import os
 import platform
-import shlex
-import shutil
 import urllib.request
 import socket
 import json
@@ -32,7 +30,6 @@ from ctypes import cdll, c_int
 
 from subprocess import Popen, PIPE
 
-from dgt.translate import DgtTranslate
 from dgt.api import Dgt
 
 from configobj import ConfigObj, ConfigObjError, DuplicateError  # type: ignore
@@ -42,17 +39,33 @@ from typing import Optional
 from pathlib import Path
 
 # picochess version
-version = "4.3.0"
+version = "4.2.4"
 
 logger = logging.getLogger(__name__)
-
-_WINDOW_CONTROL_BACKEND_PREFERENCE = "auto"
+PROJECT_ROOT = Path(__file__).resolve().parent
+LEGACY_PROJECT_ROOT = Path("/opt/picochess")
+INSTALLATION_SCRIPT_DIR_NAMES = ("installation-scripts", "installation_scripts")
 
 evt_queue: asyncio.Queue = asyncio.Queue()
 dispatch_queue: asyncio.Queue = asyncio.Queue()
 
 msgdisplay_devices = []
 dgtdisplay_devices = []
+
+
+def get_project_root() -> Path:
+    """Return the current PicoChess project root."""
+    return PROJECT_ROOT
+
+
+def get_installation_script_path(script_name: str) -> Path:
+    """Resolve an installation helper script in the current repo, with legacy fallback."""
+    for root_dir in (PROJECT_ROOT, LEGACY_PROJECT_ROOT):
+        for dir_name in INSTALLATION_SCRIPT_DIR_NAMES:
+            script_path = root_dir / dir_name / script_name
+            if script_path.exists():
+                return script_path
+    return PROJECT_ROOT / INSTALLATION_SCRIPT_DIR_NAMES[0] / script_name
 
 
 class Observable(object):
@@ -236,106 +249,6 @@ def git_name():
     return "git.exe" if platform.system() == "Windows" else "git"
 
 
-def get_tags():
-    """Get the last 3 tags from git."""
-    git = git_name()
-    tags = [(tags, tags[1] + tags[-2:]) for tags in do_popen([git, "tag"], log=False).split("\n")[-4:-1]]
-    return tags  # returns something like [('v0.9j', 09j'), ('v0.9k', '09k'), ('v0.9l', '09l')]
-
-
-def checkout_tag(tag):
-    """Update picochess by tag from git."""
-    git = git_name()
-    do_popen([git, "checkout", tag])
-    do_popen(["pip3", "install", "-r", "requirements.txt"])
-
-
-def update_pico_engines():
-    """Update picochess engines from github resource (asset) files"""
-    script_path = "/opt/picochess/move-engines-to-backup.sh"
-
-    try:
-        result = subprocess.run(["/bin/sh", script_path], check=True, capture_output=True, text=True)
-        logger.debug("Engines successfully moved to backup. Proceeding to update pico")
-        logger.debug("Script output: %s", result.stdout)
-        # the purpose of above is just to empty the engines folder, now get new engines
-        update_pico_v4(reason="engines")  # triggers update which runs install-engines to get new engines
-
-    except subprocess.CalledProcessError as e:
-        logger.debug("Error while running move-engines-to-backup.sh")
-        logger.debug("Return code: %s", e.returncode)
-
-
-def update_pico_v4(reason: Optional[str] = None):
-    """use the picochess-update.service and update on next boot"""
-    # Path to the update trigger flag
-    flag_path = Path.home() / "run_picochess_update.flag"
-    flag_reason = reason if reason else "pico"
-
-    # Create the flag file if it doesn't exist
-    try:
-        flag_path.write_text(flag_reason, encoding="utf-8")
-        logger.info("Update flag '%s' created. Will run on next boot.", flag_reason)
-    except Exception:
-        logger.info("Failed to create update flag. Cannot update picochess on next boot.")
-
-
-def update_picochess_now():
-    """Run install-picochess.sh twice in the background, then restart PicoChess.
-
-    The install script must be run twice: the first pass may update the script
-    itself; the second pass uses the updated version to update the application code.
-    After both passes, chromium (kiosk) is killed so it reconnects to the fresh
-    server, and PicoChess is restarted via systemctl (no full reboot required).
-    """
-    script = "/opt/picochess/install-picochess.sh"
-    logfile = "/var/log/picochess-update.log"
-    cmd = (
-        f"echo \"$(date): Update pass 1/2...\" >> '{logfile}' 2>&1 && "
-        f"sh '{script}' pico noengines >> '{logfile}' 2>&1 && "
-        f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
-        f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
-        f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
-        f"pkill -f chromium 2>/dev/null ; "
-        f"systemctl restart picochess"
-    )
-    try:
-        subprocess.Popen(
-            ["sudo", "sh", "-c", cmd],
-            start_new_session=True,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        logger.info("PicoChess update started in background (2-pass install + service restart).")
-    except Exception as exc:
-        logger.error("Failed to start PicoChess update: %s", exc)
-
-
-async def update_picochess(dgtpi: bool, auto_reboot: bool, dgttranslate: DgtTranslate):
-    """Update picochess from git."""
-    git = git_name()
-
-    branch = do_popen([git, "rev-parse", "--abbrev-ref", "HEAD"], log=False).rstrip()
-    if branch == "master":
-        # Fetch remote repo
-        do_popen([git, "remote", "update"])
-        # Check if update is needed - need to make sure, we get english answers
-        output = do_popen([git, "status", "-uno"], force_en_env=True)
-        if "up-to-date" not in output and "Your branch is ahead of" not in output:
-            DispatchDgt.fire(dgttranslate.text("Y25_update"))
-            # Update
-            logging.debug("updating picochess")
-            do_popen([git, "pull", "origin", branch])
-            do_popen(["pip3", "install", "-r", "requirements.txt"])
-            if auto_reboot:
-                reboot(dgtpi, dev="web")
-        else:
-            logging.debug("no update available")
-    else:
-        logging.warning("wrong branch %s", branch)
-
-
 def shutdown(dgtpi: bool, dev: str):
     """Shutdown picochess."""
     logging.debug("shutting down system requested by (%s)", dev)
@@ -466,21 +379,7 @@ def write_picochess_ini(key: str, value):
         logging.exception(conf_exc)
 
 
-def set_window_control_backend_preference(backend: str) -> None:
-    global _WINDOW_CONTROL_BACKEND_PREFERENCE
-    _WINDOW_CONTROL_BACKEND_PREFERENCE = (backend or "auto").strip().lower()
-
-
-def get_window_control_backend_preference() -> str:
-    return _WINDOW_CONTROL_BACKEND_PREFERENCE
-
-
 def is_wayland_session() -> bool:
-    preferred_backend = get_window_control_backend_preference()
-    if preferred_backend in {"ydotool", "sway", "swaymsg"}:
-        return True
-    if preferred_backend == "xdotool":
-        return False
     return os.environ.get("XDG_SESSION_TYPE") == "wayland" or bool(os.environ.get("WAYLAND_DISPLAY"))
 
 
@@ -494,96 +393,10 @@ _WINDOW_COMMANDS = {
 }
 
 
-_WAYLAND_SWAY_COMMANDS = {
-    "toggle_fullscreen": "swaymsg --quiet fullscreen toggle",
-    "switch_window": "swaymsg --quiet focus next",
-    "switch_window_toggle_fullscreen": ("swaymsg --quiet focus next; sleep 0.2; swaymsg --quiet fullscreen toggle"),
-}
-
-
-def _get_ydotool_prefix() -> str:
-    ydotool_socket = os.environ.get("YDOTOOL_SOCKET", "").strip()
-    if ydotool_socket:
-        return f"YDOTOOL_SOCKET={shlex.quote(ydotool_socket)} ydotool"
-    return "ydotool"
-
-
-def _get_wayland_ydotool_commands() -> dict[str, str]:
-    # evdev keycodes used by ydotool key injection.
-    ydotool_prefix = _get_ydotool_prefix()
-    ydotool_alt_tab = f"{ydotool_prefix} key 56:1 15:1 15:0 56:0"
-    ydotool_alt_f11 = f"{ydotool_prefix} key 56:1 87:1 87:0 56:0"
-    return {
-        "toggle_fullscreen": ydotool_alt_f11,
-        "switch_window": ydotool_alt_tab,
-        "switch_window_toggle_fullscreen": f"{ydotool_alt_tab}; sleep 0.2; {ydotool_alt_f11}",
-    }
-
-
-def _choose_wayland_backend() -> Optional[str]:
-    """Pick the best available Wayland window-control backend."""
-    requested_backend = get_window_control_backend_preference()
-    if requested_backend in {"", "auto"}:
-        requested_backend = os.environ.get("PICOCHESS_WAYLAND_WINDOW_BACKEND", "").strip().lower()
-    session_desktop = os.environ.get("XDG_SESSION_DESKTOP", "").lower()
-    current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
-
-    if requested_backend in {"none", "off", "disabled"}:
-        return None
-
-    if requested_backend in {"sway", "swaymsg"}:
-        if shutil.which("swaymsg"):
-            return "swaymsg"
-        logger.warning("PICOCHESS_WAYLAND_WINDOW_BACKEND=swaymsg but swaymsg is not available")
-        return None
-
-    if requested_backend == "ydotool":
-        if shutil.which("ydotool"):
-            return "ydotool"
-        logger.warning("PICOCHESS_WAYLAND_WINDOW_BACKEND=ydotool but ydotool is not available")
-        return None
-
-    if shutil.which("swaymsg") and (
-        os.environ.get("SWAYSOCK") or "sway" in session_desktop or "sway" in current_desktop
-    ):
-        return "swaymsg"
-
-    if shutil.which("ydotool"):
-        return "ydotool"
-
-    return None
-
-
-def _get_wayland_window_command(action: str) -> Optional[str]:
-    """Resolve a window action command for Wayland sessions."""
-    backend = _choose_wayland_backend()
-    if backend == "swaymsg":
-        cmd = _WAYLAND_SWAY_COMMANDS.get(action)
-    elif backend == "ydotool":
-        cmd = _get_wayland_ydotool_commands().get(action)
-    else:
-        logger.warning("Wayland window backend unavailable for action '%s' (looked for swaymsg/ydotool)", action)
-        return None
-
-    if cmd is None:
-        logger.warning("Unknown window action '%s' for Wayland backend '%s'", action, backend)
-    else:
-        logger.debug("Wayland window action '%s' via backend '%s'", action, backend)
-    return cmd
-
-
 def get_window_command(action: str) -> Optional[str]:
-    preferred_backend = get_window_control_backend_preference()
-    if preferred_backend in {"none", "off", "disabled"}:
-        logger.info("Window control disabled; skipping action '%s'", action)
-        return None
-    if preferred_backend == "xdotool":
-        cmd = _WINDOW_COMMANDS.get(action)
-        if cmd is None:
-            logger.warning("Unknown window action '%s' for X11 backend", action)
-        return cmd
     if is_wayland_session():
-        return _get_wayland_window_command(action)
+        logger.info("Wayland session detected; skipping window action '%s'", action)
+        return None
     cmd = _WINDOW_COMMANDS.get(action)
     if cmd is None:
         logger.warning("Unknown window action '%s'", action)

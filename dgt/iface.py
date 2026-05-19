@@ -201,10 +201,7 @@ class DgtIface(DisplayDgt):
         elif isinstance(message, Dgt.CLOCK_START):
             self.case_res = await self.start_clock(message.side, message.devs)
         elif isinstance(message, Dgt.CLOCK_STOP):
-            if self.side_running != ClockSide.NONE:
-                self.case_res = await self.stop_clock(message.devs)
-            else:
-                logger.debug("(%s) clock is already stopped", ",".join(message.devs))
+            self.case_res = await self.stop_clock(message.devs)
         elif isinstance(message, Dgt.CLOCK_VERSION):
             if "i2c" in message.devs:
                 logger.debug("(i2c) clock found => starting the board connection")

@@ -3,8 +3,8 @@
 # Copyright (C) 2013-2019 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
-#                         Molli (and thanks to Martin  for his opening
-#                         identification code)
+#                         thanks to Martin for his opening
+#                         identification code
 #                         Johan Sjöblom
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -90,7 +90,6 @@ class PicoTutor:
         self.expl_start_position = True
         self.watcher_on = False
         self.coach_on = False
-        self.analysis_enabled = True
         self.explorer_on = False
         self.comments_on = False
         self.mame_par = ""  # @todo create this info?
@@ -189,15 +188,29 @@ class PicoTutor:
 
     async def _load_engine(self, options: dict, debug_whoami: str) -> UciEngine:
         """internal function to load each tutor engine"""
-        engine = UciEngine(
-            self.engine_path,
-            self.ucishell,
-            self.mame_par,
-            self.loop,
-            debug_whoami,
-            suppress_info=False,
-            remote_binary_override=self.remote_binary_override,
-        )
+        try:
+            engine = UciEngine(
+                self.engine_path,
+                self.ucishell,
+                self.mame_par,
+                self.loop,
+                debug_whoami,
+                suppress_info=False,
+                remote_binary_override=self.remote_binary_override,
+            )
+        except TypeError:
+            logger.warning(
+                "UciEngine does not support remote_binary_override; falling back to legacy constructor for %s",
+                debug_whoami,
+            )
+            engine = UciEngine(
+                self.engine_path,
+                self.ucishell,
+                self.mame_par,
+                self.loop,
+                debug_whoami,
+                suppress_info=False,
+            )
         await engine.open_engine()
         if engine.loaded_ok() is True:
             await engine.startup(options=options)
@@ -222,12 +235,6 @@ class PicoTutor:
             self.analyse_both_sides = analyse_both_sides
         await self._start_or_stop_as_needed()
 
-    async def set_analysis_enabled(self, enabled: bool):
-        """Temporarily enable or suspend tutor engine analysis without changing menu state."""
-        if self.analysis_enabled != enabled:
-            self.analysis_enabled = enabled
-            await self._start_or_stop_as_needed()
-
     async def get_latest_seen_depth(self) -> int:
         """return the latest depth seen in analysis info"""
         result = 0
@@ -240,8 +247,6 @@ class PicoTutor:
         """is the tutor active and analysing with either coach or watcher on
         - if yes InfoDicts can be used"""
         result = False
-        if not self.analysis_enabled:
-            return False
         # most analysing functions are skipped if neither coach nor watcher is on
         if self.best_engine:
             if self.best_engine.loaded_ok() and (self.coach_on or self.watcher_on):
@@ -686,8 +691,6 @@ class PicoTutor:
 
     def _should_run_tutor(self) -> bool:
         """return True if tutor should run"""
-        if not self.analysis_enabled:
-            return False
         if not (self.coach_on or self.watcher_on):
             return False  # user has turned tutor off
         # run tutor if we are analysing both sides, or if it is user turn
@@ -944,8 +947,6 @@ class PicoTutor:
         the fen element is board position that was analysed"""
         # failed answer is empty lists
         result = {"info": [], "fen": ""}
-        if not self.analysis_enabled:
-            return result
         if self.best_engine:
             if self.best_engine.is_analyser_running():
                 result = await self.best_engine.get_analysis(self.board)
@@ -1332,7 +1333,7 @@ class PicoTutor:
         return self.hint_move[self.board.turn], self.pv_user_move[self.board.turn]
 
     async def get_pos_analysis(self):
-        if not self.analysis_enabled or not (self.coach_on or self.watcher_on):
+        if not (self.coach_on or self.watcher_on):
             return
         # calculate material / position / mobility / development / threats / best move / best score
         # call a picotalker method with these information
@@ -1352,46 +1353,3 @@ class PicoTutor:
         if score is not None:
             score = score / 100.0
         return best_move, score, mate, self.alt_best_moves[turn]
-
-    async def get_best_move_for_piece_type(self, piece_type: chess.PieceType):
-        """Return the best available move for any piece of the requested type."""
-        result = await self.get_pos_analysis()
-        if result:
-            best_move, _score, _mate, alt_best_moves = result
-            for move in [best_move] + list(alt_best_moves):
-                if move != chess.Move.null() and self.board.piece_type_at(move.from_square) == piece_type:
-                    return move
-
-        candidates = [
-            move for move in self.board.legal_moves
-            if self.board.piece_type_at(move.from_square) == piece_type
-        ]
-        if not candidates:
-            return None
-
-        piece_values = {
-            chess.PAWN: 1,
-            chess.KNIGHT: 3,
-            chess.BISHOP: 3,
-            chess.ROOK: 5,
-            chess.QUEEN: 9,
-            chess.KING: 0,
-        }
-        center = {chess.D4, chess.D5, chess.E4, chess.E5}
-
-        def score_move(move: chess.Move) -> int:
-            score = 0
-            if self.board.is_capture(move):
-                victim = self.board.piece_type_at(move.to_square)
-                score += 10 * piece_values.get(victim, 0) - piece_values.get(piece_type, 0)
-            board = self.board.copy()
-            board.push(move)
-            if board.is_check():
-                score += 5
-            if move.to_square in center:
-                score += 2
-            return score
-
-        candidates.sort(key=score_move, reverse=True)
-        logger.info("Brain and hand fallback for piece type %s: returning %s", piece_type, candidates[0])
-        return candidates[0]

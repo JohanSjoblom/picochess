@@ -254,19 +254,11 @@ class PicoCoach(MyEnum):
 
     COACH_ON = "B00_picocoach_on"
     COACH_LIFT = "B00_picocoach_lift"
-    COACH_BRAIN = "B00_picocoach_brain"
-    COACH_HAND = "B00_picocoach_hand"
     COACH_OFF = "B00_picocoach_off"
 
     @classmethod
     def items(cls):
-        return [
-            PicoCoach.COACH_ON,
-            PicoCoach.COACH_LIFT,
-            PicoCoach.COACH_BRAIN,
-            PicoCoach.COACH_HAND,
-            PicoCoach.COACH_OFF,
-        ]
+        return [PicoCoach.COACH_ON, PicoCoach.COACH_LIFT, PicoCoach.COACH_OFF]
 
     @classmethod
     def from_str(cls, s):
@@ -276,10 +268,6 @@ class PicoCoach(MyEnum):
             return PicoCoach.COACH_OFF
         elif s == "lift":
             return PicoCoach.COACH_LIFT
-        elif s == "brain":
-            return PicoCoach.COACH_BRAIN
-        elif s == "hand":
-            return PicoCoach.COACH_HAND
         else:
             return PicoCoach.COACH_OFF
 
@@ -566,11 +554,10 @@ class SystemLoop(object):
 class Bluetooth(MyEnum):
     PAIR_PHONE = "B00_bluetooth_pair_menu"
     FIX_BT = "B00_bluetooth_fix_menu"
-    RECONNECT_DGT = "B00_bluetooth_reconnect_menu"
 
     @classmethod
     def items(cls):
-        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT, Bluetooth.RECONNECT_DGT]
+        return [Bluetooth.PAIR_PHONE, Bluetooth.FIX_BT]
 
 
 class BluetoothLoop(object):
@@ -590,12 +577,10 @@ class Power(MyEnum):
     SHUT_DOWN = "B00_power_shut_down_menu"
     EXIT = "B00_power_exit_menu"
     RESTART = "B00_power_restart_menu"
-    UPDATE = "B00_updt_picochess"
-    UPDT_ENGINES = "B00_power_updt_engines"
 
     @classmethod
     def items(cls):
-        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART, Power.UPDATE, Power.UPDT_ENGINES]
+        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART]
 
 
 class PowerLoop(object):
@@ -642,12 +627,10 @@ class EBoardLoop(object):
 class Theme(MyEnum):
     LIGHT = "B00_theme_light_menu"
     DARK = "B00_theme_dark_menu"
-    TIME = "B00_theme_time_menu"
-    AUTO = "B00_theme_auto_menu"
 
     @classmethod
     def items(cls):
-        return [Theme.LIGHT, Theme.DARK, Theme.TIME, Theme.AUTO]
+        return [Theme.LIGHT, Theme.DARK]
 
 
 class ThemeLoop(object):

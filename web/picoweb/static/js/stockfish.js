@@ -1,10 +1,10 @@
 /*!
  * Stockfish.js 18 (c) 2026, Chess.com, LLC  ,  Antonio MP Picochess
- * https://github.com/nmrugg/stockfish.js
+ * upstream project reference removed
  * License: GPLv3
  *
  * Based on Stockfish (c) T. Romstad, M. Costalba, J. Kiiski, G. Linscott and other contributors.
- * https://github.com/official-stockfish/Stockfish
+ * upstream engine reference removed
  *
  * Nets by Linmiao Xu (linrock)
  * https://tests.stockfishchess.org/nns?network_name=nn-9067e33176e

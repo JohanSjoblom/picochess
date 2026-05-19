@@ -129,7 +129,6 @@
     font-size: 0.85rem;
     color: #6c757d;
     font-weight: normal;
-    font-family: Roboto, FreeSerif, sans-serif;
     flex-grow: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -139,7 +138,7 @@
 
 /* Movimientos en la variación */
 .pv-moves {
-    font-family: Roboto, FreeSerif, sans-serif;
+    font-family: 'Courier New', monospace;
     font-weight: 500;
 }
 
@@ -254,7 +253,7 @@
 }
 
 .pv-moves {
-    font-family: Roboto, FreeSerif, sans-serif;
+    font-family: 'Courier New', monospace;
     font-weight: 500;
 }
 

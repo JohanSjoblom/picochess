@@ -53,40 +53,47 @@ _SAFE_OPERATORS = {
 }
 _SAFE_FUNCTIONS = {"max": max, "min": min, "abs": abs}
 
+def safe_eval_elo(expr):
+    import ast
 
-def safe_eval_elo(expr: str) -> int:
-    """Evaluate a simple math expression safely (no arbitrary code execution).
-
-    Supports: integers, +, -, *, //, max(), min(), abs().
-    Raises ValueError on anything else.
-    """
-    try:
-        tree = ast.parse(expr, mode="eval")
-    except SyntaxError as e:
-        raise ValueError(f"invalid expression: {expr}") from e
+    allowed_functions = {
+        "int": int,
+        "max": max,
+        "min": min,
+        "round": round,
+    }
 
     def _eval(node):
-        if isinstance(node, ast.Expression):
-            return _eval(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return int(node.value)
-        if isinstance(node, ast.BinOp):
-            op_fn = _SAFE_OPERATORS.get(type(node.op))
-            if op_fn is None:
-                raise ValueError(f"unsupported operator: {type(node.op).__name__}")
-            return op_fn(_eval(node.left), _eval(node.right))
-        if isinstance(node, ast.UnaryOp):
-            op_fn = _SAFE_OPERATORS.get(type(node.op))
-            if op_fn is None:
-                raise ValueError(f"unsupported unary operator: {type(node.op).__name__}")
-            return op_fn(_eval(node.operand))
-        if isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name) or node.func.id not in _SAFE_FUNCTIONS:
-                raise ValueError(f"unsupported function call: {ast.dump(node.func)}")
-            args = [_eval(a) for a in node.args]
-            return _SAFE_FUNCTIONS[node.func.id](*args)
-        raise ValueError(f"unsupported expression node: {type(node).__name__}")
+        if isinstance(node, ast.Num):  # Numbers
+            return node.n
 
+        elif isinstance(node, ast.BinOp):  # + - * /
+            left = _eval(node.left)
+            right = _eval(node.right)
+
+            if isinstance(node.op, ast.Add):
+                return left + right
+            elif isinstance(node.op, ast.Sub):
+                return left - right
+            elif isinstance(node.op, ast.Mult):
+                return left * right
+            elif isinstance(node.op, ast.Div):
+                return left / right
+
+        elif isinstance(node, ast.Call):  # Functions like int(), max()
+            func_name = node.func.id
+            if func_name in allowed_functions:
+                args = [_eval(arg) for arg in node.args]
+                return allowed_functions[func_name](*args)
+            else:
+                raise ValueError(f"unsupported function: {func_name}")
+
+        elif isinstance(node, ast.Expression):
+            return _eval(node.body)
+
+        raise ValueError(f"unsupported expression: {node}")
+
+    tree = ast.parse(expr, mode="eval")
     return int(_eval(tree))
 
 # Seconds to wait for an engine to exit before escalating.
@@ -456,14 +463,6 @@ class ContinuousAnalysis:
         await self.engine_lease.acquire(owner="continuous")
         recovery_reason = ""
         analysis = None
-        # Track whether _safe_stop() was already called for this analysis session.
-        # _safe_stop() calls analysis.wait() which transitions the command to FINISHED.
-        # If the caller then also calls analysis.stop() (as the old `with` __aexit__ did),
-        # python-chess queues a new StopCommand on the FINISHED result.  That stale command
-        # is sent to the engine on the next go(), causing the engine to hang waiting for a
-        # bestmove that never arrives.  By recording that _safe_stop was called we can skip
-        # the redundant stop in the cleanup path.
-        _already_stopped = False
         try:
             # Wait briefly until the engine is ready before starting analysis
             ready = await self._wait_for_engine_ready(timeout=0.5)
@@ -471,70 +470,55 @@ class ContinuousAnalysis:
                 logger.warning("%s engine not ready, analysis may fail", self.whoami)
 
             self._analysis_started_ts = self.loop.time() if self.loop else None
-            # Avoid `with await engine.analysis() as analysis` because the context-manager
-            # __aexit__ always calls analysis.stop().  After _safe_stop() that is a
-            # double-stop on a FINISHED command → stale StopCommand → engine hang.
-            # We manage cleanup ourselves in the outer finally instead.
-            analysis = await self.engine.analysis(
+            with await self.engine.analysis(
                 board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
-            )
-            self._active_analysis = analysis
-            if not self._running or self.engine_lease.interrupt_requested("continuous"):
-                _already_stopped = True
-                if not await self._safe_stop(analysis):
-                    recovery_reason = "continuous analysis stop timed out before first info"
-                return
-            interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
-            try:
-                async for info in analysis:
-                    if self.engine_lease.interrupt_requested("continuous"):
-                        _already_stopped = True
-                        if not await self._safe_stop(analysis):
-                            recovery_reason = "continuous analysis stop timed out after preemption"
-                        return
-
-                    async with self.lock:
-                        if (
-                            not self._running
-                            or self.current_game_id != self.game_id
-                            or self.current_game.fen() != self.game.fen()
-                            or self.engine_lease.interrupt_requested("continuous")
-                        ):
-                            self._analysis_data = None  # drop ref into library
-                            _already_stopped = True
-                            if not await self._safe_stop(analysis):
-                                recovery_reason = "continuous analysis stop timed out while switching position"
-                            return  # quit analysis
-                        updated = self._update_analysis_data(analysis)  # update to latest
-                    if updated:
-                        #  self._analysis data got a value
-                        #  self.debug_analyser()  # normally commented out
-                        if limit:
-                            # @todo change 0 to -1 to get all multipv finished
-                            info_limit: InfoDict = self._analysis_data[0]
-                            if "depth" in info_limit and limit.depth:
-                                if info_limit.get("depth") >= limit.depth:
-                                    self.limit_reached = True
-                                    return  # limit reached
-                    await asyncio.sleep(self.delay)  # save cpu
-            finally:
-                if self._active_analysis is analysis:
-                    self._active_analysis = None
-                if interrupt_task:
-                    interrupt_task.cancel()
-                    try:
-                        await interrupt_task
-                    except CancelledError:
-                        pass
-        finally:
-            # Stop the analysis exactly once.  If _safe_stop() was already called it
-            # consumed the bestmove reply (analysis is FINISHED); a second stop() would
-            # queue a stale StopCommand that hangs the next engine search.
-            if not _already_stopped and analysis is not None:
+            ) as analysis:
+                self._active_analysis = analysis
+                if not self._running or self.engine_lease.interrupt_requested("continuous"):
+                    if not await self._safe_stop(analysis):
+                        recovery_reason = "continuous analysis stop timed out before first info"
+                    return
+                interrupt_task = self.loop.create_task(self._stop_when_preempted(analysis)) if self.loop else None
                 try:
-                    analysis.stop()
-                except Exception as e:
-                    logger.debug("%s cleanup stop raised: %s", self.whoami, e)
+                    async for info in analysis:
+                        if self.engine_lease.interrupt_requested("continuous"):
+                            if not await self._safe_stop(analysis):
+                                recovery_reason = "continuous analysis stop timed out after preemption"
+                            return
+
+                        async with self.lock:
+                            if (
+                                not self._running
+                                or self.current_game_id != self.game_id
+                                or self.current_game.fen() != self.game.fen()
+                                or self.engine_lease.interrupt_requested("continuous")
+                            ):
+                                self._analysis_data = None  # drop ref into library
+                                if not await self._safe_stop(analysis):
+                                    recovery_reason = "continuous analysis stop timed out while switching position"
+                                return  # quit analysis
+                            updated = self._update_analysis_data(analysis)  # update to latest
+                        if updated:
+                            #  self._analysis data got a value
+                            #  self.debug_analyser()  # normally commented out
+                            if limit:
+                                # @todo change 0 to -1 to get all multipv finished
+                                info_limit: InfoDict = self._analysis_data[0]
+                                if "depth" in info_limit and limit.depth:
+                                    if info_limit.get("depth") >= limit.depth:
+                                        self.limit_reached = True
+                                        return  # limit reached
+                        await asyncio.sleep(self.delay)  # save cpu
+                finally:
+                    if self._active_analysis is analysis:
+                        self._active_analysis = None
+                    if interrupt_task:
+                        interrupt_task.cancel()
+                        try:
+                            await interrupt_task
+                        except CancelledError:
+                            pass
+        finally:
             self._analysis_started_ts = None
             if recovery_reason and self._recover_engine_cb:
                 recovered = await self._recover_engine_cb(recovery_reason)
@@ -1592,7 +1576,7 @@ class UciEngine(object):
         """convert time_dict to engine Limit for engine go command"""
         max_time = None
         try:
-            logger.debug("molli: timedict: %s", str(time_dict))
+            logger.debug("timedict: %s", str(time_dict))
             if "movestogo" in time_dict:
                 moves = int(time_dict["movestogo"])
             else:
@@ -2000,6 +1984,7 @@ class UciEngine(object):
     def _save_rating(self, new_rating: Rating):
         write_picochess_ini("pgn-elo", max(500, int(new_rating.rating)))
         write_picochess_ini("rating-deviation", int(new_rating.rating_deviation))
+
 
     async def handle_bestmove_0000(self, game: chess.Board, timeout: float = 2.0, variant_board=None) -> str:
         """

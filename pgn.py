@@ -47,7 +47,7 @@ from picotutor import PicoTutor
 logger = logging.getLogger(__name__)
 
 
-# molli: support for player names from online game
+# support for player names from online game
 class ModeInfo:
     online_mode = False
     pgn_mode = False
@@ -311,10 +311,6 @@ class Emailer(object):
 class PgnDisplay(DisplayMsg):
     """Deal with DisplayMessages related to pgn."""
 
-    @staticmethod
-    def _sanitize(text: str) -> str:
-        return ModeInfo._sanitize(text)
-
     def __init__(self, file_name: str, emailer: Emailer, shared: dict, loop: asyncio.AbstractEventLoop):
         super(PgnDisplay, self).__init__(loop)
         self.file_name = file_name
@@ -391,7 +387,7 @@ class PgnDisplay(DisplayMsg):
 
         # Headers
         if ModeInfo.get_online_mode():
-            pgn_game.headers["Event"] = "PicoChess" + self._sanitize(self.engine_name)
+            pgn_game.headers["Event"] = "PicoChess" + self.engine_name
         else:
             pgn_game.headers["Event"] = "PicoChess Game"
 
@@ -400,7 +396,7 @@ class PgnDisplay(DisplayMsg):
         pgn_game.headers["Time"] = self.startime
 
         game_ending = ModeInfo.get_game_ending()
-        logger.debug("molli: pgn save result = %s", game_ending)
+        logger.debug("pgn save result = %s", game_ending)
         pgn_game.headers["Result"] = game_ending
 
         if not self.level_text:
@@ -411,13 +407,6 @@ class PgnDisplay(DisplayMsg):
         if self.level_name.startswith("Elo@"):
             comp_elo = self.level_name[4:]
             engine_level = ""
-        elif "@" in self.level_name:
-            suffix = self.level_name.rsplit("@", 1)[-1]
-            if suffix.isdigit():
-                comp_elo = suffix
-                engine_level = ""
-            else:
-                comp_elo = self.engine_elo
         else:
             comp_elo = self.engine_elo
 
@@ -443,24 +432,24 @@ class PgnDisplay(DisplayMsg):
 
             logger.debug("Play Mode %s", message.play_mode)
             if message.play_mode == PlayMode.USER_WHITE:
-                pgn_game.headers["White"] = self._sanitize(user_name)
-                pgn_game.headers["Black"] = self._sanitize(engine_name)
+                pgn_game.headers["White"] = user_name
+                pgn_game.headers["Black"] = engine_name
                 pgn_game.headers["WhiteElo"] = str(self.user_elo)
                 pgn_game.headers["BlackElo"] = str(comp_elo)
             if message.play_mode == PlayMode.USER_BLACK:
-                pgn_game.headers["White"] = self._sanitize(engine_name)
-                pgn_game.headers["Black"] = self._sanitize(user_name)
+                pgn_game.headers["White"] = engine_name
+                pgn_game.headers["Black"] = user_name
                 pgn_game.headers["WhiteElo"] = str(comp_elo)
                 pgn_game.headers["BlackElo"] = str(self.user_elo)
         else:
             if message.play_mode == PlayMode.USER_WHITE:
-                pgn_game.headers["White"] = self._sanitize(self.user_name)
-                pgn_game.headers["Black"] = self._sanitize(self.engine_name + engine_level)
+                pgn_game.headers["White"] = self.user_name
+                pgn_game.headers["Black"] = self.engine_name + engine_level
                 pgn_game.headers["WhiteElo"] = str(self.user_elo)
                 pgn_game.headers["BlackElo"] = str(comp_elo)
             if message.play_mode == PlayMode.USER_BLACK:
-                pgn_game.headers["White"] = self._sanitize(self.engine_name + engine_level)
-                pgn_game.headers["Black"] = self._sanitize(self.user_name)
+                pgn_game.headers["White"] = self.engine_name + engine_level
+                pgn_game.headers["Black"] = self.user_name
                 pgn_game.headers["WhiteElo"] = str(comp_elo)
                 pgn_game.headers["BlackElo"] = str(self.user_elo)
 
@@ -520,9 +509,10 @@ class PgnDisplay(DisplayMsg):
             pgn_game.headers["Opening"] = ModeInfo.opening_name
             pgn_game.headers["ECO"] = ModeInfo.opening_eco
 
-        # Variant tag for variant games (3check, atomic, etc.), but not for normal chess
-        variant = self.shared.get("variant") if self.shared else None
-        if variant and variant.lower() not in ("chess", "standard", "normal", ""):
+        # Variant tag for variant games (3check, atomic, etc.)
+        if self.shared and self.shared.get("variant"):
+            variant = self.shared.get("variant")
+            # Use proper capitalization for known variants
             variant_map = {
                 "atomic": "Atomic",
                 "3check": "Three-Check",
@@ -594,18 +584,6 @@ class PgnDisplay(DisplayMsg):
     def _save_and_email_pgn(self, message):
         """when game ends the pgn file is saved and emailed"""
         logger.debug("Saving game to [%s]", self.file_name)
-        # If an engine move was announced but not yet confirmed on the board
-        # (e.g. user resigned before executing it), include it in the saved PGN.
-        # Only do this at game-end (here), NOT in mid-game saves (_save_pgn).
-        if self.shared:
-            pending = self.shared.get("pending_computer_move")
-            if pending and "move" in pending:
-                try:
-                    augmented = message.game.copy()
-                    augmented.push(chess.Move.from_uci(pending["move"]))
-                    message.game = augmented
-                except Exception:
-                    pass
         pgn_game = self._pgn_game_from_message(message)
         pgn_game_last = pgn_game
 
@@ -624,11 +602,12 @@ class PgnDisplay(DisplayMsg):
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
-        # preserve headers, but exclude "Variant" so the value set by
-        # _generate_pgn_from_message (or deliberately omitted for normal chess)
-        # is never overwritten by a stale entry in shared["headers"]
-        shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
-        pgn_game.headers.update(shared_headers_without_variant)
+        # preserve headers
+        # no need to keep_essential_headers - we want all headers from headers
+        generated_result = pgn_game.headers.get("Result")
+        pgn_game.headers.update(self.shared["headers"])
+        if generated_result and generated_result != "*" and pgn_game.headers.get("Result") in ("", "*", "?"):
+            pgn_game.headers["Result"] = generated_result
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side
@@ -659,11 +638,12 @@ class PgnDisplay(DisplayMsg):
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
-        # preserve headers, but exclude "Variant" so the value set by
-        # _generate_pgn_from_message (or deliberately omitted for normal chess)
-        # is never overwritten by a stale entry in shared["headers"]
-        shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
-        pgn_game.headers.update(shared_headers_without_variant)
+        # preserve headers
+        # no need to keep_essential_headers - we want all headers from headers
+        generated_result = pgn_game.headers.get("Result")
+        pgn_game.headers.update(self.shared["headers"])
+        if generated_result and generated_result != "*" and pgn_game.headers.get("Result") in ("", "*", "?"):
+            pgn_game.headers["Result"] = generated_result
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side
@@ -678,7 +658,16 @@ class PgnDisplay(DisplayMsg):
             exporter = chess.pgn.FileExporter(file)
             pgn_game.accept(exporter)
 
-        logger.debug("molli: save pgn finished")
+        if self.shared is not None:
+            self.shared["last_pgn_save_status"] = {
+                "success": True,
+                "filename": message.pgn_filename,
+                "path": l_file_name,
+                "moves": len(message.game.move_stack),
+                "timestamp": datetime.datetime.now().isoformat(),
+            }
+
+        logger.debug("save pgn finished")
 
     async def _process_message(self, message):
         await asyncio.sleep(0.1)  # reduce priority for PGN
@@ -826,11 +815,28 @@ class PgnDisplay(DisplayMsg):
             self.startime = datetime.datetime.now().strftime("%H:%M:%S")
 
         elif isinstance(message, Message.SAVE_GAME):
-            logger.debug("molli: save game message pgn dispatch")
+            logger.debug("save game message pgn dispatch")
             if message.game.move_stack:
-                self._save_pgn(message)  # needs pgn_filename from SAVE_GAME message
-                # if we _save_and_email_pgn() here the side effect is that
-                # it stores unfinished games in games.pgn
+                try:
+                    self._save_pgn(message)  # needs pgn_filename from SAVE_GAME message
+                    # if we _save_and_email_pgn() here the side effect is that
+                    # it stores unfinished games in games.pgn
+                except Exception as exc:
+                    if self.shared is not None:
+                        self.shared["last_pgn_save_status"] = {
+                            "success": False,
+                            "filename": message.pgn_filename,
+                            "error": str(exc),
+                            "timestamp": datetime.datetime.now().isoformat(),
+                        }
+                    raise
+            elif self.shared is not None:
+                self.shared["last_pgn_save_status"] = {
+                    "success": False,
+                    "filename": message.pgn_filename,
+                    "error": "No moves to save",
+                    "timestamp": datetime.datetime.now().isoformat(),
+                }
 
     async def message_consumer(self):
         """PGN message consumer"""

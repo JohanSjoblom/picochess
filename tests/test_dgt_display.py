@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import chess
 
-from dgt.api import Event, Message
+from dgt.api import Event
 from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
@@ -18,8 +18,6 @@ from uci.read import read_engine_ini
 
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-PGNREPLAY_MODE_FEN = "rnbqkbnr/pppppppp/8/3Q4/8/8/PPPPPPPP/RNBQKBNR"
-
 
 class DummyTranslate:
     language = "en"
@@ -182,24 +180,6 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
-    async def test_mode_command_restore_to_start_uses_fen_not_new_game(self, observable_fire, _dispatch_fire):
-        display = self.create_display()
-
-        await display._process_fen(PGNREPLAY_MODE_FEN, raw=False)
-        await display._process_fen(START_FEN, raw=False)
-
-        self.assertEqual(2, observable_fire.await_count)
-
-        mode_event = observable_fire.await_args_list[0].args[0]
-        self.assertEqual("EVT_SET_INTERACTION_MODE", mode_event._type)
-        self.assertEqual(Mode.PGNREPLAY, mode_event.mode)
-
-        restore_event = observable_fire.await_args_list[1].args[0]
-        self.assertEqual("EVT_FEN", restore_event._type)
-        self.assertEqual(START_FEN, restore_event.fen)
-
-    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
-    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_start_position_still_triggers_new_game_without_mode_command(self, observable_fire, _dispatch_fire):
         display = self.create_display()
 
@@ -209,18 +189,3 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         new_game_event = observable_fire.await_args_list[0].args[0]
         self.assertEqual("EVT_NEW_GAME", new_game_event._type)
         self.assertEqual(518, new_game_event.pos960)
-
-    async def test_non_brain_coach_clears_brain_hint_display_cache(self):
-        display = self.create_display()
-        display.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
-        display._brain_hint_text = object()
-        display._brain_hint_until = float("inf")
-
-        await display._process_message(Message.PICOCOACH(picocoach=3))
-        self.assertIsNotNone(display._brain_hint_text)
-
-        display.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND
-        await display._process_message(Message.PICOCOACH(picocoach=4))
-
-        self.assertIsNone(display._brain_hint_text)
-        self.assertEqual(0.0, display._brain_hint_until)

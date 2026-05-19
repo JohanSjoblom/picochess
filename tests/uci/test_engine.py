@@ -163,13 +163,6 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(-1, eng.engine_rating)  # rejected, not evaluated
 
-    async def test_eval_syntax_error(self):
-        eng = UciEngine("some_engine", UciShell(), "", self.loop)
-        eng.engine = MockEngine()
-        with self.assertLogs("uci.engine", level="ERROR"):
-            await eng.startup({UCI_ELO: "max(auto,"}, Rating(450.5, 123.0))
-        self.assertEqual(-1, eng.engine_rating)
-
     async def test_eval_error(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

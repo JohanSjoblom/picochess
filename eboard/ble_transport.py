@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-# Most of the code copied from https://github.com/domschl/python-mchess/blob/master/mchess/chess_link_bluepy.py
+# Most of the code is derived from an external reference implementation.
 
 import logging
 import threading
@@ -298,7 +298,7 @@ class Transport(object):
 
     def _connect_device(self, device, address):
         device.connect(address)
-        time.sleep(1)  # try to prevent race condition - see https://github.com/IanHarvey/bluepy/issues/325
+        time.sleep(1)  # try to prevent a known bluepy race condition
         device.setMTU(40)
 
     def _read(self, device, rx):

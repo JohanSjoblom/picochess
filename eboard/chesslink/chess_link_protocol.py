@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2018 Dominik Schlösser
+# Copyright (c) 2018 Dominik SchlÃ¶sser
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ The chess link protocol sends ASCII messages. Each ASCII character gets an addit
 odd-parity-bit. Each block of ASCII+odd-parity bytes gets an additional block parity.
 
 Details of the Chess Link protocol are documented in
-`magic-board.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+the upstream magic-board specification.
 """
 
 import logging

@@ -6,19 +6,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Picochess Settings</title>
     <style>
+        :root {
+            color-scheme: light;
+            --settings-bg: #ffffff;
+            --settings-surface: #f7f8fa;
+            --settings-surface-strong: #eef2f7;
+            --settings-row-alt: #f1f4f7;
+            --settings-text: #1f2933;
+            --settings-muted: #52606d;
+            --settings-border: #c8d0da;
+            --settings-button-bg: #f4f6f8;
+            --settings-button-active: #dfe8ff;
+            --settings-input-bg: #ffffff;
+            --settings-input-text: #1f2933;
+            --settings-focus: #3b71ca;
+            --settings-success: #198754;
+            --settings-error: #dc3545;
+        }
+
+        body.theme-dark {
+            color-scheme: dark;
+            --settings-bg: #050608;
+            --settings-surface: #11161d;
+            --settings-surface-strong: #1a222d;
+            --settings-row-alt: #151c25;
+            --settings-text: #edf2f7;
+            --settings-muted: #b6c2cf;
+            --settings-border: #344253;
+            --settings-button-bg: #1d2631;
+            --settings-button-active: #263a58;
+            --settings-input-bg: #0b1016;
+            --settings-input-text: #edf2f7;
+            --settings-focus: #7aa2e8;
+            --settings-success: #58c987;
+            --settings-error: #ff7b8c;
+        }
+
+        body {
+            margin: 0;
+            padding: clamp(0.75rem, 2.5vw, 1.25rem);
+            background: var(--settings-bg);
+            color: var(--settings-text);
+            font-family: Arial, sans-serif;
+        }
+
+        h1,
+        h2,
+        p,
+        label {
+            color: var(--settings-text);
+        }
+
+        p {
+            color: var(--settings-muted);
+        }
+
         .tab-bar {
             display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
         }
         .tab-button {
-            border: 1px solid #666;
-            background: #f4f4f4;
-            padding: 6px 12px;
+            border: 0.0625rem solid var(--settings-border);
+            background: var(--settings-button-bg);
+            color: var(--settings-text);
+            padding: 0.38rem 0.75rem;
             cursor: pointer;
+            border-radius: 0.35rem;
         }
         .tab-button.active {
-            background: #dfe8ff;
+            background: var(--settings-button-active);
             font-weight: 600;
         }
         .tab-panel {
@@ -28,15 +85,22 @@
             display: block;
         }
         .page-actions {
-            margin-bottom: 12px;
+            margin-bottom: 0.75rem;
         }
+        button,
         .back-link {
             display: inline-block;
-            padding: 6px 10px;
-            border: 1px solid #666;
-            background: #f4f4f4;
-            color: #000;
+            padding: 0.38rem 0.65rem;
+            border: 0.0625rem solid var(--settings-border);
+            background: var(--settings-button-bg);
+            color: var(--settings-text);
             text-decoration: none;
+            border-radius: 0.35rem;
+            cursor: pointer;
+        }
+        button:hover,
+        .back-link:hover {
+            border-color: var(--settings-focus);
         }
         .touch-only {
             display: none;
@@ -45,27 +109,57 @@
             display: inline-block;
         }
         .help-icon {
-            margin-left: 6px;
-            padding: 0 6px;
-            border: 1px solid #666;
-            border-radius: 10px;
+            margin-left: 0.4rem;
+            padding: 0 0.4rem;
+            border: 0.0625rem solid var(--settings-border);
+            border-radius: 0.6rem;
             font-size: 0.9em;
             line-height: 1.2em;
             cursor: pointer;
             user-select: none;
         }
+        table {
+            background: var(--settings-surface);
+            border-color: var(--settings-border);
+            color: var(--settings-text);
+        }
+        th,
+        td {
+            border-color: var(--settings-border);
+        }
+        th {
+            background: var(--settings-surface-strong);
+        }
+        tr:nth-child(even) td {
+            background: var(--settings-row-alt);
+        }
+        input,
+        select {
+            background: var(--settings-input-bg);
+            color: var(--settings-input-text);
+            border: 0.0625rem solid var(--settings-border);
+            border-radius: 0.25rem;
+            padding: 0.25rem 0.35rem;
+        }
+        input:focus,
+        select:focus,
+        button:focus,
+        .back-link:focus {
+            outline: 0.12rem solid var(--settings-focus);
+            outline-offset: 0.08rem;
+        }
         .help-row td {
             font-size: 0.95em;
-            color: #333;
-            background: #f4f4f4;
+            color: var(--settings-muted);
+            background: var(--settings-surface-strong);
             word-wrap: break-word;
             overflow-wrap: anywhere;
         }
         .help-row {
             font-size: 0.95em;
-            color: #333;
-            background: #f4f4f4;
-            padding: 6px;
+            color: var(--settings-muted);
+            background: var(--settings-surface-strong);
+            padding: 0.38rem;
         }
         @media (max-width: 600px) {
             table {
@@ -78,7 +172,7 @@
     </style>
 </head>
 
-<body>
+<body class="theme-{{ theme if theme == 'light' else 'dark' }}">
     <h1>Picochess Settings</h1>
     <div class="page-actions">
         <a href="/" class="back-link">Back to game</a>
@@ -93,7 +187,7 @@
     <div id="status"></div>
 
     <div id="settings-panel" class="tab-panel active">
-        <p>Changes take effect after the next restart.</p>
+        <p>Most changes take effect after the next restart. Web theme, pieces, and board theme apply on the next page load.</p>
         <div style="margin-top: 10px; margin-bottom: 10px;">
             <button type="button" id="saveBtnTop">Save</button>
         </div>
@@ -118,7 +212,7 @@
     <div id="wifi-panel" class="tab-panel">
         <h2>Connect Pi to Wi-Fi</h2>
         <p class="help-row">Enter the phone hotspot or Wi-Fi credentials. The Pi will connect and keep the network for future use.</p>
-        <p class="help-row">If you see a permissions error, run <code>sudo ./enable-wifi-setup.sh</code> on the Pi once.</p>
+        <p class="help-row">If you see a permissions error, run <code>sudo /opt/picochess/installation-scripts/enable-wifi-setup.sh</code> on the Pi once.</p>
         <p class="help-row">If your phone hotspot credentials are saved in picochess.ini, you can also use the Quick connect button.</p>
 
         <div style="margin-top: 10px; margin-bottom: 10px;">
@@ -178,13 +272,7 @@
                 return ["debug", "info", "warning", "error"];
             }
             if (normalized === "tutor-coach") {
-                return ["off", "on", "lift", "brain", "hand"];
-            }
-            if (normalized === "tutor-brain-hint-display") {
-                return ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
-            }
-            if (normalized === "tutor-brain-reveal-text") {
-                return ["on", "off"];
+                return ["off", "on", "lift"];
             }
             if (normalized === "tutor-comment") {
                 return ["single", "all", "off"];
@@ -205,10 +293,10 @@
                 return ["none", "Never", "Sometimes", "Always", "Sample"];
             }
             if (normalized === "theme") {
-                return ["", "auto", "light", "dark", "time"];
+                return ["dark", "light"];
             }
             if (normalized === "pieces") {
-                return ["alpha", "berlin", "leipzig", "merida", "neo", "uscf"];
+                return ["alpha", "berlin", "leipzig", "merida"];
             }
             if (normalized === "web-board-theme") {
                 return ["natural_wood", "blue", "green", "metal", "newspaper", "soft", "wood"];
@@ -216,10 +304,18 @@
             return null;
         }
 
+        function numericConfigForKey(key) {
+            var normalized = (key || "").trim().toLowerCase();
+            if (normalized === "pgn-elo") {
+                return { min: 0, max: 4000, step: 1, placeholder: "1500" };
+            }
+            return null;
+        }
+
         function setStatus(message, isError) {
             var status = document.getElementById("status");
             status.textContent = message;
-            status.style.color = isError ? "red" : "green";
+            status.style.color = isError ? "var(--settings-error)" : "var(--settings-success)";
         }
 
         function normalizeBoolean(value, fallback) {
@@ -349,6 +445,7 @@
             var valueCell = document.createElement("td");
             var valueInput;
             var options = selectOptionsForKey(entry.key);
+            var numericConfig = numericConfigForKey(entry.key);
             if (options) {
                 valueInput = document.createElement("select");
                 options.forEach(function (optionValue) {
@@ -367,6 +464,15 @@
                     valueInput.appendChild(option);
                 });
                 valueInput.value = entry.value.trim().toLowerCase();
+            } else if (numericConfig) {
+                valueInput = document.createElement("input");
+                valueInput.type = "number";
+                valueInput.value = entry.value || "";
+                valueInput.min = numericConfig.min;
+                valueInput.max = numericConfig.max;
+                valueInput.step = numericConfig.step;
+                valueInput.placeholder = numericConfig.placeholder;
+                valueInput.inputMode = "numeric";
             } else {
                 valueInput = document.createElement("input");
                 valueInput.type = "text";
@@ -397,6 +503,16 @@
                 var valueInput = row.querySelector(".setting-value");
                 if (!key) {
                     return;
+                }
+                var numericConfig = numericConfigForKey(key);
+                if (numericConfig && enabled) {
+                    var numericValue = Number(valueInput.value);
+                    if (!Number.isInteger(numericValue) ||
+                        numericValue < numericConfig.min ||
+                        numericValue > numericConfig.max) {
+                        throw new Error(key + " must be a whole number between " +
+                            numericConfig.min + " and " + numericConfig.max);
+                    }
                 }
                 entries.push({
                     key: key,
@@ -441,7 +557,13 @@
         }
 
         function saveSettings() {
-            var entries = collectEntries();
+            var entries;
+            try {
+                entries = collectEntries();
+            } catch (error) {
+                setStatus(error.message, true);
+                return;
+            }
             fetch("/settings/save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

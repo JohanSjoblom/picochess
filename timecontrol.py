@@ -192,7 +192,7 @@ class TimeControl(object):
         if self.mode == TimeMode.FIXED:
             logger.debug('timeout - but in "MoveTime" mode, dont fire event')
         elif self.mode == TimeMode.FISCHER and self.game_time == 0:
-            pass  # molli: simulated median move time => no out of time / game end event
+            pass  # simulated median move time => no out of time / game end event
         elif self.active_color is not None:
             display_color = "WHITE" if self.active_color == chess.WHITE else "BLACK"
             txt = "current clock time (before subtracting) is %f and color is %s"
@@ -250,14 +250,14 @@ class TimeControl(object):
         if self.moves_to_go_orig > 0:
             # log times - issue #184
             w_hms, b_hms = self._log_time()
-            logger.debug("molli: game2 before internal time w:%s - b:%s", w_hms, b_hms)
+            logger.debug("game2 before internal time w:%s - b:%s", w_hms, b_hms)
 
             self.internal_time[color] += self.game_time2 * 60
             self.clock_time[color] += self.game_time2 * 60
 
             # log times - issue #184
             w_hms, b_hms = self._log_time()
-            logger.debug("molli: game2 after internal time w:%s - b:%s", w_hms, b_hms)
+            logger.debug("game2 after internal time w:%s - b:%s", w_hms, b_hms)
 
     def start_internal(self, color: chess.Color, loop: asyncio.AbstractEventLoop, log: bool = True):
         """Start the internal clock."""
@@ -290,23 +290,23 @@ class TimeControl(object):
                     logger.info("looks like external clock is not present...not taking over its time now")
                 else:
                     w_dir, b_dir = self.get_internal_time(flip_board=False)
-                    # molli Avoid strange reset bug to 0
+                    # Avoid strange reset bug to 0
                     if w_dir != self.clock_time[chess.WHITE] and (
                         self.clock_time[chess.WHITE] == 0
                         or (self.clock_time[chess.WHITE] == self.fisch_inc and self.mode == TimeMode.FISCHER)
                         or (self.clock_time[chess.WHITE] == self.game_time and self.mode == TimeMode.BLITZ)
                     ):
-                        logger.debug("molli: Difference in white clock time!")
+                        logger.debug("Difference in white clock time!")
                         self.clock_time[chess.WHITE] = w_dir
                     else:
                         self.internal_time[chess.WHITE] = self.clock_time[chess.WHITE]
-                    # molli Avoid strange reset bug to 0
+                    # Avoid strange reset bug to 0
                     if b_dir != self.clock_time[chess.BLACK] and (
                         self.clock_time[chess.BLACK] == 0
                         or (self.clock_time[chess.BLACK] == self.fisch_inc and self.mode == TimeMode.FISCHER)
                         or (self.clock_time[chess.BLACK] == self.game_time and self.mode == TimeMode.BLITZ)
                     ):
-                        logger.debug("molli: Difference in black clock time!")
+                        logger.debug("Difference in black clock time!")
                         self.clock_time[chess.BLACK] = b_dir
                     else:
                         self.internal_time[chess.BLACK] = self.clock_time[chess.BLACK]

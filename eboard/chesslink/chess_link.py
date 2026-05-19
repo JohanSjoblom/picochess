@@ -45,7 +45,7 @@ import eboard.chesslink.chess_link_protocol as clp
 import eboard.chesslink.chess_link_bluepy as tri
 
 # See document:
-# `magic-board.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>_
+# See the bundled magic-board reference documentation.
 # for details on the Chess Link protocol.
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class ChessLink:
     future boards compatible with that protocol.
 
     For the details of the Chess Link protocol, please refer to:
-    `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+    the bundled magic-board reference documentation.
 
     `position` array
 
@@ -537,7 +537,7 @@ class ChessLink:
         :param pos1: `position` array of the start position
         :param pos2: `position` array of the target position
         :param freq: blink frequency, see
-        `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        the bundled magic-board reference documentation.
         :param ontime1: 8-bit value, bits indicate cycles led is on.
         :param ontime2: 8-bit value, bits indicate cycles led is off.
         """
@@ -560,7 +560,7 @@ class ChessLink:
 
         :param pos: `position` array, field != 0 indicates a led that should blink.
         :param freq: blink frequency, see
-        `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        the bundled magic-board reference documentation.
         :param ontime1: 8-bit value, bits indicate cycles led is on.
         :param ontime2: 8-bit value, bits indicate cycles led is off.
         """
@@ -608,7 +608,7 @@ class ChessLink:
         Asynchronuosly request the current debounce setting. The answer will be
         written to the queue `appqueue` given during initialization.
 
-        See `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        See the bundled magic-board reference documentation.
         """
         if self.connected is True:
             cmd = "R" + clp.hex2(2)
@@ -643,7 +643,7 @@ class ChessLink:
         Asynchronuosly request the current led brightness setting. The answer will be
         written to the queue `appqueue` given during initialization.
 
-        See `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        See the bundled magic-board reference documentation.
         """
         if self.connected is True:
             cmd = "R" + clp.hex2(4)
@@ -677,7 +677,7 @@ class ChessLink:
         Asynchronuosly request the current scan time setting. The answer will be
         written to the queue `appqueue` given during initialization.
 
-        See `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        See the bundled magic-board reference documentation.
         """
         if self.connected is True:
             cmd = "R" + clp.hex2(1)

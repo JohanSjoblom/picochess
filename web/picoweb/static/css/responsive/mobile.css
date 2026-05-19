@@ -29,39 +29,20 @@
         font-size: 0.65rem !important;
     }
 
-    /* FIXED SIZING FOR BOARD STATUS SQUARE - KEEP THIS */
-    #BoardStatus {
-        /* Force fixed size for the board square regardless of window width */
-        font-size: 16px !important;
-        /* Absolute pixel size instead of relative rem */
-        line-height: 1 !important;
-        /* Consistent line height */
-        max-height: 16px !important;
-        /* Constrain maximum height */
-        max-width: 16px !important;
-        /* Constrain maximum width */
-        display: inline-block !important;
-        /* Ensure it's a block element for sizing */
-        transform: none !important;
-        /* Remove any scaling transforms */
-        vertical-align: middle !important;
-        /* Align with text */
-    }
-
-    /* FIXED Player indicator text - prevent stacking/crushing */
+    /* Player indicator in the version header */
     #sidetomove {
-        font-size: 1.2rem !important;
-        /* Slightly smaller than before */
-        font-weight: bold !important;
-        display: inline !important;
-        /* Change from inline-flex to inline */
-        white-space: nowrap !important;
-        /* Prevent text wrapping */
-        width: auto !important;
-        /* Remove any fixed width constraints */
+        width: clamp(1.4rem, 7vw, 1.9rem) !important;
+        height: clamp(1.4rem, 7vw, 1.9rem) !important;
+        min-width: clamp(1.4rem, 7vw, 1.9rem) !important;
+        min-height: clamp(1.4rem, 7vw, 1.9rem) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        aspect-ratio: 1 / 1 !important;
+        border-radius: 0.45rem !important;
+        margin-right: 0 !important;
+        line-height: 1 !important;
         vertical-align: middle !important;
-        margin-right: 5px !important;
-        /* Add space between text and indicator */
     }
 
     /* Ensure the boardinfo container has enough width */
@@ -100,8 +81,8 @@
 
     /* Move list height */
     .scroll_movelist {
-        height: 20vh !important;
-        overflow: auto;
+        height: auto !important;
+        overflow: visible !important;
         margin-bottom: 1vh;
     }
 
@@ -196,6 +177,29 @@
     /* Improved tab display in portrait mode */
     #data {
         margin-top: 5px !important;
+    }
+
+    #data .card-body,
+    #data .tab-content,
+    #data .tab-pane,
+    #menu,
+    #menuButtons,
+    #gameConfigContainer,
+    #engineMenuContainer,
+    #adminPgnContainer,
+    #eboardConfigContainer {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    #timeModeContainer,
+    #timePresetContainer {
+        height: min(62vh, 21rem) !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        align-items: flex-start !important;
     }
 
     /* CRITICAL FIX: Make controls row compact */
@@ -303,19 +307,72 @@
     }
 
     #btn-mute {
-        width: 38px !important;
-        height: 38px !important;
-        font-size: 16px !important;
+        width: clamp(2.1rem, 10vw, 2.6rem) !important;
+        height: clamp(2.1rem, 10vw, 2.6rem) !important;
+        font-size: clamp(0.85rem, 4vw, 1rem) !important;
         padding: 0 !important;
-        flex: 0 0 38px !important;
+        flex: 0 0 clamp(2.1rem, 10vw, 2.6rem) !important;
+    }
+
+    #gameConfigContainer #newGameBtn,
+    #gameConfigContainer #resignBtn,
+    #gameConfigContainer #takeBackBtn,
+    #gameConfigContainer #timeConfigBtn,
+    #gameConfigContainer #engineConfigBtn,
+    #gameConfigContainer #backFromGameConfigBtn,
+    #engineMenuContainer .engine-menu-button,
+    #adminPgnContainer #downloadBtn,
+    #adminPgnContainer #uploadBtn,
+    #adminPgnContainer #replayBtn,
+    #adminPgnContainer #saveGameBtn,
+    #adminPgnContainer #backFromAdminPgnBtn,
+    #eboardConfigContainer #btn-mute,
+    #eboardConfigContainer #colorBtn,
+    #eboardConfigContainer #piecesBtn,
+    #eboardConfigContainer #flipOrientationBtn,
+    #eboardConfigContainer #backFromEboardConfigBtn {
+        width: 100% !important;
+        height: clamp(3rem, 8vh, 3.6rem) !important;
+        min-height: clamp(3rem, 8vh, 3.6rem) !important;
+        max-width: 11rem !important;
+        padding: clamp(0.35rem, 1.4vh, 0.55rem) !important;
+        flex: none !important;
+        font-size: 0.75rem !important;
+    }
+
+    #timeModeContainer .time-button,
+    #timePresetContainer .time-button {
+        width: 100% !important;
+        height: clamp(2rem, 6.5vh, 2.45rem) !important;
+        min-height: clamp(2rem, 6.5vh, 2.45rem) !important;
+        max-width: 8rem !important;
+        padding: 0.18rem 0.25rem !important;
+        flex: none !important;
+        font-size: 0.68rem !important;
+    }
+
+    #engineMenuContainer .engine-menu-button {
+        height: clamp(2.25rem, 6.1vh, 2.7rem) !important;
+        min-height: clamp(2.25rem, 6.1vh, 2.7rem) !important;
+        padding: 0.16rem 0.22rem !important;
+        font-size: 0.64rem !important;
     }
 
     #btn-mute span {
-        font-size: 14px !important;
+        font-size: clamp(0.75rem, 3vw, 0.9rem) !important;
+    }
+
+    #eboardConfigContainer #btn-mute span {
+        display: block !important;
+        font-size: 0.8em !important;
     }
 
     .btn-text {
         display: none !important;
+    }
+
+    #adminPgnContainer .btn-text {
+        display: inline !important;
     }
 
 }

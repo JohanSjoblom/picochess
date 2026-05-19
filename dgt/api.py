@@ -95,8 +95,6 @@ class EventApi:
     CLOCK_TIME = "EVT_CLOCK_TIME"  # Clock sends its time
     # Special events
     EXIT_MENU = "EVT_EXIT_MENU"  # User exists the menu
-    UPDATE_PICO = "EVT_UPDATE"  # User wants to upgrade/downgrade picochess
-    UPDATE_ENGINES = "EVT_UPDATE_ENGINES"  # User wants to upgrade engines - No MessageAPI needed
     REMOTE_ROOM = "EVT_REMOTE_ROOM"  # User enters/leaves the remote room
 
 
@@ -112,7 +110,7 @@ class MessageApi:
     ENGINE_READY = "MSG_ENGINE_READY"
     ENGINE_STARTUP = "MSG_ENGINE_STARTUP"  # first time a new engine is ready
     ENGINE_FAIL = "MSG_ENGINE_FAIL"  # Engine startup fails
-    REMOTE_FAIL = "MSG_REMOTE_FAIL"  # Remote Engine startup fails molli
+    REMOTE_FAIL = "MSG_REMOTE_FAIL"  # Remote Engine startup fails
     LEVEL = "MSG_LEVEL"  # User sets engine level
     TIME_CONTROL = "MSG_TIME_CONTROL"  # New Timecontrol
     OPENING_BOOK = "MSG_OPENING_BOOK"  # User chooses an opening book
@@ -169,8 +167,7 @@ class MessageApi:
     EXIT_MENU = "MSG_EXIT_MENU"  # User exits the menu
     WRONG_FEN = "MSG_WRONG_FEN"  # User sends a wrong placement of pieces (timed)
     BATTERY = "MSG_BATTERY"  # percent of BT battery
-    UPDATE_PICO = "MSG_UPDATE"  # User wants to update picochess
-    SEEKING = "MSG_SEEKING"  # molli: seek for online player
+    SEEKING = "MSG_SEEKING"  # seek for online player
     PGN_GAME_END = "MSG_PGN_GAME_END"
     ENGINE_SETUP = "MSG_ENGINE_SETUP"
     MOVE_RETRY = "MSG_MOVE_RETRY"
@@ -186,7 +183,6 @@ class MessageApi:
     LOST_ON_TIME = "MSG_LOST_ON_TIME"
     SET_NOBOOK = "MSG_SET_NOBOOK"
     PICOTUTOR_MSG = "MSG_PICOTUTOR_MSG"
-    TUTOR_MOVE_REVEAL = "MSG_TUTOR_MOVE_REVEAL"
     POSITION_FAIL = "MSG_POSITION_FAIL"
     TIMECONTROL_CHECK = "MSG_TIMECONTROL_CHECK"
     REMOTE_ROOM = "MSG_REMOTE_ROOM"  # User enters/leaves a remote room
@@ -277,7 +273,6 @@ class Message:
     CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, ["devs"])
     CLOCK_TIME = ClassFactory(MessageApi.CLOCK_TIME, ["time_white", "time_black", "low_time"])
     USER_MOVE_DONE = ClassFactory(MessageApi.USER_MOVE_DONE, ["move", "fen", "turn", "game"])
-    TUTOR_MOVE_REVEAL = ClassFactory(MessageApi.TUTOR_MOVE_REVEAL, ["move"])
     GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ["tc_init", "result", "play_mode", "game", "mode"])
 
     SYSTEM_INFO = ClassFactory(MessageApi.SYSTEM_INFO, ["info"])
@@ -305,7 +300,6 @@ class Message:
     EXIT_MENU = ClassFactory(MessageApi.EXIT_MENU, [])
     WRONG_FEN = ClassFactory(MessageApi.WRONG_FEN, [])
     BATTERY = ClassFactory(MessageApi.BATTERY, ["percent"])
-    UPDATE_PICO = ClassFactory(MessageApi.UPDATE_PICO, [])
     REMOTE_ROOM = ClassFactory(MessageApi.REMOTE_ROOM, ["inside"])
     SEEKING = ClassFactory(MessageApi.SEEKING, [])
     PGN_GAME_END = ClassFactory(MessageApi.PGN_GAME_END, ["result"])
@@ -378,6 +372,4 @@ class Event:
     CLOCK_TIME = ClassFactory(EventApi.CLOCK_TIME, ["time_white", "time_black", "connect", "dev"])
     # special events
     EXIT_MENU = ClassFactory(EventApi.EXIT_MENU, [])
-    UPDATE_PICO = ClassFactory(EventApi.UPDATE_PICO, ["tag"])
-    UPDATE_ENGINES = ClassFactory(EventApi.UPDATE_ENGINES, [])
     REMOTE_ROOM = ClassFactory(EventApi.REMOTE_ROOM, ["inside"])

@@ -11,7 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-# Some code copied from https://github.com/domschl/python-mchess/blob/master/mchess/chess_link.py
+# Some code copied and adapted from an external reference implementation.
 
 from typing import List
 

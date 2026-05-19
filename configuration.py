@@ -339,9 +339,9 @@ class Configuration:
         self.parser.add_argument(
             "-coch",
             "--tutor-coach",
-            choices=["on", "off", "lift", "brain", "hand"],
+            choices=["on", "off", "lift"],
             default="off",
-            help="Pico Coach: move and position evaluation, move suggestion etc. on demand, default is off; lift triggers coach by lifting and replacing a piece; brain/hand are experimental Brain and hand coach options",
+            help="Pico Coach: move and position evaluation, move suggestion etc. on demand, default is off, when selecting lift you can trigger the coach by lifting and putting back a piece",
         )
         self.parser.add_argument(
             "-coan",
@@ -361,21 +361,6 @@ class Configuration:
             type=str,
             default="off",
             help="show game comments based on specific engines (=single) or in general (=all). Default value is off",
-        )
-        self.parser.add_argument(
-            "-tbh",
-            "--tutor-brain-hint-display",
-            type=int,
-            default=0,
-            choices=range(0, 9),
-            help="experimental Brain and hand coach: seconds to keep the piece-type hint on the DGT display (0=until user plays, 1-8 seconds)",
-        )
-        self.parser.add_argument(
-            "-tbrt",
-            "--tutor-brain-reveal-text",
-            choices=["on", "off"],
-            default="on",
-            help="experimental Brain and hand coach: show the tutor's revealed move as text on the DGT clock after the user plays",
         )
         self.parser.add_argument(
             "-loc",
@@ -416,14 +401,14 @@ class Configuration:
             "--theme",
             type=str,
             default="dark",
-            help='Web theme, "light", "dark" , "time", "auto" or blank, default is "dark", leave blank for another light theme, "time" for a change according to a fixed time or "auto" for a sunrise/sunset dependent theme setting',
+            help='Web theme, "light" or "dark"; invalid legacy values fall back to "dark"',
         )
         self.parser.add_argument(
             "-pieces",
             "--pieces",
             type=str,
             default="merida",
-            help='Web chess piece set: "alpha", "berlin", "leipzig", "merida", "neo" or "uscf", default is "merida"',
+            help='Web chess piece set: "alpha", "berlin", "leipzig" or "merida", default is "merida"',
         )
         self.parser.add_argument(
             "--web-board-theme",
@@ -462,12 +447,6 @@ class Configuration:
             "--rdisplay",
             action="store_true",
             help="en/disable retro engine artwork display (default is false)",
-        )
-        self.parser.add_argument(
-            "--window-control-backend",
-            choices=["auto", "xdotool", "ydotool", "swaymsg", "none"],
-            default="auto",
-            help="runtime window control backend: auto, xdotool, ydotool, swaymsg or none",
         )
 
         self._args, self.unknown = self.parser.parse_known_args()

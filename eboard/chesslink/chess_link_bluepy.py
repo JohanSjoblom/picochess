@@ -56,14 +56,14 @@ class Transport:
     All replies are written to the python queue `que` given during initialization.
 
     For the details of the Chess Link protocol, please refer to:
-    `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+    the bundled magic-board reference documentation.
     """
 
     def __init__(self, que, protocol_dbg=False):
         """
         Initialize with python queue for event handling.
         Events are strings conforming to the ChessLink protocol as documented in
-        `magic-link.md <https://github.com/domschl/python-mchess/blob/master/mchess/magic-board.md>`_.
+        the bundled magic-board reference documentation.
 
         :param que: Python queue that will eceive events from chess board.
         :param protocol_dbg: True: byte-level ChessLink protocol debug messages

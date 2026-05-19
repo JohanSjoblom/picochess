@@ -25,7 +25,6 @@ import os
 import asyncio
 from collections import OrderedDict
 import subprocess
-import signal
 import threading
 from typing import Callable, Optional
 
@@ -50,8 +49,6 @@ from dgt.util import GameResult, PlayMode, Voice, EBoard
 logger = logging.getLogger(__name__)
 SOUND_CACHE_LIMIT = 128
 NATIVE_STREAM_STARTUP_WAIT = 0.3
-SOX_PLAY_TIMEOUT = 12.0
-SOX_PLAY_KILL_TIMEOUT = 1.0
 
 
 class PicoTalker(object):
@@ -61,7 +58,7 @@ class PicoTalker(object):
         self.voice_path = None
         self.speed_factor = 1.0
         self.set_speed_factor(speed_factor)
-        logger.debug("molli voice pfad calc.")
+        logger.debug("voice pfad calc.")
         try:
             (localisation_id, voice_name) = localisation_id_voice.split(":")
             voice_path = "talker/voices/" + localisation_id + "/" + voice_name
@@ -400,60 +397,14 @@ class PicoTalkerDisplay(DisplayMsg):
     def pico3_sound_player(self, voice_file) -> bool:
         """Speak out the sound part by using sox play.
         return True if sound was played, False if not."""
+        result = False
         command = ["play", voice_file, "tempo", str(self.speed_factor)]
-        process = None
-        try:
-            process = subprocess.Popen(
-                command,
-                shell=False,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            return_code = process.wait(timeout=SOX_PLAY_TIMEOUT)
-            if return_code != 0:
-                logger.warning("SoX play failed for %s with return code %s", voice_file, return_code)
-                return False
-            return True
-        except subprocess.TimeoutExpired:
-            logger.warning("SoX play timed out after %.1fs for %s", SOX_PLAY_TIMEOUT, voice_file)
-            self._terminate_sox_process(process)
+        try:  # use blocking call
+            subprocess.call(command, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result = True
         except OSError as os_exc:
             logger.warning("OSError: %s => turn voice OFF", os_exc)
-        return False
-
-    @staticmethod
-    def _terminate_sox_process(process) -> None:
-        if process is None or process.poll() is not None:
-            return
-        try:
-            if hasattr(os, "killpg"):
-                os.killpg(process.pid, signal.SIGTERM)
-            else:
-                process.terminate()
-            process.wait(timeout=SOX_PLAY_KILL_TIMEOUT)
-            return
-        except ProcessLookupError:
-            return
-        except subprocess.TimeoutExpired:
-            logger.debug("SoX play did not exit after SIGTERM; sending SIGKILL")
-        except OSError as exc:
-            logger.debug("SoX play terminate failed: %s", exc)
-
-        try:
-            if process.poll() is None:
-                if hasattr(os, "killpg"):
-                    os.killpg(process.pid, signal.SIGKILL)
-                else:
-                    process.kill()
-                process.wait(timeout=SOX_PLAY_KILL_TIMEOUT)
-        except ProcessLookupError:
-            pass
-        except subprocess.TimeoutExpired:
-            logger.error("SoX play process did not exit after SIGKILL")
-        except OSError as exc:
-            logger.debug("SoX play kill failed: %s", exc)
+        return result
 
     # async def get_or_load_sound(self, path):
     #     """Async function to load or get sound from cache"""
@@ -495,7 +446,7 @@ class PicoTalkerDisplay(DisplayMsg):
 
     def calc_no_group_comments(self, filestring: str):
         """
-        molli: Calculate number of generic filestring files in voice folder
+        Calculate number of generic filestring files in voice folder
         """
         c_group_no = 0
 
@@ -509,7 +460,7 @@ class PicoTalkerDisplay(DisplayMsg):
 
     def set_computer(self, picotalker: PicoTalker):
         """Set the computer talker.
-        molli: set correct number and assign it to voice group comment variables"""
+        set correct number and assign it to voice group comment variables"""
         self.computer_picotalker = picotalker
         self.c_no_beforecmove = self.calc_no_group_comments("f_beforecmove")
         self.c_no_beforeumove = self.calc_no_group_comments("f_beforeumove")
@@ -577,7 +528,7 @@ class PicoTalkerDisplay(DisplayMsg):
                 await self.user_picotalker.talk(sounds)
 
     def get_total_cgroup(self, c_group: str):
-        # molli: define number of possible comments in differrent event groups
+        # define number of possible comments in differrent event groups
         #        together with a probability factor one can control how
         #        often a group comment will be spoken
         c_number = 0
@@ -673,7 +624,7 @@ class PicoTalkerDisplay(DisplayMsg):
         return c_number, c_prob
 
     def calc_comment(self, c_group):
-        # molli: define number of possible comments in differrent event groups
+        # define number of possible comments in differrent event groups
         #        together with a probability factor one can control how
         #        often a group comment will be spoken
         talkfile = ""
@@ -728,7 +679,7 @@ class PicoTalkerDisplay(DisplayMsg):
         return talkfile
 
     async def comment(self, c_group):
-        # molli: define number of possible comments in differrent event groups
+        # define number of possible comments in differrent event groups
         #        together with a probability factor one can control how
         #        often a group comment will be spoke
         talkfile = ""
@@ -783,7 +734,7 @@ class PicoTalkerDisplay(DisplayMsg):
             await self.talk([talkfile])
 
     def say_squarepiece(self, fen_result):
-        logger.debug("molli: talker fen_result = %s", fen_result)
+        logger.debug("talker fen_result = %s", fen_result)
 
         piece_parts = {
             "K": "t_king.ogg",
@@ -820,7 +771,7 @@ class PicoTalkerDisplay(DisplayMsg):
         square_str = rank
         square_str = square_str + " " + file
 
-        logger.debug("molli: talker square = %s", square_str)
+        logger.debug("talker square = %s", square_str)
 
         if len(fen_result) > 2:
             piece = fen_result[0]
@@ -830,7 +781,7 @@ class PicoTalkerDisplay(DisplayMsg):
             else:
                 voice_parts += ["white.ogg"]
 
-            logger.debug("molli: talker piece = %s", piece)
+            logger.debug("talker piece = %s", piece)
 
             try:
                 sound_file = piece_parts[piece]
@@ -857,7 +808,7 @@ class PicoTalkerDisplay(DisplayMsg):
                 if sound_file:
                     voice_parts += [sound_file]
 
-        logger.debug("molli: talker voice_parts = %s", voice_parts)
+        logger.debug("talker voice_parts = %s", voice_parts)
         return voice_parts
 
     async def message_consumer(self):
@@ -910,7 +861,7 @@ class PicoTalkerDisplay(DisplayMsg):
                 previous_move = chess.Move.null()
 
         elif isinstance(message, Message.COMPUTER_MOVE):
-            logger.debug("molli: before announcing COMPUTER_MOVE [%s]", message.move)
+            logger.debug("before announcing COMPUTER_MOVE [%s]", message.move)
             if message.move and message.game:
                 game_copy = message.game.copy()
                 if game_copy.board_fen() == chess.STARTING_BOARD_FEN:
@@ -1140,7 +1091,7 @@ class PicoTalkerDisplay(DisplayMsg):
             await self.talk(["timelost.ogg"])
 
         elif isinstance(message, Message.POSITION_FAIL):
-            logger.debug("molli: talker orig. fen_result = %s", message.fen_result)
+            logger.debug("talker orig. fen_result = %s", message.fen_result)
             if last_pos_dir == message.fen_result:
                 self.same_cnt = self.same_cnt + 1
             else:
@@ -1214,23 +1165,23 @@ class PicoTalkerDisplay(DisplayMsg):
                 await self.talk(["picotutor_best_move.ogg"])
                 await self.talk(self.say_tutor_move(message.game))
             elif "PICMATE" in message.eval_str:
-                logger.debug("molli in picotutortalker: %s", message.eval_str)
+                logger.debug("picotutortalker: %s", message.eval_str)
                 await self.talk(["picotutor_pico_mate.ogg"])
                 list_str = message.eval_str
                 list_mate = list_str.split("_")
-                logger.debug("molli in picotutortalker: %s", list_mate[0])
-                logger.debug("molli in picotutortalker: %s", list_mate[1])
+                logger.debug("picotutortalker: %s", list_mate[0])
+                logger.debug("picotutortalker: %s", list_mate[1])
 
                 talk_mate = "t_" + list_mate[1] + ".ogg"
                 logger.debug("talk_mate = %s", talk_mate)
                 await self.talk([talk_mate])
             elif "USRMATE" in message.eval_str:
-                logger.debug("molli in picotutortalker: %s", message.eval_str)
+                logger.debug("picotutortalker: %s", message.eval_str)
                 await self.talk(["picotutor_player_mate.ogg"])
                 list_str = message.eval_str
                 list_mate = list_str.split("_")
-                logger.debug("molli in picotutortalker: %s", list_mate[0])
-                logger.debug("molli in picotutortalker: %s", list_mate[1])
+                logger.debug("picotutortalker: %s", list_mate[0])
+                logger.debug("picotutortalker: %s", list_mate[1])
 
                 talk_mate = "t_" + list_mate[1] + ".ogg"
                 logger.debug("talk_mate = %s", talk_mate)

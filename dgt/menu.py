@@ -1,6 +1,6 @@
-# Copyright (C) 2013-2018 Jean-Francois Romang (jromang@posteo.de)
+﻿# Copyright (C) 2013-2018 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
-#                         Jürgen Précour (LocutusOfPenguin@posteo.de)
+#                         JÃƒÂ¼rgen PrÃƒÂ©cour (LocutusOfPenguin@posteo.de)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import subprocess
 import logging
 import dgt.util
@@ -27,7 +28,16 @@ from typing import Dict, List, Set
 from pgn import ModeInfo
 import chess  # type: ignore
 from timecontrol import TimeControl
-from utilities import Observable, DispatchDgt, get_internal_ip, get_tags, version, write_picochess_ini, get_window_command
+from theme import normalize_theme
+from utilities import (
+    Observable,
+    DispatchDgt,
+    get_internal_ip,
+    write_picochess_ini,
+    get_window_command,
+    get_installation_script_path,
+)
+from uci.read import read_engine_ini
 from dgt.util import (
     TimeMode,
     TimeModeLoop,
@@ -115,8 +125,8 @@ class MenuState(object):
     TIME_TOURN_CTRL = 441000
     TIME_DEPTH = 450000
     TIME_DEPTH_CTRL = 451000
-    TIME_NODE = 460000  # molli: search nodes NNUE
-    TIME_NODE_CTRL = 461000  # molli: search nodes NNUE
+    TIME_NODE = 460000  # search nodes NNUE
+    TIME_NODE_CTRL = 461000  # search nodes NNUE
 
     BOOK = 500000
     BOOK_NAME = 510000
@@ -128,6 +138,7 @@ class MenuState(object):
     ENG_MODERN_NAME_LEVEL = 611000
 
     ENG_RETRO = 630000
+    ENG_RETRO_BRAND = 630100
     ENG_RETRO_NAME = 631000
     ENG_RETRO_NAME_LEVEL = 631100
 
@@ -151,8 +162,6 @@ class MenuState(object):
     SYS_POWER_SHUT_DOWN = 705100
     SYS_POWER_EXIT = 705200
     SYS_POWER_RESTART = 705300
-    SYS_POWER_UPDATE = 705400
-    SYS_POWER_UPDT_ENGINES = 705500
     SYS_INFO = 710000
     SYS_INFO_VERS = 710100
     SYS_INFO_UPDATED = 710200
@@ -188,7 +197,7 @@ class MenuState(object):
     SYS_DISP_CAPTIAL_YESNO = 764100  # yes, no
     SYS_DISP_NOTATION = 765000
     SYS_DISP_NOTATION_MOVE = 765100  # short, long
-    SYS_DISP_ENGINENAME = 766000  # molli v3
+    SYS_DISP_ENGINENAME = 766000  # v3
     SYS_DISP_ENGINENAME_YESNO = 766100  # yes,no
     SYS_EBOARD = 770000
     SYS_EBOARD_TYPE = 771000  # dgt, chesslink, ...
@@ -198,7 +207,6 @@ class MenuState(object):
     SYS_BLUETOOTH = 775000
     SYS_BLUETOOTH_PAIR = 775100
     SYS_BLUETOOTH_FIX = 775200
-    SYS_BLUETOOTH_RECONNECT = 775300
     SYS_THEME = 780000
     SYS_THEME_TYPE = 781000
 
@@ -209,8 +217,6 @@ class MenuState(object):
     PICOTUTOR_PICOCOACH_ON = 821000
     PICOTUTOR_PICOCOACH_LIFT = 822000
     PICOTUTOR_PICOCOACH_OFF = 823000
-    PICOTUTOR_PICOCOACH_BRAIN = 824000
-    PICOTUTOR_PICOCOACH_HAND = 825000
     PICOTUTOR_PICOEXPLORER = 830000
     PICOTUTOR_PICOEXPLORER_ONOFF = 831000
     PICOTUTOR_PICOCOMMENT = 840000
@@ -276,8 +282,6 @@ class DgtMenu(object):
         contlast: bool,
         altmove: bool,
         dgttranslate: DgtTranslate,
-        brain_hint_display: int = 0,
-        brain_reveal_text: bool = True,
     ):
         super(DgtMenu, self).__init__()
 
@@ -292,8 +296,6 @@ class DgtMenu(object):
         self.menu_picotutor_picocoach = picocoach
         self.menu_picotutor_picoexplorer = picoexplorer
         self.menu_picotutor_picocomment = picocomment
-        self.menu_picotutor_brain_hint_display = brain_hint_display
-        self.menu_picotutor_brain_reveal_text = brain_reveal_text
 
         self.menu_game = Game.NEW
         self.menu_game_end = GameEnd.WHITE_WINS
@@ -342,9 +344,13 @@ class DgtMenu(object):
         self.menu_modern_engine_level = 0
         self.menu_retro_engine_index = 0  # index of the currently selected engine within installed retro engines
         self.menu_retro_engine_level = 0
+        self.menu_retro_brand_index = 0
+        self.retro_brand_names: List[str] = []
+        self.retro_brand_indices: List[List[int]] = []
         self.menu_fav_engine_index = 0  # index of the currently selected engine within installed fav engines
         self.menu_fav_engine_level = 0
         self.menu_engine = EngineTop.MODERN_ENGINE
+        self._build_retro_brand_groups()
 
         self.menu_book = 0
         self.all_books: List[Dict[str, str]] = []
@@ -388,9 +394,9 @@ class DgtMenu(object):
         self.current_board_type = board_type
         self.menu_system_eboard_type = board_type
 
-        self.theme_type = theme_type
-        themes = {"light": Theme.LIGHT, "dark": Theme.DARK, "time": Theme.TIME, "auto": Theme.AUTO}
-        self.menu_system_theme_type = themes[theme_type]
+        themes = {"light": Theme.LIGHT, "dark": Theme.DARK}
+        self.theme_type = normalize_theme(theme_type)
+        self.menu_system_theme_type = themes[self.theme_type]
 
         self.menu_system_display = Display.CLOCKSIDE
         self.menu_system_info = Info.VERSION
@@ -664,13 +670,6 @@ class DgtMenu(object):
         self.res_engine_index = self.menu_engine_index
         self.res_engine_level = self.menu_engine_level
 
-        # During "picochess" is displayed, some special actions allowed
-        self.picochess_displayed: Set[str] = set()
-        self.updt_top = False  # inside the update-menu?
-        self.updt_devs: Set[str] = set()  # list of devices which are inside the update-menu
-        self.updt_tags: List[List[str]] = []
-        self.updt_version = 0  # index to current version
-
         self.battery = "-NA"  # standard value: NotAvailable (discharging)
         self.inside_room = False
         self.no_eboard_spinner_suppress_until = 0.0
@@ -697,6 +696,8 @@ class DgtMenu(object):
             if current_engine["file"] == eng["file"]:
                 self.state = MenuState.ENG_RETRO_NAME
                 self.menu_retro_engine_index = index
+                self._ensure_retro_brand_groups()
+                self._sync_retro_brand_selection_from_engine()
                 self.menu_engine = EngineTop.RETRO_ENGINE
                 is_retro_engine = True
                 break
@@ -708,27 +709,6 @@ class DgtMenu(object):
                     self.menu_engine = EngineTop.FAV_ENGINE
                 break
         self.menu_top = Top.ENGINE
-
-    def inside_updt_menu(self):
-        """Inside update menu."""
-        return self.updt_top
-
-    def disable_picochess_displayed(self, dev):
-        """Disable picochess display."""
-        self.picochess_displayed.discard(dev)
-
-    def enable_picochess_displayed(self, dev):
-        """Enable picochess display."""
-        self.picochess_displayed.add(dev)
-        self.updt_tags = get_tags()
-        try:
-            self.updt_version = [item[1] for item in self.updt_tags].index(version)
-        except ValueError:
-            self.updt_version = len(self.updt_tags) - 1
-
-    def inside_picochess_time(self, dev):
-        """Picochess displayed on clock."""
-        return dev in self.picochess_displayed
 
     def suppress_no_eboard_spinner(self, seconds: float):
         """Temporarily suppress no-eBoard spinner refreshes."""
@@ -770,8 +750,6 @@ class DgtMenu(object):
         self.res_picotutor_picoexplorer = self.menu_picotutor_picoexplorer
         self.res_picotutor_picocomment = self.menu_picotutor_picocomment
         self.res_picotutor_picocomment_prob = int(self.menu_picotutor_picocomment_prob_list)
-        self.res_picotutor_brain_hint_display = self.menu_picotutor_brain_hint_display
-        self.res_picotutor_brain_reveal_text = self.menu_picotutor_brain_reveal_text
         self.res_picotutor = self.menu_picotutor
 
         self.res_game_game_save = self.menu_game_save
@@ -890,14 +868,6 @@ class DgtMenu(object):
     def get_picoexplorer(self):
         """Get the flag."""
         return self.res_picotutor_picoexplorer
-
-    def get_brain_hint_display(self):
-        """Return experimental Brain and hand hint display duration."""
-        return self.res_picotutor_brain_hint_display
-
-    def get_brain_reveal_text(self):
-        """Return True if experimental Brain and hand reveal text is enabled."""
-        return self.res_picotutor_brain_reveal_text
 
     def get_game_altmove(self):
         """Get the flag."""
@@ -1059,18 +1029,6 @@ class DgtMenu(object):
         """Set the menu state."""
         self.state = MenuState.PICOTUTOR_PICOCOACH_LIFT
         text = self.dgttranslate.text("B00_picocoach_lift")
-        return text
-
-    def enter_picotutor_picocoach_brain_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
-        text = self.dgttranslate.text("B00_picocoach_brain")
-        return text
-
-    def enter_picotutor_picocoach_hand_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
-        text = self.dgttranslate.text("B00_picocoach_hand")
         return text
 
     def enter_picotutor_picoexplorer_menu(self):
@@ -1457,6 +1415,271 @@ class DgtMenu(object):
         text = self.dgttranslate.text(EngineTop.RETRO_ENGINE.value)
         return text
 
+    def _create_dynamic_menu_text(self, web_text: str, large_text: str, medium_text: str, small_text: str):
+        return Dgt.DISPLAY_TEXT(
+            web_text=web_text,
+            large_text=large_text,
+            medium_text=medium_text,
+            small_text=small_text,
+            wait=True,
+            beep=self.dgttranslate.bl(BeepLevel.BUTTON),
+            maxtime=0,
+            devs={"ser", "i2c", "web"},
+        )
+
+    def _get_retro_ini_path(self):
+        for engine in EngineProvider.retro_engines:
+            current_dir = os.path.dirname(engine["file"])
+            while current_dir:
+                candidate = os.path.join(current_dir, "retro.ini")
+                if os.path.isfile(candidate):
+                    return candidate
+                parent_dir = os.path.dirname(current_dir)
+                if parent_dir == current_dir:
+                    break
+                current_dir = parent_dir
+
+        program_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+        fallback_paths = [
+            os.path.join(program_path, "engines", platform.machine(), "retro.ini"),
+            os.path.join(program_path, "engines", "aarch64", "retro.ini"),
+        ]
+        for candidate in fallback_paths:
+            if os.path.isfile(candidate):
+                return candidate
+        return fallback_paths[0]
+
+    def _ensure_retro_brand_groups(self):
+        expected_count = len(EngineProvider.retro_engines)
+        current_count = sum(len(indices) for indices in self.retro_brand_indices)
+        if expected_count and current_count != expected_count:
+            self._build_retro_brand_groups()
+
+    def _retro_engine_key(self, engine: Dict[str, str]) -> str:
+        return os.path.basename(engine["file"].replace("\\", "/"))
+
+    def _retro_section_key(self, section_name: str) -> str:
+        return section_name.split("/")[-1]
+
+    def _read_retro_brand_map(self) -> Dict[str, str]:
+        brand_map: Dict[str, str] = {}
+        current_brand = "Various"
+        try:
+            with open(self._get_retro_ini_path(), "r", encoding="utf-8") as retro_file:
+                for raw_line in retro_file:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if line.startswith(";"):
+                        heading = line[1:].strip()
+                        if (
+                            heading
+                            and not heading.startswith("*")
+                            and "[" not in heading
+                            and "=" not in heading
+                            and ":" not in heading
+                            and heading.lower() != "mame engines"
+                        ):
+                            current_brand = heading
+                        continue
+                    if line.startswith("[") and line.endswith("]"):
+                        brand_map[self._retro_section_key(line[1:-1].strip())] = current_brand
+        except OSError:
+            return brand_map
+        return brand_map
+
+    def _group_retro_engines(self, brand_map: Dict[str, str]):
+        grouped = OrderedDict()
+        for index, engine in enumerate(EngineProvider.retro_engines):
+            engine_key = self._retro_engine_key(engine)
+            inferred_brand = self._infer_retro_brand(engine["name"])
+            brand = inferred_brand
+            if brand == "Various":
+                brand = brand_map.get(engine_key, brand)
+            grouped.setdefault(brand, []).append(index)
+        return grouped
+
+    def _reload_retro_engines_from_ini(self) -> bool:
+        retro_ini_path = self._get_retro_ini_path()
+        engine_path = os.path.dirname(retro_ini_path)
+        reloaded_retro_engines = read_engine_ini(engine_path=engine_path, filename="retro.ini")
+        if not reloaded_retro_engines:
+            return False
+
+        current_file = None
+        if EngineProvider.retro_engines and 0 <= self.menu_retro_engine_index < len(EngineProvider.retro_engines):
+            current_file = EngineProvider.retro_engines[self.menu_retro_engine_index]["file"]
+
+        EngineProvider.retro_engines = reloaded_retro_engines
+        EngineProvider.installed_engines = (
+            EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.favorite_engines
+        )
+
+        self.menu_retro_engine_index = 0
+        if current_file:
+            for index, engine in enumerate(EngineProvider.retro_engines):
+                if engine["file"] == current_file or engine["file"].endswith(current_file):
+                    self.menu_retro_engine_index = index
+                    break
+
+        if self.menu_engine == EngineTop.RETRO_ENGINE:
+            self.menu_engine_index = len(EngineProvider.modern_engines) + self.menu_retro_engine_index
+            self.res_engine_index = self.menu_engine_index
+
+        logger.debug("reloaded retro engines from %s: %s entries", retro_ini_path, len(EngineProvider.retro_engines))
+        return True
+
+    def _infer_retro_brand(self, name: str) -> str:
+        brand_prefixes = (
+            ("Chafitz/Applied Concepts", "Chafitz/Applied Concepts"),
+            ("Chafitz/Sandy", "Chafitz/Applied Concepts"),
+            ("Applied Concepts ", "Chafitz/Applied Concepts"),
+            ("ARB ", "Chafitz/Applied Concepts"),
+            ("BREA ", "BREA"),
+            ("CXG ", "CXG"),
+            ("Chess King ", "Chess King"),
+            ("Commodore ", "Commodore"),
+            ("Conic ", "Conic"),
+            ("DataCash ", "DataCash"),
+            ("Elektor ", "Elektor"),
+            ("Elektronika ", "Elektronika"),
+            ("Excalibur ", "Excalibur"),
+            ("Fidelity ", "Fidelity"),
+            ("I-Star ", "I-Star"),
+            ("Krypton ", "Krypton"),
+            ("Mattel ", "Mattel"),
+            ("Mephisto ", "Mephisto"),
+            ("Millennium ", "Millennium"),
+            ("Novag ", "Novag"),
+            ("Radio Shack ", "Radio Shack"),
+            ("Saitek ", "Saitek"),
+            ("SciSys ", "SciSys"),
+            ("Tasc ", "Tasc"),
+            ("Tryom ", "Tryom"),
+            ("VEB ", "VEB"),
+            ("Yeno ", "Yeno"),
+        )
+        for prefix, brand in brand_prefixes:
+            if name.startswith(prefix):
+                return brand
+        return "Various"
+
+    def _strip_retro_brand_from_menu_name(self, name: str, brand: str) -> str:
+        brand_prefixes = {
+            "Chafitz/Applied Concepts": (
+                "Chafitz/Applied Concepts ",
+                "Chafitz/AC ",
+                "Chafitz ",
+                "Applied Concepts ",
+                "AC ",
+                "ARB ",
+            ),
+            "Radio Shack": ("Radio Shack ",),
+        }
+        prefixes = brand_prefixes.get(brand, (brand + " ",))
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                return name[len(prefix) :].strip()
+        return name.strip()
+
+    def _retro_engine_menu_text(self, engine: dict):
+        text = engine["text"]
+        brand = self._infer_retro_brand(engine.get("name", ""))
+        web_text = getattr(text, "web_text", "") or getattr(text, "large_text", "")
+        web_text = self._strip_retro_brand_from_menu_name(web_text, brand)
+        large_text = self._strip_retro_brand_from_menu_name(getattr(text, "large_text", ""), brand)
+        medium_text = self._strip_retro_brand_from_menu_name(getattr(text, "medium_text", ""), brand)
+        small_text = self._strip_retro_brand_from_menu_name(getattr(text, "small_text", ""), brand)
+        return Dgt.DISPLAY_TEXT(
+            web_text=web_text,
+            large_text=large_text[:11],
+            medium_text=medium_text[:8],
+            small_text=small_text[:6],
+            wait=getattr(text, "wait", True),
+            beep=self.dgttranslate.bl(BeepLevel.BUTTON),
+            maxtime=getattr(text, "maxtime", 0),
+            devs=getattr(text, "devs", {"ser", "i2c", "web"}),
+        )
+
+    def _build_retro_brand_groups(self):
+        self.retro_brand_names = []
+        self.retro_brand_indices = []
+        if not EngineProvider.retro_engines:
+            self.menu_retro_brand_index = 0
+            return
+        brand_map = self._read_retro_brand_map()
+        grouped = self._group_retro_engines(brand_map)
+        configured_brands = list(OrderedDict.fromkeys(brand_map.values()))
+        if len(configured_brands) > 1 and (not grouped or list(grouped.keys()) == ["Various"]):
+            if self._reload_retro_engines_from_ini():
+                brand_map = self._read_retro_brand_map()
+                grouped = self._group_retro_engines(brand_map)
+        self.retro_brand_names = list(grouped.keys())
+        self.retro_brand_indices = list(grouped.values())
+        logger.debug("built retro brand groups: %s", self.retro_brand_names)
+        self._sync_retro_brand_selection_from_engine()
+
+    def _get_current_retro_brand_engine_indices(self) -> List[int]:
+        if not self.retro_brand_indices:
+            return []
+        return self.retro_brand_indices[self.menu_retro_brand_index]
+
+    def _sync_retro_brand_selection_from_engine(self):
+        if not self.retro_brand_indices:
+            self.menu_retro_brand_index = 0
+            return
+        for brand_index, engine_indices in enumerate(self.retro_brand_indices):
+            if self.menu_retro_engine_index in engine_indices:
+                self.menu_retro_brand_index = brand_index
+                return
+        self.menu_retro_brand_index = 0
+        self.menu_retro_engine_index = self.retro_brand_indices[0][0]
+
+    def _sync_retro_engine_selection_from_brand(self):
+        engine_indices = self._get_current_retro_brand_engine_indices()
+        if engine_indices and self.menu_retro_engine_index not in engine_indices:
+            self.menu_retro_engine_index = engine_indices[0]
+
+    def _get_current_retro_brand_name(self):
+        if not self.retro_brand_names:
+            return self._get_current_retro_engine_name()
+        brand = self.retro_brand_names[self.menu_retro_brand_index]
+        brand_presets = {
+            "Chafitz/Applied Concepts": ("Chafitz/Applied Concepts", "Chafitz AC", "Chafitz", "ChfAC"),
+            "Various": ("Various", "Various", "Various", "Var"),
+        }
+        web_text, large_text, medium_text, small_text = brand_presets.get(
+            brand,
+            (brand, brand[:11], brand[:8], brand[:6]),
+        )
+        return self._create_dynamic_menu_text(web_text, large_text, medium_text, small_text)
+
+    def enter_retro_brand_menu(self):
+        self._ensure_retro_brand_groups()
+        self.state = MenuState.ENG_RETRO_BRAND
+        return self._get_current_retro_brand_name()
+
+    def _step_retro_brand(self, step: int):
+        self._ensure_retro_brand_groups()
+        if not self.retro_brand_indices:
+            return self.enter_retro_eng_menu()
+        self.menu_retro_brand_index = (self.menu_retro_brand_index + step) % len(self.retro_brand_indices)
+        self._sync_retro_engine_selection_from_brand()
+        return self._get_current_retro_brand_name()
+
+    def _step_retro_engine(self, step: int):
+        self._ensure_retro_brand_groups()
+        engine_indices = self._get_current_retro_brand_engine_indices()
+        if not engine_indices:
+            return self._get_current_retro_engine_name()
+        try:
+            position = engine_indices.index(self.menu_retro_engine_index)
+        except ValueError:
+            position = 0
+        position = (position + step) % len(engine_indices)
+        self.menu_retro_engine_index = engine_indices[position]
+        return self._get_current_retro_engine_name()
+
     def enter_fav_eng_menu(self):
         """Set the menu state."""
         self.state = MenuState.ENG_FAV
@@ -1464,23 +1687,25 @@ class DgtMenu(object):
         return text
 
     def _get_current_modern_engine_name(self):
-        text = EngineProvider.installed_engines[self.menu_modern_engine_index]["text"]
-        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
-        return text
+        return self._engine_name_with_web_elo(EngineProvider.installed_engines[self.menu_modern_engine_index])
 
     def _get_current_retro_engine_name(self):
-        text = EngineProvider.retro_engines[self.menu_retro_engine_index]["text"]
-        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
-        return text
+        self._ensure_retro_brand_groups()
+        self._sync_retro_engine_selection_from_brand()
+        return self._retro_engine_menu_text(EngineProvider.retro_engines[self.menu_retro_engine_index])
 
     def _get_current_fav_engine_name(self):
-        text = EngineProvider.favorite_engines[self.menu_fav_engine_index]["text"]
-        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
-        return text
+        return self._engine_name_with_web_elo(EngineProvider.favorite_engines[self.menu_fav_engine_index])
 
     def get_current_engine_name(self):
         """Get current engine name."""
         text = EngineProvider.installed_engines[self.menu_engine_index]["text"]
+        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
+        return text
+
+    def _engine_name_with_web_elo(self, engine: dict):
+        """Return engine menu text without appending the configured max Elo."""
+        text = engine["text"]
         text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
         return text
 
@@ -1491,6 +1716,7 @@ class DgtMenu(object):
 
     def enter_eng_retro_name_menu(self):
         """Set the menu state."""
+        self._ensure_retro_brand_groups()
         self.state = MenuState.ENG_RETRO_NAME
         return self._get_current_retro_engine_name()
 
@@ -1574,18 +1800,6 @@ class DgtMenu(object):
     def enter_sys_power_restart_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_POWER_RESTART
-        text = self.dgttranslate.text(self.menu_system_power.value)
-        return text
-
-    def enter_sys_power_update_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.SYS_POWER_UPDATE
-        text = self.dgttranslate.text(self.menu_system_power.value)
-        return text
-
-    def enter_sys_power_updt_engines_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.SYS_POWER_UPDT_ENGINES
         text = self.dgttranslate.text(self.menu_system_power.value)
         return text
 
@@ -1901,12 +2115,6 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_system_bluetooth.value)
         return text
 
-    def enter_sys_bluetooth_reconnect_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.SYS_BLUETOOTH_RECONNECT
-        text = self.dgttranslate.text(self.menu_system_bluetooth.value)
-        return text
-
     def enter_sys_theme_menu(self):
         """Set the menu state."""
         self.state = MenuState.SYS_THEME
@@ -2028,8 +2236,11 @@ class DgtMenu(object):
         elif self.state == MenuState.ENG_RETRO:
             text = self.enter_engine_menu()
 
-        elif self.state == MenuState.ENG_RETRO_NAME:
+        elif self.state == MenuState.ENG_RETRO_BRAND:
             text = self.enter_retro_eng_menu()
+
+        elif self.state == MenuState.ENG_RETRO_NAME:
+            text = self.enter_retro_brand_menu()
 
         elif self.state == MenuState.ENG_RETRO_NAME_LEVEL:
             text = self.enter_eng_retro_name_menu()
@@ -2083,12 +2294,6 @@ class DgtMenu(object):
             text = self.enter_sys_power_menu()
 
         elif self.state == MenuState.SYS_POWER_RESTART:
-            text = self.enter_sys_power_menu()
-
-        elif self.state == MenuState.SYS_POWER_UPDATE:
-            text = self.enter_sys_power_menu()
-
-        elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
             text = self.enter_sys_power_menu()
 
         elif self.state == MenuState.SYS_POWER_EXIT:
@@ -2226,9 +2431,6 @@ class DgtMenu(object):
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
             text = self.enter_sys_bluetooth_menu()
 
-        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
-            text = self.enter_sys_bluetooth_menu()
-
         elif self.state == MenuState.SYS_THEME:
             text = self.enter_sys_menu()
 
@@ -2254,12 +2456,6 @@ class DgtMenu(object):
             text = self.enter_picotutor_picocoach_menu()
 
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
-            text = self.enter_picotutor_picocoach_menu()
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
-            text = self.enter_picotutor_picocoach_menu()
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
             text = self.enter_picotutor_picocoach_menu()
 
         elif self.state == MenuState.PICOTUTOR_PICOEXPLORER:
@@ -2545,10 +2741,6 @@ class DgtMenu(object):
                 text = self.enter_picotutor_picocoach_on_menu()
             if self.menu_picotutor_picocoach == PicoCoach.COACH_LIFT:
                 text = self.enter_picotutor_picocoach_lift_menu()
-            if self.menu_picotutor_picocoach == PicoCoach.COACH_BRAIN:
-                text = self.enter_picotutor_picocoach_brain_menu()
-            if self.menu_picotutor_picocoach == PicoCoach.COACH_HAND:
-                text = self.enter_picotutor_picocoach_hand_menu()
 
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
             l_coach_state = 0
@@ -2577,28 +2769,6 @@ class DgtMenu(object):
             write_picochess_ini("tutor-coach", "lift")
             self.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
             self.res_picotutor_picocoach = PicoCoach.COACH_LIFT
-            event = Event.PICOCOACH(picocoach=l_coach_state)
-            await Observable.fire(event)
-            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
-            l_coach_state = 1
-            if self.res_picotutor_picocoach == self.menu_picotutor_picocoach:
-                l_coach_state = 2
-            write_picochess_ini("tutor-coach", "brain")
-            self.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
-            self.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
-            event = Event.PICOCOACH(picocoach=l_coach_state)
-            await Observable.fire(event)
-            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
-            l_coach_state = 1
-            if self.res_picotutor_picocoach == self.menu_picotutor_picocoach:
-                l_coach_state = 2
-            write_picochess_ini("tutor-coach", "hand")
-            self.menu_picotutor_picocoach = PicoCoach.COACH_HAND
-            self.res_picotutor_picocoach = PicoCoach.COACH_HAND
             event = Event.PICOCOACH(picocoach=l_coach_state)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okpicocoach"))
@@ -2787,6 +2957,13 @@ class DgtMenu(object):
             self.res_engine_level = self.menu_modern_engine_level
 
         elif self.state == MenuState.ENG_RETRO:
+            self._ensure_retro_brand_groups()
+            if self.retro_brand_indices:
+                self.menu_retro_brand_index = 0
+                self.menu_retro_engine_index = self.retro_brand_indices[0][0]
+            text = self.enter_retro_brand_menu()
+
+        elif self.state == MenuState.ENG_RETRO_BRAND:
             text = self.enter_eng_retro_name_menu()
 
         elif self.state == MenuState.ENG_RETRO_NAME:
@@ -2985,10 +3162,6 @@ class DgtMenu(object):
                 text = self.enter_sys_power_shut_down_menu()
             if self.menu_system_power == Power.RESTART:
                 text = self.enter_sys_power_restart_menu()
-            if self.menu_system_power == Power.UPDATE:
-                text = self.enter_sys_power_update_menu()
-            if self.menu_system_power == Power.UPDT_ENGINES:
-                text = self.enter_sys_power_updt_engines_menu()
             if self.menu_system_power == Power.EXIT:
                 text = self.enter_sys_power_exit_menu()
 
@@ -2998,18 +3171,6 @@ class DgtMenu(object):
 
         elif self.state == MenuState.SYS_POWER_RESTART:
             text = self.dgttranslate.text("B10_power_restart_menu")
-            await self._fire_event(Event.REBOOT(dev="menu"))
-
-        elif self.state == MenuState.SYS_POWER_UPDATE:
-            text = self.dgttranslate.text("B00_updt_picochess")
-            await self._fire_event(Event.UPDATE_PICO(tag=""))
-            await asyncio.sleep(1)  # let update work first
-            await self._fire_event(Event.REBOOT(dev="menu"))
-
-        elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
-            text = self.dgttranslate.text("B00_power_updt_engines")
-            await self._fire_event(Event.UPDATE_ENGINES())
-            await asyncio.sleep(1)  # let update work first
             await self._fire_event(Event.REBOOT(dev="menu"))
 
         elif self.state == MenuState.SYS_POWER_EXIT:
@@ -3326,8 +3487,6 @@ class DgtMenu(object):
                 text = self.enter_sys_bluetooth_pair_menu()
             elif self.menu_system_bluetooth == Bluetooth.FIX_BT:
                 text = self.enter_sys_bluetooth_fix_menu()
-            elif self.menu_system_bluetooth == Bluetooth.RECONNECT_DGT:
-                text = self.enter_sys_bluetooth_reconnect_menu()
 
         elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
@@ -3345,25 +3504,13 @@ class DgtMenu(object):
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
             try:
                 subprocess.Popen(
-                    ["sudo", "-n", "/opt/picochess/Fix_bluetooth.sh"],
+                    ["sudo", "-n", str(get_installation_script_path("Fix_bluetooth.sh"))],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     universal_newlines=True,
                 )
             except Exception as exc:
                 logger.warning("Fix_bluetooth failed to start: %s", exc)
-
-        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
-            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
-            try:
-                subprocess.Popen(
-                    ["sudo", "-n", "/opt/picochess/reconnect-dgt-bt.sh"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    universal_newlines=True,
-                )
-            except Exception as exc:
-                logger.warning("reconnect-dgt-bt failed to start: %s", exc)
 
         elif self.state == MenuState.SYS_THEME:
             text = self.enter_sys_theme_type_menu()
@@ -3372,16 +3519,12 @@ class DgtMenu(object):
             themes = {
                 Theme.LIGHT: "light",
                 Theme.DARK: "dark",
-                Theme.TIME: "time",
-                Theme.AUTO: "auto",
             }
             theme_type = themes[self.menu_system_theme_type]
             write_picochess_ini("theme", theme_type)
+            self.theme_type = theme_type
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_oktheme"))
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
-            if theme_type != self.theme_type:
-                # only reboot if theme type is different from the current theme type
-                await self._fire_event(Event.REBOOT(dev="menu"))
 
         else:  # Default
             pass
@@ -3526,18 +3669,8 @@ class DgtMenu(object):
             self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
-            self.state = MenuState.PICOTUTOR_PICOCOACH_LIFT
-            self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
-            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
-            self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
-            self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
-            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
-
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_OFF:
-            self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
+            self.state = MenuState.PICOTUTOR_PICOCOACH_LIFT
             self.menu_picotutor_picocoach = PicoCoachLoop.prev(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
@@ -3707,9 +3840,11 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.prev(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_RETRO_BRAND:
+            text = self._step_retro_brand(-1)
+
         elif self.state == MenuState.ENG_RETRO_NAME:
-            self.menu_retro_engine_index = (self.menu_retro_engine_index - 1) % len(EngineProvider.retro_engines)
-            text = self._get_current_retro_engine_name()
+            text = self._step_retro_engine(-1)
 
         elif self.state == MenuState.ENG_RETRO_NAME_LEVEL:
             retro_level_dict = EngineProvider.retro_engines[self.menu_retro_engine_index]["level_dict"]
@@ -3795,17 +3930,7 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_POWER_SHUT_DOWN:
-            self.state = MenuState.SYS_POWER_UPDT_ENGINES
-            self.menu_system_power = PowerLoop.prev(self.menu_system_power)
-            text = self.dgttranslate.text(self.menu_system_power.value)
-
-        elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
-            self.state = MenuState.SYS_POWER_UPDATE
-            self.menu_system_power = PowerLoop.prev(self.menu_system_power)
-            text = self.dgttranslate.text(self.menu_system_power.value)
-
-        elif self.state == MenuState.SYS_POWER_UPDATE:
-            self.state = MenuState.SYS_POWER_RESTART
+            self.state = MenuState.SYS_POWER_EXIT
             self.menu_system_power = PowerLoop.prev(self.menu_system_power)
             text = self.dgttranslate.text(self.menu_system_power.value)
 
@@ -4032,17 +4157,12 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_PAIR:
-            self.state = MenuState.SYS_BLUETOOTH_RECONNECT
+            self.state = MenuState.SYS_BLUETOOTH_FIX
             self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
             self.state = MenuState.SYS_BLUETOOTH_PAIR
-            self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
-            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
-
-        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
-            self.state = MenuState.SYS_BLUETOOTH_FIX
             self.menu_system_bluetooth = BluetoothLoop.prev(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
@@ -4197,16 +4317,6 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
 
         elif self.state == MenuState.PICOTUTOR_PICOCOACH_LIFT:
-            self.state = MenuState.PICOTUTOR_PICOCOACH_BRAIN
-            self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
-            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_BRAIN:
-            self.state = MenuState.PICOTUTOR_PICOCOACH_HAND
-            self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
-            text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
-
-        elif self.state == MenuState.PICOTUTOR_PICOCOACH_HAND:
             self.state = MenuState.PICOTUTOR_PICOCOACH_OFF
             self.menu_picotutor_picocoach = PicoCoachLoop.next(self.menu_picotutor_picocoach)
             text = self.dgttranslate.text(self.menu_picotutor_picocoach.value)
@@ -4382,9 +4492,11 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.next(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_RETRO_BRAND:
+            text = self._step_retro_brand(1)
+
         elif self.state == MenuState.ENG_RETRO_NAME:
-            self.menu_retro_engine_index = (self.menu_retro_engine_index + 1) % len(EngineProvider.retro_engines)
-            text = self._get_current_retro_engine_name()
+            text = self._step_retro_engine(1)
 
         elif self.state == MenuState.ENG_RETRO_NAME_LEVEL:
             retro_level_dict = EngineProvider.retro_engines[self.menu_retro_engine_index]["level_dict"]
@@ -4475,16 +4587,6 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_RESTART:
-            self.state = MenuState.SYS_POWER_UPDATE
-            self.menu_system_power = PowerLoop.next(self.menu_system_power)
-            text = self.dgttranslate.text(self.menu_system_power.value)
-
-        elif self.state == MenuState.SYS_POWER_UPDATE:
-            self.state = MenuState.SYS_POWER_UPDT_ENGINES
-            self.menu_system_power = PowerLoop.next(self.menu_system_power)
-            text = self.dgttranslate.text(self.menu_system_power.value)
-
-        elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
             self.state = MenuState.SYS_POWER_SHUT_DOWN
             self.menu_system_power = PowerLoop.next(self.menu_system_power)
             text = self.dgttranslate.text(self.menu_system_power.value)
@@ -4712,11 +4814,6 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
 
         elif self.state == MenuState.SYS_BLUETOOTH_FIX:
-            self.state = MenuState.SYS_BLUETOOTH_RECONNECT
-            self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
-            text = self.dgttranslate.text(self.menu_system_bluetooth.value)
-
-        elif self.state == MenuState.SYS_BLUETOOTH_RECONNECT:
             self.state = MenuState.SYS_BLUETOOTH_PAIR
             self.menu_system_bluetooth = BluetoothLoop.next(self.menu_system_bluetooth)
             text = self.dgttranslate.text(self.menu_system_bluetooth.value)
@@ -4742,69 +4839,27 @@ class DgtMenu(object):
             self.state = MenuState.POS_READ
             return self.main_down()
 
-        if self.inside_picochess_time(dev):
-            text = self.updt_middle(dev)
-        else:
-            text = self.dgttranslate.text("B00_nofunction")
-            if False:  # switch-case
-                pass
-            elif self.state == MenuState.POS:
-                text = _exit_position()
+        text = self.dgttranslate.text("B00_nofunction")
+        if False:  # switch-case
+            pass
+        elif self.state == MenuState.POS:
+            text = _exit_position()
 
-            elif self.state == MenuState.POS_COL:
-                text = _exit_position()
+        elif self.state == MenuState.POS_COL:
+            text = _exit_position()
 
-            elif self.state == MenuState.POS_REV:
-                text = _exit_position()
+        elif self.state == MenuState.POS_REV:
+            text = _exit_position()
 
-            elif self.state == MenuState.POS_UCI:
-                text = _exit_position()
+        elif self.state == MenuState.POS_UCI:
+            text = _exit_position()
 
-            elif self.state == MenuState.POS_READ:
-                text = _exit_position()
+        elif self.state == MenuState.POS_READ:
+            text = _exit_position()
 
-            else:  # Default
-                pass
+        else:  # Default
+            pass
         self.current_text = text
-        return text
-
-    def updt_middle(self, dev):
-        """Change the menu state after MIDDLE action."""
-        self.updt_devs.add(dev)
-        text = self.dgttranslate.text("B00_updt_version", self.updt_tags[self.updt_version][1], devs=self.updt_devs)
-        text.rd = ClockIcons.DOT
-        logger.debug("enter update menu dev: %s", dev)
-        self.updt_top = True
-        return text
-
-    def updt_right(self):
-        """Change the menu state after RIGHT action."""
-        self.updt_version = (self.updt_version + 1) % len(self.updt_tags)
-        text = self.dgttranslate.text("B00_updt_version", self.updt_tags[self.updt_version][1], devs=self.updt_devs)
-        text.rd = ClockIcons.DOT
-        return text
-
-    def updt_left(self):
-        """Change the menu state after LEFT action."""
-        self.updt_version = (self.updt_version - 1) % len(self.updt_tags)
-        text = self.dgttranslate.text("B00_updt_version", self.updt_tags[self.updt_version][1], devs=self.updt_devs)
-        text.rd = ClockIcons.DOT
-        return text
-
-    def updt_down(self, dev):
-        """Change the menu state after DOWN action."""
-        logger.debug("leave update menu dev: %s", dev)
-        self.updt_top = False
-        self.updt_devs.discard(dev)
-        self.enter_top_menu()
-        return self.updt_tags[self.updt_version][0]
-
-    def updt_up(self, dev):
-        """Change the menu state after UP action."""
-        logger.debug("leave update menu dev: %s", dev)
-        self.updt_top = False
-        self.updt_devs.discard(dev)
-        text = self.enter_top_menu()
         return text
 
     def inside_main_menu(self):
@@ -4814,3 +4869,5 @@ class DgtMenu(object):
     def get_current_text(self):
         """Return the current text."""
         return self.current_text
+
+

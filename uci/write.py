@@ -15,11 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import platform
 import configparser
 import os
 import asyncio
 from uci.engine import UciShell, UciEngine
+from uci.read import resolve_engine_path
 
 
 def write_engine_ini(engine_path=None):
@@ -97,8 +97,7 @@ def write_engine_ini(engine_path=None):
         return eng_name if eng_name else default_name
 
     if not engine_path:
-        program_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-        engine_path = program_path + os.sep + "engines" + os.sep + platform.machine()
+        engine_path = resolve_engine_path(filename="engines.ini")
     engine_list = sorted(os.listdir(engine_path))
     config = configparser.ConfigParser()
     config.optionxform = str

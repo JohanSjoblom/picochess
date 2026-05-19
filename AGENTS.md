@@ -271,6 +271,15 @@ the same code path.
 - Calls to `analyse()` made only to refresh analysis after `NEW_ENGINE` should
   use `allow_autoplay=False`.
 
+## Reference Branches
+
+- `web-client-424` is a permanent side branch for accessibility reference
+  material, especially older web-client behavior that may help users with poor
+  eyesight on 7" 1024x600 touch screens.
+- Do not merge `web-client-424` into `master` or feature branches. When it is
+  useful, inspect it with `git diff` or copy only specific design ideas or files
+  and adapt them to the current codebase.
+
 ## Touch Points
 
 - `picochess.py`

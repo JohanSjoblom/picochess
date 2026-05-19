@@ -289,6 +289,11 @@ the same code path.
 
 ## Regression Checks
 
+- Run unit tests through the repository virtual environment. Use
+  `venv/bin/tox -e unit` for the full unit suite, or `venv/bin/python -m
+  unittest ...` for focused unittest runs. Do not start with the system
+  `python`/`python3`, because it may miss Picochess test dependencies such as
+  `chess`, `configobj`, `flask`, and `paramiko`.
 - In `PONDER`, verify analysis comes from the selected engine and never tutor.
 - In `PONDER`, switch engines mid-analysis and verify web and clock restart from
   the new engine cleanly.

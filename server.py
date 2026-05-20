@@ -522,14 +522,7 @@ class ChannelHandler(ServerRequestHandler):
             )
             await Observable.fire(Event.PROMOTION(move=move, fen=self.get_argument("fen")))
         elif action == "clockbutton":
-            try:
-                button = int(self.get_argument("button"), 0)
-            except (TypeError, ValueError):
-                self.set_status(400)
-                self.write({"success": False, "error": "Invalid clock button"})
-                return
-            await Observable.fire(Event.KEYBOARD_BUTTON(button=button, dev="web"))
-            self.write({"success": True})
+            await Observable.fire(Event.KEYBOARD_BUTTON(button=self.get_argument("button"), dev="web"))
         elif action == "room":
             inside = self.get_argument("room") == "inside"
             await Observable.fire(Event.REMOTE_ROOM(inside=inside))

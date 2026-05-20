@@ -673,6 +673,8 @@ class DgtMenu(object):
         self.battery = "-NA"  # standard value: NotAvailable (discharging)
         self.inside_room = False
         self.no_eboard_spinner_suppress_until = 0.0
+        self.picochess_displayed: Set[str] = set()
+        self.updt_top = False
 
     def set_state_current_engine(self, current_engine_file_name: str):
         """Set engine menu index to the one that contains the current engine file name"""
@@ -709,6 +711,22 @@ class DgtMenu(object):
                     self.menu_engine = EngineTop.FAV_ENGINE
                 break
         self.menu_top = Top.ENGINE
+
+    def inside_updt_menu(self):
+        """Return whether a newer update-menu flow is active."""
+        return self.updt_top
+
+    def disable_picochess_displayed(self, dev):
+        """Clear the temporary Picochess startup text marker for a device."""
+        self.picochess_displayed.discard(dev)
+
+    def enable_picochess_displayed(self, dev):
+        """Remember that the temporary Picochess startup text is visible."""
+        self.picochess_displayed.add(dev)
+
+    def inside_picochess_time(self, dev):
+        """Return whether the device is showing the temporary Picochess text."""
+        return dev in self.picochess_displayed
 
     def suppress_no_eboard_spinner(self, seconds: float):
         """Temporarily suppress no-eBoard spinner refreshes."""

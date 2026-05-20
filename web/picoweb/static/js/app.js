@@ -4,6 +4,53 @@ const HIGHLIGHT_OFF = 0;
 const HIGHLIGHT_ON = 1;
 var highlight_move = HIGHLIGHT_ON;
 
+(function () {
+    var clockButtonMap = {
+        ClockBtn0: 0,
+        ClockBtn1: 1,
+        ClockBtn2: 2,
+        ClockBtn3: 3,
+        ClockBtn4: 4
+    };
+
+    function postClockButton(button) {
+        var body = 'action=clockbutton&button=' + encodeURIComponent(button);
+        var request = new XMLHttpRequest();
+        request.open('POST', '/channel', true);
+        request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        request.send(body);
+    }
+
+    document.addEventListener('click', function (event) {
+        var target = event.target && event.target.closest
+            ? event.target.closest('#ClockBtn0,#ClockBtn1,#ClockBtn2,#ClockBtn3,#ClockBtn4,#ClockLeverBtn')
+            : null;
+        if (!target) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        if (target.id === 'ClockLeverBtn') {
+            var leverDown = document.getElementById('leverDown');
+            var leverUp = document.getElementById('leverUp');
+            if (leverDown && leverUp) {
+                var downHidden = leverDown.style.display === 'none' || getComputedStyle(leverDown).display === 'none';
+                leverDown.style.display = downHidden ? '' : 'none';
+                leverUp.style.display = downHidden ? 'none' : '';
+                postClockButton(downHidden ? 0x40 : -0x40);
+            } else {
+                postClockButton(0x40);
+            }
+            return;
+        }
+
+        postClockButton(clockButtonMap[target.id]);
+    }, true);
+})();
+
 const NAG_NULL = 0;
 const NAG_GOOD_MOVE = 1;
 //"""A good move. Can also be indicated by ``!`` in PGN notation."""

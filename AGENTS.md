@@ -186,6 +186,30 @@ same cycle.
 Ignore `picotutor` `obvious_engine` for this invariant; it is shallow helper
 analysis.
 
+## Startup CPU Rules
+
+Picochess normally starts in `Mode.NORMAL`. Preserve the startup CPU-saving
+behavior for that default path:
+
+- On initial startup in `Mode.NORMAL`, do not spend CPU on deep analysis while
+  the board is the untouched standard starting position and `game_started` is
+  still `False`.
+- The startup-idle guard should be tied to the playing-mode lifecycle
+  (`eng_plays()` and `game_started`), not to a broad "starting position is never
+  worth analysing" rule.
+- Starting analysis after the user clicks play/pause is intentional: the
+  play/pause action marks the game as started, even if no move has been made.
+- Starting analysis after a user move is intentional.
+- Switching from startup `Mode.NORMAL` into a non-playing analysis mode is also
+  an explicit user action. `Mode.PONDER`, `Mode.ANALYSIS`, and `Mode.KIBITZ`
+  may start analysis immediately after such a switch, including from the
+  standard starting position.
+- Do not add a blanket start-position suppression for non-playing modes just to
+  save CPU. In `Mode.PONDER`, the starting position may be a deliberate analysis
+  position or a base for flexible setup. In `Mode.ANALYSIS` and `Mode.KIBITZ`,
+  positions are entered move-by-move, but entering those modes is still
+  user-initiated rather than startup-automatic.
+
 ## `picochess.py` Analysis Driver
 
 `analyse()` in `picochess.py` is the main Picochess policy layer around

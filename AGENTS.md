@@ -89,6 +89,11 @@ routing when changing audio, server, or web-client code.
   `asyncio.to_thread()`, but the shared async loop must not be blocked.
 - Backend web audio takes priority over browser speech synthesis; browser TTS is
   only a fallback when the backend stream is not active.
+- SoX playback must not block the talker queue indefinitely. Calls to `play`
+  should discard stdio, use a bounded timeout, and terminate the process or
+  process group on timeout.
+- Keep native and SoX backend behavior separate. SoX changes should not alter
+  native playback except when native playback already falls back to SoX.
 
 ## Audio Debug Runbook (Trixie/PipeWire)
 

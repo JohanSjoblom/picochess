@@ -53,6 +53,17 @@ event loop used throughout the program. Preserve that architecture.
 - If a library API is blocking, isolate it behind an async boundary rather than
   leaking blocking behavior into `picochess.py`.
 
+## Clock Timing Pitfalls
+
+Clock drift regressions have occurred before. Preserve these timing-specific
+rules when changing DGT board or web clock code.
+
+- Do not reintroduce blocking delay on the `DGT_RETURN_SERIALNR` keepalive path
+  in `dgt/board.py`; that previously caused web clock drift.
+- The web clock in `server.py` intentionally keeps fractional elapsed-time
+  carry between `_runclock()` ticks. Do not replace it with per-tick rounding
+  or "subtract exactly 1 second per callback" logic.
+
 ## PicoTalker Web Audio Routing
 
 Native/SoX PicoTalker audio has a special remote web-client path. Preserve this

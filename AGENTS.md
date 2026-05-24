@@ -33,14 +33,19 @@ routing when changing audio, server, or web-client code.
 - `PicoTalkerDisplay` owns the sound queue and plays one clip at a time.
 - `web-audio-backend-remote` is the persistent setting for using a remote web
   browser as the PicoTalker speaker.
+- `web-audio-backend-remote` defaults to `False` for backward compatibility and
+  to avoid enabling remote streaming implicitly.
 - Backend web audio is remote-only. Localhost web clients do not enable this
   path, and local Pi audio remains controlled by the normal voice, volume, and
   audio-backend settings.
-- When backend web audio is enabled and a remote client is connected,
-  `PicoTalkerDisplay.sound_player()` emits a `WebAudio` event and skips local
-  playback for that clip. Do not play the same clip both locally and remotely.
-- If backend web audio is disabled or no remote client is connected, playback
-  falls back to local native audio or SoX.
+- Audio routing scenarios in `PicoTalkerDisplay.sound_player()`:
+  1) `web-audio-backend-remote` disabled: local native/SoX playback only.
+  2) `web-audio-backend-remote` enabled, but no remote client connected:
+     local native/SoX playback only.
+  3) `web-audio-backend-remote` enabled and remote client connected:
+     emit `WebAudio` and skip local playback for that clip.
+- Scenario 3 emission is intentionally sequential (`await`), not fire-and-forget,
+  to preserve clip order.
 - Encoding audio files for the web and native/SoX playback may use
   `asyncio.to_thread()`, but the shared async loop must not be blocked.
 - Backend web audio takes priority over browser speech synthesis; browser TTS is

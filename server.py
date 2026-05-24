@@ -1643,10 +1643,13 @@ class UploadPageHandler(tornado.web.RequestHandler):
 
 
 class SettingsPageHandler(tornado.web.RequestHandler):
+    def initialize(self, theme="dark"):
+        self.theme = theme
+
     def get(self):
         if not _require_auth_if_remote(self, "Settings"):
             return
-        self.render("web/picoweb/templates/settings.html")
+        self.render("web/picoweb/templates/settings.html", theme=self.theme)
 
 
 class SettingsDataHandler(ServerRequestHandler):
@@ -1915,7 +1918,7 @@ class WebServer:
                 (r"/channel", ChannelHandler, dict(shared=shared)),
                 (r"/upload-pgn", UploadHandler),
                 (r"/upload", UploadPageHandler),
-                (r"/settings", SettingsPageHandler),
+                (r"/settings", SettingsPageHandler, dict(theme=theme)),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
                 (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),

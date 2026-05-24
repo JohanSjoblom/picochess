@@ -36,6 +36,28 @@ Preserve the current X11 and Wayland split for retro/MAME artwork handling.
   quick lift-and-return before `set pieces` switches windows, and the
   post-`set pieces` corrective lift-and-return behavior is also supported.
 
+## Start Position And `NEW_GAME` Rules
+
+Preserve the current distinction between physical eboard start-position scans
+and explicit takeback handling.
+
+- On a physical eboard, a return to the standard start position is still
+  treated as `NEW_GAME`.
+- This includes the case where a user takes back all moves one-by-one until the
+  board reaches the start position on the eboard.
+- Picochess deliberately does not use ply-counter logic to distinguish
+  “last takeback back to start” from “user reset pieces for a new game” on the
+  eboard path. Do not add that complexity unless the policy is intentionally
+  changed.
+- Explicit takeback from the web/menu path remains normal takeback even when
+  the move stack becomes empty; it does not fire `NEW_GAME` just because the
+  game returns to move 0.
+- Takeback to a non-starting base position remains normal takeback and must not
+  fall through to `NEW_GAME`.
+- Start-position restore guards for lift-and-return and post-`set pieces`
+  correction must continue to route through `Event.FEN` so same-position
+  handling, including artwork/window switching, is preserved.
+
 ## Async Architecture
 
 Picochess has been ported from a thread-based design to one shared `asyncio`

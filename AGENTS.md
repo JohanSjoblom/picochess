@@ -8,6 +8,34 @@ analysis routing and display behavior.
 Start with this top-level file. Add more local `AGENTS.md` files only when a
 subdirectory has rules that are specific to that subsystem.
 
+## Wayland And Artwork
+
+Preserve the current X11 and Wayland split for retro/MAME artwork handling.
+
+- Keep X11 backward compatible. `xdotool` remains the X11 window-control path.
+  Wayland work must not break the old X11 behavior.
+- On Wayland, MAME startup window mode is controlled by `rwindow` passed as
+  `-window` or `-nowindow`. This startup behavior must not depend on
+  `ydotool`.
+- `rdisplay = true` is the guard for artwork-related window switching.
+  `rwindow` only controls whether MAME starts windowed or fullscreen.
+- Runtime artwork window control uses `window-control-backend` with values
+  `auto|xdotool|ydotool|swaymsg|none`. Prefer that override instead of trying
+  to infer too much from the service environment.
+- Do not assume `picochess.service` can reliably detect a desktop Wayland
+  session from environment variables alone. Avoid service-level Wayland
+  changes unless there is a clear deployment need.
+- `install-ydotool.sh` is the preferred helper for Wayland users who need
+  runtime window switching. It may add `trixie-backports`, add the install
+  user to the `input` group, and enable `ydotool.service`.
+- Honor `YDOTOOL_SOCKET` when using `ydotool`, so custom socket setups can
+  work without changing the default-socket behavior.
+- Raspberry Pi OS Trixie defaults to Wayland with `labwc`, not Sway. Do not
+  assume `swaymsg` is the default backend on Raspberry Pi.
+- Preserve the current artwork-switch UX unless intentionally redesigning it:
+  quick lift-and-return before `set pieces` switches windows, and the
+  post-`set pieces` corrective lift-and-return behavior is also supported.
+
 ## Async Architecture
 
 Picochess has been ported from a thread-based design to one shared `asyncio`

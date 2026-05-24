@@ -1,6 +1,8 @@
 name: Issue Agent
 
 on:
+  issues:
+    types: [opened]
   issue_comment:
     types: [created, edited]
   workflow_dispatch:
@@ -19,7 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request == null && github.event.comment.user.type != 'Bot')
+      (
+        github.event.issue.pull_request == null &&
+        (
+          github.event_name == 'issues' ||
+          github.event.comment.user.type != 'Bot'
+        )
+      )
 
     steps:
       - name: Checkout repo
@@ -44,6 +52,6 @@ jobs:
       - name: Run agent
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue_number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         run: |
           python tools/issue_agent.py

@@ -51,6 +51,34 @@ routing when changing audio, server, or web-client code.
 - Backend web audio takes priority over browser speech synthesis; browser TTS is
   only a fallback when the backend stream is not active.
 
+## Audio Debug Runbook (Trixie/PipeWire)
+
+Use this short runbook before changing audio code:
+
+- Verify runtime path first, then change code. Do not assume where sound is
+  played from.
+- Startup clips may play locally before a remote web client websocket is
+  connected; this is expected.
+- After a remote websocket is connected and
+  `web-audio-backend-remote=true`, move clips should route to `WebAudio` only.
+- CPU starvation can look like fading/clipping. Avoid max-load defaults for
+  fresh installs by keeping explicit `engine-level` values in example ini files.
+  For `a-stockf`, use a level that keeps startup `Threads=1` (for example
+  `Elo@2200`).
+
+When debugging routing, use these log markers:
+
+- `audio routing clip=... target=web|local`
+- `web audio emitted clip=...`
+- `web audio broadcast websocket_clients=...`
+- `websocket client state: has_remote=...`
+
+Known test pitfall:
+
+- Phone Bluetooth loopback can mislead tests. If the phone is paired to the Pi,
+  web audio from the phone may be routed back to Pi speakers/jack, which can
+  look like local backend playback even when routing is correct.
+
 ## Analysis Cycle CPU Rules
 
 `analyse()` has two analysis outputs:

@@ -11,6 +11,8 @@ class TestUtilities(unittest.TestCase):
         self.assertEqual("-speed 2.01", get_engine_mame_par(2.01, True))
         self.assertEqual("-nothrottle -sound none", get_engine_mame_par(0.009))
         self.assertEqual("-nothrottle", get_engine_mame_par(0.009, True))
+        self.assertEqual("-speed 1.0 -sound none -window", get_engine_mame_par(1.0, False, True))
+        self.assertEqual("-speed 1.0 -sound none -nowindow", get_engine_mame_par(1.0, False, False))
 
     @patch("utilities.is_wayland_session", return_value=False)
     def test_get_window_command_x11(self, _):

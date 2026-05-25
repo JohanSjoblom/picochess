@@ -1456,9 +1456,11 @@ async def main() -> None:
                 self.emulation_mode()
                 and self.state.dgtmenu.get_engine_rdisplay()
                 and self.state.artwork_in_use
+                and not is_wayland_session()
                 and not self.state.dgtmenu.get_engine_rwindow()
             ):
-                # switch to fullscreen
+                # Preserve the old X11 fullscreen fallback. Wayland startup mode
+                # is controlled by MAME -window/-nowindow parameters.
                 cmd = get_window_command("toggle_fullscreen")
                 if cmd:
                     subprocess.run(
@@ -2110,13 +2112,10 @@ async def main() -> None:
                     )
 
         def calc_engine_mame_par(self):
-            engine_rwindow = None
-            if is_wayland_session():
-                engine_rwindow = self.state.dgtmenu.get_engine_rwindow()
             return get_engine_mame_par(
                 self.state.dgtmenu.get_engine_rspeed(),
                 self.state.dgtmenu.get_engine_rsound(),
-                engine_rwindow=engine_rwindow,
+                engine_rwindow=self.state.dgtmenu.get_engine_rwindow(),
             )
 
         def pgn_mode(self):
@@ -2553,7 +2552,9 @@ async def main() -> None:
             elif fen == self.state.get_board_fen():
                 logger.debug("Already in this fen: %s", fen)
                 self.state.flag_startup = False
-                self.reset_setpieces_window_switch()
+                setpieces_switch_pending = bool(
+                    self.state.position_mode and self.state.setpieces_switch_anchor_fen
+                )
                 # molli: Chess tutor
                 if (
                     self.picotutor_mode()
@@ -2585,9 +2586,12 @@ async def main() -> None:
                         if not self.state.done_computer_fen:
                             await self.state.start_clock()
                     await DisplayMsg.show(Message.EXIT_MENU())
+                    if setpieces_switch_pending:
+                        self.switch_artwork_window()
                 elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                     # switch windows/tasks
                     self.switch_artwork_window()
+                self.reset_setpieces_window_switch()
             # Check if we have to undo a previous move (sliding)
             elif fen in self.state.last_legal_fens:
                 logger.info("sliding move detected")
@@ -4052,7 +4056,7 @@ async def main() -> None:
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
-                            if not is_hand_mode:
+                            if not is_king_lift and not is_hand_mode:
                                 if not self.state.setpieces_switch_anchor_fen:
                                     self.state.setpieces_switch_anchor_fen = external_fen
                                     self.state.setpieces_switch_armed = False
@@ -4846,9 +4850,11 @@ async def main() -> None:
                     self.emulation_mode()
                     and self.state.dgtmenu.get_engine_rdisplay()
                     and self.state.artwork_in_use
+                    and not is_wayland_session()
                     and not self.state.dgtmenu.get_engine_rwindow()
                 ):
-                    # switch to fullscreen
+                    # Preserve the old X11 fullscreen fallback. Wayland startup mode
+                    # is controlled by MAME -window/-nowindow parameters.
                     cmd = get_window_command("toggle_fullscreen")
                     if cmd:
                         process = await asyncio.create_subprocess_shell(
@@ -6607,10 +6613,12 @@ async def main() -> None:
 
                     if (
                         self.state.dgtmenu.get_engine_rdisplay()
+                        and not is_wayland_session()
                         and not self.state.dgtmenu.get_engine_rwindow()
                         and self.state.artwork_in_use
                     ):
-                        # switch to fullscreen
+                        # Preserve the old X11 fullscreen fallback. Wayland startup mode
+                        # is controlled by MAME -window/-nowindow parameters.
                         cmd = get_window_command("toggle_fullscreen")
                         if cmd:
                             process = await asyncio.create_subprocess_shell(

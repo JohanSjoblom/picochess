@@ -500,13 +500,8 @@ class DgtMenu(object):
             self.menu_picotutor_picocomment_prob_list = "30"
             self.res_picotutor_picocomment_prob = 30
 
-        display = os.environ.get("DISPLAY")
-        if rdisplay and display is not None:
-            self.engine_retrodisplay: bool = rdisplay
-            self.res_engine_retrodisplay: bool = self.engine_retrodisplay
-        else:
-            self.engine_retrodisplay = False
-            self.res_engine_retrodisplay = False
+        self.engine_retrodisplay: bool = rdisplay
+        self.res_engine_retrodisplay: bool = self.engine_retrodisplay
         self.engine_retrodisplay_onoff = self.engine_retrodisplay
         self.engine_retrosound = rsound
         self.res_engine_retrosound = self.engine_retrosound
@@ -2917,13 +2912,7 @@ class DgtMenu(object):
 
         elif self.state == MenuState.RETROSETTINGS_RETRODISPLAY_ONOFF:
             self.engine_retrodisplay = self.engine_retrodisplay_onoff
-            display = None
-            display = os.environ.get("DISPLAY")
-            if self.engine_retrodisplay and display is None:
-                await DispatchDgt.fire(self.dgttranslate.text("Y10_nodesktop"))
-                text = self.enter_retrosettings_menu()
-                text.wait = True
-            elif self.engine_retrodisplay != self.res_engine_retrodisplay:
+            if self.engine_retrodisplay != self.res_engine_retrodisplay:
                 self.res_engine_retrodisplay = self.engine_retrodisplay
                 write_picochess_ini("rdisplay", self.engine_retrodisplay)
                 # trigger rspped event for rsound change (does just an engine restart)

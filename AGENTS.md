@@ -33,8 +33,9 @@ Preserve the current X11 and Wayland split for retro/MAME artwork handling.
 - Raspberry Pi OS Trixie defaults to Wayland with `labwc`, not Sway. Do not
   assume `swaymsg` is the default backend on Raspberry Pi.
 - Preserve the current artwork-switch UX unless intentionally redesigning it:
-  quick lift-and-return before `set pieces` switches windows, and the
-  post-`set pieces` corrective lift-and-return behavior is also supported.
+  quick non-king lift-and-return before `set pieces` switches windows, and
+  post-`set pieces` non-king corrective lift-and-return also switches windows.
+  King lift remains reserved for coach/evaluation behavior.
 
 ## Start Position And `NEW_GAME` Rules
 

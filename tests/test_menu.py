@@ -12,7 +12,7 @@ from uci.engine_provider import EngineProvider
 
 class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
     @patch("subprocess.run")
-    def create_menu(self, machine_mock, _):
+    def create_menu(self, machine_mock, _, rdisplay=False):
         machine_mock.return_value = ".." + os.sep + "tests"  # return the tests path as the platform engine path
         EngineProvider.modern_engines = read_engine_ini(filename="engines.ini")
         EngineProvider.retro_engines = read_engine_ini(filename="retro.ini")
@@ -39,7 +39,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             theme_type="dark",
             rspeed=1.0,
             rsound=True,
-            rdisplay=False,
+            rdisplay=rdisplay,
             rwindow=False,
             rol_disp_brain=False,
             show_enginename=False,
@@ -67,6 +67,12 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             ],
             PicoCoach.items(),
         )
+
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("platform.machine")
+    async def test_retro_display_config_does_not_require_display_env(self, machine_mock):
+        menu = self.create_menu(machine_mock, rdisplay=True)
+        self.assertTrue(menu.get_engine_rdisplay())
 
     @patch("platform.machine")
     async def test_engine_menu_traversal(self, machine_mock):

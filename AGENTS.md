@@ -14,6 +14,10 @@ Preserve the current X11 and Wayland split for retro/MAME artwork handling.
 
 - Keep X11 backward compatible. `xdotool` remains the X11 window-control path.
   Wayland work must not break the old X11 behavior.
+- Preserve the old X11 fullscreen fallback for MAME artwork: when
+  `rwindow=false`, X11 may still use the existing `xdotool` fullscreen toggle
+  after startup. Wayland should use MAME startup `-window`/`-nowindow` instead
+  of that fallback.
 - On Wayland, MAME startup window mode is controlled by `rwindow` passed as
   `-window` or `-nowindow`. This startup behavior must not depend on
   `ydotool`.

@@ -22,7 +22,7 @@ body {
 }
 
 .gameVariation {
-    font-size: max(1.35vw, 1.05rem);
+    font-size: max(1.5vw, 1.1rem);
     display: block;
     margin-left: 5vw;
     margin-top: 0.6vw;
@@ -34,7 +34,7 @@ body {
 }
 
 .comment {
-    font-size: max(1.35vw, 1.05rem);
+    font-size: max(1.5vw, 1.1rem);
     display: block;
     margin-top: 0.6vw;
     margin-bottom: 0.6vw;
@@ -43,12 +43,12 @@ body {
 }
 
 .bookMoves {
-    font-size: max(1.5vw, 1.08rem);
+    font-size: max(1.65vw, 1.15rem);
     font-family: Roboto, FreeSerif, sans-serif;
 }
 
 .gameMoves {
-    font-size: max(1.5vw, 1.08rem);
+    font-size: max(1.8vw, 1.25rem);
     font-weight: bolder;
     line-height: 150%;
     font-family: Roboto, FreeSerif, sans-serif;
@@ -63,7 +63,7 @@ body {
 
 .gameMoves .highlight {
     color: darkgreen;
-    font-size: max(1.5vw, 1.08rem);
+    font-size: max(1.8vw, 1.25rem);
 }
 
 .gameMoves a {
@@ -71,15 +71,15 @@ body {
 }
 
 .gameResult {
-    font-size: max(1.5vw, 1.08rem);
+    font-size: max(1.8vw, 1.25rem);
 }
 
 #pgn h4 {
-    font-size: max(1.5vw, 1.08rem);
+    font-size: max(1.65vw, 1.15rem);
 }
 
 #pgn h5 {
-    font-size: max(1.35vw, 1rem);
+    font-size: max(1.4vw, 1.05rem);
 }
 
 .panel-heading {

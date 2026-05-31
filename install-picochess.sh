@@ -40,6 +40,7 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   noengines  -> skip engine installation
 #   dgt3000    -> install DGTPi clock support
 #   DGT3000    -> install DGTPi clock support
+#   dgtpi      -> install DGTPi clock support
 #   kiosk      -> enable autologin and kiosk autostart
 #   pi3        -> install Bluetooth unblock service for Raspberry Pi 3
 #   master     -> switch checkout back to origin/master before installing
@@ -68,7 +69,7 @@ for arg in "$@"; do
         noengines)
             SKIP_ENGINES=true
             ;;
-        dgt3000|DGT3000)
+        dgt3000|DGT3000|dgtpi|DGTPi|DGTPI)
             INSTALL_DGTPI=true
             ;;
         kiosk|KIOSK)
@@ -82,6 +83,112 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+set_ini_setting() {
+    ini_file=$1
+    ini_key=$2
+    ini_value=$3
+    tmp_file="${ini_file}.tmp.$$"
+
+    if [ ! -f "$ini_file" ]; then
+        return 0
+    fi
+
+    if grep -Eq "^[[:space:]]*${ini_key}[[:space:]]*=" "$ini_file"; then
+        awk -v key="$ini_key" -v value="$ini_value" '
+            $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+                print key " = " value
+                next
+            }
+            { print }
+        ' "$ini_file" > "$tmp_file" && mv "$tmp_file" "$ini_file"
+    elif grep -Eq "^[[:space:]]*#[[:space:]]*${ini_key}[[:space:]]*=" "$ini_file"; then
+        awk -v key="$ini_key" -v value="$ini_value" '
+            !done && $0 ~ "^[[:space:]]*#[[:space:]]*" key "[[:space:]]*=" {
+                print key " = " value
+                done = 1
+                next
+            }
+            { print }
+        ' "$ini_file" > "$tmp_file" && mv "$tmp_file" "$ini_file"
+    else
+        printf "\n%s = %s\n" "$ini_key" "$ini_value" >> "$ini_file"
+    fi
+}
+
+find_boot_config() {
+    for boot_config in /boot/firmware/config.txt /boot/config.txt; do
+        if [ -f "$boot_config" ]; then
+            printf "%s\n" "$boot_config"
+            return 0
+        fi
+    done
+    return 1
+}
+
+is_unsigned_integer() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+configure_dgtpi_clock_timing() {
+    boot_config=$(find_boot_config 2>/dev/null || true)
+    core_freq_value=${DGTPI_CORE_FREQ:-300}
+    core_freq_min_value=${DGTPI_CORE_FREQ_MIN:-300}
+
+    if ! is_unsigned_integer "$core_freq_value"; then
+        echo "Warning: invalid DGTPI_CORE_FREQ='$core_freq_value'; using 300." >&2
+        core_freq_value=300
+    fi
+    if ! is_unsigned_integer "$core_freq_min_value"; then
+        echo "Warning: invalid DGTPI_CORE_FREQ_MIN='$core_freq_min_value'; using 300." >&2
+        core_freq_min_value=300
+    fi
+
+    if [ -z "$boot_config" ]; then
+        echo "Warning: no /boot/firmware/config.txt or /boot/config.txt found; skipping DGTPi clock timing." >&2
+        return 0
+    fi
+
+    tmp_file="${boot_config}.picochess-tmp.$$"
+    awk '
+        $0 == "# BEGIN PicoChess DGTPi clock timing" { skip = 1; next }
+        $0 == "# END PicoChess DGTPi clock timing" { skip = 0; next }
+        skip { next }
+        { print }
+    ' "$boot_config" > "$tmp_file" || {
+        echo "Warning: failed to prepare DGTPi clock timing update for $boot_config." >&2
+        rm -f "$tmp_file"
+        return 0
+    }
+
+    {
+        printf "# BEGIN PicoChess DGTPi clock timing\n"
+        printf "# Keep DGTPi/DGT3000 GPIO clock communication stable on Raspberry Pi 3.\n"
+        printf "[all]\n"
+        printf "core_freq=%s\n" "$core_freq_value"
+        printf "core_freq_min=%s\n" "$core_freq_min_value"
+        printf "[all]\n"
+        printf "# END PicoChess DGTPi clock timing\n"
+    } >> "$tmp_file"
+
+    if cmp -s "$boot_config" "$tmp_file"; then
+        rm -f "$tmp_file"
+        echo "DGTPi clock timing already configured in $boot_config."
+        return 0
+    fi
+
+    backup_file="${boot_config}.picochess-backup.$(date +%Y%m%d%H%M%S)"
+    if cp -p "$boot_config" "$backup_file" && mv "$tmp_file" "$boot_config"; then
+        echo "Configured DGTPi clock timing in $boot_config."
+        echo "Backup saved as $backup_file."
+    else
+        echo "Warning: failed to update $boot_config for DGTPi clock timing." >&2
+        rm -f "$tmp_file"
+    fi
+}
 
 if [ "$SKIP_UPDATE" = false ]; then
     echo "starting by upgrading system before installing picochess"
@@ -422,6 +529,12 @@ else
     fi
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
+if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
+    echo "Applying DGTPi defaults to picochess.ini"
+    set_ini_setting "$REPO_DIR/picochess.ini" "dgtpi" "True"
+    set_ini_setting "$REPO_DIR/picochess.ini" "audio-backend" "sox"
+    chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
+fi
 
 # Decide on PipeWire ALSA only after picochess.ini exists so fresh-install profile defaults apply.
 audio_backend_setting=$(awk -F '=' '
@@ -454,7 +567,8 @@ fi
 
 # Install DGTPi clock support on request.
 if [ "$INSTALL_DGTPI" = true ]; then
-    echo "DGT3000 flag set - installing DGTPi clock support"
+    echo "DGTPi/DGT3000 flag set - installing DGTPi clock support"
+    configure_dgtpi_clock_timing
     if [ -f "$REPO_DIR/install-dgtpi-clock.sh" ]; then
         cd "$REPO_DIR" || exit 1
         chmod +x install-dgtpi-clock.sh 2>/dev/null
@@ -463,7 +577,7 @@ if [ "$INSTALL_DGTPI" = true ]; then
         echo "Warning: install-dgtpi-clock.sh not found; skipping DGTPi clock install" >&2
     fi
 else
-    echo "DGT3000 flag not set - skipping DGTPi clock install"
+    echo "DGTPi/DGT3000 flag not set - skipping DGTPi clock install"
 fi
 
 # Install Bluetooth unblock service for Pi3 on request.
@@ -631,7 +745,11 @@ echo "Picochess installation complete. Please reboot"
 if [ "$YDOTOOL_INSTALLED" = true ] && [ "$YDOTOOL_RELOGIN_REQUIRED" = true ]; then
     echo "ydotool note: reboot or log out/in so user '$INSTALL_USER' picks up the new input-group membership."
 fi
-echo "NOTE: If you are on DGTPi clock hardware you need to run install-dgtpi-clock.sh"
+if [ "$INSTALL_DGTPI" = true ]; then
+    echo "DGTPi note: clock service, audio-backend=sox, and boot clock timing were configured."
+else
+    echo "NOTE: If you are on DGTPi clock hardware, rerun this installer with the dgtpi or dgt3000 parameter."
+fi
 echo "After reboot open a browser to localhost"
 echo "If you have a DGT board you need to change the board type"
 echo "in the picochess.ini like this: board-type = dgt"

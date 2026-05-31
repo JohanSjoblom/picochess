@@ -1,10 +1,10 @@
 #!/bin/sh
 #
 # Installation script for DGTPi clock and DGT3000 mod
-# Run install-picochess first to install base picochess
+# Normally invoked by install-picochess.sh dgtpi/dgt3000
 #
 # you also need to set dgtpi = True in ini file - use with care, know what you are doing
-# you can use the example ini file picochess.ini.example-dgtpi3-clock
+# you can use the example ini file picochess.ini.example-dgtpi-clock
 REPO_DIR="/opt/picochess"
 
 if [ ! -d "$REPO_DIR" ]; then

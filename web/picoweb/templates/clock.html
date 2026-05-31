@@ -2671,16 +2671,22 @@
                             }
                             var _cs = window._picoCurrentSettings || {};
                             var _curVoice = (cat === 'user-voice') ? (_cs.user_voice || '') : (_cs.comp_voice || '');
+                            var _curVoiceLang = (cat === 'user-voice') ? (_cs.user_voice_lang || '') : (_cs.comp_voice_lang || '');
+                            var _listLang = (data && data.lang) || '';
                             // prepend Mute option
                             ['mute'].concat(speakers).forEach(function(sp) {
                                 var btn = document.createElement('button');
                                 btn.className = 'pico-picker-item';
-                                if (sp === _curVoice) btn.classList.add('selected');
+                                var isSelected = sp === 'mute'
+                                    ? sp === _curVoice
+                                    : sp === _curVoice && _curVoiceLang === _listLang;
+                                if (isSelected) btn.classList.add('selected');
                                 btn.innerHTML = '<strong>' + sp + '</strong>';
                                 btn.addEventListener('click', function() {
                                     listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                     btn.classList.add('selected');
                                     setCurrentSetting(cat === 'user-voice' ? 'user_voice' : 'comp_voice', sp);
+                                    setCurrentSetting(cat === 'user-voice' ? 'user_voice_lang' : 'comp_voice_lang', sp === 'mute' ? '' : _listLang);
                                     post('action=set_voice&type=' + vtype + '&speaker=' + encodeURIComponent(sp));
                                     setTimeout(close, 180);
                                 });

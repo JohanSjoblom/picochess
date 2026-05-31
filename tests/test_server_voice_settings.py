@@ -22,6 +22,12 @@ class TestServerVoiceSettings(unittest.TestCase):
         self.assertEqual("mute", server._voice_speaker_from_config({"computer-voice": "None"}, "computer-voice"))
         self.assertEqual("mute", server._voice_speaker_from_config({}, "computer-voice"))
 
+    def test_voice_config_preserves_language_and_speaker(self):
+        lang, speaker = server._voice_parts_from_config({"computer-voice": "de:christina"}, "computer-voice")
+
+        self.assertEqual("de", lang)
+        self.assertEqual("christina", speaker)
+
     def test_voice_bounds_keep_valid_mute_values(self):
         self.assertEqual(0, server._bounded_voice_volume("0"))
         self.assertEqual(0, server._bounded_voice_speed("0"))

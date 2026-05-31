@@ -203,10 +203,18 @@ def _bounded_voice_volume(value) -> int:
 
 
 def _voice_speaker_from_config(config, key: str) -> str:
+    _, speaker = _voice_parts_from_config(config, key)
+    return speaker
+
+
+def _voice_parts_from_config(config, key: str) -> tuple[str, str]:
     raw = str(config.get(key, "")).strip()
     if not raw or raw.lower() in ("none", "mute"):
-        return "mute"
-    return raw.split(":", 1)[1] if ":" in raw else raw
+        return "", "mute"
+    if ":" in raw:
+        lang, speaker = raw.split(":", 1)
+        return lang.strip().lower(), speaker.strip()
+    return "", raw
 
 
 def _voice_type_and_ini_key(value: str):
@@ -1353,8 +1361,12 @@ class InfoHandler(ServerRequestHandler):
                     "on",
                 )
                 # Current voice speakers (stored as "lang:speaker"; missing/None means muted)
-                settings["comp_voice"] = _voice_speaker_from_config(config, "computer-voice")
-                settings["user_voice"] = _voice_speaker_from_config(config, "user-voice")
+                comp_voice_lang, comp_voice = _voice_parts_from_config(config, "computer-voice")
+                user_voice_lang, user_voice = _voice_parts_from_config(config, "user-voice")
+                settings["comp_voice"] = comp_voice
+                settings["comp_voice_lang"] = comp_voice_lang
+                settings["user_voice"] = user_voice
+                settings["user_voice_lang"] = user_voice_lang
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
             # Engine name and level come from shared (live state, not ini)

@@ -2299,7 +2299,9 @@
                 { icon:'🔄', label:'Switch Sides', value:'switchsides' },
                 { icon:'🏳️',label:'Resign',       value:'resign',   needsGame: true },
                 { icon:'⚡', label:'Move Now',     value:'move-now', needsEngTurn: true },
-                { icon:'👤', label:'Player',        value:'player' }
+                { icon:'👤', label:'Player',        value:'player' },
+                { icon:'📥', label:'Download PGN',  value:'download-pgn' },
+                { icon:'📤', label:'Upload PGN',    value:'upload-pgn' }
             ];
 
             function renderGameTiles() {
@@ -2326,6 +2328,8 @@
                 if (value === 'switchsides')   { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
                 if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
                 if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
+                if (value === 'download-pgn')  { if (typeof download === 'function') download(); close(); return; }
+                if (value === 'upload-pgn')    { window.location.href = 'upload'; return; }
                 if (value === 'save' || value === 'read' || value === 'end') {
                     navigateTo(function() { showGameSubPanel(value); });
                     return;

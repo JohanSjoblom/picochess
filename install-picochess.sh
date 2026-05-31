@@ -42,6 +42,7 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   DGT3000    -> install DGTPi clock support
 #   kiosk      -> enable autologin and kiosk autostart
 #   pi3        -> install Bluetooth unblock service for Raspberry Pi 3
+#   master     -> switch checkout back to origin/master before installing
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
@@ -49,6 +50,7 @@ INSTALL_DGTPI=false
 EXPLICIT_ENGINE_VARIANT=false
 INSTALL_KIOSK=false
 INSTALL_PI3_BT=false
+FORCE_MASTER=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -74,6 +76,9 @@ for arg in "$@"; do
             ;;
         pi3|PI3)
             INSTALL_PI3_BT=true
+            ;;
+        master|MASTER)
+            FORCE_MASTER=true
             ;;
     esac
 done
@@ -253,7 +258,17 @@ if [ -d "$REPO_DIR/.git" ]; then
     CURRENT_BRANCH=$(sudo -u "$INSTALL_USER" git rev-parse --abbrev-ref HEAD)
     DETACHED_TAG=$(sudo -u "$INSTALL_USER" git describe --tags --exact-match 2>/dev/null)
 
-    if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+    if [ "$FORCE_MASTER" = true ]; then
+        echo "Switching checkout to latest official master version..."
+        sudo -u "$INSTALL_USER" git fetch origin
+        sudo -u "$INSTALL_USER" git rev-parse --verify "origin/$BRANCH" >/dev/null || {
+            echo "ERROR: origin/$BRANCH not found. Cannot switch to master." >&2
+            exit 1
+        }
+        sudo -u "$INSTALL_USER" git checkout -f -B "$BRANCH" "origin/$BRANCH"
+        sudo -u "$INSTALL_USER" git reset --hard "origin/$BRANCH"
+
+    elif [ "$CURRENT_BRANCH" = "HEAD" ]; then
         if [ -n "$DETACHED_TAG" ]; then
             echo "Detached tag '$DETACHED_TAG' detected — forcing reset..."
             sudo -u "$INSTALL_USER" git fetch --tags origin

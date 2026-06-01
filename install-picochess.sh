@@ -532,7 +532,6 @@ fi
 if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "Applying DGTPi defaults to picochess.ini"
     set_ini_setting "$REPO_DIR/picochess.ini" "dgtpi" "True"
-    set_ini_setting "$REPO_DIR/picochess.ini" "audio-backend" "sox"
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
 
@@ -746,7 +745,7 @@ if [ "$YDOTOOL_INSTALLED" = true ] && [ "$YDOTOOL_RELOGIN_REQUIRED" = true ]; th
     echo "ydotool note: reboot or log out/in so user '$INSTALL_USER' picks up the new input-group membership."
 fi
 if [ "$INSTALL_DGTPI" = true ]; then
-    echo "DGTPi note: clock service, audio-backend=sox, and boot clock timing were configured."
+    echo "DGTPi note: clock service and boot clock timing were configured."
 else
     echo "NOTE: If you are on DGTPi clock hardware, rerun this installer with the dgtpi or dgt3000 parameter."
 fi

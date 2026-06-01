@@ -28,7 +28,7 @@ Requirements
 ------------
 
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
-- RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Web/desktop installs default to `audio-backend = native`; DGTPi clock installs default to `audio-backend = sox`. If you upgraded from older desktop installs and still use SoX, switch to native.
+- RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Web/desktop installs default to `audio-backend = native`. DGTPi clock users may need either `native` or `sox`, depending on the Pi audio setup.
 
 Quick Installation
 ------------------
@@ -51,7 +51,7 @@ The script installs the following services in `/etc/systemd/system/`:
 - `pico` skips system update (useful on existing systems).
 - `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
-- `dgtpi`, `dgt3000`, or `DGT3000` installs the DGT Pi 3000 clock service, sets DGTPi audio defaults, and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
+- `dgtpi`, `dgt3000`, or `DGT3000` installs the DGT Pi 3000 clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
 - `kiosk` installs autologin + kiosk autostart using `etc/pico-kiosk.desktop`.
 - `pi3` installs the Bluetooth unblock service (useful on Raspberry Pi 3 with Trixie).
 - `master` switches an existing checkout back to `origin/master` before installing, useful for leaving a test branch.
@@ -163,7 +163,7 @@ Installation with more detailed info
 6. Add ssh support if you don't work locally on your Raspberry Pi with attached screen, keyboard and mouse.
 7. Write the image to the SD.
 8. Boot your PI with the SD card inserted. A standard image will reboot after first start, and the second time it starts you should be able to login as user pi.
-9. Using sudo raspi-config, keep the default PipeWire setup on desktop installs. Web/desktop installs default to `audio-backend = native`. DGTPi clock installs default to `audio-backend = sox`; when installed with `sudo ./install-picochess.sh dgtpi`, the installer also configures Raspberry Pi 3 clock timing. Wayland is supported; X11 is optional.
+9. Using sudo raspi-config, keep the default PipeWire setup on desktop installs. Web/desktop installs default to `audio-backend = native`. DGTPi clock users may need either `native` or `sox`, depending on the Pi audio setup; when installed with `sudo ./install-picochess.sh dgtpi`, the installer also configures Raspberry Pi 3 clock timing. Wayland is supported; X11 is optional.
 The install script now installs the native audio runtime libraries, including `pipewire-alsa`, only when `audio-backend` is not set to `sox`.
 10. Get this repo. First cd /opt then do sudo git clone. This should create your /opt/picochess folder. Alternative: Download the install-picochess.sh script and run it using sudo. See quick installation above.
 11. Run the install-picochess.sh script. The script will first do a system update which may run for a while depending on how old your installation is. Then it will do git clone if you dont have the repo, and git pull if you already have the repo in /opt/picochess.

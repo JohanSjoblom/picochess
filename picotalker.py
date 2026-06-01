@@ -27,6 +27,7 @@ from collections import OrderedDict
 import subprocess
 import signal
 import threading
+import re
 from typing import Callable, Optional
 
 try:
@@ -52,6 +53,7 @@ SOUND_CACHE_LIMIT = 128
 NATIVE_STREAM_STARTUP_WAIT = 0.3
 SOX_PLAY_TIMEOUT = 12.0
 SOX_PLAY_KILL_TIMEOUT = 1.0
+REPLAYGAIN_TRACK_GAIN_RE = re.compile(rb"REPLAYGAIN_TRACK_GAIN=([+-]?\d+(?:\.\d+)?)\s*dB", re.IGNORECASE)
 
 
 class PicoTalker(object):
@@ -373,6 +375,37 @@ class PicoTalkerDisplay(DisplayMsg):
         tsm.run(reader, writer)
         return writer.data.T
 
+    @staticmethod
+    def _read_replaygain_track_gain(voice_file: str) -> Optional[float]:
+        try:
+            data = Path(voice_file).read_bytes()
+        except OSError as exc:
+            logger.debug("ReplayGain read failed for %s: %s", voice_file, exc)
+            return None
+
+        match = REPLAYGAIN_TRACK_GAIN_RE.search(data)
+        if not match:
+            return None
+        try:
+            return float(match.group(1).decode("ascii"))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _apply_replaygain_track_gain(samples, gain_db: Optional[float]):
+        if gain_db is None or gain_db == 0:
+            return samples
+        if samples.size == 0:
+            return samples
+
+        gain = 10 ** (gain_db / 20)
+        peak = float(np.max(np.abs(samples)))
+        if peak > 0:
+            gain = min(gain, 1.0 / peak)
+        if gain == 1.0:
+            return samples
+        return samples * np.float32(gain)
+
     def native_sound_player(self, voice_file) -> bool:
         """Speak out the sound part using native Python audio stack."""
         if not NATIVE_AUDIO_AVAILABLE:
@@ -384,6 +417,7 @@ class PicoTalkerDisplay(DisplayMsg):
                 samples, samplerate = sf.read(voice_file, dtype="float32", always_2d=True)
                 if self.speed_factor != 1.0:
                     samples = self._audiotsm_process(samples)
+                samples = self._apply_replaygain_track_gain(samples, self._read_replaygain_track_gain(voice_file))
                 self._sound_cache_put(key, (samples, samplerate))
             else:
                 samples, samplerate = cached

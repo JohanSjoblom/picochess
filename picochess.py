@@ -149,6 +149,13 @@ def _listen_web_app(web_app: Any, requested_port: int) -> int:
         raise WebServerListenError(requested_port, "unavailable", exc) from exc
 
 
+def should_show_setpieces_after_lift_timeout(lifted_piece_char: str, is_hand_mode: bool) -> bool:
+    """Return true when a held lifted piece should reach the audible set-pieces threshold."""
+    if not lifted_piece_char:
+        return False
+    return lifted_piece_char in ("K", "k") or not is_hand_mode
+
+
 class AlternativeMover:
     """Keep track of alternative moves."""
 
@@ -4056,10 +4063,11 @@ async def main() -> None:
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
-                            if not is_king_lift and not is_hand_mode:
-                                if not self.state.setpieces_switch_anchor_fen:
-                                    self.state.setpieces_switch_anchor_fen = external_fen
-                                    self.state.setpieces_switch_armed = False
+                            if should_show_setpieces_after_lift_timeout(lifted_piece_char, is_hand_mode):
+                                if not is_king_lift:
+                                    if not self.state.setpieces_switch_anchor_fen:
+                                        self.state.setpieces_switch_anchor_fen = external_fen
+                                        self.state.setpieces_switch_armed = False
                                 await DisplayMsg.show(Message.WRONG_FEN())
                                 await asyncio.sleep(2)
                         self.state.delay_fen_error = 4

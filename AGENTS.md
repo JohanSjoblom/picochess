@@ -36,10 +36,15 @@ Preserve the current X11 and Wayland split for retro/MAME artwork handling.
   work without changing the default-socket behavior.
 - Raspberry Pi OS Trixie defaults to Wayland with `labwc`, not Sway. Do not
   assume `swaymsg` is the default backend on Raspberry Pi.
-- Preserve the current artwork-switch UX unless intentionally redesigning it:
-  quick non-king lift-and-return before `set pieces` switches windows, and
-  post-`set pieces` non-king corrective lift-and-return also switches windows.
-  King lift remains reserved for coach/evaluation behavior.
+- Preserve the artwork-switch and coach/evaluation timing split:
+  before the `set pieces` message is shown, any piece lifted and returned to
+  its original square switches artwork/web, including the king. This keeps
+  window switching available when the human player only has a king left.
+- A king lift-and-return triggers coach/evaluation only after the user has held
+  the king long enough for the `set pieces` message to be shown. If the king is
+  returned before that message, treat it as an artwork/window switch instead.
+- Post-`set pieces` non-king corrective lift-and-return should continue to
+  switch artwork/web.
 
 ## Start Position And `NEW_GAME` Rules
 

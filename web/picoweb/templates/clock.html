@@ -2603,6 +2603,7 @@
                 { label:'🕹️ Retro Speed',   value:'rspeed' },
                 { label:'🔈 Retro Sound',   value:'rsound' },
                 { label:'🖼️ Retro Display', value:'rdisplay' },
+                { label:'🪟 Retro Window',  value:'rwindow' },
                 { label:'ℹ️ Retro Info',     value:'rinfo' },
                 { label:'⚙️ Preferences',   value:'display' },
                 { label:'🎲 EBoard',         value:'eboard' },
@@ -2867,13 +2868,16 @@
                     listEl.appendChild(infoWrap);
                     return;
                 }
-                if (cat === 'rsound' || cat === 'rdisplay') {
+                if (cat === 'rsound' || cat === 'rdisplay' || cat === 'rwindow') {
                     col.style.display = 'flex';
-                    lbl.textContent = cat === 'rsound' ? 'Retro Sound' : 'Retro Display';
+                    lbl.textContent = cat === 'rsound' ? 'Retro Sound' : (cat === 'rdisplay' ? 'Retro Display' : 'Retro Window');
                     listEl.innerHTML = '';
                     var _cs = window._picoCurrentSettings || {};
-                    var _curVal = _cs[cat] || 'off';
-                    [['On', 'on'], ['Off', 'off']].forEach(function(pair) {
+                    var _curVal = _cs[cat] || (cat === 'rwindow' ? 'on' : 'off');
+                    var _retroPairs = cat === 'rwindow'
+                        ? [['Windowed', 'on'], ['Fullscreen', 'off']]
+                        : [['On', 'on'], ['Off', 'off']];
+                    _retroPairs.forEach(function(pair) {
                         var btn = document.createElement('button');
                         btn.className = 'pico-picker-item';
                         btn.innerHTML = '<strong>' + pair[0] + '</strong>';

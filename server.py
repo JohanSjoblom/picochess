@@ -99,6 +99,7 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "rspeed",
         "rsound",
         "rdisplay",
+        "rwindow",
         "phone_speaker",
         "audio_backend",
     }
@@ -1186,6 +1187,14 @@ class ChannelHandler(ServerRequestHandler):
                 dgtmenu.engine_retrodisplay_onoff = rdisplay
             write_picochess_ini("rdisplay", rdisplay)
             logger.info("web rdisplay setting saved: %s", rdisplay)
+        elif action == "rwindow":
+            val_str = self.get_argument("val", "on").strip().lower()
+            rwindow = val_str in ("on", "true", "1")
+            dgtmenu = self.shared.get("dgtmenu")
+            if dgtmenu:
+                dgtmenu.res_engine_rwindow = rwindow
+            write_picochess_ini("rwindow", rwindow)
+            logger.info("web rwindow setting saved: %s", rwindow)
 
 
 class EventHandler(WebSocketHandler):
@@ -1371,6 +1380,8 @@ class InfoHandler(ServerRequestHandler):
                 settings["rsound"] = "on" if rsound_raw in (True, "True", "true", "1") else "off"
                 rdisplay_raw = config.get("rdisplay", False)
                 settings["rdisplay"] = "on" if rdisplay_raw in (True, "True", "true", "1") else "off"
+                rwindow_raw = config.get("rwindow", True)
+                settings["rwindow"] = "on" if rwindow_raw in (True, "True", "true", "1") else "off"
                 # Retro engine feature info (live from ModeInfo)
                 try:
                     from pgn import ModeInfo as _ModeInfo

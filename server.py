@@ -1171,27 +1171,21 @@ class ChannelHandler(ServerRequestHandler):
             rsound = val_str in ("on", "true", "1")
             dgtmenu = self.shared.get("dgtmenu")
             if dgtmenu:
-                if rsound != dgtmenu.get_engine_rsound():
-                    dgtmenu.engine_retrosound = rsound
-                    dgtmenu.res_engine_retrosound = rsound
-                    dgtmenu.engine_retrosound_onoff = rsound
-                    write_picochess_ini("rsound", rsound)
-                    rspeed_factor = dgtmenu.retrospeed_factor if hasattr(dgtmenu, "retrospeed_factor") else 1.0
-                    await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
-            logger.info("web rsound: %s", rsound)
+                dgtmenu.engine_retrosound = rsound
+                dgtmenu.res_engine_retrosound = rsound
+                dgtmenu.engine_retrosound_onoff = rsound
+            write_picochess_ini("rsound", rsound)
+            logger.info("web rsound setting saved: %s", rsound)
         elif action == "rdisplay":
             val_str = self.get_argument("val", "off").strip().lower()
             rdisplay = val_str in ("on", "true", "1")
             dgtmenu = self.shared.get("dgtmenu")
             if dgtmenu:
-                if rdisplay != dgtmenu.get_engine_rdisplay():
-                    dgtmenu.engine_retrodisplay = rdisplay
-                    dgtmenu.res_engine_retrodisplay = rdisplay
-                    dgtmenu.engine_retrodisplay_onoff = rdisplay
-                    write_picochess_ini("rdisplay", rdisplay)
-                    rspeed_factor = dgtmenu.retrospeed_factor if hasattr(dgtmenu, "retrospeed_factor") else 1.0
-                    await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
-            logger.info("web rdisplay: %s", rdisplay)
+                dgtmenu.engine_retrodisplay = rdisplay
+                dgtmenu.res_engine_retrodisplay = rdisplay
+                dgtmenu.engine_retrodisplay_onoff = rdisplay
+            write_picochess_ini("rdisplay", rdisplay)
+            logger.info("web rdisplay setting saved: %s", rdisplay)
 
 
 class EventHandler(WebSocketHandler):

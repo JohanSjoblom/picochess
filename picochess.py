@@ -1176,6 +1176,7 @@ async def main() -> None:
     # Launch web server
     if args.web_server_port:
         my_web_server = WebServer()
+        shared["dgtmenu"] = state.dgtmenu
         shared["tutor_watch_active"] = bool(
             state.dgtmenu.get_picowatcher() or state.dgtmenu.get_picocoach() != PicoCoach.COACH_OFF
         )

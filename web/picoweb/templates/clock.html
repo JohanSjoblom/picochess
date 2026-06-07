@@ -667,7 +667,7 @@
                         <div id="menuButtons" style="display:none;"></div>
 
                         <!-- ── MOVE LIST ─────────────────────────────────── -->
-                        <div class="row flex-grow-1 min-h-0" id="row-movelist">
+                        <div class="row min-h-0" id="row-movelist">
                             <div class="card h-100">
                                 <div class="scroll_movelist h-100" id="moveList">
                                     <div class="card-body">
@@ -677,7 +677,7 @@
                             </div>
                         </div>
 
-                        <div class="row">
+                        <div class="row min-h-0" id="row-tabs">
                             <div id="data" class="card">
                                 <div class="card-header">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -723,17 +723,34 @@
                                                 </div>
                                                 <div id="engineStatus"></div>
 
+                                                <div class="analysis-toolbar" aria-label="Analysis controls">
+                                                    <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary analysis-toolbar-btn" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
+                                                        <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
+                                                    </button>
+                                                    <span class="analysis-control-set">
+                                                        <span class="analysis-control-label">Pico</span>
+                                                        <button id="engineToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
+                                                    </span>
+                                                    <span class="analysis-control-set">
+                                                        <span class="analysis-control-label">Web</span>
+                                                        <span class="btn-group btn-group-xs" id="sf18PmGroup" style="display:none">
+                                                            <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn" aria-label="Fewer lines">
+                                                                <i class="fa fa-minus" aria-hidden="true"></i>
+                                                            </button>
+                                                            <button id="analyzePlus" class="btn btn-sm btn-primary book-switch-btn" aria-label="More lines">
+                                                                <i class="fa fa-plus" aria-hidden="true"></i>
+                                                            </button>
+                                                        </span>
+                                                        <button id="sf18ToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
+                                                    </span>
+                                                </div>
+
                                                 <!-- Server engine analysis (static structure, JS updates content) -->
                                                 <div class="pv-two-row" id="engineRow" aria-live="polite">
                                                     <div class="pv-header">
                                                         <span class="engine-name-badge" id="engineNameBadge">Pico</span>
                                                         <span class="backend-source-badge engine-source" id="backendAnalysisSourceBadge" title="Pico backend analysis source: selected engine">E</span>
-                                                        <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
-                                                            <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
-                                                        </button>
                                                         <div id="engineMeta"></div>
-                                                        <div class="pv-spacer"></div>
-                                                        <button id="engineToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
                                                     </div>
                                                     <div id="enginePvBody" class="pv-body"></div>
                                                 </div>
@@ -743,18 +760,8 @@
                                                 <!-- SF18 analysis (static header, JS updates content + extra PVs) -->
                                                 <div class="pv-two-row" id="sf18Row">
                                                     <div class="pv-header">
-                                                        <span class="engine-name-badge">Web client Stockfish 18</span>
+                                                        <span class="engine-name-badge" title="Web client Stockfish 18">Web Stockfish 18</span>
                                                         <div id="sf18Meta"></div>
-                                                        <div class="pv-spacer"></div>
-                                                        <div class="btn-group btn-group-xs" id="sf18PmGroup" style="display:none">
-                                                            <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn" aria-label="Fewer lines">
-                                                                <i class="fa fa-minus" aria-hidden="true"></i>
-                                                            </button>
-                                                            <button id="analyzePlus" class="btn btn-sm btn-primary book-switch-btn" aria-label="More lines">
-                                                                <i class="fa fa-plus" aria-hidden="true"></i>
-                                                            </button>
-                                                        </div>
-                                                        <button id="sf18ToggleBtn" class="btn btn-sm btn-primary">SHOW</button>
                                                     </div>
                                                     <div id="sf18Pv1Body" class="pv-body"></div>
                                                 </div>

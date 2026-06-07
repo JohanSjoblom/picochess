@@ -266,6 +266,7 @@ div.dataTables_wrapper div.dataTables_length select {
 
 #data {
     margin-top: 10px;
+    width: 100%;
 }
 
 /* Igualar altura de columnas - Sistema responsive universal */
@@ -795,6 +796,7 @@ td.result {
     align-items: center;
     gap: 0.35rem;
     flex-wrap: nowrap;
+    min-width: 0;
 }
 
 .pv-body {
@@ -802,7 +804,8 @@ td.result {
     flex-direction: row;
     align-items: baseline;
     gap: 0.3rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
 }
 
 /* Engine / source name — plain bold label, no pill */
@@ -812,7 +815,10 @@ td.result {
     font-weight: 600;
     color: var(--bs-body-color, #212529);
     white-space: nowrap;
-    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
 }
 
 .backend-source-badge {
@@ -838,6 +844,37 @@ td.result {
 /* Rubber spacer: pushes buttons to the right in pv-header */
 .pv-spacer {
     flex: 1;
+}
+
+.analysis-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    padding: 0.25rem 0.5rem 0.35rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px solid rgba(var(--bs-body-color-rgb, 33, 37, 41), 0.14);
+}
+
+.analysis-control-set {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.analysis-control-label {
+    color: var(--bs-secondary-color, #6c757d);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.analysis-toolbar-btn,
+.analysis-toolbar .book-switch-btn {
+    min-height: 36px;
+    touch-action: manipulation;
 }
 
 /* Small move-number label in server analysis header */
@@ -1335,11 +1372,11 @@ piece {
 }
 
 #row-clock   { flex: 0 0 auto; }
-#row-tabs    { flex: 1 1 35%; min-height: 0; display: flex; flex-direction: column; }
+#row-tabs    { flex: 1.35 1 48%; min-height: 0; display: flex; flex-direction: column; }
 #row-remote  { flex: 0 0 auto; }
 
 #row-movelist {
-    flex: 1 1 40%;
+    flex: 0.8 1 30%;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -1377,6 +1414,82 @@ piece {
 #row-tabs .tab-pane.show.active {
     height: 100%;
     overflow-y: auto;
+}
+
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 770px) {
+    #row-movelist {
+        flex: 0 1 128px;
+        max-height: 128px;
+    }
+
+    #row-tabs {
+        flex: 1 1 0;
+        min-height: 320px;
+    }
+
+    #data {
+        margin-top: 2px;
+    }
+
+    #data.card {
+        min-height: 320px;
+    }
+
+    #data .card-header {
+        padding: 3px;
+    }
+
+    #data .card-body {
+        padding: 4px 5px;
+    }
+
+    #row-movelist .scroll_movelist {
+        margin-top: 2px;
+        margin-bottom: 2px;
+    }
+
+    .scroll_engine {
+        max-height: none;
+        height: 100%;
+    }
+
+    .analysis-toolbar {
+        padding: 0.2rem 0.35rem 0.25rem;
+        gap: 0.3rem;
+    }
+
+    .analysis-toolbar-btn,
+    .analysis-toolbar .book-switch-btn {
+        min-height: 34px;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .pv-two-row {
+        padding: 0.25rem 0.35rem;
+        gap: 0.15rem;
+    }
+
+    .pv-header {
+        gap: 0.25rem;
+    }
+
+    #engineRow .score-display,
+    #sf18Row .score-display,
+    #pv_output .score-display,
+    #engineRow .depth-display,
+    #sf18Row .depth-display,
+    #pv_output .depth-display {
+        font-size: 0.88rem;
+    }
+
+    #engineRow .first-move,
+    #sf18Row .first-move,
+    #pv_output .first-move,
+    #engineRow .continuation-moves,
+    #sf18Row .continuation-moves,
+    #pv_output .continuation-moves {
+        font-size: 1rem;
+    }
 }
 
 /* ── PICO CONTEXT MENU OVERLAY ─────────────────────────────── */
@@ -1950,7 +2063,25 @@ html[data-theme="dark"] .analysis-sources .first-move {
 }
 
 html[data-theme="dark"] .engine-name-badge {
-    color: var(--bs-body-color, #dee2e6);
+    color: #dee2e6 !important;
+}
+
+html[data-theme="dark"] .backend-source-badge {
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #f1f3f5;
+}
+
+html[data-theme="dark"] .backend-source-badge.tutor-source {
+    border-color: rgba(139, 171, 224, 0.75);
+    color: #9ec5fe;
+}
+
+html[data-theme="dark"] .analysis-toolbar {
+    border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+html[data-theme="dark"] .analysis-control-label {
+    color: rgba(255, 255, 255, 0.72);
 }
 
 html[data-theme="dark"] #pico-footer {

@@ -879,7 +879,39 @@ td.result {
 .analysis-toolbar-btn,
 .analysis-toolbar .book-switch-btn {
     min-height: 36px;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
     touch-action: manipulation;
+}
+
+#tutorWatchBtn.analysis-toolbar-btn {
+    min-width: 48px;
+}
+
+@media (max-width: 480px) {
+    .analysis-toolbar {
+        gap: 0.25rem;
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
+    }
+
+    .analysis-control-set {
+        gap: 0.18rem;
+    }
+
+    .analysis-control-label {
+        font-size: 0.75rem;
+    }
+
+    .analysis-toolbar-btn,
+    .analysis-toolbar .book-switch-btn {
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
+    }
+
+    #tutorWatchBtn.analysis-toolbar-btn {
+        min-width: 44px;
+    }
 }
 
 /* Small move-number label in server analysis header */

@@ -776,10 +776,11 @@ td.result {
 .pv-extra-line {
     display: flex;
     flex-direction: row;
-    align-items: center;
+    align-items: baseline;
     gap: 0.35rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     padding: 0.15rem 0.5rem;
+    min-width: 0;
 }
 
 /* Two-row PV item layout (server engine + SF18) */

@@ -1633,14 +1633,13 @@ function formatEngineOutput(line) {
             scoreClass += ' score-negative';
         }
 
-        // Build score/depth meta HTML. The first Web line shows the depth; extra
-        // MultiPV lines omit it because all Web lines are from the same search.
+        // Build score/depth HTML. The Web header shows depth once; every PV line
+        // uses the same compact score + move layout.
         var scoreHtml = '';
         if (score !== null) {
             scoreHtml = '<span class="' + scoreClass + '">' + score + '</span>';
         }
         var depthHtml = '<span class="depth-display">d' + depth + '</span>';
-        var metaHtml = scoreHtml + depthHtml;
 
         // Build PV body HTML
         var bodyHtml = '';
@@ -1675,18 +1674,16 @@ function formatEngineOutput(line) {
 
         analysis_game = null;
 
-        if (multipv === 1) {
-            // First PV: update the static SF18 row elements directly
-            updateEvaluationBar(score);
-            return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
-        }
-
-        // Extra PV lines (pv_2+): keep them compact and avoid repeating the
-        // Web source headline or depth badge for every MultiPV result.
+        // Keep all Web PV lines compact and avoid repeating the Web source
+        // headline or depth badge for every MultiPV result.
         output = '<div class="pv-extra-line">';
         output += scoreHtml;
         output += bodyHtml;
         output += '</div>';
+        if (multipv === 1) {
+            updateEvaluationBar(score);
+            return { meta: depthHtml, line: output, pv_index: 1 };
+        }
         return { line: output, pv_index: multipv };
     }
     else if (line.search('currmove') < 0 && line.search('time') < 0) {
@@ -1803,7 +1800,7 @@ function analyzePressed() {
         $('#evaluationBar').css('visibility', 'visible');
     } else {
         $('#evaluationBar').css('visibility', 'hidden');
-        // Clear extra PV lines; pv_1 body is static HTML in sf18Row
+        // Clear extra PV containers; pv_1 lives in the static SF18 row.
         $('#pv_output').empty();
         for (var i = 2; i <= window.multipv; i++) {
             $('#pv_output').append('<div id="pv_' + i + '" class="pv-container"></div>');
@@ -1831,12 +1828,13 @@ function handleMessage(event) {
     if (!event || !event.data) return;
     var output = formatEngineOutput(event.data);
     if (output && output.pv_index === 1) {
-        // Update the static SF18 first-PV row
+        // Update the static SF18 first-PV row with the same compact PV layout
+        // used for additional Web MultiPV rows.
         setAnalysisRowVisible('sf18Row', true);
         var metaEl = document.getElementById('sf18Meta');
         var bodyEl = document.getElementById('sf18Pv1Body');
         if (metaEl) metaEl.innerHTML = output.meta || '';
-        if (bodyEl) bodyEl.innerHTML = output.body || '';
+        if (bodyEl) bodyEl.innerHTML = output.line || '';
     } else if (output && output.pv_index > 1) {
         $('#pv_' + output.pv_index).html(output.line);
     }

@@ -783,6 +783,11 @@ td.result {
     min-width: 0;
 }
 
+#sf18Pv1Body > .pv-extra-line {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 /* Two-row PV item layout (server engine + SF18) */
 .pv-two-row {
     display: flex;

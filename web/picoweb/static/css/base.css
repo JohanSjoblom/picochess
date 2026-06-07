@@ -791,6 +791,10 @@ td.result {
     padding: 0.35rem 0.5rem;
 }
 
+.analysis-row-collapsed {
+    display: none !important;
+}
+
 .pv-header {
     display: flex;
     flex-direction: row;
@@ -1449,9 +1453,49 @@ piece {
         margin-bottom: 2px;
     }
 
+    #right-panel.analysis-rows-none #row-movelist,
+    #right-panel.analysis-rows-one #row-movelist {
+        flex: 1 1 auto;
+        max-height: none;
+    }
+
+    #right-panel.analysis-rows-none #row-tabs {
+        flex: 0 0 auto;
+        min-height: 0;
+    }
+
+    #right-panel.analysis-rows-one #row-tabs {
+        flex: 0 0 auto;
+        min-height: 145px;
+    }
+
+    #right-panel.analysis-rows-none #data.card,
+    #right-panel.analysis-rows-one #data.card {
+        min-height: 0;
+    }
+
+    #right-panel.analysis-rows-none #row-tabs .card,
+    #right-panel.analysis-rows-one #row-tabs .card {
+        flex: 0 0 auto;
+    }
+
+    #right-panel.analysis-rows-none #data .card-body,
+    #right-panel.analysis-rows-one #data .card-body,
+    #right-panel.analysis-rows-none #data .tab-content,
+    #right-panel.analysis-rows-one #data .tab-content,
+    #right-panel.analysis-rows-none #data .tab-pane,
+    #right-panel.analysis-rows-one #data .tab-pane {
+        height: auto !important;
+    }
+
     .scroll_engine {
         max-height: none;
         height: 100%;
+    }
+
+    #right-panel.analysis-rows-none .scroll_engine,
+    #right-panel.analysis-rows-one .scroll_engine {
+        height: auto;
     }
 
     .analysis-toolbar {

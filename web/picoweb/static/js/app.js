@@ -1830,6 +1830,7 @@ function handleMessage(event) {
     var output = formatEngineOutput(event.data);
     if (output && output.pv_index === 1) {
         // Update the static SF18 first-PV row
+        setAnalysisRowVisible('sf18Row', true);
         var metaEl = document.getElementById('sf18Meta');
         var bodyEl = document.getElementById('sf18Pv1Body');
         if (metaEl) metaEl.innerHTML = output.meta || '';
@@ -1917,6 +1918,7 @@ function analyze(position_update) {
     if (!position_update) {
         if (!window.analysis) {
             window.analysis = true;
+            setAnalysisRowVisible('sf18Row', true);
             var sf18Btn = document.getElementById('sf18ToggleBtn');
             if (sf18Btn) sf18Btn.textContent = 'HIDE';
             updateSF18PmButtons();
@@ -2236,6 +2238,7 @@ function updateBackendAnalysisLine(analysis) {
         setEngineLinePlaceholder();
         return;
     }
+    setAnalysisRowVisible('engineRow', true);
     updateBackendAnalysisSourceBadge(analysis.source);
     var scoreText = '?';
     if (analysis.mate) {
@@ -2362,6 +2365,30 @@ function updateAnalysisClock(analysis) {
     if (line) dgtClockTextEl.html(line);
 }
 
+function setAnalysisRowVisible(rowId, visible) {
+    var row = document.getElementById(rowId);
+    if (row) row.classList.toggle('analysis-row-collapsed', !visible);
+    updateAnalysisRowSeparator();
+}
+
+function updateAnalysisRowSeparator() {
+    var separator = document.getElementById('analysisRowSeparator');
+    var engineRow = document.getElementById('engineRow');
+    var sf18Row = document.getElementById('sf18Row');
+    var rightPanel = document.getElementById('right-panel');
+    if (!separator || !engineRow || !sf18Row) return;
+    var engineVisible = !engineRow.classList.contains('analysis-row-collapsed');
+    var sf18Visible = !sf18Row.classList.contains('analysis-row-collapsed');
+    var visibleRows = (engineVisible ? 1 : 0) + (sf18Visible ? 1 : 0);
+    var bothVisible = visibleRows === 2;
+    separator.classList.toggle('analysis-row-collapsed', !bothVisible);
+    if (rightPanel) {
+        rightPanel.classList.toggle('analysis-rows-none', visibleRows === 0);
+        rightPanel.classList.toggle('analysis-rows-one', visibleRows === 1);
+        rightPanel.classList.toggle('analysis-rows-two', visibleRows === 2);
+    }
+}
+
 // Clear engine analysis content; reset button to SHOW.
 function setEngineLinePlaceholder() {
     var metaEl = document.getElementById('engineMeta');
@@ -2370,6 +2397,7 @@ function setEngineLinePlaceholder() {
     if (metaEl) metaEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
     if (btn)    btn.textContent = 'SHOW';
+    setAnalysisRowVisible('engineRow', false);
 }
 
 function updateBackendAnalysisSourceBadge(source) {
@@ -2408,6 +2436,7 @@ function setSF18Placeholder() {
     if (metaEl) metaEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
     if (btn)    btn.textContent = 'SHOW';
+    setAnalysisRowVisible('sf18Row', false);
     // Clear extra PV lines
     $('#pv_output').empty();
     updateSF18PmButtons();
@@ -3011,6 +3040,7 @@ $(function () {
                 updateBackendAnalysisLine(lastServerAnalysis);
             } else {
                 // No data yet — show HIDE so user knows it's active
+                setAnalysisRowVisible('engineRow', true);
                 var btn = document.getElementById('engineToggleBtn');
                 if (btn) btn.textContent = 'HIDE';
             }

@@ -142,6 +142,19 @@ explicitly requires it.
 - Read and display backend tutor state when the web client opens, and keep it in
   sync via websocket updates.
 
+## ANALYSES Tab CPU
+
+- The web-client Stockfish row is browser-side analysis and is separate from
+  Picochess backend analysis.
+- On localhost, only one web-client Stockfish analysis line may run, and hiding
+  the Web row must stop the browser Stockfish worker/module so it does not
+  compete with the Picochess service for CPU.
+- Remote web clients may expose multiple Web Stockfish MultiPV rows, but hiding
+  Web analysis should still stop browser Stockfish rather than only hiding its
+  output.
+- Do not start or restart browser Stockfish from position updates unless the Web
+  analysis toggle is active.
+
 ## System Audio Design
 
 - There are two web audio sources:

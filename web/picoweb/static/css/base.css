@@ -1201,6 +1201,21 @@ piece {
     touch-action: manipulation;
 }
 
+@media (max-width: 768px) and (orientation: portrait) {
+    html.is-remote-web-client .clock-control-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    html.is-remote-web-client .clock-control-spacer {
+        display: none;
+    }
+
+    html.is-remote-web-client .clock-control-main {
+        justify-content: flex-start;
+        min-width: 0;
+    }
+}
+
 .pico-clock-action:hover,
 .pico-clock-action:focus-visible {
     background: rgba(128, 128, 128, 0.16);

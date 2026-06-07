@@ -55,6 +55,8 @@ function isLocalWebClient() {
 
 function updateWebAudioMuteButtonVisibility() {
     const isRemoteClient = !isLocalWebClient();
+    document.documentElement.classList.toggle('is-remote-web-client', isRemoteClient);
+    document.documentElement.classList.toggle('is-local-web-client', !isRemoteClient);
     const pgnActions = $('#clockPgnActions');
     if (isRemoteClient) {
         pgnActions.addClass('is-visible').css('display', '');

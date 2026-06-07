@@ -725,7 +725,7 @@
 
                                                 <div class="analysis-toolbar" aria-label="Analysis controls">
                                                     <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary analysis-toolbar-btn" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
-                                                        <i class="fa fa-eye-slash" aria-hidden="true"></i><span>Tutor</span>
+                                                        <i class="fa fa-eye-slash" aria-hidden="true"></i><span>T</span>
                                                     </button>
                                                     <span class="analysis-control-set">
                                                         <span class="analysis-control-label">Pico</span>
@@ -966,11 +966,11 @@
                         tutorWatchActive = Boolean(active);
                         if (tutorWatchActive) {
                             tutorWatchBtn.classList.add('active');
-                            tutorWatchSpan.innerHTML = 'Tutor';
+                            tutorWatchSpan.innerHTML = 'T';
                             tutorWatchIcon.className = 'fa fa-eye';
                         } else {
                             tutorWatchBtn.classList.remove('active');
-                            tutorWatchSpan.innerHTML = 'Tutor';
+                            tutorWatchSpan.innerHTML = 'T';
                             tutorWatchIcon.className = 'fa fa-eye-slash';
                         }
                     }

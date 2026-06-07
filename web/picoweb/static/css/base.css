@@ -1418,13 +1418,13 @@ piece {
 
 @media (min-width: 1000px) and (max-width: 1100px) and (max-height: 770px) {
     #row-movelist {
-        flex: 0 1 128px;
-        max-height: 128px;
+        flex: 0 1 220px;
+        max-height: 220px;
     }
 
     #row-tabs {
         flex: 1 1 0;
-        min-height: 320px;
+        min-height: 230px;
     }
 
     #data {
@@ -1432,7 +1432,7 @@ piece {
     }
 
     #data.card {
-        min-height: 320px;
+        min-height: 230px;
     }
 
     #data .card-header {

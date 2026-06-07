@@ -1631,12 +1631,14 @@ function formatEngineOutput(line) {
             scoreClass += ' score-negative';
         }
 
-        // Build score+depth meta HTML (shared for pv_1 update and pv_2+ header)
-        var metaHtml = '';
+        // Build score/depth meta HTML. The first Web line shows the depth; extra
+        // MultiPV lines omit it because all Web lines are from the same search.
+        var scoreHtml = '';
         if (score !== null) {
-            metaHtml += '<span class="' + scoreClass + '">' + score + '</span>';
+            scoreHtml = '<span class="' + scoreClass + '">' + score + '</span>';
         }
-        metaHtml += '<span class="depth-display">d' + depth + '</span>';
+        var depthHtml = '<span class="depth-display">d' + depth + '</span>';
+        var metaHtml = scoreHtml + depthHtml;
 
         // Build PV body HTML
         var bodyHtml = '';
@@ -1677,13 +1679,11 @@ function formatEngineOutput(line) {
             return { meta: metaHtml, body: bodyHtml, pv_index: 1 };
         }
 
-        // Extra PV lines (pv_2+): same two-row layout as pv_1 but without buttons
-        output = '<div class="pv-two-row">';
-        output += '<div class="pv-header">';
-        output += '<span class="engine-name-badge">Web client Stockfish 18</span>';
-        output += metaHtml;
-        output += '</div>';
-        output += '<div class="pv-body">' + bodyHtml + '</div>';
+        // Extra PV lines (pv_2+): keep them compact and avoid repeating the
+        // Web source headline or depth badge for every MultiPV result.
+        output = '<div class="pv-extra-line">';
+        output += scoreHtml;
+        output += bodyHtml;
         output += '</div>';
         return { line: output, pv_index: multipv };
     }

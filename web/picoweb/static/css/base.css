@@ -1206,6 +1206,14 @@ piece {
     touch-action: manipulation;
 }
 
+@media (min-width: 769px) and (orientation: landscape) {
+    .clock-control-main .pico-clock-action {
+        width: 4rem;
+        height: 2.85rem;
+        font-size: 1.25rem;
+    }
+}
+
 @media (max-width: 768px) and (orientation: portrait) {
     html.is-remote-web-client .clock-control-row {
         grid-template-columns: minmax(0, 1fr) auto;

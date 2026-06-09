@@ -155,6 +155,26 @@ explicitly requires it.
 - Do not start or restart browser Stockfish from position updates unless the Web
   analysis toggle is active.
 
+## ANALYSES Tab SHOW/HIDE State
+
+- Treat the ANALYSES tab row visibility as shared UI state, not as independent
+  CSS tweaks. The Pico backend row, Web Stockfish row, separator, and
+  `#right-panel` sizing classes must stay synchronized.
+- Use the existing row helpers in `web/picoweb/static/js/app.js`:
+  `setAnalysisRowVisible()`, `updateAnalysisRowSeparator()`,
+  `setEngineLinePlaceholder()`, and `setSF18Placeholder()`.
+- Do not hide or show `#engineRow`, `#sf18Row`, or `#analysisRowSeparator`
+  directly with ad hoc jQuery/CSS unless those helpers are also updated.
+- When a row is hidden, also clear its stale content and reset its button text
+  to `SHOW`. When a row is shown by fresh data or by an explicit user click, set
+  the corresponding button text to `HIDE`.
+- Keep `analysis-rows-none`, `analysis-rows-one`, and `analysis-rows-two` on
+  `#right-panel` as the single source for letting the PGN move list reclaim
+  space when analysis rows are collapsed.
+- The Web Stockfish SHOW/HIDE button also controls browser CPU usage. Hiding Web
+  analysis must call the path that stops the browser Stockfish worker/module; it
+  must not merely hide the DOM row.
+
 ## System Audio Design
 
 - There are two web audio sources:

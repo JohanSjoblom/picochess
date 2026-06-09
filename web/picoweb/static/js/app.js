@@ -2038,7 +2038,9 @@ function updateTutorMistakes(mistakes) {
         var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
         entry.innerHTML = moveText + ' \u2014 CPL: ' + item.cpl + ', best: ' + figBest;
         if (item.halfmove) {
-            entry.dataset.halfmove = item.halfmove;
+            var mistakeHalfmove = parseInt(item.halfmove, 10);
+            var targetHalfmove = mistakeHalfmove > 2 ? mistakeHalfmove - 1 : mistakeHalfmove;
+            entry.dataset.halfmove = targetHalfmove;
             entry.addEventListener('click', function () {
                 goToHalfmove(entry.dataset.halfmove);
             });

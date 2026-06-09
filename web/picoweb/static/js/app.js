@@ -2019,17 +2019,43 @@ function forcePosition(fen) {
 function formatTutorMistakeImpact(item) {
     var loss = item.centipawn_loss !== undefined ? item.centipawn_loss : item.cpl;
     var lossValue = parseInt(loss, 10);
+    var parts = [];
     if (!Number.isNaN(lossValue) && lossValue > 0) {
-        return 'loss: ' + lossValue + ' cp';
+        var lossClass = 'tutor-loss-display ';
+        if (lossValue < 30) {
+            lossClass += 'tutor-loss-good';
+        } else if (lossValue < 50) {
+            lossClass += 'tutor-loss-warn';
+        } else {
+            lossClass += 'tutor-loss-bad';
+        }
+        parts.push('loss: <span class="' + lossClass + '" title="Centipawns lost by the chosen move">' + lossValue + ' cp</span>');
     }
+
+    var scoreText = null;
     var mateValue = parseInt(item.mate, 10);
     if (!Number.isNaN(mateValue) && mateValue !== 0) {
-        return 'score: #' + mateValue;
+        scoreText = '#' + mateValue;
+    } else {
+        var scoreValue = parseInt(item.score, 10);
+        if (!Number.isNaN(scoreValue)) {
+            var score = scoreValue / 100.0;
+            scoreText = (score > 0 ? '+' : '') + score.toFixed(2);
+        }
     }
-    var scoreValue = parseInt(item.score, 10);
-    if (!Number.isNaN(scoreValue)) {
-        var score = scoreValue / 100.0;
-        return 'score: ' + (score > 0 ? '+' : '') + score.toFixed(2);
+    if (scoreText !== null) {
+        var scoreClass = 'score-display';
+        if (String(scoreText).includes('#')) {
+            scoreClass += ' score-mate';
+        } else if (parseFloat(scoreText) > 0) {
+            scoreClass += ' score-positive';
+        } else if (parseFloat(scoreText) < 0) {
+            scoreClass += ' score-negative';
+        }
+        parts.push('after: <span class="' + scoreClass + '" title="Score after the mistake move">' + scoreText + '</span>');
+    }
+    if (parts.length > 0) {
+        return parts.join(', ');
     }
     return 'impact: ?';
 }

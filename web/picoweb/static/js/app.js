@@ -2060,6 +2060,55 @@ function formatTutorMistakeImpact(item) {
     return 'impact: ?';
 }
 
+function hasDefinitiveGameResult() {
+    var result = String((gameHistory && gameHistory.result) || '').trim();
+    return result === '1-0' || result === '0-1' || result === '1/2-1/2';
+}
+
+function canReviewTutorMistakes() {
+    var sysInfo = window._picoSystemInfo || {};
+    if (Object.prototype.hasOwnProperty.call(sysInfo, 'game_started')) {
+        return !Boolean(sysInfo.game_started);
+    }
+    return hasDefinitiveGameResult();
+}
+
+function updateTutorMistakeReviewButtons() {
+    var enabled = canReviewTutorMistakes();
+    var buttons = document.querySelectorAll('.tutor-mistake-analysis-btn');
+    buttons.forEach(function (button) {
+        button.hidden = !enabled;
+        button.disabled = !enabled;
+    });
+}
+
+window.updateTutorMistakeReviewButtons = updateTutorMistakeReviewButtons;
+
+function showAnalysesTab() {
+    var tabButton = document.getElementById('pills-home-tab');
+    if (!tabButton) {
+        return;
+    }
+    if (window.bootstrap && bootstrap.Tab) {
+        bootstrap.Tab.getOrCreateInstance(tabButton).show();
+    } else {
+        tabButton.click();
+    }
+}
+
+function reviewTutorMistake(halfmove) {
+    if (!canReviewTutorMistakes()) {
+        return;
+    }
+    if (!goToHalfmove(halfmove)) {
+        return;
+    }
+    showAnalysesTab();
+    if (!window.analysis) {
+        analyzePressed();
+    }
+}
+
 function updateTutorMistakes(mistakes) {
     var listEl = document.getElementById('tutorMistakeList');
     if (!listEl) {
@@ -2088,9 +2137,23 @@ function updateTutorMistakes(mistakes) {
             entry.addEventListener('click', function () {
                 goToHalfmove(entry.dataset.halfmove);
             });
+            var reviewButton = document.createElement('button');
+            reviewButton.type = 'button';
+            reviewButton.className = 'tutor-mistake-analysis-btn';
+            reviewButton.textContent = 'A';
+            reviewButton.title = 'Review this mistake with Web analysis';
+            reviewButton.setAttribute('aria-label', 'Review this mistake with Web analysis');
+            reviewButton.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                reviewTutorMistake(entry.dataset.halfmove);
+            });
+            entry.appendChild(document.createTextNode(' '));
+            entry.appendChild(reviewButton);
         }
         listEl.appendChild(entry);
     });
+    updateTutorMistakeReviewButtons();
     var container = listEl.parentElement;
     if (container) {
         container.scrollTop = container.scrollHeight;

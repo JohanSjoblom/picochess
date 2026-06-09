@@ -333,6 +333,27 @@ td.result {
     background-color: rgba(0, 123, 255, 0.1);
 }
 
+.tutor-mistake-analysis-btn {
+    border: 0;
+    border-radius: 8px;
+    min-width: 34px;
+    padding: 2px 10px;
+    margin-left: 4px;
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.tutor-mistake-analysis-btn:hover {
+    background: linear-gradient(135deg, #0069d9, #004085);
+}
+
+.tutor-mistake-analysis-btn:disabled {
+    opacity: 0.45;
+}
+
 .tutor-loss-display {
     color: white;
     padding: 2px 6px;

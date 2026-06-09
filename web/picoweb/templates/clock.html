@@ -3528,6 +3528,9 @@
                     updateTileStates();
                     updateGameSubpanel();
                 }
+                if (window.updateTutorMistakeReviewButtons) {
+                    window.updateTutorMistakeReviewButtons();
+                }
             };
 
             window.setPicoEngineTurn = function(active) {

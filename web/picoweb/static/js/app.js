@@ -2016,6 +2016,24 @@ function forcePosition(fen) {
     updateStatus();
 }
 
+function formatTutorMistakeImpact(item) {
+    var loss = item.centipawn_loss !== undefined ? item.centipawn_loss : item.cpl;
+    var lossValue = parseInt(loss, 10);
+    if (!Number.isNaN(lossValue) && lossValue > 0) {
+        return 'loss: ' + lossValue + ' cp';
+    }
+    var mateValue = parseInt(item.mate, 10);
+    if (!Number.isNaN(mateValue) && mateValue !== 0) {
+        return 'score: #' + mateValue;
+    }
+    var scoreValue = parseInt(item.score, 10);
+    if (!Number.isNaN(scoreValue)) {
+        var score = scoreValue / 100.0;
+        return 'score: ' + (score > 0 ? '+' : '') + score.toFixed(2);
+    }
+    return 'impact: ?';
+}
+
 function updateTutorMistakes(mistakes) {
     var listEl = document.getElementById('tutorMistakeList');
     if (!listEl) {
@@ -2036,7 +2054,7 @@ function updateTutorMistakes(mistakes) {
         var figUser = figurinizeMove(item.user_move) || (item.user_move || '');
         var figBest = figurinizeMove(item.best_move) || (item.best_move || '');
         var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
-        entry.innerHTML = moveText + ' \u2014 CPL: ' + item.cpl + ', best: ' + figBest;
+        entry.innerHTML = moveText + ' \u2014 ' + formatTutorMistakeImpact(item) + ', best: ' + figBest;
         if (item.halfmove) {
             var mistakeHalfmove = parseInt(item.halfmove, 10);
             var targetHalfmove = mistakeHalfmove > 2 ? mistakeHalfmove - 1 : mistakeHalfmove;

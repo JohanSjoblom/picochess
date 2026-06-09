@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import AsyncMock, Mock
 
+import chess
+import chess.pgn
+
 from picotutor import PicoTutor
 from uci.engine import UciShell
 
@@ -32,6 +35,37 @@ class TestPicotutor(unittest.TestCase):
 
         opening_name, _, _ = tutor._find_longest_matching_opening("e4 e5")
         self.assertEqual(opening_name, "Open Game")
+
+    def test_get_eval_mistakes_includes_impact_metadata(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        move = chess.Move.from_uci("e2e4")
+        tutor.evaluated_moves = {
+            (1, move, chess.BLACK): {
+                "CPL": 126.4,
+                "score": -84,
+                "mate": -3,
+                "user_move": "e4",
+                "best_move": "Nf3",
+                "nag": chess.pgn.NAG_MISTAKE,
+            }
+        }
+
+        self.assertEqual(
+            tutor.get_eval_mistakes(),
+            [
+                {
+                    "halfmove": 1,
+                    "move_no": "1.",
+                    "user_move": "e4",
+                    "best_move": "Nf3",
+                    "cpl": 126,
+                    "centipawn_loss": 126,
+                    "nag": "?",
+                    "score": -84,
+                    "mate": -3,
+                }
+            ],
+        )
 
 
 class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):

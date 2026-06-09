@@ -1280,16 +1280,21 @@ class PicoTutor:
             best_move = value.get("best_move")
             if not user_move or not best_move:
                 continue
-            mistakes.append(
-                {
-                    "halfmove": halfmove_nr,
-                    "move_no": PicoTutor.printable_move_filler(halfmove_nr, known_turn).strip(),
-                    "user_move": user_move,
-                    "best_move": best_move,
-                    "cpl": int(round(cpl_value)),
-                    "nag": PicoTutor.nag_to_symbol(value.get("nag")),
-                }
-            )
+            rounded_cpl = int(round(cpl_value))
+            mistake = {
+                "halfmove": halfmove_nr,
+                "move_no": PicoTutor.printable_move_filler(halfmove_nr, known_turn).strip(),
+                "user_move": user_move,
+                "best_move": best_move,
+                "cpl": rounded_cpl,
+                "centipawn_loss": rounded_cpl,
+                "nag": PicoTutor.nag_to_symbol(value.get("nag")),
+            }
+            if "score" in value:
+                mistake["score"] = value.get("score")
+            if "mate" in value:
+                mistake["mate"] = value.get("mate")
+            mistakes.append(mistake)
         mistakes.sort(key=lambda item: item["halfmove"])
         return mistakes
 

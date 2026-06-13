@@ -2068,6 +2068,10 @@ function updateDGTPosition(data) {
     }
 }
 
+function pgnTextHasMoves(pgnText) {
+    return typeof pgnText === 'string' && /\b\d+\s*\.(?:\.\.)?\s*\S/.test(pgnText);
+}
+
 function forcePosition(fen) {
     // For variant chess (e.g. atomic) the server sends the correct FEN but
     // chess.js has no variant support and computes a standard-rules FEN.
@@ -3005,12 +3009,19 @@ $(function () {
                         _tutorMoveActive = false;
                         clearBrainHint();
                         stopAnalysisClock();
-                        var savedGameHeader = gameHistory.gameHeader || '';
-                        newBoard(data.fen);
-                        gameHistory.gameHeader = savedGameHeader;
-                        // Clear the move list — newBoard() resets the game tree but
-                        // does not update the DOM, leaving the previous game's moves visible.
-                        writeVariationTree(pgnEl, '', gameHistory);
+                        if (pgnTextHasMoves(data.pgn)) {
+                            loadGame(data.pgn.split("\n"));
+                            if (!goToPosition(data.fen)) {
+                                forcePosition(data.fen);
+                            }
+                        } else {
+                            var savedGameHeader = gameHistory.gameHeader || '';
+                            newBoard(data.fen);
+                            gameHistory.gameHeader = savedGameHeader;
+                            // Clear the move list — newBoard() resets the game tree but
+                            // does not update the DOM, leaving the previous game's moves visible.
+                            writeVariationTree(pgnEl, '', gameHistory);
+                        }
                         updateTutorMistakes(data.mistakes);
                         updateCheckCounters(data.variant, data.checks);
                         // New board = no moves played yet

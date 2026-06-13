@@ -3,6 +3,8 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
+import chess
+
 from dgt.api import DgtApi, EventApi, Message
 from dgt.translate import DgtTranslate
 from dgt.util import Mode, PicoCoach, TimeMode
@@ -14,6 +16,7 @@ from server import (
     _clock_event,
     _coach_event_value,
     _coach_setting,
+    _board_from_web_pgn_prefix,
     _configured_engine_book_file,
     _display_text_from_label,
     _engine_book_choices,
@@ -23,6 +26,7 @@ from server import (
     _select_web_book,
     _time_control_text,
     _update_web_book_selection,
+    _validate_setup_position_fen,
     _web_book_choices,
 )
 from utilities import version as pico_version
@@ -273,3 +277,66 @@ class TestServerChannelAuth(unittest.TestCase):
             "scan_board",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)
+
+
+class TestServerSetPositionFromPgn(unittest.TestCase):
+    def test_web_pgn_prefix_reconstructs_selected_position_with_move_stack(self):
+        pgn_text = """[Event "Example"]
+[Site "?"]
+[Date "2026.06.12"]
+[Round "?"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 *
+"""
+        board = chess.Board()
+        for san in ("e4", "e5", "Nf3"):
+            board.push_san(san)
+
+        parsed, uci960 = _board_from_web_pgn_prefix(pgn_text, board.fen())
+
+        self.assertFalse(uci960)
+        self.assertEqual(board.fen(), parsed.fen())
+        self.assertEqual(3, len(parsed.move_stack))
+
+    def test_web_pgn_prefix_rejects_fen_mismatch(self):
+        pgn_text = """[Event "Example"]
+[Result "*"]
+
+1. e4 *
+"""
+        wrong_board = chess.Board()
+        wrong_board.push_san("d4")
+
+        with self.assertRaisesRegex(ValueError, "does not end at the selected FEN"):
+            _board_from_web_pgn_prefix(pgn_text, wrong_board.fen())
+
+    def test_chess960_fen_validation_uses_variant_hint(self):
+        board = chess.Board.from_chess960_pos(0)
+
+        parsed, uci960 = _validate_setup_position_fen(board.fen(), uci960_hint=True)
+
+        self.assertTrue(uci960)
+        self.assertTrue(parsed.is_valid())
+
+    def test_chess960_web_pgn_prefix_reconstructs_selected_position(self):
+        board = chess.Board.from_chess960_pos(0)
+        move = next(iter(board.legal_moves))
+        san = board.san(move)
+        board.push(move)
+        pgn_text = f"""[Event "Chess960"]
+[Variant "Chess960"]
+[SetUp "1"]
+[FEN "{chess.Board.from_chess960_pos(0).fen()}"]
+[Result "*"]
+
+1. {san} *
+"""
+
+        parsed, uci960 = _board_from_web_pgn_prefix(pgn_text, board.fen(), uci960_hint=True)
+
+        self.assertTrue(uci960)
+        self.assertEqual(board.fen(), parsed.fen())
+        self.assertEqual(1, len(parsed.move_stack))

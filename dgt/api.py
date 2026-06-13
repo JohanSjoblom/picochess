@@ -342,7 +342,7 @@ class Event:
     SET_OPENING_BOOK = ClassFactory(EventApi.SET_OPENING_BOOK, ["book", "book_text", "show_ok"])
     NEW_ENGINE = ClassFactory(EventApi.NEW_ENGINE, ["eng", "eng_text", "options", "show_ok"])
     SET_INTERACTION_MODE = ClassFactory(EventApi.SET_INTERACTION_MODE, ["mode", "mode_text", "show_ok"])
-    SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960"])
+    SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game"])
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])
     SET_TIME_CONTROL = ClassFactory(EventApi.SET_TIME_CONTROL, ["tc_init", "time_text", "show_ok"])

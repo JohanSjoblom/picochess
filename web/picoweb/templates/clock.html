@@ -1755,19 +1755,25 @@
                     navigateTo(showPositionCastlingGrid);
                 }));
 
-                // 5. Scan — one-shot
-                var scanTile = _pTile('📷', 'Scan', 'Read board & start', false, function() {
-                    _doPositionScan(scanTile);
-                });
-                gridEl.appendChild(scanTile);
+	                // 5. Scan — one-shot
+	                var scanTile = _pTile('📷', 'Scan', 'Get eboard pos', false, function() {
+	                    _doPositionScan(scanTile);
+	                });
+	                gridEl.appendChild(scanTile);
 
-                // 4 empty fillers
-                for (var _pi = 0; _pi < 4; _pi++) {
-                    var _pe = document.createElement('button');
-                    _pe.className = 'pico-sub-tile pico-empty-tile';
-                    _pe.setAttribute('aria-hidden', 'true'); _pe.tabIndex = -1;
-                    gridEl.appendChild(_pe);
-                }
+	                // 6. Set Pos — send the currently selected web/PGN position to backend
+	                var setPosTile = _pTile('🎯', 'Set Pos', 'Set eboard pos', false, function() {
+	                    _doSetPositionFromPgn(setPosTile);
+	                });
+	                gridEl.appendChild(setPosTile);
+
+	                // 3 empty fillers
+	                for (var _pi = 0; _pi < 3; _pi++) {
+	                    var _pe = document.createElement('button');
+	                    _pe.className = 'pico-sub-tile pico-empty-tile';
+	                    _pe.setAttribute('aria-hidden', 'true'); _pe.tabIndex = -1;
+	                    gridEl.appendChild(_pe);
+	                }
             }
 
             function showPositionCastlingGrid() {
@@ -1873,10 +1879,50 @@
                         tileEl.disabled = false;
                         setTimeout(function() { renderPositionTiles(); }, 2500);
                     }
-                });
-            }
+	                });
+	            }
 
-            function showPosition() {
+	            function _doSetPositionFromPgn(tileEl) {
+	                if (tileEl) {
+	                    var lEl = tileEl.querySelector('.pico-sub-tile-label');
+	                    var sEl = tileEl.querySelector('.pico-sub-tile-sub');
+	                    if (lEl) lEl.textContent = '⏳ Setting…';
+	                    if (sEl) sEl.textContent = 'Please wait';
+	                    tileEl.disabled = true;
+	                }
+	                if (typeof window.setPicoPositionFromCurrentPgn !== 'function') {
+	                    if (tileEl) {
+	                        var lMissing = tileEl.querySelector('.pico-sub-tile-label');
+	                        var sMissing = tileEl.querySelector('.pico-sub-tile-sub');
+	                        if (lMissing) lMissing.textContent = '⚠ Unavailable';
+	                        if (sMissing) sMissing.textContent = 'Reload web client';
+	                        tileEl.disabled = false;
+	                        setTimeout(function() { renderPositionTiles(); }, 2500);
+	                    }
+	                    return;
+	                }
+	                window.setPicoPositionFromCurrentPgn()
+	                    .done(function() {
+	                        var sub = document.getElementById('ovl-position-sub');
+	                        if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+	                        close();
+	                    })
+	                    .fail(function(jqXHR, textStatus, errorThrown) {
+	                        if (tileEl) {
+	                            var lEl = tileEl.querySelector('.pico-sub-tile-label');
+	                            var sEl = tileEl.querySelector('.pico-sub-tile-sub');
+	                            var response = jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.error
+	                                ? jqXHR.responseJSON.error
+	                                : (errorThrown || textStatus || 'Select PGN move');
+	                            if (lEl) lEl.textContent = '⚠ Set failed';
+	                            if (sEl) sEl.textContent = response;
+	                            tileEl.disabled = false;
+	                            setTimeout(function() { renderPositionTiles(); }, 2500);
+	                        }
+	                    });
+	            }
+
+	            function showPosition() {
                 showSubpanel('overlay-position');
                 var sp = document.getElementById('ovl-pos-sub-panel');
                 var mg = document.getElementById('ovl-pos-tile-grid');

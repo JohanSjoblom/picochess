@@ -5169,16 +5169,21 @@ async def main() -> None:
                                 mode=self.state.interaction_mode,
                             )
                         )
-                self.state.game = chess.Board(event.fen)  # check what uci960 should do here
+                event_game = getattr(event, "game", None)
+                if event_game is not None:
+                    self.state.game = event_game.copy(stack=True)
+                else:
+                    self.state.game = chess.Board(event.fen, chess960=uci960)
+                setup_fen = self.state.game.fen()
 
                 # Reset variant boards if active (new position = new state)
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
-                    self.state._threecheck_board.set_fen(event.fen)
+                    self.state._threecheck_board.set_fen(setup_fen)
                     self._update_variant_shared()
                 elif self.state.variant == "atomic" and self.state._atomic_board is not None:
-                    self.state._atomic_board.set_fen(event.fen)
+                    self.state._atomic_board.set_fen(setup_fen)
                 elif self.state.variant == "racingkings" and self.state._racingkings_board is not None:
-                    self.state._racingkings_board.set_fen(event.fen)
+                    self.state._racingkings_board.set_fen(setup_fen)
 
                 # see new_game
                 await self.stop_search_and_clock()

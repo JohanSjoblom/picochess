@@ -354,7 +354,7 @@ var _tutorMoveShownAt = 0;
 var _tutorMoveMinMs = 0;
 
 function showBrainHint(squares) {
-    var shapes = (squares || []).map(function(sq) {
+    var shapes = (squares || []).map(function (sq) {
         return { orig: sq, brush: 'green' };
     });
     chessground1.setShapes(shapes);
@@ -489,17 +489,17 @@ var bookDataTable = $('#BookTable').DataTable({
     }],
     'ajax': {
         'url': BOOK_SERVER_PREFIX + '/book',
-          'dataSrc': function (json) {
-              if (json && json.book) {
-                  updateBookHeader(json.book);
-              }
-              return (json && json.data) ? json.data : [];
-          },
-          'data': function (d) {
-              d.action = 'get_book_moves';
-              d.fen = dataTableFen;
-              d.book_index = currentWebBookIndex;
-          },
+        'dataSrc': function (json) {
+            if (json && json.book) {
+                updateBookHeader(json.book);
+            }
+            return (json && json.data) ? json.data : [];
+        },
+        'data': function (d) {
+            d.action = 'get_book_moves';
+            d.fen = dataTableFen;
+            d.book_index = currentWebBookIndex;
+        },
         'error': function (xhr, error, thrown) {
             // Silenciar errores de conexión a servidor de libros
         }
@@ -901,6 +901,61 @@ function exportGame(root_node, exporter, include_comments, include_variations, _
         exportGame(main_variation, exporter, include_comments, include_variations, _board, _after_variation);
         _board.undo();
     }
+}
+
+function cloneMainlineToNode(node) {
+    var path = [];
+    var cursor = node;
+    while (cursor && cursor.previous) {
+        path.unshift(cursor);
+        cursor = cursor.previous;
+    }
+    var root = {
+        fen: (cursor && cursor.fen) || setupBoardFen || START_FEN,
+        previous: null,
+        variations: []
+    };
+    var target = root;
+    for (var i = 0; i < path.length; i++) {
+        var source = path[i];
+        var copy = {
+            move: source.move,
+            previous: target,
+            nags: [],
+            variations: [],
+            half_move_num: source.half_move_num
+        };
+        target.variations = [copy];
+        target = copy;
+    }
+    return root;
+}
+
+function buildPgnPrefixForNode(node) {
+    if (!node) {
+        return '';
+    }
+    var headers = Object.assign({}, gameHistory.originalHeader || {});
+    headers.Result = '*';
+    if (setupBoardFen && setupBoardFen !== START_FEN) {
+        headers.SetUp = '1';
+        headers.FEN = setupBoardFen;
+    }
+    if (chessGameType === 1) {
+        headers.Variant = 'Chess960';
+    }
+    var headerText = getPgnGameHeader(headers);
+    var exporter = new PgnExporter();
+    var prefixRoot = cloneMainlineToNode(node);
+    var startsWithBlack = false;
+    try {
+        startsWithBlack = new Chess(prefixRoot.fen, chessGameType).turn() === 'b';
+    } catch (e) {
+        startsWithBlack = false;
+    }
+    exportGame(prefixRoot, exporter, false, false, undefined, startsWithBlack);
+    var moves = exporter.toString().trim();
+    return headerText + (moves ? moves + ' ' : '') + '*';
 }
 
 function writeVariationTree(dom, gameMoves, gameHistoryEl) {
@@ -1490,6 +1545,31 @@ function goToGameFen() {
     removeHighlights();
 }
 
+function setPositionFromCurrentPgn() {
+    var node = currentPosition;
+    if (!node || !node.fen) {
+        console.warn('No current PGN position selected');
+        return $.Deferred().reject({ responseJSON: { error: 'No PGN position selected' } }).promise();
+    }
+    var fen = node.fen;
+    var pgnPrefix = buildPgnPrefixForNode(node);
+    console.log('Setting position to FEN:', fen);
+    return $.post('/channel', {
+        action: 'set_position',
+        fen: fen,
+        pgn: pgnPrefix,
+        uci960: chessGameType === 1 ? 'true' : 'false'
+    }, function (data) {
+        console.log('Position set response:', data);
+        goToPosition(fen);
+        removeHighlights();
+    }).fail(function (jqXHR, textStatus, errorThrown) {
+        console.error('Error setting position:', textStatus, errorThrown);
+    });
+}
+
+window.setPicoPositionFromCurrentPgn = setPositionFromCurrentPgn;
+
 function goToStart() {
     removeHighlights();
     stopAnalysis();
@@ -1838,10 +1918,10 @@ function handleMessage(event) {
     } else if (output && output.pv_index > 1) {
         $('#pv_' + output.pv_index).html(output.line);
     }
-        var multiPvStatusEl = $('#engineMultiPVStatus');
-        if (multiPvStatusEl.length) {
-            multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
-        }
+    var multiPvStatusEl = $('#engineMultiPVStatus');
+    if (multiPvStatusEl.length) {
+        multiPvStatusEl.html(window.multipv + (window.multipv > 1 ? ' lines' : ' line'));
+    }
 }
 
 function loadNaclStockfish() {
@@ -2296,7 +2376,7 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
                 var from = uciMatch[1], to = uciMatch[2];
                 var promo = uciMatch[3] ? uciMatch[3].toLowerCase() : '';
                 return promo ? game.move({ from: from, to: to, promotion: promo })
-                             : game.move({ from: from, to: to });
+                    : game.move({ from: from, to: to });
             }
             return game.move(c, { sloppy: true });
         }
@@ -2306,7 +2386,7 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
         if (baseFen && uciGame.load(baseFen, chessGameType)) {
             loaded = true;
         } else if (currentPosition && currentPosition.fen
-                   && uciGame.load(currentPosition.fen, chessGameType)) {
+            && uciGame.load(currentPosition.fen, chessGameType)) {
             loaded = true;
         }
         if (!loaded) { return null; }
@@ -2410,7 +2490,7 @@ function isAnalysisClockMode(mode) {
 function _buildAnalysisClockLine(analysis) {
     var parts = [];
     var fen = analysis.fen || '';
-    var pv  = Array.isArray(analysis.pv) ? analysis.pv : [];
+    var pv = Array.isArray(analysis.pv) ? analysis.pv : [];
     if (pv.length > 0) {
         var moveNum = 1;
         var isBlack = false;
@@ -2430,10 +2510,12 @@ function _buildAnalysisClockLine(analysis) {
                 if (fen) {
                     try {
                         var b = new Chess(fen, chessGameType);
-                        var mv = b.move({ from: raw.slice(0, 2), to: raw.slice(2, 4),
-                                          promotion: raw[4] || undefined });
+                        var mv = b.move({
+                            from: raw.slice(0, 2), to: raw.slice(2, 4),
+                            promotion: raw[4] || undefined
+                        });
                         if (mv) san = mv.san;
-                    } catch (e) {}
+                    } catch (e) { }
                 }
                 if (!san) san = raw;  // keep raw UCI if conversion fails
             } else {
@@ -2502,10 +2584,10 @@ function updateAnalysisRowSeparator() {
 function setEngineLinePlaceholder() {
     var metaEl = document.getElementById('engineMeta');
     var bodyEl = document.getElementById('enginePvBody');
-    var btn    = document.getElementById('engineToggleBtn');
+    var btn = document.getElementById('engineToggleBtn');
     if (metaEl) metaEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
-    if (btn)    btn.textContent = 'SHOW';
+    if (btn) btn.textContent = 'SHOW';
     setAnalysisRowVisible('engineRow', false);
 }
 
@@ -2524,9 +2606,9 @@ function updateBackendAnalysisSourceBadge(source) {
 
 // Update ± button visibility and disabled state based on SF18 running state and multipv count.
 function updateSF18PmButtons() {
-    var group    = document.getElementById('sf18PmGroup');
+    var group = document.getElementById('sf18PmGroup');
     var minusBtn = document.getElementById('analyzeMinus');
-    var plusBtn  = document.getElementById('analyzePlus');
+    var plusBtn = document.getElementById('analyzePlus');
     if (!group) return;
     if (!window.analysis || isLocalWebClient()) {
         $(group).hide();
@@ -2541,10 +2623,10 @@ function updateSF18PmButtons() {
 function setSF18Placeholder() {
     var metaEl = document.getElementById('sf18Meta');
     var bodyEl = document.getElementById('sf18Pv1Body');
-    var btn    = document.getElementById('sf18ToggleBtn');
+    var btn = document.getElementById('sf18ToggleBtn');
     if (metaEl) metaEl.innerHTML = '';
     if (bodyEl) bodyEl.innerHTML = '';
-    if (btn)    btn.textContent = 'SHOW';
+    if (btn) btn.textContent = 'SHOW';
     setAnalysisRowVisible('sf18Row', false);
     // Clear extra PV lines
     $('#pv_output').empty();
@@ -2679,7 +2761,7 @@ function getAllInfo() {
             if (window.syncClockControls) {
                 window.syncClockControls(Boolean(state && state.running));
             }
-        }).fail(function () {});
+        }).fail(function () { });
     }).fail(function (jqXHR, textStatus) {
         console.warn(textStatus);
         dgtClockStatusEl.html(textStatus);
@@ -2718,7 +2800,7 @@ function changeBoardTheme() {
         url: '/settings/save',
         type: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({entries: [{key: 'web-board-theme', value: boardValue, enabled: true}]})
+        data: JSON.stringify({ entries: [{ key: 'web-board-theme', value: boardValue, enabled: true }] })
     });
 }
 
@@ -2737,7 +2819,7 @@ function getCurrentPieceSet() {
 }
 
 function syncKingBadgeIcons() {
-    var pieces = pieceSets.find(function(p) { return $('#xboardsection').hasClass(p); }) || 'merida';
+    var pieces = pieceSets.find(function (p) { return $('#xboardsection').hasClass(p); }) || 'merida';
     var base = '/static/css/chessground/images/pieces/' + pieces + '/';
     var wImg = document.getElementById('checkKingW');
     var bImg = document.getElementById('checkKingB');
@@ -2759,7 +2841,7 @@ function changePieceSet() {
         url: '/settings/save',
         type: 'POST',
         contentType: 'application/json',
-        data: JSON.stringify({entries: [{key: 'pieces', value: pieces, enabled: true}]})
+        data: JSON.stringify({ entries: [{ key: 'pieces', value: pieces, enabled: true }] })
     });
 }
 
@@ -3001,7 +3083,7 @@ $(function () {
                             _tutorMoveActive = false;
                             _tutorMoveShownAt = 0;
                             if (_remaining > 0) {
-                                setTimeout(function() {
+                                setTimeout(function () {
                                     _brainHintActive = false;
                                     highlightBoard(_lightMove, 'computer');
                                     addArrow(_lightMove, 'computer');
@@ -3072,15 +3154,15 @@ $(function () {
                             if (_h) {
                                 var _si = window._picoSystemInfo;
                                 var _newName = _si.user_name || '';
-                                var _newElo  = _si.user_elo  || '-';
+                                var _newElo = _si.user_elo || '-';
                                 // play_mode is "user_white" or "user_black" — use it
                                 // directly so the correct PGN tag is always patched.
                                 if (_si.play_mode === 'user_black') {
-                                    if (_newName) { _h.Black    = _newName; }
+                                    if (_newName) { _h.Black = _newName; }
                                     _h.BlackElo = _newElo;
                                 } else {
                                     // user_white or unknown — default to White
-                                    if (_newName) { _h.White    = _newName; }
+                                    if (_newName) { _h.White = _newName; }
                                     _h.WhiteElo = _newElo;
                                 }
                                 gameHistory.gameHeader = getWebGameHeader(_h);

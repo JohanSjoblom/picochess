@@ -18,6 +18,7 @@
 
 import base64
 import datetime
+import io
 import time
 import json
 import logging
@@ -55,7 +56,18 @@ from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
 
 from dgt.api import Dgt, DgtApi, Event, Message
-from dgt.util import PlayMode, Mode, ClockSide, GameResult, PicoCoach, PicoComment, TimeMode, Beep, flip_board_fen, Voice
+from dgt.util import (
+    PlayMode,
+    Mode,
+    ClockSide,
+    GameResult,
+    PicoCoach,
+    PicoComment,
+    TimeMode,
+    Beep,
+    flip_board_fen,
+    Voice,
+)
 from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
@@ -71,8 +83,8 @@ logger = logging.getLogger(__name__)
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
-INI_LINE_RE = re.compile(r'^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$')
-INI_COMMENT_RE = re.compile(r'^\s*#\s*(.+)$')
+INI_LINE_RE = re.compile(r"^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$")
+INI_COMMENT_RE = re.compile(r"^\s*#\s*(.+)$")
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
     {
         "new_engine",
@@ -172,9 +184,7 @@ def _store_tutor_coach(shared: dict, coach) -> None:
     shared["tutor_watch_coach"] = coach_setting != "off"
     if coach_setting != "off":
         shared["tutor_watch_coach_pref"] = _coach_event_value(coach_setting)
-    shared["tutor_watch_active"] = bool(
-        shared.get("tutor_watch_watcher") or shared.get("tutor_watch_coach")
-    )
+    shared["tutor_watch_active"] = bool(shared.get("tutor_watch_watcher") or shared.get("tutor_watch_coach"))
 
 
 def _store_tutor_comment(shared: dict, comment) -> None:
@@ -235,6 +245,7 @@ def _get_remote_ip(request) -> str:
 
 def _is_local_request(request) -> bool:
     return _get_remote_ip(request) in ("127.0.0.1", "::1")
+
 
 def _is_private_request(request) -> bool:
     try:
@@ -471,6 +482,74 @@ def _clock_event(shared: dict, text, running: bool = False):
     shared["clock_text"] = text
     shared["clock_running"] = bool(running)
     return {"event": "Clock", "msg": text, "running": shared["clock_running"]}
+
+
+def _truthy_web_arg(value: str) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _validate_setup_position_fen(fen: str, uci960_hint: bool = False) -> tuple[chess.Board, bool]:
+    fen = (fen or "").strip()
+    if not fen:
+        raise ValueError("Missing FEN argument")
+    if len(fen) > 200:
+        raise ValueError("FEN argument is too large")
+
+    chess960_order = [uci960_hint, False, True]
+    seen = set()
+    statuses = []
+    for chess960 in chess960_order:
+        if chess960 in seen:
+            continue
+        seen.add(chess960)
+        try:
+            board = chess.Board(fen, chess960=chess960)
+        except ValueError as exc:
+            statuses.append(str(exc))
+            continue
+        if board.is_valid():
+            return board, bool(chess960 or board.has_chess960_castling_rights())
+        statuses.append(str(board.status()))
+
+    raise ValueError("Invalid FEN position: " + ", ".join(statuses))
+
+
+def _same_position(left: chess.Board, right: chess.Board) -> bool:
+    return (
+        left.board_fen() == right.board_fen()
+        and left.turn == right.turn
+        and left.castling_rights == right.castling_rights
+        and left.ep_square == right.ep_square
+    )
+
+
+def _board_from_web_pgn_prefix(
+    pgn_text: str, selected_fen: str, uci960_hint: bool = False
+) -> tuple[chess.Board, bool]:
+    pgn_text = (pgn_text or "").strip()
+    if not pgn_text:
+        raise ValueError("Missing PGN prefix")
+    if len(pgn_text) > 200000:
+        raise ValueError("PGN prefix is too large")
+
+    game = pgn.read_game(io.StringIO(pgn_text))
+    if game is None:
+        raise ValueError("Invalid PGN prefix")
+    if getattr(game, "errors", None):
+        raise ValueError("Invalid PGN prefix")
+
+    headers = game.headers or {}
+    header_uci960 = str(headers.get("Variant", "")).lower() == "chess960"
+    target_board, uci960_enabled = _validate_setup_position_fen(selected_fen, uci960_hint or header_uci960)
+
+    board = game.board()
+    for move in game.mainline_moves():
+        board.push(move)
+    if not _same_position(board, target_board):
+        raise ValueError("PGN prefix does not end at the selected FEN")
+
+    board.chess960 = bool(uci960_enabled or header_uci960)
+    return board, bool(board.chess960)
 
 
 def _channel_action_requires_remote_auth(action: str) -> bool:
@@ -748,6 +827,38 @@ class ChannelHandler(ServerRequestHandler):
             else:
                 result = GameResult.WIN_BLACK
             await Observable.fire(Event.DRAWRESIGN(result=result))
+        elif action == "set_position":
+            try:
+                fen = self.get_argument("fen").strip()
+                pgn_prefix = self.get_argument("pgn", "").strip()
+                uci960_hint = _truthy_web_arg(self.get_argument("uci960", "false"))
+                if pgn_prefix:
+                    bit_board, uci960_enabled = _board_from_web_pgn_prefix(pgn_prefix, fen, uci960_hint)
+                    event_game = bit_board
+                else:
+                    bit_board, uci960_enabled = _validate_setup_position_fen(fen, uci960_hint)
+                    event_game = None
+
+                logger.info("Setting position from web client: %s", bit_board.fen())
+                await Observable.fire(
+                    Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled, game=event_game)
+                )
+                self.write({"success": True, "fen": bit_board.fen(), "uci960": uci960_enabled})
+            except tornado.web.MissingArgumentError:
+                logger.warning("set_position action missing fen argument")
+                self.set_status(400)
+                self.write({"error": "Missing FEN argument"})
+                return
+            except ValueError as e:
+                logger.warning("set_position validation failed: %s", e)
+                self.set_status(400)
+                self.write({"error": str(e)})
+                return
+            except Exception:
+                logger.exception("Error in set_position action")
+                self.set_status(400)
+                self.write({"error": "Could not set position"})
+                return
         elif action == "pgn_replay":
             await Observable.fire(
                 Event.SET_INTERACTION_MODE(
@@ -777,16 +888,17 @@ class ChannelHandler(ServerRequestHandler):
             _result_map = {
                 "white": GameResult.WIN_WHITE,
                 "black": GameResult.WIN_BLACK,
-                "draw":  GameResult.DRAW,
+                "draw": GameResult.DRAW,
             }
             result = _result_map.get(self.get_argument("result", "").strip())
             if result is not None:
                 await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "new_engine":
             from uci.engine_provider import EngineProvider
-            file  = self.get_argument("file")
+
+            file = self.get_argument("file")
             level = self.get_argument("level", "")
-            eng   = EngineProvider.resolve_engine(file)
+            eng = EngineProvider.resolve_engine(file)
             if eng:
                 for event in _engine_change_events(eng, level, dgttranslate):
                     await Observable.fire(event)
@@ -833,44 +945,80 @@ class ChannelHandler(ServerRequestHandler):
 
             if mode_id == 3 and tournament_str:  # tournament: "moves_to_go blitz blitz2 fischer"
                 parts = tournament_str.split()
-                _mtg   = int(parts[0]) if len(parts) > 0 else 0
+                _mtg = int(parts[0]) if len(parts) > 0 else 0
                 _blitz = int(parts[1]) if len(parts) > 1 else 0
                 _blitz2 = int(parts[2]) if len(parts) > 2 else 0
-                _fisc  = int(parts[3]) if len(parts) > 3 else 0
+                _fisc = int(parts[3]) if len(parts) > 3 else 0
                 tc_init = {
-                    "mode": TimeMode.TOURN, "fixed": 0, "blitz": _blitz,
-                    "fischer": _fisc, "moves_to_go": _mtg, "blitz2": _blitz2,
-                    "depth": 0, "node": 0, "internal_time": None,
+                    "mode": TimeMode.TOURN,
+                    "fixed": 0,
+                    "blitz": _blitz,
+                    "fischer": _fisc,
+                    "moves_to_go": _mtg,
+                    "blitz2": _blitz2,
+                    "depth": 0,
+                    "node": 0,
+                    "internal_time": None,
                 }
             elif mode_id == 4:  # depth
                 tc_init = {
-                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
-                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
-                    "depth": time_val, "node": 0, "internal_time": None,
+                    "mode": TimeMode.FIXED,
+                    "fixed": 0,
+                    "blitz": 0,
+                    "fischer": 0,
+                    "moves_to_go": 0,
+                    "blitz2": 0,
+                    "depth": time_val,
+                    "node": 0,
+                    "internal_time": None,
                 }
             elif mode_id == 5:  # nodes
                 tc_init = {
-                    "mode": TimeMode.FIXED, "fixed": 0, "blitz": 0,
-                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
-                    "depth": 0, "node": time_val, "internal_time": None,
+                    "mode": TimeMode.FIXED,
+                    "fixed": 0,
+                    "blitz": 0,
+                    "fischer": 0,
+                    "moves_to_go": 0,
+                    "blitz2": 0,
+                    "depth": 0,
+                    "node": time_val,
+                    "internal_time": None,
                 }
             elif mode_id == 0:  # fixed seconds/move
                 tc_init = {
-                    "mode": TimeMode.FIXED, "fixed": time_val, "blitz": 0,
-                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
-                    "depth": 0, "node": 0, "internal_time": None,
+                    "mode": TimeMode.FIXED,
+                    "fixed": time_val,
+                    "blitz": 0,
+                    "fischer": 0,
+                    "moves_to_go": 0,
+                    "blitz2": 0,
+                    "depth": 0,
+                    "node": 0,
+                    "internal_time": None,
                 }
             elif mode_id == 1:  # blitz
                 tc_init = {
-                    "mode": TimeMode.BLITZ, "fixed": 0, "blitz": time_val,
-                    "fischer": 0, "moves_to_go": 0, "blitz2": 0,
-                    "depth": 0, "node": 0, "internal_time": None,
+                    "mode": TimeMode.BLITZ,
+                    "fixed": 0,
+                    "blitz": time_val,
+                    "fischer": 0,
+                    "moves_to_go": 0,
+                    "blitz2": 0,
+                    "depth": 0,
+                    "node": 0,
+                    "internal_time": None,
                 }
             else:  # fischer (mode_id == 2)
                 tc_init = {
-                    "mode": TimeMode.FISCHER, "fixed": 0, "blitz": time_val,
-                    "fischer": fischer_val, "moves_to_go": 0, "blitz2": 0,
-                    "depth": 0, "node": 0, "internal_time": None,
+                    "mode": TimeMode.FISCHER,
+                    "fixed": 0,
+                    "blitz": time_val,
+                    "fischer": fischer_val,
+                    "moves_to_go": 0,
+                    "blitz2": 0,
+                    "depth": 0,
+                    "node": 0,
+                    "internal_time": None,
                 }
 
             time_text = _time_control_text(tc_init, dgttranslate)
@@ -878,7 +1026,7 @@ class ChannelHandler(ServerRequestHandler):
             await Observable.fire(Event.SET_TIME_CONTROL(tc_init=tc_init, time_text=time_text, show_ok=True))
         elif action == "picotutor":
             tutor = self.get_argument("tutor", "")
-            val   = self.get_argument("val", "0")
+            val = self.get_argument("val", "0")
             current = _tutor_settings_from_shared(self.shared)
             if tutor == "watcher":
                 active = val not in ("0", "false", "off")
@@ -886,11 +1034,11 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.PICOWATCHER(picowatcher=active))
             elif tutor == "coach":
                 _coach_map = {
-                    "on":    PicoCoach.COACH_ON,
-                    "lift":  PicoCoach.COACH_LIFT,
+                    "on": PicoCoach.COACH_ON,
+                    "lift": PicoCoach.COACH_LIFT,
                     "brain": PicoCoach.COACH_BRAIN,
-                    "hand":  PicoCoach.COACH_HAND,
-                    "off":   PicoCoach.COACH_OFF,
+                    "hand": PicoCoach.COACH_HAND,
+                    "off": PicoCoach.COACH_OFF,
                 }
                 coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
                 if current["tutor_coach"] != _coach_setting(coach_val):
@@ -902,8 +1050,8 @@ class ChannelHandler(ServerRequestHandler):
             elif tutor == "comment":
                 _comment_map = {
                     "engine": PicoComment.COM_ON_ENG,
-                    "all":    PicoComment.COM_ON_ALL,
-                    "off":    PicoComment.COM_OFF,
+                    "all": PicoComment.COM_ON_ALL,
+                    "off": PicoComment.COM_OFF,
                 }
                 comment_val = _comment_map.get(val.lower(), PicoComment.COM_OFF)
                 if current["tutor_comment"] != _comment_setting(comment_val):
@@ -916,14 +1064,14 @@ class ChannelHandler(ServerRequestHandler):
                 logger.warning("web picotutor: unknown tutor=%r", tutor)
         elif action == "set_mode":
             _mode_map = {
-                "normal":    (Mode.NORMAL,    "Normal"),
-                "training":  (Mode.TRAINING,  "Training"),
-                "brain":     (Mode.BRAIN,     "Ponder On"),
-                "analysis":  (Mode.ANALYSIS,  "Move Hint"),
-                "kibitz":    (Mode.KIBITZ,    "Eval.Score"),
-                "observe":   (Mode.OBSERVE,   "Observe"),
-                "remote":    (Mode.REMOTE,    "Remote"),
-                "ponder":    (Mode.PONDER,    "Analysis"),
+                "normal": (Mode.NORMAL, "Normal"),
+                "training": (Mode.TRAINING, "Training"),
+                "brain": (Mode.BRAIN, "Ponder On"),
+                "analysis": (Mode.ANALYSIS, "Move Hint"),
+                "kibitz": (Mode.KIBITZ, "Eval.Score"),
+                "observe": (Mode.OBSERVE, "Observe"),
+                "remote": (Mode.REMOTE, "Remote"),
+                "ponder": (Mode.PONDER, "Analysis"),
                 "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
             }
             mode_name = self.get_argument("mode", "normal").lower()
@@ -952,9 +1100,9 @@ class ChannelHandler(ServerRequestHandler):
                     logger.warning("web lang: dgttranslate not available in shared")
         elif action == "beep":
             _beep_map = {
-                "off":    Beep.OFF,
-                "some":   Beep.SOME,
-                "on":     Beep.ON,
+                "off": Beep.OFF,
+                "some": Beep.SOME,
+                "on": Beep.ON,
                 "sample": Beep.SAMPLE,
             }
             beep_val_str = self.get_argument("val", "some").lower()
@@ -980,13 +1128,11 @@ class ChannelHandler(ServerRequestHandler):
                 speed_factor = _bounded_voice_speed(config.get("speed-voice", "2"))
                 voice_str = None if speaker == "mute" else lang + ":" + speaker
                 write_picochess_ini(ini_key, voice_str)
-                await Observable.fire(
-                    Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=speed_factor)
-                )
+                await Observable.fire(Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=speed_factor))
                 logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type_name, lang, speaker)
         elif action == "set_player":
             name = self.get_argument("name", "").strip()
-            elo  = self.get_argument("elo",  "").strip()
+            elo = self.get_argument("elo", "").strip()
             if name:
                 if "system_info" not in self.shared:
                     self.shared["system_info"] = {}
@@ -1132,9 +1278,7 @@ class ChannelHandler(ServerRequestHandler):
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             write_picochess_ini("speed-voice", speed_factor)
-            await Observable.fire(
-                Event.SET_VOICE(type=Voice.SPEED, lang=lang, speaker="mute", speed=speed_factor)
-            )
+            await Observable.fire(Event.SET_VOICE(type=Voice.SPEED, lang=lang, speaker="mute", speed=speed_factor))
             logger.info("web voice_speed: factor=%d", speed_factor)
         elif action == "voice_volume":
             vol_factor = _bounded_voice_volume(self.get_argument("val", "14"))
@@ -1154,9 +1298,7 @@ class ChannelHandler(ServerRequestHandler):
                     pass
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
-            await Observable.fire(
-                Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=speed_factor)
-            )
+            await Observable.fire(Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=speed_factor))
             logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, pct)
         elif action == "rspeed":
             val_str = self.get_argument("val", "100").strip()
@@ -1250,8 +1392,11 @@ class EventHandler(WebSocketHandler):
         # Filter to only JSON-safe scalar values (plain str/int/float/bool/None).
         if self.shared and "system_info" in self.shared:
             try:
-                _si = {k: v for k, v in self.shared["system_info"].items()
-                       if isinstance(v, (str, int, float, bool, type(None)))}
+                _si = {
+                    k: v
+                    for k, v in self.shared["system_info"].items()
+                    if isinstance(v, (str, int, float, bool, type(None)))
+                }
                 if _si:
                     self.write_message({"event": "SystemInfo", "msg": _si})
             except Exception as exc:  # pragma: no cover - websocket errors
@@ -1308,18 +1453,23 @@ class InfoHandler(ServerRequestHandler):
             self.write({"running": bool(self.shared.get("clock_running", False))})
         if action == "get_engines":
             from uci.engine_provider import EngineProvider
+
             engines = []
+
             def _add(eng_list, category):
                 for eng in eng_list:
-                    engines.append({
-                        "name":     eng.get("name", ""),
-                        "file":     eng.get("file", ""),
-                        "elo":      eng.get("elo",  ""),
-                        "levels":   list(eng.get("level_dict", {}).keys()),
-                        "category": category,
-                    })
-            _add(EngineProvider.modern_engines,   "modern")
-            _add(EngineProvider.retro_engines,    "retro")
+                    engines.append(
+                        {
+                            "name": eng.get("name", ""),
+                            "file": eng.get("file", ""),
+                            "elo": eng.get("elo", ""),
+                            "levels": list(eng.get("level_dict", {}).keys()),
+                            "category": category,
+                        }
+                    )
+
+            _add(EngineProvider.modern_engines, "modern")
+            _add(EngineProvider.retro_engines, "retro")
             _add(EngineProvider.favorite_engines, "favorites")
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps({"engines": engines}))
@@ -1348,8 +1498,7 @@ class InfoHandler(ServerRequestHandler):
                 dgttranslate = self.shared.get("dgttranslate")
                 # Language (live from dgttranslate, fallback to ini)
                 settings["language"] = (
-                    getattr(dgttranslate, "language", None)
-                    or str(config.get("language", "en")).lower()
+                    getattr(dgttranslate, "language", None) or str(config.get("language", "en")).lower()
                 )
                 # Beep (live from dgttranslate)
                 beep = getattr(dgttranslate, "beep", None)
@@ -1385,6 +1534,7 @@ class InfoHandler(ServerRequestHandler):
                 # Retro engine feature info (live from ModeInfo)
                 try:
                     from pgn import ModeInfo as _ModeInfo
+
                     settings["retro_features"] = _ModeInfo.get_retro_features().strip() or "/"
                 except Exception:
                     settings["retro_features"] = "/"
@@ -1635,13 +1785,14 @@ class ChessBoardHandler(ServerRequestHandler):
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
         from pgn import ModeInfo
         import dgt.util as _dgt_util
+
         _eboard_labels = {
-            _dgt_util.EBoard.DGT:       "DGT",
-            _dgt_util.EBoard.CERTABO:   "Certabo",
+            _dgt_util.EBoard.DGT: "DGT",
+            _dgt_util.EBoard.CERTABO: "Certabo",
             _dgt_util.EBoard.CHESSLINK: "ChessLink",
-            _dgt_util.EBoard.CHESSNUT:  "Chessnut",
+            _dgt_util.EBoard.CHESSNUT: "Chessnut",
             _dgt_util.EBoard.ICHESSONE: "iChessOne",
-            _dgt_util.EBoard.NOEBOARD:  "No e-board",
+            _dgt_util.EBoard.NOEBOARD: "No e-board",
         }
         eboard_name = _eboard_labels.get(ModeInfo.get_eboard_type(), "DGT")
         variant = self.shared.get("variant", "chess") if self.shared else "chess"
@@ -2061,9 +2212,11 @@ class WebVr(DgtIface):
             else:
                 l_cls = "ctime-l ctime-active" if left_running else "ctime-l ctime-inactive"
                 r_cls = "ctime-r ctime-active" if not left_running else "ctime-r ctime-inactive"
-            text = (f'<span class="{l_cls}">{text_l}</span>'
-                    f'<i class="fa {icon_d}"></i>'
-                    f'<span class="{r_cls}">{text_r}</span>')
+            text = (
+                f'<span class="{l_cls}">{text_l}</span>'
+                f'<i class="fa {icon_d}"></i>'
+                f'<span class="{r_cls}">{text_r}</span>'
+            )
             EventHandler.write_to_clients(self._clock_event(text))
 
     def display_move_on_clock(self, message):
@@ -2210,13 +2363,14 @@ class WebDisplay(DisplayMsg):
         if not tc_init:
             return ""
         from dgt.util import TimeMode
-        mode   = tc_init.get("mode")
-        depth  = tc_init.get("depth")  or 0
-        node   = tc_init.get("node")   or 0
-        moves  = tc_init.get("moves_to_go") or 0
-        blitz  = tc_init.get("blitz")  or 0
-        fixed  = tc_init.get("fixed")  or 0
-        fisch  = tc_init.get("fischer") or 0
+
+        mode = tc_init.get("mode")
+        depth = tc_init.get("depth") or 0
+        node = tc_init.get("node") or 0
+        moves = tc_init.get("moves_to_go") or 0
+        blitz = tc_init.get("blitz") or 0
+        fixed = tc_init.get("fixed") or 0
+        fisch = tc_init.get("fischer") or 0
         blitz2 = tc_init.get("blitz2") or 0
         if depth:
             return f"{depth} ply"
@@ -2607,9 +2761,7 @@ class WebDisplay(DisplayMsg):
             self.shared["system_info"].update(message.info)
             # Let the web client know whether a physical board is connected so it
             # can make the diagram read-only when appropriate.
-            self.shared["system_info"]["has_board"] = (
-                ModeInfo.get_eboard_type() != EBoardType.NOEBOARD
-            )
+            self.shared["system_info"]["has_board"] = ModeInfo.get_eboard_type() != EBoardType.NOEBOARD
             # store old/original values of everything from start
             if "engine_name" in self.shared["system_info"]:
                 WebDisplay.engine_name = self.shared["system_info"]["engine_name"]
@@ -2660,9 +2812,7 @@ class WebDisplay(DisplayMsg):
             if _im is not None:
                 self.shared["system_info"]["interaction_mode"] = _im.name.lower()
             if _pm is not None:
-                self.shared["system_info"]["play_mode"] = (
-                    "user_white" if _pm == PlayMode.USER_WHITE else "user_black"
-                )
+                self.shared["system_info"]["play_mode"] = "user_white" if _pm == PlayMode.USER_WHITE else "user_black"
             # change book_index to book_text
             books = message.info["books"]
             book_index = message.info["book_index"]
@@ -2814,9 +2964,11 @@ class WebDisplay(DisplayMsg):
                     else:
                         _tr_str = "{}:{:02d}.{:02d}".format(_l[0], _l[1], _l[2])
                         _tl_str = "{}:{:02d}.{:02d}".format(_r[0], _r[1], _r[2])
-                    _text = (f'<span class="ctime-l">{_tl_str}</span>'
-                             f'<i class="fa fa-sort"></i>'
-                             f'<span class="ctime-r">{_tr_str}</span>')
+                    _text = (
+                        f'<span class="ctime-l">{_tl_str}</span>'
+                        f'<i class="fa fa-sort"></i>'
+                        f'<span class="ctime-r">{_tr_str}</span>'
+                    )
                     EventHandler.write_to_clients(_clock_event(self.shared, _text, running=False))
             except Exception:
                 pass  # non-fatal; normal dispatch chain remains the fallback
@@ -2898,8 +3050,12 @@ class WebDisplay(DisplayMsg):
                 attached = "i2c-pi"
             else:
                 attached = "server"
-            connected = attached != "server"   # physical board, not web-only
-            result = {"event": "Status", "msg": "Ok clock " + attached, "eboard": "connected" if connected else "noeboard"}
+            connected = attached != "server"  # physical board, not web-only
+            result = {
+                "event": "Status",
+                "msg": "Ok clock " + attached,
+                "eboard": "connected" if connected else "noeboard",
+            }
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.COMPUTER_MOVE):

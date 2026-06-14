@@ -807,6 +807,35 @@ class PicoTutor:
                 return t
         return None
 
+    def _get_better_pv_variations(self, turn: chess.Color, user_move: chess.Move, limit: int = 3) -> list[dict]:
+        """Return tutor PVs ranked ahead of user_move as compact PGN variation data."""
+        variations = []
+        best_moves = self.best_moves.get(turn, [])
+        selected_index = None
+        for index, (_pv_key, move, _score, _mate) in enumerate(best_moves):
+            if move == user_move:
+                selected_index = index
+                break
+
+        candidate_moves = best_moves[:selected_index] if selected_index is not None else best_moves
+        for pv_key, move, score, mate in candidate_moves:
+            if len(variations) >= limit:
+                break
+            if move == user_move or move == chess.Move.null() or pv_key is None:
+                continue
+            try:
+                info = self.best_info[turn][pv_key]
+            except (IndexError, KeyError, TypeError):
+                continue
+            pv = info.get("pv") if info else None
+            if not pv:
+                continue
+            pv_moves = [pv_move.uci() for pv_move in pv if pv_move != chess.Move.null()]
+            if not pv_moves:
+                continue
+            variations.append({"moves": pv_moves, "score": score, "mate": mate})
+        return variations
+
     def sort_score(self, tupel):
         """define score:int as sort key"""
         return tupel[2]
@@ -1104,6 +1133,9 @@ class PicoTutor:
             logger.debug("best move: %s, user move: %s", e_value["best_move"], e_value["user_move"])
         except (KeyError, ValueError, AttributeError):
             logger.warning("picotutor failed to convert to san for %s", current_move)
+        variations = self._get_better_pv_variations(self.board.turn, current_move)
+        if variations:
+            e_value["variations"] = variations
         if e_value["nag"] == chess.pgn.NAG_NULL:
             # no NAG to store, due to takeback make sure this e_key eval is empty
             self.evaluated_moves.pop(e_key, None)  # None prevents KeyError

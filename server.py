@@ -18,6 +18,7 @@
 
 import base64
 import datetime
+import html as html_lib
 import io
 import time
 import json
@@ -1832,6 +1833,177 @@ class HelpHandler(ServerRequestHandler):
         self.render("web/picoweb/templates/help.html", theme=self.theme)
 
 
+def _render_manual_inline(text: str) -> str:
+    escaped = html_lib.escape(text)
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+
+
+def _render_manual_markdown(markdown_text: str) -> str:
+    html_parts: list[str] = []
+    paragraph_lines: list[str] = []
+    list_type: str | None = None
+    list_items: list[str] = []
+    current_item_lines: list[str] = []
+
+    def flush_paragraph() -> None:
+        nonlocal paragraph_lines
+        if paragraph_lines:
+            html_parts.append(f"<p>{_render_manual_inline(' '.join(paragraph_lines))}</p>")
+            paragraph_lines = []
+
+    def flush_list_item() -> None:
+        nonlocal current_item_lines
+        if current_item_lines:
+            list_items.append(_render_manual_inline(" ".join(current_item_lines)))
+            current_item_lines = []
+
+    def flush_list() -> None:
+        nonlocal list_type, list_items
+        flush_list_item()
+        if list_type and list_items:
+            html_parts.append(f"<{list_type}>")
+            html_parts.extend(f"<li>{item}</li>" for item in list_items)
+            html_parts.append(f"</{list_type}>")
+        list_type = None
+        list_items = []
+
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+
+        if not stripped:
+            flush_paragraph()
+            flush_list()
+            continue
+
+        heading = re.match(r"^(#{1,3})\s+(.+)$", stripped)
+        if heading:
+            flush_paragraph()
+            flush_list()
+            level = len(heading.group(1))
+            html_parts.append(f"<h{level}>{_render_manual_inline(heading.group(2))}</h{level}>")
+            continue
+
+        unordered = re.match(r"^[-*]\s+(.+)$", stripped)
+        ordered = re.match(r"^\d+\.\s+(.+)$", stripped)
+        if unordered or ordered:
+            flush_paragraph()
+            new_list_type = "ul" if unordered else "ol"
+            if list_type != new_list_type:
+                flush_list()
+                list_type = new_list_type
+            else:
+                flush_list_item()
+            current_item_lines = [(unordered or ordered).group(1)]
+            continue
+
+        if list_type and raw_line[:1].isspace() and current_item_lines:
+            current_item_lines.append(stripped)
+            continue
+
+        flush_list()
+        paragraph_lines.append(stripped)
+
+    flush_paragraph()
+    flush_list()
+    return "\n".join(html_parts)
+
+
+class ManualHandler(ServerRequestHandler):
+    def get(self):
+        manual_path = os.path.join(os.path.dirname(__file__), "manual", "user-manual-en-GB.md")
+        try:
+            with open(manual_path, "r", encoding="utf-8") as manual_file:
+                manual_markdown = manual_file.read()
+        except OSError:
+            self.set_status(404)
+            self.write("User manual not found")
+            return
+
+        self.set_header("Content-Type", "text/html; charset=utf-8")
+        self.write(
+            """<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PicoChess Web Client User Manual</title>
+<style>
+:root { color-scheme: light; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.62;
+  color: #202124;
+  background: #ffffff;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 40px 28px 72px;
+}
+h1 { font-size: 2.25rem; line-height: 1.15; margin: 0 0 0.4em; }
+h2 { font-size: 1.55rem; margin: 2.2em 0 0.55em; border-top: 1px solid #ddd; padding-top: 0.9em; }
+h3 { font-size: 1.15rem; margin: 1.55em 0 0.25em; }
+p { margin: 0.55em 0 0.9em; }
+ul, ol { margin: 0.45em 0 1em 1.35em; padding: 0; }
+li { margin: 0.25em 0; }
+code { background: #f1f3f4; border-radius: 4px; padding: 0.1em 0.25em; }
+.manual-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  margin: -24px -12px 20px;
+  padding: 8px 0;
+  background: rgba(255, 255, 255, 0.92);
+}
+.manual-close {
+  min-width: 120px;
+  min-height: 48px;
+  border: 1px solid #9aa0a6;
+  border-radius: 8px;
+  background: #1a73e8;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 18px;
+  cursor: pointer;
+}
+.manual-close:active { transform: translateY(1px); }
+@media print {
+  body { max-width: none; padding: 18mm; font-size: 11.5pt; }
+  .manual-topbar { display: none; }
+  h2 { break-after: avoid; }
+  h3 { break-after: avoid; }
+}
+</style>
+<script>
+function closeManual() {
+  window.close();
+  window.setTimeout(function () {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = "/";
+    }
+  }, 150);
+}
+</script>
+</head>
+<body>
+<div class="manual-topbar">
+<button class="manual-close" type="button" onclick="closeManual()">Close manual</button>
+</div>
+"""
+            + _render_manual_markdown(manual_markdown)
+            + """
+</body>
+</html>
+"""
+        )
+
+
 class UploadPageHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("web/picoweb/templates/upload.html")
@@ -2110,6 +2282,8 @@ class WebServer:
                 (r"/info", InfoHandler, dict(shared=shared)),
                 (r"/book", BookHandler, dict(shared=shared)),
                 (r"/help", HelpHandler, dict(theme=theme)),
+                (r"/manual/?", ManualHandler),
+                (r"/manual/user-manual-en-GB.html", ManualHandler),
                 (r"/channel", ChannelHandler, dict(shared=shared)),
                 (r"/upload-pgn", UploadHandler),
                 (r"/upload", UploadPageHandler),

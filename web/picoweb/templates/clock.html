@@ -1167,6 +1167,7 @@
             var pathEl   = document.getElementById('picoOverlayPath');
             var tilesEl  = document.getElementById('overlay-tiles');
             var menuBtn  = document.getElementById('picoMenuBtn');
+            var manualBtn = document.getElementById('picoOverlayManual');
 
             var gameActive = false;
             var engineTurn = false;
@@ -1238,6 +1239,7 @@
 
             function updateOverlayBack() {
                 if (backBtn) backBtn.style.display = navStack.length ? '' : 'none';
+                if (manualBtn) manualBtn.style.display = navStack.length ? 'none' : '';
             }
 
             function navigateTo(viewFn) {
@@ -3758,6 +3760,9 @@
                 </span>
                 <button class="pico-overlay-header-back" id="picoOverlayBack" type="button" style="display:none;">‹ Back</button>
                 <span class="pico-overlay-state" id="picoOverlayState">○ No active game</span>
+                <a class="pico-overlay-manual" id="picoOverlayManual" href="/manual/user-manual-en-GB.html" target="_blank" rel="noopener" title="Open user manual" aria-label="Open user manual">
+                    <i class="fa fa-book" aria-hidden="true"></i>
+                </a>
                 <button class="pico-overlay-close" id="picoOverlayClose" aria-label="Close">✕</button>
             </div>
 

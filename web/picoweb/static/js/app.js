@@ -1381,7 +1381,9 @@ function loadGame(pgn_lines) {
                 props.starting_comment = starting_comment;
                 starting_comment = '';
             }
-            lastmove = move;
+            if (variation_stack.length === 1) {
+                lastmove = move;
+            }
 
             var __ret = addNewMove({ 'move': move }, variation_stack[last_variation_stack_index], board_stack[last_board_stack_index].fen(), props);
             variation_stack[last_variation_stack_index] = __ret.node;

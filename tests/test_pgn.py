@@ -5,7 +5,7 @@ import datetime
 import unittest
 
 from dgt.util import PlayMode
-from pgn import PgnDisplay
+from pgn import PgnDisplay, add_picotutor_variations_to_game
 
 EMPTY_GAME = """[Event "PicoChess Game"]
 [Site "?"]
@@ -132,3 +132,23 @@ class TestPgnDisplay(unittest.TestCase):
         self.testee.add_picotutor_evaluation(game)
 
         self.assertEqual([variation.move.uci() for variation in game.variations], ["e2e4"])
+
+    def test_add_picotutor_variations_to_game_exports_without_comments(self):
+        board = chess.Board()
+        user_move = chess.Move.from_uci("e2e4")
+        board.push(user_move)
+        game = chess.pgn.Game.from_board(board)
+        add_picotutor_variations_to_game(
+            game,
+            FakePicoTutor(
+                {
+                    (1, user_move, chess.BLACK): {
+                        "variations": [{"moves": ["g1f3", "d7d5"], "score": 1000, "mate": 0}],
+                    }
+                }
+            ),
+        )
+
+        pgn_text = game.accept(chess.pgn.StringExporter(headers=False, comments=False, variations=True))
+
+        self.assertEqual(pgn_text, "1. e4 ( 1. Nf3 d5 ) *")

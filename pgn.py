@@ -47,6 +47,68 @@ from picotutor import PicoTutor
 logger = logging.getLogger(__name__)
 
 
+def _parse_legal_picotutor_variation_moves(parent: chess.pgn.GameNode, variation: dict) -> list[chess.Move]:
+    """Convert a stored tutor PV payload into legal moves from parent."""
+    if not isinstance(variation, dict):
+        return []
+    move_ucis = variation.get("moves", [])
+    if not isinstance(move_ucis, list):
+        return []
+    moves = []
+    board = parent.board()
+    for move_uci in move_ucis:
+        if not isinstance(move_uci, str):
+            return []
+        try:
+            move = chess.Move.from_uci(move_uci)
+        except ValueError:
+            return []
+        if move not in board.legal_moves:
+            return []
+        moves.append(move)
+        board.push(move)
+    return moves
+
+
+def _picotutor_variation_first_move_exists(parent: chess.pgn.GameNode, move: chess.Move) -> bool:
+    return any(variation.move == move for variation in parent.variations)
+
+
+def add_picotutor_variations_to_node(node: chess.pgn.GameNode, value: dict):
+    """Add stored tutor PVs as sibling variations before the evaluated node."""
+    parent = node.parent
+    if parent is None:
+        return
+    for variation in value.get("variations", []):
+        pv_moves = _parse_legal_picotutor_variation_moves(parent, variation)
+        if not pv_moves:
+            continue
+        if _picotutor_variation_first_move_exists(parent, pv_moves[0]):
+            continue
+        variation_node = parent.add_variation(pv_moves[0])
+        for move in pv_moves[1:]:
+            variation_node = variation_node.add_variation(move)
+
+
+def add_picotutor_variations_to_game(game: chess.pgn.Game, picotutor: PicoTutor | None):
+    """Add stored tutor PV alternatives to a PGN game tree."""
+    if not picotutor:
+        return
+    eval_moves = picotutor.get_eval_moves()
+    nodes = list(game.mainline())
+    for (halfmove_nr, user_move, turn), value in eval_moves.items():
+        if halfmove_nr <= 0:
+            continue
+        if halfmove_nr - 1 >= len(nodes):
+            continue
+        node = nodes[halfmove_nr - 1]
+        pgn_move = node.move
+        if pgn_move == user_move and node.turn() == turn:
+            add_picotutor_variations_to_node(node, value)
+        else:
+            logger.debug("skipped move %s-%s picotutor variation mismatch", pgn_move.uci(), user_move.uci())
+
+
 # molli: support for player names from online game
 class ModeInfo:
     online_mode = False
@@ -543,46 +605,6 @@ class PgnDisplay(DisplayMsg):
         else:
             return None
 
-    def _parse_legal_variation_moves(self, parent: chess.pgn.GameNode, variation: dict) -> list[chess.Move]:
-        """Convert a stored tutor PV payload into legal moves from parent."""
-        if not isinstance(variation, dict):
-            return []
-        move_ucis = variation.get("moves", [])
-        if not isinstance(move_ucis, list):
-            return []
-        moves = []
-        board = parent.board()
-        for move_uci in move_ucis:
-            if not isinstance(move_uci, str):
-                return []
-            try:
-                move = chess.Move.from_uci(move_uci)
-            except ValueError:
-                return []
-            if move not in board.legal_moves:
-                return []
-            moves.append(move)
-            board.push(move)
-        return moves
-
-    def _variation_first_move_exists(self, parent: chess.pgn.GameNode, move: chess.Move) -> bool:
-        return any(variation.move == move for variation in parent.variations)
-
-    def _add_picotutor_variations(self, node: chess.pgn.GameNode, value: dict):
-        """Add stored tutor PVs as sibling variations before the evaluated node."""
-        parent = node.parent
-        if parent is None:
-            return
-        for variation in value.get("variations", []):
-            pv_moves = self._parse_legal_variation_moves(parent, variation)
-            if not pv_moves:
-                continue
-            if self._variation_first_move_exists(parent, pv_moves[0]):
-                continue
-            variation_node = parent.add_variation(pv_moves[0])
-            for move in pv_moves[1:]:
-                variation_node = variation_node.add_variation(move)
-
     def add_picotutor_evaluation(self, game: chess.pgn.Game):
         """add picotutor evaluations to the game"""
         # see if we have an evaluation in picotutor
@@ -598,7 +620,7 @@ class PgnDisplay(DisplayMsg):
                         if nag != chess.pgn.NAG_NULL:
                             node.nags.add(nag)
                         node.comment = self._get_picotutor_eval_comments(nag, value, turn)
-                        self._add_picotutor_variations(node, value)
+                        add_picotutor_variations_to_node(node, value)
                     else:
                         logger.debug("skipped move %s-%s picotutor eval mismatch", pgn_move.uci(), user_move.uci())
 

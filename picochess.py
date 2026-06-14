@@ -76,7 +76,7 @@ from utilities import (
     set_window_control_backend_preference,
 )
 from utilities import AsyncRepeatingTimer
-from pgn import Emailer, PgnDisplay, ModeInfo
+from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations
 from server import WebDisplay, WebServer, WebVr, EventHandler
 from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
@@ -316,6 +316,10 @@ class PicochessState:
         self.pgn_replay_next_move_fen = ""
         self.pgn_replay_next_move = None
         self.pgn_replay_book_cache = {}
+        self.loaded_pgn_has_variations = False
+        self.pgn_replay_tutor_regeneration = True
+        self.loaded_pgn_game: Game | None = None
+        self.loaded_pgn_filename = ""
         self.picotutor: PicoTutor | None = None
         self.last_hand_coach_move: chess.Move | None = None
         self.hand_coach_task: asyncio.Task | None = None
@@ -3239,8 +3243,12 @@ async def main() -> None:
                     l_mate = ""
                     t_hint_move = chess.Move.null()
                     valid = await self.state.picotutor.push_move(move, self.state.game)
+                    regenerate_pgn_replay_tutor = (
+                        self.state.interaction_mode != Mode.PGNREPLAY
+                        or self.state.pgn_replay_tutor_regeneration
+                    )
                     # get evalutaion result and give user feedback
-                    if self.state.dgtmenu.get_picowatcher():
+                    if self.state.dgtmenu.get_picowatcher() and regenerate_pgn_replay_tutor:
                         if valid:
                             eval_str, l_mate = self.state.picotutor.get_user_move_eval()
                         else:
@@ -3590,6 +3598,15 @@ async def main() -> None:
             result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
             return result
 
+        def tutor_analysis_enabled_for_current_mode(self) -> bool:
+            """Return whether tutor analysis should run for the current mode."""
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                return False
+            return not (
+                self.state.interaction_mode == Mode.PGNREPLAY
+                and not self.state.pgn_replay_tutor_regeneration
+            )
+
         def eng_plays(self) -> bool:
             """return true if engine is playing moves"""
             return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
@@ -3739,10 +3756,14 @@ async def main() -> None:
             # @todo give it a separate timer task when this is stable
             if allow_autoplay and self.state.autoplay_pgn_file and self.can_do_next_pgn_replay_move():
                 next_move = self._get_cached_pgn_next_move()
+                wait_for_replay_tutor = (
+                    self.state.pgn_replay_tutor_regeneration
+                    and self.state.picotutor.can_use_coach_analyser()
+                )
                 if self._pgn_next_move_in_book(next_move):
                     await asyncio.sleep(1.0)
                     await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
-                elif self.state.picotutor.can_use_coach_analyser():
+                elif wait_for_replay_tutor:
                     if analysed_fen == self.state.get_fen():
                         latest_depth = await self.state.picotutor.get_latest_seen_depth()
                         min_depth = max(DEEP_DEPTH - 2, 1)
@@ -4133,22 +4154,44 @@ async def main() -> None:
             self.state.newgame_happened = False
             self.state.last_error_fen = external_fen
 
-        async def read_pgn_file(self, file_name: str):
+        async def read_pgn_file(
+            self,
+            file_name: str,
+            start_replay: bool = False,
+            pgn_game: Game | None = None,
+        ):
             """Read game from PGN file"""
             logger.debug("molli: read game from pgn file")
 
             l_filename = "games" + os.sep + file_name
-            try:
-                l_file_pgn = open(l_filename)
-                if not l_file_pgn:
+            if pgn_game is None:
+                try:
+                    l_file_pgn = open(l_filename)
+                    if not l_file_pgn:
+                        return
+                except OSError:
                     return
-            except OSError:
-                return
 
-            l_game_pgn: Game | None = chess.pgn.read_game(l_file_pgn)
-            l_file_pgn.close()
+                l_game_pgn: Game | None = chess.pgn.read_game(l_file_pgn)
+                l_file_pgn.close()
+            else:
+                l_game_pgn = pgn_game
+                l_filename = file_name
 
             logger.debug("molli: read game filename %s", l_filename)
+            if l_game_pgn is None:
+                logger.warning("No PGN game found in %s", l_filename)
+                return
+            loaded_pgn_has_variations = pgn_has_variations(l_game_pgn)
+            self.state.loaded_pgn_has_variations = loaded_pgn_has_variations
+            self.state.pgn_replay_tutor_regeneration = not loaded_pgn_has_variations
+            self.shared.setdefault("system_info", {})
+            self.shared["system_info"].update(
+                {
+                    "loaded_pgn_has_variations": loaded_pgn_has_variations,
+                    "pgn_replay_tutor_regeneration": self.state.pgn_replay_tutor_regeneration,
+                }
+            )
 
             await self.stop_search_and_clock()
             # reset best depth so new analysis results are not filtered by previous game
@@ -4194,6 +4237,7 @@ async def main() -> None:
 
             result_header_raw = l_game_pgn.headers.get("Result") if l_game_pgn.headers else None
             result_header = str(result_header_raw).strip() if result_header_raw else ""
+            loaded_game_finished = bool(result_header and result_header not in ("*", "?"))
             if result_header_raw:
                 display_result = result_header or str(result_header_raw)
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
@@ -4202,6 +4246,8 @@ async def main() -> None:
             # make sure we have "?" in important missing headers to
             # prevent overwrite by existing user or engine names or elos etc
             ensure_important_headers(l_game_pgn.headers)
+            self.state.loaded_pgn_game = copy.deepcopy(l_game_pgn)
+            self.state.loaded_pgn_filename = file_name
 
             await DisplayMsg.show(Message.READ_GAME)
 
@@ -4216,7 +4262,7 @@ async def main() -> None:
             except ValueError:
                 l_stop_at_halfmove = None
 
-            if not l_stop_at_halfmove:
+            if start_replay and not l_stop_at_halfmove:
                 # no PicoStop override found above - check game result
                 if result_header and result_header not in ("*", "?"):
                     # a game with a final result was loaded - issue #54
@@ -4240,7 +4286,7 @@ async def main() -> None:
             # @ todo Pico V3 made user + engine move here = unnecessary waiting for engine move
             # Pico V4 only makes an engine move... just to update the web screen and main states?
             # maybe there is a smarter way to do this?
-            if not fen_header and l_move and l_stop_at_halfmove != 0:
+            if start_replay and not fen_header and l_move and l_stop_at_halfmove != 0:
                 self.state.pop_move()
                 self._update_variant_shared()
 
@@ -4254,12 +4300,14 @@ async def main() -> None:
             old_flag_picotutor = self.state.flag_picotutor
             self.state.flag_picotutor = False
             old_interaction_mode = self.state.interaction_mode
-            self.state.interaction_mode = Mode.PGNREPLAY  # new mode for loaded PGN games
+            if start_replay:
+                self.state.interaction_mode = Mode.PGNREPLAY
             self._set_pgn_replay_autoplay(False)  # if you load a 2nd PGN it will autosave from move 1
-            self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
-            self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
+            if start_replay:
+                self.state.dgtmenu.set_mode(Mode.PGNREPLAY)
+                self.state.dgtmenu.exit_menu()  # leave menu so that PAUSE_RESUME avoids "no function"
 
-            if l_move and l_stop_at_halfmove != 0:
+            if start_replay and l_move and l_stop_at_halfmove != 0:
                 # publish current position to webserver
                 await self.user_move(l_move, sliding=True)
 
@@ -4269,6 +4317,9 @@ async def main() -> None:
                 self.state.dgtmenu.set_mode(Mode.KIBITZ)
             elif fen_header:
                 logger.warning("FEN header found but could not apply board setup: %s", fen_header)
+            elif start_replay:
+                # else remain in PGNREPLAY mode
+                pass
             elif not result_header or result_header in ("*", "?"):
                 # issue #54 game is not finished - switch back to playing mode
                 if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
@@ -4277,7 +4328,12 @@ async def main() -> None:
                 else:
                     self.state.interaction_mode = Mode.NORMAL
                 self.state.dgtmenu.set_mode(self.state.interaction_mode)
-            # else remain in PGNREPLAY mode
+            elif old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+                self.state.interaction_mode = old_interaction_mode
+                self.state.dgtmenu.set_mode(self.state.interaction_mode)
+            else:
+                self.state.interaction_mode = Mode.NORMAL
+                self.state.dgtmenu.set_mode(Mode.NORMAL)
 
             # restore picotutor flag to previous state
             self.state.flag_picotutor = old_flag_picotutor
@@ -4285,6 +4341,7 @@ async def main() -> None:
             await self.engine.stop_analysis()  # stop possible engine analyser
             if self.eng_plays():
                 await self.state.picotutor.stop()  # stop possible old tutor analysers
+            await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
             await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
 
             await self.stop_search_and_clock()
@@ -4362,11 +4419,50 @@ async def main() -> None:
             self.state.last_legal_fens = []
             await self.stop_search_and_clock()
 
+            game_end = self.state.check_game_state()
+            if not start_replay and not fen_header:
+                self._set_game_started(not loaded_game_finished and not game_end)
+            system_info_update = {
+                "game_started": self.state.game_started,
+                "interaction_mode": self.state.interaction_mode.name.lower(),
+                "loaded_pgn_has_variations": loaded_pgn_has_variations,
+                "pgn_replay_tutor_regeneration": self.state.pgn_replay_tutor_regeneration,
+                "pgn_replay_autoplay": self.state.autoplay_pgn_file,
+            }
+            self.shared.setdefault("system_info", {})
+            self.shared["system_info"].update(system_info_update)
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": system_info_update})
+            logger.info(
+                "loaded PGN %s: mode=%s game_started=%s variations=%s tutor_regeneration=%s",
+                l_filename,
+                self.state.interaction_mode.name.lower(),
+                self.state.game_started,
+                loaded_pgn_has_variations,
+                self.state.pgn_replay_tutor_regeneration,
+            )
+
             self.shared["headers"] = l_game_pgn.headers  # update headers from file
             EventHandler.write_to_clients({"event": "Header", "headers": dict(self.shared["headers"])})
             await asyncio.sleep(0.1)  # give time to write_to_clients
+            if not start_replay:
+                pgn_str = l_game_pgn.accept(
+                    chess.pgn.StringExporter(headers=True, comments=True, variations=True)
+                )
+                try:
+                    mov = self.state.game.peek().uci()
+                except IndexError:
+                    mov = chess.Move.null().uci()
+                result = {
+                    "pgn": pgn_str,
+                    "fen": self.state.get_fen(),
+                    "event": "Fen",
+                    "move": mov,
+                    "play": "reload",
+                    "variant": self.shared.get("variant", "chess"),
+                }
+                self.shared["last_dgt_move_msg"] = result
+                EventHandler.write_to_clients(result)
 
-            game_end = self.state.check_game_state()
             if game_end:
                 self.state.play_mode = PlayMode.USER_WHITE if turn == chess.WHITE else PlayMode.USER_BLACK
                 self.state.legal_fens = []
@@ -4386,7 +4482,7 @@ async def main() -> None:
                     await asyncio.sleep(1)
 
             self.state.take_back_locked = True  # important otherwise problems for setting up the position
-            if not fen_header:
+            if start_replay and not fen_header:
                 pgn_game_to_step = None if l_stop_at_halfmove is None else l_game_pgn
                 if pgn_game_to_step:
                     # this PGN game was not loaded to the end (above) - remember it
@@ -4498,11 +4594,10 @@ async def main() -> None:
 
         async def engine_mode(self):
             """call when engine mode is changed"""
+            tutor_analysis_enabled = self.tutor_analysis_enabled_for_current_mode()
             if self.state.picotutor is not None:
-                await self.state.picotutor.set_analysis_enabled(
-                    tutor_analysis_allowed_in_mode(self.state.interaction_mode)
-                )
-            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                await self.state.picotutor.set_analysis_enabled(tutor_analysis_enabled)
+            if not tutor_analysis_enabled:
                 await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 # optimisation, dont ask for ponder unless needed
@@ -4595,7 +4690,7 @@ async def main() -> None:
             """check if we can do the next pgn move"""
             if self.state.interaction_mode != Mode.PGNREPLAY or self.state.game.is_game_over():
                 return False
-            if self.state.picotutor.get_pgn_game_to_step is None:
+            if self.state.picotutor.get_pgn_game_to_step() is None:
                 return False  # No game to try to step through
             if self.board_type == dgt.util.EBoard.NOEBOARD:
                 # on web display we can always autoplay the next pgn move
@@ -5231,6 +5326,8 @@ async def main() -> None:
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
+                self.state.loaded_pgn_game = None
+                self.state.loaded_pgn_filename = ""
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False
@@ -6387,9 +6484,19 @@ async def main() -> None:
                         self.state.newgame_happened = False
                     await self.stop_search_and_clock()
                     if event.mode == Mode.PGNREPLAY:
-                        file_name_only = "last_game.pgn"
-                        await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
-                        await self.read_pgn_file(file_name_only)
+                        loaded_pgn_game = self.state.loaded_pgn_game
+                        if loaded_pgn_game is not None:
+                            file_name_only = self.state.loaded_pgn_filename or "loaded PGN"
+                            await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
+                            await self.read_pgn_file(
+                                file_name_only,
+                                start_replay=True,
+                                pgn_game=copy.deepcopy(loaded_pgn_game),
+                            )
+                        else:
+                            file_name_only = "last_game.pgn"
+                            await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
+                            await self.read_pgn_file(file_name_only, start_replay=True)
                         await self._start_or_stop_analysis_as_needed()
                     else:
                         self.state.interaction_mode = event.mode

@@ -5,7 +5,7 @@ import datetime
 import unittest
 
 from dgt.util import PlayMode
-from pgn import PgnDisplay, add_picotutor_variations_to_game
+from pgn import PgnDisplay, add_picotutor_variations_to_game, pgn_has_variations
 
 EMPTY_GAME = """[Event "PicoChess Game"]
 [Site "?"]
@@ -152,3 +152,21 @@ class TestPgnDisplay(unittest.TestCase):
         pgn_text = game.accept(chess.pgn.StringExporter(headers=False, comments=False, variations=True))
 
         self.assertEqual(pgn_text, "1. e4 ( 1. Nf3 d5 ) *")
+
+    def test_pgn_has_variations_detects_root_and_nested_side_lines(self):
+        root_variation_game = chess.pgn.Game()
+        root_variation_game.add_variation(chess.Move.from_uci("e2e4"))
+        root_variation_game.add_variation(chess.Move.from_uci("g1f3"))
+        self.assertTrue(pgn_has_variations(root_variation_game))
+
+        nested_variation_game = chess.pgn.Game()
+        mainline = nested_variation_game.add_variation(chess.Move.from_uci("e2e4"))
+        mainline.add_variation(chess.Move.from_uci("e7e5"))
+        mainline.add_variation(chess.Move.from_uci("c7c5"))
+        self.assertTrue(pgn_has_variations(nested_variation_game))
+
+    def test_pgn_has_variations_ignores_plain_mainline(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        board.push(chess.Move.from_uci("e7e5"))
+        self.assertFalse(pgn_has_variations(chess.pgn.Game.from_board(board)))

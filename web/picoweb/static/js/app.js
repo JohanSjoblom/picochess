@@ -960,6 +960,11 @@ function buildPgnPrefixForNode(node) {
 
 function writeVariationTree(dom, gameMoves, gameHistoryEl) {
     $(dom).html(gameHistoryEl.gameHeader + '<div class="gameMoves">' + gameMoves + ' <span class="gameResult">' + gameHistoryEl.result + '</span></div>');
+    bindPgnFenLinks();
+}
+
+function bindPgnFenLinks() {
+    $('.fen').off('click', goToGameFen).on('click', goToGameFen);
 }
 
 // update the board position after the piece snap
@@ -985,7 +990,7 @@ function updateCurrentPosition(move, tmpGame) {
 
 var updateStatus = function () {
     var status = '';
-    $('.fen').unbind('click', goToGameFen).one('click', goToGameFen);
+    bindPgnFenLinks();
 
     var moveColor = 'White';
     var tmpGame = createGamePointer();
@@ -1402,7 +1407,7 @@ function loadGame(pgn_lines) {
         currentPosition = fenHash[curr_fen];
     }
     setHeaders(game_headers);
-    $('.fen').unbind('click', goToGameFen).one('click', goToGameFen);
+    bindPgnFenLinks();
 }
 
 function getFullGame() {
@@ -1541,10 +1546,14 @@ function goToPosition(fen) {
     return true;
 }
 
-function goToGameFen() {
+function goToGameFen(event) {
+    if (event) {
+        event.preventDefault();
+    }
     var fen = $(this).attr('data-fen');
     goToPosition(fen);
     removeHighlights();
+    return false;
 }
 
 function setPositionFromCurrentPgn() {

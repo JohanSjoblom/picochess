@@ -109,6 +109,19 @@ def add_picotutor_variations_to_game(game: chess.pgn.Game, picotutor: PicoTutor 
             logger.debug("skipped move %s-%s picotutor variation mismatch", pgn_move.uci(), user_move.uci())
 
 
+def pgn_has_variations(game: chess.pgn.Game | None) -> bool:
+    """Return True if a PGN game contains any side variations."""
+    if not game:
+        return False
+    stack = [game]
+    while stack:
+        node = stack.pop()
+        if len(node.variations) > 1:
+            return True
+        stack.extend(node.variations)
+    return False
+
+
 # molli: support for player names from online game
 class ModeInfo:
     online_mode = False

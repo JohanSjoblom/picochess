@@ -73,7 +73,7 @@ from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
-from pgn import ModeInfo
+from pgn import ModeInfo, add_picotutor_variations_to_game
 
 # This needs to be reworked to be session based (probably by token)
 # Otherwise multiple clients behind a NAT can all play as the 'player'
@@ -2866,7 +2866,8 @@ class WebDisplay(DisplayMsg):
                 pgn_game = pgn.Game().from_board(game)
             self._build_game_header(pgn_game, keep_these_headers)
             self.shared["headers"] = pgn_game.headers
-            return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
+            add_picotutor_variations_to_game(pgn_game, self.shared.get("picotutor"))
+            return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=True))
 
         def peek_uci(game: chess.Board):
             """Return last move in uci format."""

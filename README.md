@@ -24,6 +24,10 @@ This fork of Picochess focuses on:
 - Built-in replay mode, while preserving the original PGN Replay engine.
 - Refreshed web client experience.
 
+User Manual
+-----------
+- [English user manual](manual/user-manual-en-GB.md)
+
 Requirements
 ------------
 

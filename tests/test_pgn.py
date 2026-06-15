@@ -2,6 +2,7 @@ import asyncio
 
 import chess  # type: ignore[import]
 import datetime
+import tempfile
 import unittest
 
 from dgt.util import PlayMode
@@ -37,6 +38,14 @@ class FakePicoTutor:
 
     def get_eval_moves(self):
         return self.eval_moves
+
+
+class FakeEmailer:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, subject, text, file_name):
+        self.sent.append((subject, text, file_name))
 
 
 class TestPgnDisplay(unittest.TestCase):
@@ -170,3 +179,52 @@ class TestPgnDisplay(unittest.TestCase):
         board.push(chess.Move.from_uci("e2e4"))
         board.push(chess.Move.from_uci("e7e5"))
         self.assertFalse(pgn_has_variations(chess.pgn.Game.from_board(board)))
+
+    def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
+        user_move = chess.Move.from_uci("e2e4")
+        board = chess.Board()
+        board.push(user_move)
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        eval_key = (1, user_move, chess.BLACK)
+        emailer = FakeEmailer()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, {"headers": {}, "variant": "chess"}, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+
+            testee.set_picotutor(
+                FakePicoTutor(
+                    {
+                        eval_key: {
+                            "nag": chess.pgn.NAG_MISTAKE,
+                            "best_move": "Nf3",
+                            "user_move": "e4",
+                            "CPL": 1000,
+                            "score": 0,
+                            "variations": [{"moves": ["g1f3", "d7d5"], "score": 1000, "mate": 0}],
+                        }
+                    }
+                )
+            )
+            testee._save_and_email_pgn(msg)
+            self.assertEqual(len(emailer.sent), 1)
+
+            testee._save_and_email_pgn(msg)
+            self.assertEqual(len(emailer.sent), 1)
+
+            testee.set_picotutor(
+                FakePicoTutor(
+                    {
+                        eval_key: {
+                            "nag": chess.pgn.NAG_MISTAKE,
+                            "best_move": "Nf3",
+                            "user_move": "e4",
+                            "CPL": 1000,
+                            "score": 0,
+                            "variations": [{"moves": ["g1f3", "e7e5"], "score": 1000, "mate": 0}],
+                        }
+                    }
+                )
+            )
+            testee._save_and_email_pgn(msg)
+            self.assertEqual(len(emailer.sent), 2)

@@ -412,6 +412,7 @@ class PgnDisplay(DisplayMsg):
         self.engine_elo = "-"
         self.startime = datetime.datetime.now().strftime("%H:%M:%S")
         self.last_saved_game = None
+        self.last_saved_game_signature = None
         self.picotutor: PicoTutor | None = None
         self.shared = shared  # shared headers needed in generate_pgn_from_message
 
@@ -685,18 +686,6 @@ class PgnDisplay(DisplayMsg):
         pgn_game = self._pgn_game_from_message(message)
         pgn_game_last = pgn_game
 
-        # If we already saved the exact same game, do not
-        # save it again, and do not send an email
-        logger.debug(
-            "Comparing current game to last save game:\nCurrent Game: %s\nLast Saved Game: %s",
-            pgn_game,
-            self.last_saved_game,
-        )
-        if str(pgn_game) == str(self.last_saved_game):
-            logger.debug("Current game is the same as last saved gamed, skipping")
-            return
-        self.last_saved_game = pgn_game
-
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
 
@@ -714,6 +703,19 @@ class PgnDisplay(DisplayMsg):
                     pgn_game.headers["Result"] = "1-0"
                 else:
                     pgn_game.headers["Result"] = "0-1"
+
+        # Compare the final PGN payload, including comments and side variations.
+        save_signature = pgn_game.accept(chess.pgn.StringExporter(headers=True, comments=True, variations=True))
+        logger.debug(
+            "Comparing current save signature to last save signature:\nCurrent Game: %s\nLast Saved Game: %s",
+            pgn_game,
+            self.last_saved_game,
+        )
+        if save_signature == self.last_saved_game_signature:
+            logger.debug("Current game is the same as last saved game, skipping")
+            return
+        self.last_saved_game_signature = save_signature
+        self.last_saved_game = pgn_game
 
         # Save to last game file
         with open(self.last_file_name, "w") as last_file:

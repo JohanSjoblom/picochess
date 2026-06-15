@@ -311,6 +311,8 @@ const SERVER_NAME = location.hostname
 const BOOK_SERVER_PREFIX = ''; // same origin
 const GAMES_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7778';
 var pgnVariationsVisible = false;
+var webExploreMode = false;
+var webExploreGame = null;
 
 fenHash = {};
 
@@ -592,9 +594,7 @@ gameDataTable.on('select', function (e, dt, type, indexes) {
     removeHighlights();
 });
 
-// do not pick up pieces if the game is over
-// only pick up pieces for the side to move
-function createGamePointer() {
+function createPositionGamePointer() {
     var tmpGame;
 
     if (currentPosition && currentPosition.fen) {
@@ -604,6 +604,58 @@ function createGamePointer() {
         tmpGame = new Chess(setupBoardFen, chessGameType);
     }
     return tmpGame;
+}
+
+// do not pick up pieces if the game is over
+// only pick up pieces for the side to move
+function createGamePointer() {
+    if (webExploreMode && webExploreGame) {
+        return new Chess(webExploreGame.fen(), chessGameType);
+    }
+    return createPositionGamePointer();
+}
+
+function updateWebExploreButton() {
+    var btn = document.getElementById('webExploreToggleBtn');
+    if (!btn) {
+        return;
+    }
+    btn.textContent = webExploreMode ? 'ON' : 'OFF';
+    btn.classList.toggle('btn-warning', webExploreMode);
+    btn.classList.toggle('btn-primary', !webExploreMode);
+    btn.setAttribute(
+        'aria-pressed',
+        webExploreMode ? 'true' : 'false'
+    );
+}
+
+function setWebExploreMode(enabled, redraw) {
+    enabled = Boolean(enabled);
+    if (enabled) {
+        if (!webExploreMode || !webExploreGame) {
+            webExploreGame = createPositionGamePointer();
+        }
+        webExploreMode = true;
+    } else {
+        webExploreMode = false;
+        webExploreGame = null;
+    }
+    updateWebExploreButton();
+    if (redraw !== false) {
+        updateChessGround();
+        updateStatus();
+    }
+}
+
+function stopWebExploreMode(redraw) {
+    if (!webExploreMode && !webExploreGame) {
+        return;
+    }
+    setWebExploreMode(false, redraw);
+}
+
+function toggleWebExploreMode() {
+    setWebExploreMode(!webExploreMode);
 }
 
 function stripFen(fen) {
@@ -1048,6 +1100,9 @@ var updateStatus = function () {
             status += ' (check)';
         }
     }
+    if (webExploreMode) {
+        status = 'Explore: ' + status;
+    }
 
     boardStatusEl.html(status);
     if (window.analysis === true) {
@@ -1101,7 +1156,6 @@ function toColor(chess) {
 }
 
 var onSnapEnd = async function (source, target) {
-    stopAnalysis();
     var tmpGame = createGamePointer();
 
     if (!currentPosition) {
@@ -1113,7 +1167,19 @@ var onSnapEnd = async function (source, target) {
     }
 
     var move = await getMove(tmpGame, source, target);
+    if (!move) {
+        updateChessGround();
+        return;
+    }
 
+    if (webExploreMode) {
+        webExploreGame = tmpGame;
+        updateChessGround();
+        updateStatus();
+        return;
+    }
+
+    stopAnalysis();
     updateCurrentPosition(move, tmpGame);
     updateChessGround();
     $.post('/channel', {
@@ -1160,7 +1226,9 @@ function updateChessGround() {
     var turnColor = toColor(tmpGame);
     var movableColor;
 
-    if (!hasBoard) {
+    if (webExploreMode) {
+        movableColor = turnColor;
+    } else if (!hasBoard) {
         // No physical board: full diagram interactivity (NOEBOARD mode).
         movableColor = turnColor;
     } else if (psi.interaction_mode === 'remote') {
@@ -1175,7 +1243,7 @@ function updateChessGround() {
     }
 
     chessground1.set({
-        fen: currentPosition.fen,
+        fen: tmpGame.fen(),
         turnColor: turnColor,
         movable: {
             color: movableColor,
@@ -1244,6 +1312,7 @@ function addNewMove(m, current_position, fen, props) {
 }
 
 function loadGame(pgn_lines) {
+    stopWebExploreMode(false);
     fenHash = {};
 
     var curr_fen;
@@ -1482,6 +1551,7 @@ function download() {
 }
 
 function newBoard(fen) {
+    stopWebExploreMode(false);
     stopAnalysis();
 
     fenHash = {};
@@ -1554,6 +1624,7 @@ function clockShowHint() {
 }
 
 function goToPosition(fen) {
+    stopWebExploreMode(false);
     stopAnalysis();
     currentPosition = fenHash[fen];
     if (!currentPosition) {
@@ -1601,6 +1672,7 @@ window.setPicoPositionFromCurrentPgn = setPositionFromCurrentPgn;
 
 function goToStart() {
     removeHighlights();
+    stopWebExploreMode(false);
     stopAnalysis();
     currentPosition = gameHistory;
     updateChessGround();
@@ -1609,6 +1681,7 @@ function goToStart() {
 
 function goToEnd() {
     removeHighlights();
+    stopWebExploreMode(false);
     stopAnalysis();
     if (fenHash.last) {
         currentPosition = fenHash.last;
@@ -1619,6 +1692,7 @@ function goToEnd() {
 
 function goForward() {
     removeHighlights();
+    stopWebExploreMode(false);
     stopAnalysis();
     if (currentPosition && currentPosition.variations[0]) {
         currentPosition = currentPosition.variations[0];
@@ -1631,6 +1705,7 @@ function goForward() {
 
 function goBack() {
     removeHighlights();
+    stopWebExploreMode(false);
     stopAnalysis();
     if (currentPosition && currentPosition.previous) {
         currentPosition = currentPosition.previous;
@@ -1656,7 +1731,10 @@ function formatEngineOutput(line) {
     if (line.search('depth') > 0 && line.search('currmove') < 0) {
         var analysis_game = new Chess();
         var start_move_num = 1;
-        if (currentPosition && currentPosition.fen) {
+        if (webExploreMode && webExploreGame) {
+            analysis_game.load(webExploreGame.fen(), chessGameType);
+            start_move_num = getStartMoveNumFromFen(webExploreGame.fen());
+        } else if (currentPosition && currentPosition.fen) {
             analysis_game.load(currentPosition.fen, chessGameType);
             start_move_num = getCountPrevMoves(currentPosition) + 1;
         }
@@ -1755,7 +1833,9 @@ function formatEngineOutput(line) {
         if (history.length > 0) {
             var firstMoveText = '';
             var tempGame = new Chess();
-            if (currentPosition && currentPosition.fen) {
+            if (webExploreMode && webExploreGame) {
+                tempGame.load(webExploreGame.fen(), chessGameType);
+            } else if (currentPosition && currentPosition.fen) {
                 tempGame.load(currentPosition.fen, chessGameType);
             }
             var currentTurn = tempGame.turn();
@@ -2042,7 +2122,11 @@ function analyze(position_update) {
         }
     }
     var moves;
-    if (currentPosition === undefined) {
+    var startpos;
+    if (webExploreMode && webExploreGame) {
+        moves = '';
+        startpos = 'fen ' + webExploreGame.fen();
+    } else if (currentPosition === undefined) {
         moves = '';
     }
     else {
@@ -2062,19 +2146,26 @@ function analyze(position_update) {
         window.stockfish = StockfishModule;
     }
 
-    var startpos = 'startpos';
-    if (setupBoardFen !== START_FEN) {
+    if (!startpos) {
+        startpos = 'startpos';
+    }
+    if (!webExploreMode && setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
     }
     if (position_update && window.stockfish) {
         window.stockfish.postMessage('stop');
     }
-    window.stockfish.postMessage('position ' + startpos + ' moves ' + moves);
+    var positionCommand = 'position ' + startpos;
+    if (moves && moves.trim()) {
+        positionCommand += ' moves ' + moves;
+    }
+    window.stockfish.postMessage(positionCommand);
     window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
     window.stockfish.postMessage('go infinite');
 }
 
 function updateDGTPosition(data) {
+    stopWebExploreMode(false);
     if (data.play === 'reload') {
         // Takeback / switch-sides: always rebuild the move tree from the
         // fresh PGN so the diagram and move list are in sync, even when
@@ -2713,6 +2804,7 @@ function updateBackendAnalysis(analysis) {
 }
 
 function goToDGTFen() {
+    stopWebExploreMode(false);
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data && data.fen) {
             if (data.play === 'newgame') {
@@ -3300,7 +3392,9 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
+    $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
     applyPgnVariationVisibility();
+    updateWebExploreButton();
 
     $('#analyzeMinus').on('click', multiPvDecrease);
     $('#analyzePlus').on('click', multiPvIncrease);

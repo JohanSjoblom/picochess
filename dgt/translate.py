@@ -5814,6 +5814,34 @@ class DgtTranslate(object):
                 medium_text="PGNRep ",
                 small_text="PGN  ",
             )
+        if text_id == "mode_pgnreplay_fast":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Replay    ",
+                medium_text="Replay ",
+                small_text="replay",
+            )
+            ittxt = detxt = nltxt = frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Repetir PGN sin tutor",
+                large_text="Replay    ",
+                medium_text="Replay ",
+                small_text="replay",
+            )
+        if text_id == "mode_pgnreplay_tutor":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="TutorLines",
+                medium_text="TutorLin",
+                small_text="tutlin",
+            )
+            ittxt = detxt = nltxt = frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Repetir PGN con líneas tutor",
+                large_text="TutorLin",
+                medium_text="TutorLin",
+                small_text="tutlin",
+            )
         if text_id == "mode_analysis_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

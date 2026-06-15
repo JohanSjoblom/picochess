@@ -1318,6 +1318,8 @@
                     btn.addEventListener('click', function() {
                         if (def.key === 'handbrain') {
                             navigateTo(showModeHandBrainGrid);
+                        } else if (def.key === 'pgnreplay') {
+                            navigateTo(showModePgnReplayGrid);
                         } else {
                             handleSubpanelAction(def.action, null);
                         }
@@ -1360,12 +1362,47 @@
                 subContent.appendChild(grid);
             }
 
+            function showModePgnReplayGrid() {
+                setOverlayPath('Mode > PGN Replay');
+                var mainGrid = document.getElementById('ovl-mode-tile-grid');
+                var subPanel = document.getElementById('ovl-mode-pgnreplay-panel');
+                var subContent = document.getElementById('ovl-mode-pgnreplay-content');
+                if (!subPanel) return;
+                mainGrid.style.display = 'none';
+                subPanel.style.display = '';
+                subContent.innerHTML = '';
+
+                var grid = document.createElement('div');
+                grid.className = 'pico-sub-tile-grid';
+                [
+                    ['📖 Replay', 'mode-pgnreplay-fast'],
+                    ['🧭 Replay + Tutor Lines', 'mode-pgnreplay-tutor']
+                ].forEach(function(p) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-sub-tile';
+                    var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
+                    lEl.textContent = p[0];
+                    btn.appendChild(lEl);
+                    btn.addEventListener('click', function() {
+                        handleSubpanelAction(p[1], btn);
+                    });
+                    grid.appendChild(btn);
+                });
+                for (var _pr = 0; _pr < 7; _pr++) {
+                    var _pe = document.createElement('button'); _pe.className = 'pico-sub-tile pico-empty-tile';
+                    _pe.setAttribute('aria-hidden','true'); _pe.tabIndex = -1; grid.appendChild(_pe);
+                }
+                subContent.appendChild(grid);
+            }
+
             function showMode() {
                 showSubpanel('overlay-mode');
                 var mg = document.getElementById('ovl-mode-tile-grid');
                 var sp = document.getElementById('ovl-mode-hb-panel');
+                var rp = document.getElementById('ovl-mode-pgnreplay-panel');
                 if (mg) mg.style.display = '';
                 if (sp) sp.style.display = 'none';
+                if (rp) rp.style.display = 'none';
                 renderModeTiles();
             }
             function showTime() {
@@ -3283,15 +3320,27 @@
                     case 'mode-remote':
                     case 'mode-ponder':
                     case 'mode-pgnreplay':
+                    case 'mode-pgnreplay-fast':
+                    case 'mode-pgnreplay-tutor':
                         var modeSub = document.getElementById('ovl-mode-sub');
-                        if (modeSub) modeSub.textContent = modeLabel(action.replace('mode-', ''));
+                        var selectedMode = action.replace('mode-', '');
+                        var modeNameForPost = selectedMode;
+                        var tutorLinesQuery = '';
+                        if (selectedMode === 'pgnreplay-fast') {
+                            modeNameForPost = 'pgnreplay';
+                            tutorLinesQuery = '&tutor_lines=false';
+                        } else if (selectedMode === 'pgnreplay-tutor') {
+                            modeNameForPost = 'pgnreplay';
+                            tutorLinesQuery = '&tutor_lines=true';
+                        }
+                        if (modeSub) modeSub.textContent = modeLabel(modeNameForPost);
                         var tutorSettings = normalizeTutorSettings(window._picoTutorSettings);
                         var clearHandBrainCoach = tutorSettings.tutor_coach === 'brain' || tutorSettings.tutor_coach === 'hand';
                         if (clearHandBrainCoach) {
                             tutorSettings.tutor_coach = 'on';
                             setTutorSettingsOptimistic(tutorSettings);
                         }
-                        post('action=set_mode&mode=' + action.replace('mode-', '')).finally(function() {
+                        post('action=set_mode&mode=' + modeNameForPost + tutorLinesQuery).finally(function() {
                             if (clearHandBrainCoach) post('action=picotutor&tutor=coach&val=on');
                         });
                         close(); break;
@@ -3418,6 +3467,10 @@
                 // Local back buttons are kept in the markup for compatibility, but
                 // all back navigation now goes through the header stack.
                 if (e.target.closest('#ovl-mode-hb-back')) {
+                    goBack();
+                    return;
+                }
+                if (e.target.closest('#ovl-mode-pgnreplay-back')) {
                     goBack();
                     return;
                 }
@@ -3938,6 +3991,11 @@
                     <button class="pico-col-back" id="ovl-mode-hb-back">‹ Back</button>
                     <div class="pico-sub-grid-label">Hand &amp; Brain — choose role</div>
                     <div id="ovl-mode-hb-content"></div>
+                </div>
+                <div id="ovl-mode-pgnreplay-panel" style="display:none; flex-direction:column; flex:1;">
+                    <button class="pico-col-back" id="ovl-mode-pgnreplay-back">‹ Back</button>
+                    <div class="pico-sub-grid-label">PGN Replay — choose replay type</div>
+                    <div id="ovl-mode-pgnreplay-content"></div>
                 </div>
             </div><!-- #overlay-mode -->
 

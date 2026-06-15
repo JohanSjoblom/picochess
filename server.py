@@ -861,6 +861,7 @@ class ChannelHandler(ServerRequestHandler):
                 self.write({"error": "Could not set position"})
                 return
         elif action == "pgn_replay":
+            await Observable.fire(Event.SET_PGN_REPLAY_TUTOR_REGENERATION(enabled=False))
             await Observable.fire(
                 Event.SET_INTERACTION_MODE(
                     mode=Mode.PGNREPLAY,
@@ -1082,6 +1083,9 @@ class ChannelHandler(ServerRequestHandler):
             }
             mode_name = self.get_argument("mode", "normal").lower()
             mode_val, _ = _mode_map.get(mode_name, (Mode.NORMAL, "Normal"))
+            if mode_val == Mode.PGNREPLAY:
+                tutor_lines = self.get_argument("tutor_lines", "false").lower() in ("1", "true", "yes", "on")
+                await Observable.fire(Event.SET_PGN_REPLAY_TUTOR_REGENERATION(enabled=tutor_lines))
             await Observable.fire(
                 Event.SET_INTERACTION_MODE(
                     mode=mode_val,

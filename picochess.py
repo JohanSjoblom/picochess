@@ -317,6 +317,7 @@ class PicochessState:
         self.pgn_replay_next_move = None
         self.pgn_replay_book_cache = {}
         self.loaded_pgn_has_variations = False
+        self.loaded_pgn_finished = False
         self.pgn_replay_tutor_regeneration = True
         self.loaded_pgn_game: Game | None = None
         self.loaded_pgn_filename = ""
@@ -3574,6 +3575,8 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
+            if self.eng_plays() and self.state.loaded_pgn_finished:
+                return False
             # Save CPU at idle startup: skip analyser on the untouched standard
             # starting position until the game lifecycle has actually begun.
             if (
@@ -3601,6 +3604,8 @@ async def main() -> None:
         def tutor_analysis_enabled_for_current_mode(self) -> bool:
             """Return whether tutor analysis should run for the current mode."""
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
+                return False
+            if self.eng_plays() and self.state.loaded_pgn_finished:
                 return False
             return not (
                 self.state.interaction_mode == Mode.PGNREPLAY
@@ -4238,6 +4243,7 @@ async def main() -> None:
             result_header_raw = l_game_pgn.headers.get("Result") if l_game_pgn.headers else None
             result_header = str(result_header_raw).strip() if result_header_raw else ""
             loaded_game_finished = bool(result_header and result_header not in ("*", "?"))
+            self.state.loaded_pgn_finished = loaded_game_finished
             if result_header_raw:
                 display_result = result_header or str(result_header_raw)
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
@@ -4426,6 +4432,7 @@ async def main() -> None:
                 "game_started": self.state.game_started,
                 "interaction_mode": self.state.interaction_mode.name.lower(),
                 "loaded_pgn_has_variations": loaded_pgn_has_variations,
+                "loaded_pgn_finished": loaded_game_finished,
                 "pgn_replay_tutor_regeneration": self.state.pgn_replay_tutor_regeneration,
                 "pgn_replay_autoplay": self.state.autoplay_pgn_file,
             }
@@ -4433,10 +4440,11 @@ async def main() -> None:
             self.shared["system_info"].update(system_info_update)
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": system_info_update})
             logger.info(
-                "loaded PGN %s: mode=%s game_started=%s variations=%s tutor_regeneration=%s",
+                "loaded PGN %s: mode=%s game_started=%s finished=%s variations=%s tutor_regeneration=%s",
                 l_filename,
                 self.state.interaction_mode.name.lower(),
                 self.state.game_started,
+                loaded_game_finished,
                 loaded_pgn_has_variations,
                 self.state.pgn_replay_tutor_regeneration,
             )
@@ -5328,6 +5336,9 @@ async def main() -> None:
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
                 self.state.loaded_pgn_game = None
                 self.state.loaded_pgn_filename = ""
+                self.state.loaded_pgn_has_variations = False
+                self.state.loaded_pgn_finished = False
+                self.state.pgn_replay_tutor_regeneration = True
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False

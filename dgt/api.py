@@ -58,6 +58,7 @@ class EventApi:
     SET_OPENING_BOOK = "EVT_SET_OPENING_BOOK"  # User chooses an opening book
     NEW_ENGINE = "EVT_NEW_ENGINE"  # Change engine
     SET_INTERACTION_MODE = "EVT_SET_INTERACTION_MODE"  # Change interaction mode
+    SET_PGN_REPLAY_TUTOR_REGENERATION = "EVT_SET_PGN_REPLAY_TUTOR_REGENERATION"
     SETUP_POSITION = "EVT_SETUP_POSITION"  # Setup custom position
     PAUSE_RESUME = "EVT_PAUSE_RESUME"  # Stops search or halt/resume running clock
     SWITCH_SIDES = "EVT_SWITCH_SIDES"  # Switch the side
@@ -342,6 +343,10 @@ class Event:
     SET_OPENING_BOOK = ClassFactory(EventApi.SET_OPENING_BOOK, ["book", "book_text", "show_ok"])
     NEW_ENGINE = ClassFactory(EventApi.NEW_ENGINE, ["eng", "eng_text", "options", "show_ok"])
     SET_INTERACTION_MODE = ClassFactory(EventApi.SET_INTERACTION_MODE, ["mode", "mode_text", "show_ok"])
+    SET_PGN_REPLAY_TUTOR_REGENERATION = ClassFactory(
+        EventApi.SET_PGN_REPLAY_TUTOR_REGENERATION,
+        ["enabled"],
+    )
     SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game"])
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])

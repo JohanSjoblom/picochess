@@ -97,6 +97,8 @@ class MenuState(object):
 
     MODE = 200000
     MODE_TYPE = 210000  # normal, observe, ...
+    MODE_PGNREPLAY_FAST = 211000
+    MODE_PGNREPLAY_TUTOR = 212000
 
     POS = 300000
     POS_COL = 310000
@@ -335,6 +337,7 @@ class DgtMenu(object):
             self.menu_top = Top.MODE
 
         self.menu_mode = Mode.NORMAL
+        self.menu_pgn_replay_tutor_regeneration = False
         self.engine_has_960 = False
         self.engine_has_ponder = False
         self.engine_restart = False
@@ -1020,6 +1023,18 @@ class DgtMenu(object):
         self.state = MenuState.MODE_TYPE
         text = self.dgttranslate.text(self.menu_mode.value)
         return text
+
+    def enter_mode_pgnreplay_fast_menu(self):
+        """Set the PGN replay option state."""
+        self.state = MenuState.MODE_PGNREPLAY_FAST
+        self.menu_pgn_replay_tutor_regeneration = False
+        return self.dgttranslate.text("B00_mode_pgnreplay_fast")
+
+    def enter_mode_pgnreplay_tutor_menu(self):
+        """Set the PGN replay option state."""
+        self.state = MenuState.MODE_PGNREPLAY_TUTOR
+        self.menu_pgn_replay_tutor_regeneration = True
+        return self.dgttranslate.text("B00_mode_pgnreplay_tutor")
 
     def enter_picotutor_menu(self):
         """Set the picotutor state."""
@@ -1962,6 +1977,12 @@ class DgtMenu(object):
         elif self.state == MenuState.MODE_TYPE:
             text = self.enter_mode_menu()
 
+        elif self.state == MenuState.MODE_PGNREPLAY_FAST:
+            text = self.enter_mode_type_menu()
+
+        elif self.state == MenuState.MODE_PGNREPLAY_TUTOR:
+            text = self.enter_mode_type_menu()
+
         elif self.state == MenuState.POS:
             text = self.enter_top_menu()
 
@@ -2395,10 +2416,22 @@ class DgtMenu(object):
             if self.menu_mode == Mode.BRAIN and not self.get_engine_has_ponder():
                 await DispatchDgt.fire(self.dgttranslate.text("Y10_erroreng"))
                 text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
+            elif self.menu_mode == Mode.PGNREPLAY:
+                text = self.enter_mode_pgnreplay_fast_menu()
             else:
                 mode_text = self.dgttranslate.text("B10_okmode")
                 event = Event.SET_INTERACTION_MODE(mode=self.menu_mode, mode_text=mode_text, show_ok=True)
                 text = await self._fire_event(event)
+
+        elif self.state in (MenuState.MODE_PGNREPLAY_FAST, MenuState.MODE_PGNREPLAY_TUTOR):
+            await Observable.fire(
+                Event.SET_PGN_REPLAY_TUTOR_REGENERATION(
+                    enabled=self.menu_pgn_replay_tutor_regeneration
+                )
+            )
+            mode_text = self.dgttranslate.text("B10_okmode")
+            event = Event.SET_INTERACTION_MODE(mode=Mode.PGNREPLAY, mode_text=mode_text, show_ok=True)
+            text = await self._fire_event(event)
 
         elif self.state == MenuState.GAME:
             if self.menu_game == Game.NEW:
@@ -3609,6 +3642,12 @@ class DgtMenu(object):
             self.menu_mode = ModeLoop.prev(self.menu_mode)
             text = self.dgttranslate.text(self.menu_mode.value)
 
+        elif self.state == MenuState.MODE_PGNREPLAY_FAST:
+            text = self.enter_mode_pgnreplay_tutor_menu()
+
+        elif self.state == MenuState.MODE_PGNREPLAY_TUTOR:
+            text = self.enter_mode_pgnreplay_fast_menu()
+
         elif self.state == MenuState.POS:
             self.state = MenuState.MODE
             self.menu_top = TopLoop.prev(self.menu_top)
@@ -4288,6 +4327,12 @@ class DgtMenu(object):
         elif self.state == MenuState.MODE_TYPE:
             self.menu_mode = ModeLoop.next(self.menu_mode)
             text = self.dgttranslate.text(self.menu_mode.value)
+
+        elif self.state == MenuState.MODE_PGNREPLAY_FAST:
+            text = self.enter_mode_pgnreplay_tutor_menu()
+
+        elif self.state == MenuState.MODE_PGNREPLAY_TUTOR:
+            text = self.enter_mode_pgnreplay_fast_menu()
 
         elif self.state == MenuState.POS:
             self.state = MenuState.TIME

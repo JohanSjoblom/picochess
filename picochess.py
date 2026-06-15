@@ -319,6 +319,7 @@ class PicochessState:
         self.loaded_pgn_has_variations = False
         self.loaded_pgn_finished = False
         self.pgn_replay_tutor_regeneration = True
+        self.pgn_replay_tutor_regeneration_override: bool | None = None
         self.loaded_pgn_game: Game | None = None
         self.loaded_pgn_filename = ""
         self.picotutor: PicoTutor | None = None
@@ -3639,6 +3640,17 @@ async def main() -> None:
             self.shared["system_info"].update(update)
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
+        def _set_pgn_replay_tutor_regeneration(self, enabled: bool, override: bool = False) -> None:
+            """Update PGN replay tutor regeneration and publish it to web clients."""
+            enabled = bool(enabled)
+            self.state.pgn_replay_tutor_regeneration = enabled
+            if override:
+                self.state.pgn_replay_tutor_regeneration_override = enabled
+            self.shared.setdefault("system_info", {})
+            update = {"pgn_replay_tutor_regeneration": enabled}
+            self.shared["system_info"].update(update)
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
+
         async def get_rid_of_engine_move(self):
             """in some mode switches we need to get rid of a move engine is thinking about"""
             if self.eng_plays() and self.engine.is_thinking():
@@ -4189,7 +4201,14 @@ async def main() -> None:
                 return
             loaded_pgn_has_variations = pgn_has_variations(l_game_pgn)
             self.state.loaded_pgn_has_variations = loaded_pgn_has_variations
-            self.state.pgn_replay_tutor_regeneration = not loaded_pgn_has_variations
+            replay_regeneration_override = self.state.pgn_replay_tutor_regeneration_override
+            if start_replay and replay_regeneration_override is not None:
+                self.state.pgn_replay_tutor_regeneration = replay_regeneration_override
+                self.state.pgn_replay_tutor_regeneration_override = None
+            else:
+                self.state.pgn_replay_tutor_regeneration = not loaded_pgn_has_variations
+                if not start_replay:
+                    self.state.pgn_replay_tutor_regeneration_override = None
             self.shared.setdefault("system_info", {})
             self.shared["system_info"].update(
                 {
@@ -5339,6 +5358,7 @@ async def main() -> None:
                 self.state.loaded_pgn_has_variations = False
                 self.state.loaded_pgn_finished = False
                 self.state.pgn_replay_tutor_regeneration = True
+                self.state.pgn_replay_tutor_regeneration_override = None
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False
@@ -6498,7 +6518,6 @@ async def main() -> None:
                         loaded_pgn_game = self.state.loaded_pgn_game
                         if loaded_pgn_game is not None:
                             file_name_only = self.state.loaded_pgn_filename or "loaded PGN"
-                            await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
                             await self.read_pgn_file(
                                 file_name_only,
                                 start_replay=True,
@@ -6506,7 +6525,6 @@ async def main() -> None:
                             )
                         else:
                             file_name_only = "last_game.pgn"
-                            await DisplayMsg.show(Message.READ_GAME(pgn_filename=file_name_only))
                             await self.read_pgn_file(file_name_only, start_replay=True)
                         await self._start_or_stop_analysis_as_needed()
                     else:
@@ -6516,6 +6534,13 @@ async def main() -> None:
                             mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
                         )
                         await self.set_wait_state(msg)  # dont clear searchmoves here
+
+            elif isinstance(event, Event.SET_PGN_REPLAY_TUTOR_REGENERATION):
+                self._set_pgn_replay_tutor_regeneration(event.enabled, override=True)
+                if self.state.picotutor is not None:
+                    await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
+                    await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+                await self._start_or_stop_analysis_as_needed()
 
             elif isinstance(event, Event.SET_OPENING_BOOK):
                 book_file = event.book["file"]

@@ -310,6 +310,7 @@ const SERVER_NAME = location.hostname
 // Opening book and games database servers
 const BOOK_SERVER_PREFIX = ''; // same origin
 const GAMES_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7778';
+var pgnVariationsVisible = false;
 
 fenHash = {};
 
@@ -961,10 +962,27 @@ function buildPgnPrefixForNode(node) {
 function writeVariationTree(dom, gameMoves, gameHistoryEl) {
     $(dom).html(gameHistoryEl.gameHeader + '<div class="gameMoves">' + gameMoves + ' <span class="gameResult">' + gameHistoryEl.result + '</span></div>');
     bindPgnFenLinks();
+    applyPgnVariationVisibility();
 }
 
 function bindPgnFenLinks() {
     $('.fen').off('click', goToGameFen).on('click', goToGameFen);
+}
+
+function applyPgnVariationVisibility() {
+    var pgnNode = document.getElementById('pgn');
+    if (pgnNode) {
+        pgnNode.classList.toggle('pgn-variations-hidden', !pgnVariationsVisible);
+    }
+    var btn = document.getElementById('pgnVariationsToggleBtn');
+    if (btn) {
+        btn.textContent = pgnVariationsVisible ? 'HIDE' : 'SHOW';
+    }
+}
+
+function togglePgnVariations() {
+    pgnVariationsVisible = !pgnVariationsVisible;
+    applyPgnVariationVisibility();
 }
 
 // update the board position after the piece snap
@@ -3260,6 +3278,8 @@ $(function () {
         }
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
+    $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
+    applyPgnVariationVisibility();
 
     $('#analyzeMinus').on('click', multiPvDecrease);
     $('#analyzePlus').on('click', multiPvIncrease);

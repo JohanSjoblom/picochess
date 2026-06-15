@@ -33,6 +33,11 @@ body {
     font-weight: normal;
 }
 
+#pgn.pgn-variations-hidden .gameVariation,
+#pgn.pgn-variations-hidden .gameComment {
+    display: none;
+}
+
 .comment {
     font-size: max(1.5vw, 1.1rem);
     display: block;

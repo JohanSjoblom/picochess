@@ -4846,6 +4846,38 @@ class DgtTranslate(object):
                 medium_text="UltPart",
                 small_text="u.par",
             )
+        if text_id == "game_read_gamereplay":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="last Replay",
+                medium_text="lastRepl",
+                small_text="replay",
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Carica l'ultimo replay",
+                large_text="Ult Replay",
+                medium_text="ultRepl",
+                small_text="replay",
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="letztRepla",
+                medium_text="letztRep",
+                small_text="replay",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Laatste replay",
+                large_text="LaatsteRep",
+                medium_text="laatsRep",
+                small_text="replay",
+            )
+            frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Cargar último replay",
+                large_text="Ult replay",
+                medium_text="UltRepl",
+                small_text="replay",
+            )
         if text_id == "game_read_game1":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

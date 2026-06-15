@@ -184,13 +184,14 @@ class GameRead(MyEnum):
     """GameRead Class."""
 
     GAMELAST = "B00_game_read_gamelast"
+    GAMEREPLAY = "B00_game_read_gamereplay"
     GAME1 = "B00_game_read_game1"
     GAME2 = "B00_game_read_game2"
     GAME3 = "B00_game_read_game3"
 
     @classmethod
     def items(cls):
-        return [GameRead.GAMELAST, GameRead.GAME1, GameRead.GAME2, GameRead.GAME3]
+        return [GameRead.GAMELAST, GameRead.GAMEREPLAY, GameRead.GAME1, GameRead.GAME2, GameRead.GAME3]
 
 
 class GameReadLoop(object):

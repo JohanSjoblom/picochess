@@ -879,11 +879,16 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "load_game":
             try:
                 slot = int(self.get_argument("slot", "1"))
-                if slot not in (0, 1, 2, 3):
+                if slot not in (0, 1, 2, 3, 4):
                     slot = 1
             except (ValueError, TypeError):
                 slot = 1
-            pgn_fn = "last_game.pgn" if slot == 0 else f"picochess_game_{slot}.pgn"
+            if slot == 0:
+                pgn_fn = "last_game.pgn"
+            elif slot == 4:
+                pgn_fn = "last_replay.pgn"
+            else:
+                pgn_fn = f"picochess_game_{slot}.pgn"
             await Observable.fire(Event.READ_GAME(pgn_filename=pgn_fn))
         elif action == "game_end":
             _result_map = {

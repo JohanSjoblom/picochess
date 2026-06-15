@@ -234,9 +234,10 @@ class MenuState(object):
     GAME_GAMESAVE_GAME3 = 913000
     GAME_GAMEREAD = 920000
     GAME_GAMEREAD_GAMELAST = 921000
-    GAME_GAMEREAD_GAME1 = 922000
-    GAME_GAMEREAD_GAME2 = 923000
-    GAME_GAMEREAD_GAME3 = 924000
+    GAME_GAMEREAD_GAMEREPLAY = 922000
+    GAME_GAMEREAD_GAME1 = 923000
+    GAME_GAMEREAD_GAME2 = 924000
+    GAME_GAMEREAD_GAME3 = 925000
     GAME_GAMEALTMOVE = 930000
     GAME_GAMEALTMOVE_ONOFF = 931000
     GAME_GAMECONTLAST = 940000
@@ -1190,6 +1191,12 @@ class DgtMenu(object):
         """Set the gameread state."""
         self.state = MenuState.GAME_GAMEREAD_GAMELAST
         text = self.dgttranslate.text("B00_game_read_gamelast")
+        return text
+
+    def enter_game_gameread_gamereplay_menu(self):
+        """Set the gameread state."""
+        self.state = MenuState.GAME_GAMEREAD_GAMEREPLAY
+        text = self.dgttranslate.text("B00_game_read_gamereplay")
         return text
 
     def enter_game_gameread_game1_menu(self):
@@ -2321,6 +2328,9 @@ class DgtMenu(object):
         elif self.state == MenuState.GAME_GAMEREAD_GAMELAST:
             text = self.enter_game_gameread_menu()
 
+        elif self.state == MenuState.GAME_GAMEREAD_GAMEREPLAY:
+            text = self.enter_game_gameread_menu()
+
         elif self.state == MenuState.GAME_GAMEREAD_GAME1:
             text = self.enter_game_gameread_menu()
 
@@ -2425,6 +2435,8 @@ class DgtMenu(object):
         elif self.state == MenuState.GAME_GAMEREAD:
             if self.menu_game_read == GameRead.GAMELAST:
                 text = self.enter_game_gameread_gamelast_menu()
+            if self.menu_game_read == GameRead.GAMEREPLAY:
+                text = self.enter_game_gameread_gamereplay_menu()
             if self.menu_game_read == GameRead.GAME1:
                 text = self.enter_game_gameread_game1_menu()
             if self.menu_game_read == GameRead.GAME2:
@@ -2500,6 +2512,11 @@ class DgtMenu(object):
 
         elif self.state == MenuState.GAME_GAMEREAD_GAMELAST:
             event = Event.READ_GAME(pgn_filename="last_game.pgn")
+            await Observable.fire(event)
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
+
+        elif self.state == MenuState.GAME_GAMEREAD_GAMEREPLAY:
+            event = Event.READ_GAME(pgn_filename="last_replay.pgn")
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 
@@ -3457,8 +3474,13 @@ class DgtMenu(object):
             self.menu_game_read = GameReadLoop.prev(self.menu_game_read)
             text = self.dgttranslate.text(self.menu_game_read.value)
 
-        elif self.state == MenuState.GAME_GAMEREAD_GAME1:
+        elif self.state == MenuState.GAME_GAMEREAD_GAMEREPLAY:
             self.state = MenuState.GAME_GAMEREAD_GAMELAST
+            self.menu_game_read = GameReadLoop.prev(self.menu_game_read)
+            text = self.dgttranslate.text(self.menu_game_read.value)
+
+        elif self.state == MenuState.GAME_GAMEREAD_GAME1:
+            self.state = MenuState.GAME_GAMEREAD_GAMEREPLAY
             self.menu_game_read = GameReadLoop.prev(self.menu_game_read)
             text = self.dgttranslate.text(self.menu_game_read.value)
 
@@ -4113,6 +4135,11 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_game.value)
 
         elif self.state == MenuState.GAME_GAMEREAD_GAMELAST:
+            self.state = MenuState.GAME_GAMEREAD_GAMEREPLAY
+            self.menu_game_read = GameReadLoop.next(self.menu_game_read)
+            text = self.dgttranslate.text(self.menu_game_read.value)
+
+        elif self.state == MenuState.GAME_GAMEREAD_GAMEREPLAY:
             self.state = MenuState.GAME_GAMEREAD_GAME1
             self.menu_game_read = GameReadLoop.next(self.menu_game_read)
             text = self.dgttranslate.text(self.menu_game_read.value)

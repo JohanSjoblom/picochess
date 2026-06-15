@@ -2510,6 +2510,22 @@ function updateBackendAnalysisLine(analysis) {
 
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
+var lastServerAnalysisKey = null;
+
+function backendAnalysisKey(analysis) {
+    if (!analysis) {
+        return '';
+    }
+    return JSON.stringify({
+        source: analysis.source || '',
+        depth: analysis.depth,
+        score: analysis.score,
+        mate: analysis.mate,
+        fen: analysis.fen || '',
+        pv: Array.isArray(analysis.pv) ? analysis.pv : [],
+        suppress_engine_line: !!analysis.suppress_engine_line
+    });
+}
 
 // Ponder mode: real-time single-line display in #DGTClockText
 // Format: "24. Qxe5+ d27 +2.34"  (all on one line, updated on every Analysis event)
@@ -2669,6 +2685,7 @@ function setSF18Placeholder() {
 function updateBackendAnalysis(analysis) {
     if (!analysis) {
         lastServerAnalysis = null;
+        lastServerAnalysisKey = null;
         updateBackendAnalysisSourceBadge('engine');
         // Clear content but keep button state
         var metaEl = document.getElementById('engineMeta');
@@ -2679,13 +2696,17 @@ function updateBackendAnalysis(analysis) {
     }
     // Upstream: explicit clear signal resets the engine line to placeholder state.
     if (analysis.clear) {
+        lastServerAnalysisKey = null;
         updateBackendAnalysisSourceBadge(analysis.source);
         setEngineLinePlaceholder();
         return;
     }
+    var analysisKey = backendAnalysisKey(analysis);
+    var unchanged = analysisKey === lastServerAnalysisKey;
     lastServerAnalysis = analysis;
+    lastServerAnalysisKey = analysisKey;
     updateBackendAnalysisSourceBadge(analysis.source);
-    if (!analysisDisplayVisible) {
+    if (!analysisDisplayVisible || unchanged) {
         return;
     }
     updateBackendAnalysisLine(analysis);

@@ -165,6 +165,21 @@ def should_reject_user_move_after_game_end(
     return bool(game_declared) or (game_ending or "*") != "*"
 
 
+def remote_move_matches_current_position(move: chess.Move, posted_fen: str | None, board: chess.Board) -> bool:
+    """Return true when a web move's posted resulting FEN matches the live board."""
+    if not posted_fen:
+        return True
+    if move not in board.legal_moves:
+        return True
+    try:
+        expected = board.copy(stack=False)
+        expected.push(move)
+        posted_board_fen = posted_fen.split()[0]
+    except (IndexError, ValueError, AssertionError):
+        return False
+    return posted_board_fen == expected.board_fen()
+
+
 class AlternativeMover:
     """Keep track of alternative moves."""
 
@@ -5982,6 +5997,18 @@ async def main() -> None:
                 if event.move.from_square == event.move.to_square:
                     await self._handle_same_square_input(event.move.from_square)
                 elif self.board_type == dgt.util.EBoard.NOEBOARD:
+                    if not remote_move_matches_current_position(
+                        event.move,
+                        getattr(event, "fen", ""),
+                        self.state.get_move_check_board(),
+                    ):
+                        logger.info(
+                            "ignoring stale web move [%s] for fen %s; live fen is %s",
+                            event.move,
+                            getattr(event, "fen", ""),
+                            self.state.game.fen(),
+                        )
+                        return
                     # Mirror process_fen(): once a real user move starts the new
                     # game, the next BEST_MOVE belongs to this game, not the
                     # previous-game stale-move guard.
@@ -5989,6 +6016,18 @@ async def main() -> None:
                     await self.user_move(event.move, sliding=False)
                 else:
                     if self.state.interaction_mode == Mode.REMOTE and self.state.is_not_user_turn():
+                        if not remote_move_matches_current_position(
+                            event.move,
+                            getattr(event, "fen", ""),
+                            self.state.get_move_check_board(),
+                        ):
+                            logger.info(
+                                "ignoring stale remote web move [%s] for fen %s; live fen is %s",
+                                event.move,
+                                getattr(event, "fen", ""),
+                                self.state.game.fen(),
+                            )
+                            return
                         await self.stop_search_and_clock()
                         await DisplayMsg.show(
                             Message.COMPUTER_MOVE(

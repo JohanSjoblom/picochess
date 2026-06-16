@@ -615,6 +615,16 @@ function createGamePointer() {
     return createPositionGamePointer();
 }
 
+function isCurrentPicoLivePosition() {
+    if (!currentPosition) {
+        return false;
+    }
+    if (!fenHash || !fenHash.last) {
+        return true;
+    }
+    return currentPosition === fenHash.last || currentPosition.fen === fenHash.last.fen;
+}
+
 function updateWebExploreButton() {
     var btn = document.getElementById('webExploreToggleBtn');
     if (!btn) {
@@ -1166,6 +1176,12 @@ var onSnapEnd = async function (source, target) {
         gameHistory.result = '*';
     }
 
+    if (!webExploreMode && !isCurrentPicoLivePosition()) {
+        updateChessGround();
+        updateStatus();
+        return;
+    }
+
     var move = await getMove(tmpGame, source, target);
     if (!move) {
         updateChessGround();
@@ -1228,7 +1244,7 @@ function updateChessGround() {
 
     if (webExploreMode) {
         movableColor = turnColor;
-    } else if (!hasBoard) {
+    } else if (!hasBoard && isCurrentPicoLivePosition()) {
         // No physical board: full diagram interactivity (NOEBOARD mode).
         movableColor = turnColor;
     } else if (psi.interaction_mode === 'remote') {

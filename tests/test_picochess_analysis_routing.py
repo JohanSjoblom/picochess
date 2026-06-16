@@ -63,6 +63,13 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 game_ending="0-1",
             )
         )
+        self.assertTrue(
+            should_reject_user_move_after_game_end(
+                interaction_mode=Mode.REMOTE,
+                game_declared=False,
+                game_ending="0-1",
+            )
+        )
 
     def test_non_playing_mode_can_still_review_after_game_end(self):
         self.assertFalse(

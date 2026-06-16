@@ -5996,6 +5996,18 @@ async def main() -> None:
                 self.state.flag_startup = False
                 if event.move.from_square == event.move.to_square:
                     await self._handle_same_square_input(event.move.from_square)
+                elif should_reject_user_move_after_game_end(
+                    self.state.interaction_mode,
+                    self.state.game_declared,
+                    ModeInfo.get_game_ending(),
+                ):
+                    logger.info(
+                        "ignoring remote move [%s] after game end: mode=%s declared=%s result=%s",
+                        event.move,
+                        self.state.interaction_mode,
+                        self.state.game_declared,
+                        ModeInfo.get_game_ending(),
+                    )
                 elif self.board_type == dgt.util.EBoard.NOEBOARD:
                     if not remote_move_matches_current_position(
                         event.move,

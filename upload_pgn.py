@@ -73,7 +73,7 @@ class UploadHandler(tornado.web.RequestHandler):
         try:
             with open(upload_file, "wb") as f:
                 f.write(fileinfo["body"])
-                event = Event.READ_GAME(pgn_filename=file_rel_path)
+                event = Event.READ_GAME(pgn_filename=file_rel_path, show_headers=False)
                 await Observable.fire(event)
         except Exception as e:
             self.set_status(500)

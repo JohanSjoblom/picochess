@@ -1,7 +1,10 @@
 import unittest
 
+import chess
+
 from dgt.util import Mode
 from picochess import (
+    remote_move_matches_current_position,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
     should_use_tutor_analysis,
@@ -76,5 +79,33 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 interaction_mode=Mode.NORMAL,
                 game_declared=False,
                 game_ending="*",
+            )
+        )
+
+    def test_remote_move_matches_current_live_position(self):
+        board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        posted = board.copy()
+        posted.push(move)
+
+        self.assertTrue(remote_move_matches_current_position(move, posted.fen(), board))
+
+    def test_remote_move_rejects_stale_pgn_position(self):
+        live_board = chess.Board()
+        live_board.push(chess.Move.from_uci("e2e4"))
+        live_board.push(chess.Move.from_uci("e7e5"))
+
+        stale_board = chess.Board()
+        move = chess.Move.from_uci("d2d4")
+        stale_board.push(move)
+
+        self.assertFalse(remote_move_matches_current_position(move, stale_board.fen(), live_board))
+
+    def test_remote_move_without_fen_keeps_legacy_acceptance(self):
+        self.assertTrue(
+            remote_move_matches_current_position(
+                chess.Move.from_uci("e2e4"),
+                "",
+                chess.Board(),
             )
         )

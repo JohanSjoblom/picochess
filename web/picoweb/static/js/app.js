@@ -625,6 +625,14 @@ function isCurrentPicoLivePosition() {
     return currentPosition === fenHash.last || currentPosition.fen === fenHash.last.fen;
 }
 
+function syncToCurrentPicoLivePosition() {
+    if (fenHash && fenHash.last) {
+        currentPosition = fenHash.last;
+        return true;
+    }
+    return false;
+}
+
 function updateWebExploreButton() {
     var btn = document.getElementById('webExploreToggleBtn');
     if (!btn) {
@@ -649,6 +657,7 @@ function setWebExploreMode(enabled, redraw) {
     } else {
         webExploreMode = false;
         webExploreGame = null;
+        syncToCurrentPicoLivePosition();
     }
     updateWebExploreButton();
     if (redraw !== false) {

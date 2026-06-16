@@ -108,6 +108,17 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertFalse(remote_move_matches_current_position(move, stale_board.fen(), live_board))
 
+    def test_remote_move_rejects_stale_illegal_move(self):
+        live_board = chess.Board()
+        live_board.push(chess.Move.from_uci("e2e4"))
+        live_board.push(chess.Move.from_uci("e7e5"))
+
+        stale_board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        stale_board.push(move)
+
+        self.assertFalse(remote_move_matches_current_position(move, stale_board.fen(), live_board))
+
     def test_remote_move_without_fen_keeps_legacy_acceptance(self):
         self.assertTrue(
             remote_move_matches_current_position(

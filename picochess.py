@@ -170,7 +170,7 @@ def remote_move_matches_current_position(move: chess.Move, posted_fen: str | Non
     if not posted_fen:
         return True
     if move not in board.legal_moves:
-        return True
+        return False
     try:
         expected = board.copy(stack=False)
         expected.push(move)

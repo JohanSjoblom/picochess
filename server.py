@@ -890,7 +890,7 @@ class ChannelHandler(ServerRequestHandler):
                 pgn_fn = "last_replay.pgn"
             else:
                 pgn_fn = f"picochess_game_{slot}.pgn"
-            await Observable.fire(Event.READ_GAME(pgn_filename=pgn_fn))
+            await Observable.fire(Event.READ_GAME(pgn_filename=pgn_fn, show_headers=False))
         elif action == "game_end":
             _result_map = {
                 "white": GameResult.WIN_WHITE,

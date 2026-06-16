@@ -4176,11 +4176,13 @@ async def main() -> None:
             file_name: str,
             start_replay: bool = False,
             pgn_game: Game | None = None,
+            show_headers: bool = True,
         ):
             """Read game from PGN file"""
             logger.debug("molli: read game from pgn file")
 
             using_loaded_pgn_object = pgn_game is not None
+            show_pgn_headers = show_headers and not using_loaded_pgn_object
             l_filename = "games" + os.sep + file_name
             if pgn_game is None:
                 try:
@@ -4246,11 +4248,11 @@ async def main() -> None:
                 if (event_str or "").startswith("PicoChess"):
                     is_pico_save_game = True  # game was saved by Pico
                 logger.debug(f"is_pico_save_game: {is_pico_save_game}")  # TODO clarify usage of is_pico_save_game
-                if not using_loaded_pgn_object:
+                if show_pgn_headers:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(event_str)))
                     await asyncio.sleep(update_speed)
 
-            if not using_loaded_pgn_object:
+            if show_pgn_headers:
                 if l_game_pgn.headers["White"]:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["White"])))
                     await asyncio.sleep(update_speed)
@@ -4266,7 +4268,7 @@ async def main() -> None:
             result_header = str(result_header_raw).strip() if result_header_raw else ""
             loaded_game_finished = bool(result_header and result_header not in ("*", "?"))
             self.state.loaded_pgn_finished = loaded_game_finished
-            if result_header_raw and not using_loaded_pgn_object:
+            if result_header_raw and show_pgn_headers:
                 display_result = result_header or str(result_header_raw)
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
                 await asyncio.sleep(update_speed)
@@ -4277,7 +4279,7 @@ async def main() -> None:
             self.state.loaded_pgn_game = copy.deepcopy(l_game_pgn)
             self.state.loaded_pgn_filename = file_name
 
-            if not using_loaded_pgn_object:
+            if show_pgn_headers:
                 await DisplayMsg.show(Message.READ_GAME)
 
             # check if we should stop loading pgn game "in the middle"
@@ -6578,8 +6580,10 @@ async def main() -> None:
 
             elif isinstance(event, Event.READ_GAME):
                 if event.pgn_filename:
-                    await DisplayMsg.show(Message.READ_GAME(pgn_filename=event.pgn_filename))
-                    await self.read_pgn_file(event.pgn_filename)
+                    show_headers = getattr(event, "show_headers", True)
+                    if show_headers:
+                        await DisplayMsg.show(Message.READ_GAME(pgn_filename=event.pgn_filename))
+                    await self.read_pgn_file(event.pgn_filename, show_headers=show_headers)
                     await self._start_or_stop_analysis_as_needed()
 
             elif isinstance(event, Event.CONTLAST):

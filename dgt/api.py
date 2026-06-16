@@ -364,7 +364,7 @@ class Event:
     PICOCOMMENT = ClassFactory(EventApi.PICOCOMMENT, ["picocomment"])
     TAKE_BACK = ClassFactory(EventApi.TAKE_BACK, ["take_back"])
     RSPEED = ClassFactory(EventApi.RSPEED, ["rspeed"])
-    READ_GAME = ClassFactory(EventApi.READ_GAME, ["pgn_filename"])
+    READ_GAME = ClassFactory(EventApi.READ_GAME, ["pgn_filename", "show_headers"])
     SAVE_GAME = ClassFactory(EventApi.SAVE_GAME, ["pgn_filename"])
     CONTLAST = ClassFactory(EventApi.CONTLAST, ["contlast"])
     ALTMOVES = ClassFactory(EventApi.ALTMOVES, ["altmoves"])

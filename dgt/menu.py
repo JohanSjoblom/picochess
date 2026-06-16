@@ -2544,27 +2544,27 @@ class DgtMenu(object):
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_oksavegame"))
 
         elif self.state == MenuState.GAME_GAMEREAD_GAMELAST:
-            event = Event.READ_GAME(pgn_filename="last_game.pgn")
+            event = Event.READ_GAME(pgn_filename="last_game.pgn", show_headers=True)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 
         elif self.state == MenuState.GAME_GAMEREAD_GAMEREPLAY:
-            event = Event.READ_GAME(pgn_filename="last_replay.pgn")
+            event = Event.READ_GAME(pgn_filename="last_replay.pgn", show_headers=True)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 
         elif self.state == MenuState.GAME_GAMEREAD_GAME1:
-            event = Event.READ_GAME(pgn_filename="picochess_game_1.pgn")
+            event = Event.READ_GAME(pgn_filename="picochess_game_1.pgn", show_headers=True)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 
         elif self.state == MenuState.GAME_GAMEREAD_GAME2:
-            event = Event.READ_GAME(pgn_filename="picochess_game_2.pgn")
+            event = Event.READ_GAME(pgn_filename="picochess_game_2.pgn", show_headers=True)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 
         elif self.state == MenuState.GAME_GAMEREAD_GAME3:
-            event = Event.READ_GAME(pgn_filename="picochess_game_3.pgn")
+            event = Event.READ_GAME(pgn_filename="picochess_game_3.pgn", show_headers=True)
             await Observable.fire(event)
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okreadgame"))
 

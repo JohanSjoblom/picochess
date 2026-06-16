@@ -674,6 +674,11 @@ function stripFen(fen) {
     return strippedFen;
 }
 
+function isDefinitiveResult(result) {
+    result = String(result || '').trim();
+    return result === '1-0' || result === '0-1' || result === '1/2-1/2';
+}
+
 String.prototype.trim = function () {
     return this.replace(/\s*$/g, '');
 };
@@ -2281,8 +2286,7 @@ function formatTutorMistakeImpact(item) {
 }
 
 function hasDefinitiveGameResult() {
-    var result = String((gameHistory && gameHistory.result) || '').trim();
-    return result === '1-0' || result === '0-1' || result === '1/2-1/2';
+    return isDefinitiveResult((gameHistory && gameHistory.result) || '');
 }
 
 function canReviewTutorMistakes() {
@@ -3273,10 +3277,13 @@ $(function () {
                     case 'Header':
                         setHeaders(data['headers']);
                         // Definitive result means game ended
-                        if (window.setPicoGameActive) {
-                            var _res = data['headers'] && data['headers']['Result'];
-                            if (_res === '1-0' || _res === '0-1' || _res === '1/2-1/2') {
+                        var _res = data['headers'] && data['headers']['Result'];
+                        if (isDefinitiveResult(_res)) {
+                            if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
+                            }
+                            if (!webExploreMode) {
+                                setWebExploreMode(true);
                             }
                         }
                         break;

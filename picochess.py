@@ -156,6 +156,15 @@ def should_show_setpieces_after_lift_timeout(lifted_piece_char: str, is_hand_mod
     return lifted_piece_char in ("K", "k") or not is_hand_mode
 
 
+def should_reject_user_move_after_game_end(
+    interaction_mode: Mode, game_declared: bool, game_ending: str | None
+) -> bool:
+    """Return true when a playing-mode move should not alter an ended game."""
+    if interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.REMOTE):
+        return False
+    return bool(game_declared) or (game_ending or "*") != "*"
+
+
 class AlternativeMover:
     """Keep track of alternative moves."""
 
@@ -3108,6 +3117,19 @@ async def main() -> None:
             self.state.take_back_locked = False
 
             logger.info("user move [%s] sliding: %s", move, sliding)
+            game_ending = ModeInfo.get_game_ending()
+            if should_reject_user_move_after_game_end(
+                self.state.interaction_mode, self.state.game_declared, game_ending
+            ):
+                logger.info(
+                    "ignoring user move [%s] after game end: mode=%s declared=%s result=%s",
+                    move,
+                    self.state.interaction_mode,
+                    self.state.game_declared,
+                    game_ending,
+                )
+                return False
+
             # Use variant board for legality check (atomic has different legal moves after explosions)
             move_check_board = self.state.get_move_check_board()
             if move not in move_check_board.legal_moves:

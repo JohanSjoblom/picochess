@@ -3688,6 +3688,15 @@ async def main() -> None:
             self.shared["system_info"].update(update)
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
+        def _reset_loaded_pgn_lifecycle(self) -> None:
+            """Clear PGN/replay state when starting a fresh playable game."""
+            self.state.loaded_pgn_game = None
+            self.state.loaded_pgn_filename = ""
+            self.state.loaded_pgn_has_variations = False
+            self.state.loaded_pgn_finished = False
+            self.state.pgn_replay_tutor_regeneration = True
+            self.state.pgn_replay_tutor_regeneration_override = None
+
         async def get_rid_of_engine_move(self):
             """in some mode switches we need to get rid of a move engine is thinking about"""
             if self.eng_plays() and self.engine.is_thinking():
@@ -5334,6 +5343,10 @@ async def main() -> None:
                                 mode=self.state.interaction_mode,
                             )
                         )
+                self._set_game_started(False)
+                self._set_pgn_replay_autoplay(False)
+                self._reset_loaded_pgn_lifecycle()
+                ModeInfo.set_game_ending(result="*")
                 event_game = getattr(event, "game", None)
                 if event_game is not None:
                     self.state.game = event_game.copy(stack=True)
@@ -5396,12 +5409,7 @@ async def main() -> None:
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
-                self.state.loaded_pgn_game = None
-                self.state.loaded_pgn_filename = ""
-                self.state.loaded_pgn_has_variations = False
-                self.state.loaded_pgn_finished = False
-                self.state.pgn_replay_tutor_regeneration = True
-                self.state.pgn_replay_tutor_regeneration_override = None
+                self._reset_loaded_pgn_lifecycle()
                 last_move_no = self.state.game.fullmove_number
                 self.state.takeback_active = False
                 self.state.automatic_takeback = False

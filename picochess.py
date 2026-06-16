@@ -4180,6 +4180,7 @@ async def main() -> None:
             """Read game from PGN file"""
             logger.debug("molli: read game from pgn file")
 
+            using_loaded_pgn_object = pgn_game is not None
             l_filename = "games" + os.sep + file_name
             if pgn_game is None:
                 try:
@@ -4245,25 +4246,27 @@ async def main() -> None:
                 if (event_str or "").startswith("PicoChess"):
                     is_pico_save_game = True  # game was saved by Pico
                 logger.debug(f"is_pico_save_game: {is_pico_save_game}")  # TODO clarify usage of is_pico_save_game
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(event_str)))
+                if not using_loaded_pgn_object:
+                    await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(event_str)))
+                    await asyncio.sleep(update_speed)
+
+            if not using_loaded_pgn_object:
+                if l_game_pgn.headers["White"]:
+                    await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["White"])))
+                    await asyncio.sleep(update_speed)
+
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="versus"))
                 await asyncio.sleep(update_speed)
 
-            if l_game_pgn.headers["White"]:
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["White"])))
-                await asyncio.sleep(update_speed)
-
-            await DisplayMsg.show(Message.SHOW_TEXT(text_string="versus"))
-            await asyncio.sleep(update_speed)
-
-            if l_game_pgn.headers["Black"]:
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["Black"])))
-                await asyncio.sleep(update_speed)
+                if l_game_pgn.headers["Black"]:
+                    await DisplayMsg.show(Message.SHOW_TEXT(text_string=str(l_game_pgn.headers["Black"])))
+                    await asyncio.sleep(update_speed)
 
             result_header_raw = l_game_pgn.headers.get("Result") if l_game_pgn.headers else None
             result_header = str(result_header_raw).strip() if result_header_raw else ""
             loaded_game_finished = bool(result_header and result_header not in ("*", "?"))
             self.state.loaded_pgn_finished = loaded_game_finished
-            if result_header_raw:
+            if result_header_raw and not using_loaded_pgn_object:
                 display_result = result_header or str(result_header_raw)
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string=display_result))
                 await asyncio.sleep(update_speed)
@@ -4274,7 +4277,8 @@ async def main() -> None:
             self.state.loaded_pgn_game = copy.deepcopy(l_game_pgn)
             self.state.loaded_pgn_filename = file_name
 
-            await DisplayMsg.show(Message.READ_GAME)
+            if not using_loaded_pgn_object:
+                await DisplayMsg.show(Message.READ_GAME)
 
             # check if we should stop loading pgn game "in the middle"
             # this feature can be used to "jump to" a certain position in pgn

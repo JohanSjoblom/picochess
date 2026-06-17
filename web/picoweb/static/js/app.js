@@ -313,6 +313,7 @@ const GAMES_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7778';
 var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
+var webExploreBoardPolicyInitialized = false;
 
 fenHash = {};
 
@@ -589,7 +590,7 @@ var gameDataTable = $('#GameTable').DataTable({
 
 gameDataTable.on('select', function (e, dt, type, indexes) {
     var data = gameDataTable.rows(indexes).data().pluck('pgn')[0].split("\n");
-    loadGame(data, { autoExploreFinished: true });
+    loadGame(data);
     updateStatus();
     removeHighlights();
 });
@@ -639,7 +640,7 @@ function shouldAutoExploreWebClientAction() {
 }
 
 function shouldAutoExplorePgnSelection() {
-    return shouldAutoExploreWebClientAction() || shouldAutoExploreFinishedGameReview();
+    return shouldAutoExploreWebClientAction();
 }
 
 function updateWebExploreButton() {
@@ -690,6 +691,12 @@ function startWebExploreFromLivePosition(redraw) {
     startWebExploreFromCurrentPosition(redraw);
 }
 
+function syncWebExploreFromCurrentPosition(redraw) {
+    if (webExploreMode) {
+        startWebExploreFromCurrentPosition(redraw);
+    }
+}
+
 function startWebExploreFromGame(game, redraw) {
     webExploreGame = new Chess(game.fen(), chessGameType);
     webExploreMode = true;
@@ -708,7 +715,9 @@ function stopWebExploreMode(redraw) {
 }
 
 function resetWebExploreForPlayablePosition() {
-    stopWebExploreMode(false);
+    if (!shouldAutoExploreWebClientAction()) {
+        stopWebExploreMode(false);
+    }
 }
 
 function toggleWebExploreMode() {
@@ -726,21 +735,23 @@ function isDefinitiveResult(result) {
     return result === '1-0' || result === '0-1' || result === '1/2-1/2';
 }
 
-function pgnTextHasDefinitiveResult(pgnText) {
-    return /\b(?:1-0|0-1|1\/2-1\/2)\s*$/.test(String(pgnText || '').trim());
-}
-
 function shouldAutoExploreLoadedFinishedPgn() {
     var psi = window._picoSystemInfo || {};
     return Boolean(psi.loaded_pgn_finished) && !Boolean(psi.game_started);
 }
 
-function shouldAutoExploreFinishedGameReview() {
-    var psi = window._picoSystemInfo || {};
-    if (Object.prototype.hasOwnProperty.call(psi, 'game_started') && Boolean(psi.game_started)) {
-        return false;
+function applyInitialWebExploreBoardPolicy() {
+    if (webExploreBoardPolicyInitialized) {
+        return;
     }
-    return isDefinitiveResult((gameHistory && gameHistory.result) || '') || shouldAutoExploreLoadedFinishedPgn();
+    var psi = window._picoSystemInfo || {};
+    if (!Object.prototype.hasOwnProperty.call(psi, 'has_board')) {
+        return;
+    }
+    webExploreBoardPolicyInitialized = true;
+    if (shouldAutoExploreWebClientAction()) {
+        startWebExploreFromLivePosition(false);
+    }
 }
 
 String.prototype.trim = function () {
@@ -1402,9 +1413,7 @@ function addNewMove(m, current_position, fen, props) {
     return { node: node, position: current_position };
 }
 
-function loadGame(pgn_lines, options) {
-    options = options || {};
-    stopWebExploreMode(false);
+function loadGame(pgn_lines) {
     fenHash = {};
 
     var curr_fen;
@@ -1591,10 +1600,7 @@ function loadGame(pgn_lines, options) {
     }
     setHeaders(game_headers);
     bindPgnFenLinks();
-    if (options.autoExploreFinished && isDefinitiveResult(game_headers['Result']) && fenHash['last']) {
-        currentPosition = fenHash['last'];
-        startWebExploreFromCurrentPosition();
-    }
+    syncWebExploreFromCurrentPosition(false);
 }
 
 function getFullGame() {
@@ -1651,7 +1657,7 @@ function download() {
 }
 
 function newBoard(fen) {
-    stopWebExploreMode(false);
+    resetWebExploreForPlayablePosition();
     stopAnalysis();
 
     fenHash = {};
@@ -1665,6 +1671,7 @@ function newBoard(fen) {
     gameHistory.gameHeader = '';
     gameHistory.result = '';
     gameHistory.variations = [];
+    syncWebExploreFromCurrentPosition(false);
 
     updateChessGround();
     updateStatus();
@@ -1725,14 +1732,12 @@ function clockShowHint() {
 
 function goToPosition(fen, options) {
     options = options || {};
-    if (!options.preserveExplore) {
-        stopWebExploreMode(false);
-    }
     stopAnalysis();
     currentPosition = fenHash[fen];
     if (!currentPosition) {
         return false;
     }
+    syncWebExploreFromCurrentPosition(false);
     if (options.redraw !== false) {
         updateChessGround();
         updateStatus();
@@ -1745,7 +1750,7 @@ function goToGameFen(event) {
         event.preventDefault();
     }
     var fen = $(this).attr('data-fen');
-    var autoExplore = shouldAutoExplorePgnSelection();
+    var autoExplore = webExploreMode || shouldAutoExplorePgnSelection();
     if (goToPosition(fen, { preserveExplore: autoExplore, redraw: !autoExplore }) && autoExplore) {
         startWebExploreFromCurrentPosition();
     }
@@ -1780,19 +1785,19 @@ window.setPicoPositionFromCurrentPgn = setPositionFromCurrentPgn;
 
 function goToStart() {
     removeHighlights();
-    stopWebExploreMode(false);
     stopAnalysis();
     currentPosition = gameHistory;
+    syncWebExploreFromCurrentPosition(false);
     updateChessGround();
     updateStatus();
 }
 
 function goToEnd() {
     removeHighlights();
-    stopWebExploreMode(false);
     stopAnalysis();
     if (fenHash.last) {
         currentPosition = fenHash.last;
+        syncWebExploreFromCurrentPosition(false);
         updateChessGround();
     }
     updateStatus();
@@ -1800,11 +1805,11 @@ function goToEnd() {
 
 function goForward() {
     removeHighlights();
-    stopWebExploreMode(false);
     stopAnalysis();
     if (currentPosition && currentPosition.variations[0]) {
         currentPosition = currentPosition.variations[0];
         if (currentPosition) {
+            syncWebExploreFromCurrentPosition(false);
             updateChessGround();
         }
     }
@@ -1813,10 +1818,10 @@ function goForward() {
 
 function goBack() {
     removeHighlights();
-    stopWebExploreMode(false);
     stopAnalysis();
     if (currentPosition && currentPosition.previous) {
         currentPosition = currentPosition.previous;
+        syncWebExploreFromCurrentPosition(false);
         updateChessGround();
     }
     updateStatus();
@@ -2273,23 +2278,22 @@ function analyze(position_update) {
 }
 
 function updateDGTPosition(data) {
-    stopWebExploreMode(false);
+    var preserveExplore = webExploreMode;
     if (data.play === 'reload') {
-        var autoExploreFinished = shouldAutoExploreLoadedFinishedPgn() || pgnTextHasDefinitiveResult(data['pgn']);
         // Takeback / switch-sides: always rebuild the move tree from the
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"), { autoExploreFinished: autoExploreFinished });
-        if (!goToPosition(data.fen, { preserveExplore: autoExploreFinished })) {
+        loadGame(data['pgn'].split("\n"));
+        if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
         }
         return;
     }
-    if (!goToPosition(data.fen)) {
+    if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
         loadGame(data['pgn'].split("\n"));
-        if (!goToPosition(data.fen)) {
+        if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
             // FEN than the server sent.  Force the board to show the server's FEN.
             forcePosition(data.fen);
@@ -2506,7 +2510,7 @@ function goToHalfmove(halfmove) {
     if (!fen) {
         return false;
     }
-    var autoExplore = shouldAutoExplorePgnSelection();
+    var autoExplore = webExploreMode || shouldAutoExplorePgnSelection();
     if (!goToPosition(fen, { preserveExplore: autoExplore, redraw: !autoExplore })) {
         return false;
     }
@@ -2921,7 +2925,6 @@ function updateBackendAnalysis(analysis) {
 }
 
 function goToDGTFen() {
-    stopWebExploreMode(false);
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data && data.fen) {
             if (data.play === 'newgame') {
@@ -2984,7 +2987,6 @@ function setHeaders(data) {
     if (
         !isDefinitiveResult(data.Result) &&
         isDefinitiveResult(gameHistory.result) &&
-        webExploreMode &&
         shouldAutoExploreLoadedFinishedPgn()
     ) {
         data = Object.assign({}, data, { Result: gameHistory.result });
@@ -3005,6 +3007,7 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
+        applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
         }
@@ -3388,7 +3391,6 @@ $(function () {
                             if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
                             }
-                            startWebExploreFromLivePosition();
                         }
                         break;
                     case 'Title':
@@ -3407,6 +3409,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
+                        applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
                         if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {

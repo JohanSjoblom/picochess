@@ -633,6 +633,11 @@ function syncToCurrentPicoLivePosition() {
     return false;
 }
 
+function shouldAutoExplorePgnSelection() {
+    var psi = window._picoSystemInfo || {};
+    return !!psi.has_board && psi.interaction_mode !== 'remote';
+}
+
 function updateWebExploreButton() {
     var btn = document.getElementById('webExploreToggleBtn');
     if (!btn) {
@@ -659,6 +664,16 @@ function setWebExploreMode(enabled, redraw) {
         webExploreGame = null;
         syncToCurrentPicoLivePosition();
     }
+    updateWebExploreButton();
+    if (redraw !== false) {
+        updateChessGround();
+        updateStatus();
+    }
+}
+
+function startWebExploreFromCurrentPosition(redraw) {
+    webExploreGame = createPositionGamePointer();
+    webExploreMode = true;
     updateWebExploreButton();
     if (redraw !== false) {
         updateChessGround();
@@ -1653,15 +1668,20 @@ function clockShowHint() {
     clockButton3();
 }
 
-function goToPosition(fen) {
-    stopWebExploreMode(false);
+function goToPosition(fen, options) {
+    options = options || {};
+    if (!options.preserveExplore) {
+        stopWebExploreMode(false);
+    }
     stopAnalysis();
     currentPosition = fenHash[fen];
     if (!currentPosition) {
         return false;
     }
-    updateChessGround();
-    updateStatus();
+    if (options.redraw !== false) {
+        updateChessGround();
+        updateStatus();
+    }
     return true;
 }
 
@@ -1670,7 +1690,10 @@ function goToGameFen(event) {
         event.preventDefault();
     }
     var fen = $(this).attr('data-fen');
-    goToPosition(fen);
+    var autoExplore = shouldAutoExplorePgnSelection();
+    if (goToPosition(fen, { preserveExplore: autoExplore, redraw: !autoExplore }) && autoExplore) {
+        startWebExploreFromCurrentPosition();
+    }
     removeHighlights();
     return false;
 }

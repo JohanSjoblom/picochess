@@ -7028,24 +7028,14 @@ async def main() -> None:
                 else:
                     logger.debug("ignore clock time - too low prio: %s", event.dev)
             elif isinstance(event, Event.OUT_OF_TIME):
-                # molli: allow further playing even when run out of time
+                # Local timeout is a soft warning: Picochess historically allows
+                # casual play to continue after the clock flag falls.
                 if (
                     not self.is_out_of_time_already and not self.online_mode()
                 ):  # molli in online mode the server decides
                     await self.state.stop_clock()
-                    result = GameResult.OUT_OF_TIME
-                    self.game_end_event()
-                    await DisplayMsg.show(
-                        Message.GAME_ENDS(
-                            tc_init=self.state.time_control.get_parameters(),
-                            result=result,
-                            play_mode=self.state.play_mode,
-                            game=self.state.game.copy(),
-                            mode=self.state.interaction_mode,
-                        )
-                    )
+                    await DisplayMsg.show(Message.LOST_ON_TIME())
                     self.is_out_of_time_already = True
-                    await self.update_elo(result)
 
             elif isinstance(event, Event.SHUTDOWN):
                 await self.get_rid_of_engine_move()

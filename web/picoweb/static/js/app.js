@@ -639,7 +639,7 @@ function shouldAutoExploreWebClientAction() {
 }
 
 function shouldAutoExplorePgnSelection() {
-    return shouldAutoExploreWebClientAction();
+    return shouldAutoExploreWebClientAction() || shouldAutoExploreFinishedGameReview();
 }
 
 function updateWebExploreButton() {
@@ -733,6 +733,14 @@ function pgnTextHasDefinitiveResult(pgnText) {
 function shouldAutoExploreLoadedFinishedPgn() {
     var psi = window._picoSystemInfo || {};
     return Boolean(psi.loaded_pgn_finished) && !Boolean(psi.game_started);
+}
+
+function shouldAutoExploreFinishedGameReview() {
+    var psi = window._picoSystemInfo || {};
+    if (Object.prototype.hasOwnProperty.call(psi, 'game_started') && Boolean(psi.game_started)) {
+        return false;
+    }
+    return isDefinitiveResult((gameHistory && gameHistory.result) || '') || shouldAutoExploreLoadedFinishedPgn();
 }
 
 String.prototype.trim = function () {

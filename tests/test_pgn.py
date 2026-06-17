@@ -2,11 +2,13 @@ import asyncio
 
 import chess  # type: ignore[import]
 import datetime
+import io
+import os
 import tempfile
 import unittest
 
 from dgt.util import PlayMode
-from pgn import PgnDisplay, add_picotutor_variations_to_game, pgn_has_variations
+from pgn import PgnDisplay, add_picotutor_variations_to_game, pgn_has_variations, preserve_loaded_pgn_variations
 
 EMPTY_GAME = """[Event "PicoChess Game"]
 [Site "?"]
@@ -179,6 +181,42 @@ class TestPgnDisplay(unittest.TestCase):
         board.push(chess.Move.from_uci("e2e4"))
         board.push(chess.Move.from_uci("e7e5"))
         self.assertFalse(pgn_has_variations(chess.pgn.Game.from_board(board)))
+
+    def test_preserve_loaded_pgn_variations_copies_matching_loaded_side_lines(self):
+        loaded_game = chess.pgn.read_game(io.StringIO("1. e4 ( 1. Nf3 d5 ) e5 *"))
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        board.push(chess.Move.from_uci("e7e5"))
+        target_game = chess.pgn.Game.from_board(board)
+
+        preserve_loaded_pgn_variations(target_game, loaded_game)
+
+        pgn_text = target_game.accept(chess.pgn.StringExporter(headers=False, comments=False, variations=True))
+        self.assertEqual(pgn_text, "1. e4 ( 1. Nf3 d5 ) 1... e5 *")
+
+    def test_save_pgn_preserves_loaded_side_lines(self):
+        loaded_game = chess.pgn.read_game(io.StringIO("1. e4 ( 1. Nf3 d5 ) e5 *"))
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        board.push(chess.Move.from_uci("e7e5"))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        msg.mode = None
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saved_path = os.path.join(tmpdir, "saved.pgn")
+            msg.pgn_filename = os.path.relpath(saved_path, "games")
+            testee = PgnDisplay(
+                tmpdir + "/games.pgn",
+                FakeEmailer(),
+                {"headers": {}, "variant": "chess", "loaded_pgn_game": loaded_game},
+                self.loop,
+            )
+            testee._save_pgn(msg)
+
+            with open(saved_path, "r") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertIn("( 1. Nf3 d5 )", saved_text)
 
     def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
         user_move = chess.Move.from_uci("e2e4")

@@ -3696,6 +3696,7 @@ async def main() -> None:
             self.state.loaded_pgn_finished = False
             self.state.pgn_replay_tutor_regeneration = True
             self.state.pgn_replay_tutor_regeneration_override = None
+            self.shared.pop("loaded_pgn_game", None)
 
         async def get_rid_of_engine_move(self):
             """in some mode switches we need to get rid of a move engine is thinking about"""
@@ -4324,6 +4325,7 @@ async def main() -> None:
             ensure_important_headers(l_game_pgn.headers)
             self.state.loaded_pgn_game = copy.deepcopy(l_game_pgn)
             self.state.loaded_pgn_filename = file_name
+            self.shared["loaded_pgn_game"] = copy.deepcopy(l_game_pgn)
 
             if show_pgn_headers:
                 await DisplayMsg.show(Message.READ_GAME)

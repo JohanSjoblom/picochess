@@ -74,6 +74,37 @@ def _picotutor_variation_first_move_exists(parent: chess.pgn.GameNode, move: che
     return any(variation.move == move for variation in parent.variations)
 
 
+def _copy_variation_subtree(target_parent: chess.pgn.GameNode, source_node: chess.pgn.GameNode) -> None:
+    """Copy a PGN subtree below target_parent."""
+    target_node = target_parent.add_variation(source_node.move)
+    target_node.comment = source_node.comment
+    target_node.starting_comment = source_node.starting_comment
+    target_node.nags.update(source_node.nags)
+    for source_child in source_node.variations:
+        _copy_variation_subtree(target_node, source_child)
+
+
+def preserve_loaded_pgn_variations(target_game: chess.pgn.Game, loaded_game: chess.pgn.Game | None) -> None:
+    """Copy existing loaded PGN side variations onto a regenerated mainline game."""
+    if not loaded_game:
+        return
+    target_parent: chess.pgn.GameNode = target_game
+    loaded_parent: chess.pgn.GameNode = loaded_game
+    while True:
+        for loaded_variation in loaded_parent.variations[1:]:
+            if not _picotutor_variation_first_move_exists(target_parent, loaded_variation.move):
+                _copy_variation_subtree(target_parent, loaded_variation)
+
+        if not loaded_parent.variations or not target_parent.variations:
+            return
+        loaded_mainline = loaded_parent.variations[0]
+        target_mainline = target_parent.variations[0]
+        if loaded_mainline.move != target_mainline.move:
+            return
+        loaded_parent = loaded_mainline
+        target_parent = target_mainline
+
+
 def add_picotutor_variations_to_node(node: chess.pgn.GameNode, value: dict):
     """Add stored tutor PVs as sibling variations before the evaluated node."""
     parent = node.parent
@@ -688,6 +719,7 @@ class PgnDisplay(DisplayMsg):
 
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
+        preserve_loaded_pgn_variations(pgn_game, self.shared.get("loaded_pgn_game"))
 
         # preserve headers, but exclude "Variant" so the value set by
         # _generate_pgn_from_message (or deliberately omitted for normal chess)
@@ -736,6 +768,7 @@ class PgnDisplay(DisplayMsg):
 
         # add picotutor stored evaluations before saving game
         self.add_picotutor_evaluation(pgn_game)
+        preserve_loaded_pgn_variations(pgn_game, self.shared.get("loaded_pgn_game"))
 
         # preserve headers, but exclude "Variant" so the value set by
         # _generate_pgn_from_message (or deliberately omitted for normal chess)

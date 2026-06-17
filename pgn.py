@@ -105,6 +105,20 @@ def preserve_loaded_pgn_variations(target_game: chess.pgn.Game, loaded_game: che
         target_parent = target_mainline
 
 
+def _is_definitive_pgn_result(result: object) -> bool:
+    return str(result or "").strip() in ("1-0", "0-1", "1/2-1/2")
+
+
+def preserve_loaded_pgn_result(target_game: chess.pgn.Game, loaded_game: chess.pgn.Game | None) -> None:
+    """Keep a loaded finished PGN result when regenerated save headers are non-final."""
+    if not loaded_game:
+        return
+    loaded_result = loaded_game.headers.get("Result") if loaded_game.headers else None
+    target_result = target_game.headers.get("Result") if target_game.headers else None
+    if _is_definitive_pgn_result(loaded_result) and not _is_definitive_pgn_result(target_result):
+        target_game.headers["Result"] = str(loaded_result).strip()
+
+
 def add_picotutor_variations_to_node(node: chess.pgn.GameNode, value: dict):
     """Add stored tutor PVs as sibling variations before the evaluated node."""
     parent = node.parent
@@ -726,6 +740,7 @@ class PgnDisplay(DisplayMsg):
         # is never overwritten by a stale entry in shared["headers"]
         shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
         pgn_game.headers.update(shared_headers_without_variant)
+        preserve_loaded_pgn_result(pgn_game, self.shared.get("loaded_pgn_game"))
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side
@@ -775,6 +790,7 @@ class PgnDisplay(DisplayMsg):
         # is never overwritten by a stale entry in shared["headers"]
         shared_headers_without_variant = {k: v for k, v in self.shared["headers"].items() if k != "Variant"}
         pgn_game.headers.update(shared_headers_without_variant)
+        preserve_loaded_pgn_result(pgn_game, self.shared.get("loaded_pgn_game"))
         ensure_important_headers(pgn_game.headers)
 
         # In antichess, stalemate is a win for the stalemated side

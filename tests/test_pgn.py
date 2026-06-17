@@ -195,7 +195,9 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertEqual(pgn_text, "1. e4 ( 1. Nf3 d5 ) 1... e5 *")
 
     def test_save_pgn_preserves_loaded_side_lines(self):
-        loaded_game = chess.pgn.read_game(io.StringIO("1. e4 ( 1. Nf3 d5 ) e5 *"))
+        loaded_game = chess.pgn.read_game(
+            io.StringIO('[Result "0-1"]\n\n1. e4 ( 1. Nf3 d5 ) e5 0-1')
+        )
         board = chess.Board()
         board.push(chess.Move.from_uci("e2e4"))
         board.push(chess.Move.from_uci("e7e5"))
@@ -208,7 +210,7 @@ class TestPgnDisplay(unittest.TestCase):
             testee = PgnDisplay(
                 tmpdir + "/games.pgn",
                 FakeEmailer(),
-                {"headers": {}, "variant": "chess", "loaded_pgn_game": loaded_game},
+                {"headers": {"Result": "*"}, "variant": "chess", "loaded_pgn_game": loaded_game},
                 self.loop,
             )
             testee._save_pgn(msg)
@@ -217,6 +219,8 @@ class TestPgnDisplay(unittest.TestCase):
                 saved_text = saved_file.read()
 
         self.assertIn("( 1. Nf3 d5 )", saved_text)
+        self.assertIn('[Result "0-1"]', saved_text)
+        self.assertTrue(saved_text.rstrip().endswith("0-1"))
 
     def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
         user_move = chess.Move.from_uci("e2e4")

@@ -1442,6 +1442,8 @@ class DGTHandler(ServerRequestHandler):
                     except Exception as exc:  # pragma: no cover - defensive for UI
                         logger.debug("failed to collect tutor mistakes: %s", exc)
                 self.write(result)
+            else:
+                self.write({})
 
 
 class InfoHandler(ServerRequestHandler):

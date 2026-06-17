@@ -688,6 +688,10 @@ function stopWebExploreMode(redraw) {
     setWebExploreMode(false, redraw);
 }
 
+function resetWebExploreForPlayablePosition() {
+    stopWebExploreMode(false);
+}
+
 function toggleWebExploreMode() {
     setWebExploreMode(!webExploreMode);
 }
@@ -3200,6 +3204,7 @@ $(function () {
                         }
                         break;
                     case 'Game':
+                        resetWebExploreForPlayablePosition();
                         _tutorMoveActive = false;
                         clearBrainHint();
                         stopAnalysisClock();

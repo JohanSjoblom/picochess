@@ -633,9 +633,13 @@ function syncToCurrentPicoLivePosition() {
     return false;
 }
 
-function shouldAutoExplorePgnSelection() {
+function shouldAutoExploreWebClientAction() {
     var psi = window._picoSystemInfo || {};
     return !!psi.has_board && psi.interaction_mode !== 'remote';
+}
+
+function shouldAutoExplorePgnSelection() {
+    return shouldAutoExploreWebClientAction();
 }
 
 function updateWebExploreButton() {
@@ -673,6 +677,16 @@ function setWebExploreMode(enabled, redraw) {
 
 function startWebExploreFromCurrentPosition(redraw) {
     webExploreGame = createPositionGamePointer();
+    webExploreMode = true;
+    updateWebExploreButton();
+    if (redraw !== false) {
+        updateChessGround();
+        updateStatus();
+    }
+}
+
+function startWebExploreFromGame(game, redraw) {
+    webExploreGame = new Chess(game.fen(), chessGameType);
     webExploreMode = true;
     updateWebExploreButton();
     if (redraw !== false) {
@@ -1221,8 +1235,8 @@ var onSnapEnd = async function (source, target) {
         return;
     }
 
-    if (webExploreMode) {
-        webExploreGame = tmpGame;
+    if (webExploreMode || shouldAutoExploreWebClientAction()) {
+        startWebExploreFromGame(tmpGame, false);
         updateChessGround();
         updateStatus();
         return;
@@ -1286,8 +1300,12 @@ function updateChessGround() {
         // when it is actually the remote side's turn.
         var remoteColor = (psi.play_mode === 'user_white') ? 'black' : 'white';
         movableColor = (turnColor === remoteColor) ? remoteColor : 'none';
+    } else if (hasBoard) {
+        // Physical board users may use the web diagram as a local playground.
+        // Legal web moves auto-enter Explore and are never sent as game moves.
+        movableColor = turnColor;
     } else {
-        // Any other mode with a board: diagram is read-only.
+        // Fallback: keep the diagram read-only.
         movableColor = 'none';
     }
 
@@ -2451,7 +2469,13 @@ function goToHalfmove(halfmove) {
     if (!fen) {
         return false;
     }
-    goToPosition(fen);
+    var autoExplore = shouldAutoExplorePgnSelection();
+    if (!goToPosition(fen, { preserveExplore: autoExplore, redraw: !autoExplore })) {
+        return false;
+    }
+    if (autoExplore) {
+        startWebExploreFromCurrentPosition();
+    }
     removeHighlights();
     return true;
 }

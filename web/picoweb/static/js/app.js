@@ -1038,7 +1038,8 @@ function cloneMainlineToNode(node) {
             previous: target,
             nags: [],
             variations: [],
-            half_move_num: source.half_move_num
+            half_move_num: source.half_move_num,
+            is_mainline: true
         };
         target.variations = [copy];
         target = copy;
@@ -1353,6 +1354,7 @@ function addNewMove(m, current_position, fen, props) {
     node.move = m.move;
     node.previous = current_position;
     node.nags = [];
+    node.is_mainline = !current_position || !current_position.variations || current_position.variations.length === 0;
     if (props) {
         if (props.comment) {
             node.comment = props.comment;
@@ -2460,6 +2462,9 @@ function findFenByHalfmove(halfmove) {
         }
         var node = fenHash[key];
         if (!node || typeof node !== 'object') {
+            continue;
+        }
+        if (!node.is_mainline) {
             continue;
         }
         if (node.half_move_num === target) {

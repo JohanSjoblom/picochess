@@ -726,6 +726,11 @@ function isDefinitiveResult(result) {
     return result === '1-0' || result === '0-1' || result === '1/2-1/2';
 }
 
+function shouldAutoExploreLoadedFinishedPgn() {
+    var psi = window._picoSystemInfo || {};
+    return Boolean(psi.loaded_pgn_finished) && !Boolean(psi.game_started);
+}
+
 String.prototype.trim = function () {
     return this.replace(/\s*$/g, '');
 };
@@ -1449,6 +1454,7 @@ function loadGame(pgn_lines, options) {
 
     var in_variation = false;
     var starting_comment = '';
+    var game_result_token;
 
     var result;
     var lastmove;
@@ -1458,7 +1464,7 @@ function loadGame(pgn_lines, options) {
         var comment;
 
         if (token === '1-0' || token === '0-1' || token === '1/2-1/2' || token === '*') {
-            game_headers['Result'] = token;
+            game_result_token = token;
         }
         else if (token[0] === '{') {
             last_variation_stack_index = variation_stack.length - 1;
@@ -1555,6 +1561,9 @@ function loadGame(pgn_lines, options) {
             var __ret = addNewMove({ 'move': move }, variation_stack[last_variation_stack_index], board_stack[last_board_stack_index].fen(), props);
             variation_stack[last_variation_stack_index] = __ret.node;
         }
+    }
+    if (isDefinitiveResult(game_result_token) || !isDefinitiveResult(game_headers['Result'])) {
+        game_headers['Result'] = game_result_token || game_headers['Result'] || '*';
     }
     if (lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
         var tmp_board = new Chess(currentPosition.fen, chessGameType);
@@ -2254,12 +2263,13 @@ function analyze(position_update) {
 function updateDGTPosition(data) {
     stopWebExploreMode(false);
     if (data.play === 'reload') {
+        var autoExploreFinished = shouldAutoExploreLoadedFinishedPgn();
         // Takeback / switch-sides: always rebuild the move tree from the
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"));
-        if (!goToPosition(data.fen)) {
+        loadGame(data['pgn'].split("\n"), { autoExploreFinished: autoExploreFinished });
+        if (!goToPosition(data.fen, { preserveExplore: autoExploreFinished })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
         }

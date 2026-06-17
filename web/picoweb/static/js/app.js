@@ -726,6 +726,10 @@ function isDefinitiveResult(result) {
     return result === '1-0' || result === '0-1' || result === '1/2-1/2';
 }
 
+function pgnTextHasDefinitiveResult(pgnText) {
+    return /\b(?:1-0|0-1|1\/2-1\/2)\s*$/.test(String(pgnText || '').trim());
+}
+
 function shouldAutoExploreLoadedFinishedPgn() {
     var psi = window._picoSystemInfo || {};
     return Boolean(psi.loaded_pgn_finished) && !Boolean(psi.game_started);
@@ -2263,7 +2267,7 @@ function analyze(position_update) {
 function updateDGTPosition(data) {
     stopWebExploreMode(false);
     if (data.play === 'reload') {
-        var autoExploreFinished = shouldAutoExploreLoadedFinishedPgn();
+        var autoExploreFinished = shouldAutoExploreLoadedFinishedPgn() || pgnTextHasDefinitiveResult(data['pgn']);
         // Takeback / switch-sides: always rebuild the move tree from the
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
@@ -2968,6 +2972,14 @@ function setHeaders(data) {
         } else {
             chessGameType = 0;
         }
+    }
+    if (
+        !isDefinitiveResult(data.Result) &&
+        isDefinitiveResult(gameHistory.result) &&
+        webExploreMode &&
+        shouldAutoExploreLoadedFinishedPgn()
+    ) {
+        data = Object.assign({}, data, { Result: gameHistory.result });
     }
     gameHistory.gameHeader = getWebGameHeader(data);
     gameHistory.result = data.Result;

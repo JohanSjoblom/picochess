@@ -589,7 +589,7 @@ var gameDataTable = $('#GameTable').DataTable({
 
 gameDataTable.on('select', function (e, dt, type, indexes) {
     var data = gameDataTable.rows(indexes).data().pluck('pgn')[0].split("\n");
-    loadGame(data);
+    loadGame(data, { autoExploreFinished: true });
     updateStatus();
     removeHighlights();
 });
@@ -1385,7 +1385,8 @@ function addNewMove(m, current_position, fen, props) {
     return { node: node, position: current_position };
 }
 
-function loadGame(pgn_lines) {
+function loadGame(pgn_lines, options) {
+    options = options || {};
     stopWebExploreMode(false);
     fenHash = {};
 
@@ -1569,6 +1570,10 @@ function loadGame(pgn_lines) {
     }
     setHeaders(game_headers);
     bindPgnFenLinks();
+    if (options.autoExploreFinished && isDefinitiveResult(game_headers['Result']) && fenHash['last']) {
+        currentPosition = fenHash['last'];
+        startWebExploreFromCurrentPosition();
+    }
 }
 
 function getFullGame() {

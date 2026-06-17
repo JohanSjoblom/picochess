@@ -685,6 +685,11 @@ function startWebExploreFromCurrentPosition(redraw) {
     }
 }
 
+function startWebExploreFromLivePosition(redraw) {
+    syncToCurrentPicoLivePosition();
+    startWebExploreFromCurrentPosition(redraw);
+}
+
 function startWebExploreFromGame(game, redraw) {
     webExploreGame = new Chess(game.fen(), chessGameType);
     webExploreMode = true;
@@ -3343,9 +3348,7 @@ $(function () {
                             if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
                             }
-                            if (!webExploreMode) {
-                                setWebExploreMode(true);
-                            }
+                            startWebExploreFromLivePosition();
                         }
                         break;
                     case 'Title':

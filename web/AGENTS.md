@@ -39,6 +39,15 @@ explicitly requires it.
 - Prefer small `/channel` actions that send one backend setting change at a
   time. This avoids flooding audio announcements and makes settings easier to
   reason about.
+- When the web menu changes a setting that is also owned or displayed by the
+  DGT menu, keep the live DGT menu state synchronized before firing backend
+  events. Many backend paths read `state.dgtmenu` rather than re-reading
+  `picochess.ini`, and users may mix DGT clock menu changes with mobile web
+  menu changes during one PicoChess run.
+- For those shared settings, update all applicable layers together:
+  `picochess.ini` for persistence, the live runtime value read by backend
+  logic, and the DGT menu's cached/current selection fields used for clock menu
+  display.
 
 ## Playing Mode Naming
 

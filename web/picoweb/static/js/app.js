@@ -1382,7 +1382,8 @@ function addNewMove(m, current_position, fen, props) {
     node.move = m.move;
     node.previous = current_position;
     node.nags = [];
-    node.is_mainline = !current_position || !current_position.variations || current_position.variations.length === 0;
+    var parentIsMainline = !current_position || !current_position.previous || Boolean(current_position.is_mainline);
+    node.is_mainline = parentIsMainline && (!current_position || !current_position.variations || current_position.variations.length === 0);
     if (props) {
         if (props.comment) {
             node.comment = props.comment;

@@ -2292,6 +2292,9 @@ function updateDGTPosition(data) {
         }
         return;
     }
+    if (data.pgn && !isSameGameAsPgn(data.pgn)) {
+        loadGame(data.pgn.split("\n"));
+    }
     if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
         loadGame(data['pgn'].split("\n"));
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
@@ -2332,6 +2335,26 @@ function forcePosition(fen) {
     }
     updateChessGround();
     updateStatus();
+}
+
+function getPgnMoveText(pgn) {
+    if (!pgn) {
+        return '';
+    }
+    return pgn
+        .replace(/\[.*?\][\r\n]*/g, ' ')
+        .replace(/\{[\s\S]*?\}/g, ' ')
+        .replace(/\$[0-9]+/g, ' ')
+        .replace(/[()]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isSameGameAsPgn(pgnText) {
+    if (!pgnText || !gameHistory) {
+        return false;
+    }
+    return getPgnMoveText(getFullGame()) === getPgnMoveText(pgnText);
 }
 
 function formatTutorMistakeImpact(item) {
@@ -2926,6 +2949,7 @@ function updateBackendAnalysis(analysis) {
 }
 
 function goToDGTFen() {
+    stopWebExploreMode(false);
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data && data.fen) {
             if (data.play === 'newgame') {

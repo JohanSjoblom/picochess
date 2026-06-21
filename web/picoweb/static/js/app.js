@@ -314,6 +314,10 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
+var webAnalysisSearchActive = false;
+var webAnalysisStopRequested = false;
+var webAnalysisStopReasserted = false;
+var webAnalysisPendingRequest = null;
 
 fenHash = {};
 
@@ -2124,11 +2128,71 @@ function stockfishPNACLModuleDidLoad() {
 function handleCrash(event) {
     console.warn('Nacl Module crash handler method');
     console.warn(event);
+    resetWebAnalysisSearchState();
     loadNaclStockfish();
+}
+
+function resetWebAnalysisSearchState() {
+    webAnalysisSearchActive = false;
+    webAnalysisStopRequested = false;
+    webAnalysisStopReasserted = false;
+    webAnalysisPendingRequest = null;
+}
+
+function startWebAnalysisRequest(request) {
+    if (!window.stockfish || !request) {
+        return;
+    }
+    webAnalysisSearchActive = true;
+    webAnalysisStopRequested = false;
+    webAnalysisStopReasserted = false;
+    webAnalysisPendingRequest = null;
+    window.stockfish.postMessage(request.positionCommand);
+    window.stockfish.postMessage('setoption name multipv value ' + request.multipv);
+    window.stockfish.postMessage('go infinite');
+}
+
+function queueWebAnalysisRequest(request, positionUpdate) {
+    if (positionUpdate && webAnalysisSearchActive) {
+        webAnalysisPendingRequest = request;
+        if (!webAnalysisStopRequested && window.stockfish) {
+            webAnalysisStopRequested = true;
+            webAnalysisStopReasserted = false;
+            window.stockfish.postMessage('stop');
+        }
+        return;
+    }
+    startWebAnalysisRequest(request);
+}
+
+function handleWebAnalysisControlMessage(line) {
+    line = String(line || '').trim();
+    if (webAnalysisStopRequested && !webAnalysisStopReasserted && line.indexOf('info ') === 0) {
+        // The first stop can arrive before a newly-created worker has started
+        // its queued search. Reassert it once analysis output proves it is live.
+        webAnalysisStopReasserted = true;
+        if (window.stockfish) {
+            window.stockfish.postMessage('stop');
+        }
+    }
+    if (line.indexOf('bestmove ') !== 0) {
+        return webAnalysisPendingRequest !== null && line.indexOf('info ') === 0;
+    }
+
+    var nextRequest = webAnalysisPendingRequest;
+    webAnalysisSearchActive = false;
+    webAnalysisStopRequested = false;
+    webAnalysisStopReasserted = false;
+    webAnalysisPendingRequest = null;
+    if (window.analysis && nextRequest) {
+        startWebAnalysisRequest(nextRequest);
+    }
+    return true;
 }
 
 function handleMessage(event) {
     if (!event || !event.data) return;
+    if (handleWebAnalysisControlMessage(event.data)) return;
     var output = formatEngineOutput(event.data);
     if (output && output.pv_index === 1) {
         // Update the static SF18 first-PV row with the same compact PV layout
@@ -2172,6 +2236,7 @@ function stopAnalysis() {
             console.warn(err);
         }
     }
+    resetWebAnalysisSearchState();
 
     // Clear extra PV lines (pv_2+); pv_1 is now static HTML in sf18Row
     $('#pv_output').empty();
@@ -2266,16 +2331,14 @@ function analyze(position_update) {
     if (!webExploreMode && setupBoardFen !== START_FEN) {
         startpos = 'fen ' + setupBoardFen;
     }
-    if (position_update && window.stockfish) {
-        window.stockfish.postMessage('stop');
-    }
     var positionCommand = 'position ' + startpos;
     if (moves && moves.trim()) {
         positionCommand += ' moves ' + moves;
     }
-    window.stockfish.postMessage(positionCommand);
-    window.stockfish.postMessage('setoption name multipv value ' + window.multipv);
-    window.stockfish.postMessage('go infinite');
+    queueWebAnalysisRequest(
+        { positionCommand: positionCommand, multipv: window.multipv },
+        position_update
+    );
 }
 
 function updateDGTPosition(data) {

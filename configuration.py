@@ -424,7 +424,7 @@ class Configuration:
             "--board-type",
             type=str,
             default="dgt",
-            help='Type of e-board: "dgt", "certabo", "chesslink", "chessnut", "ichessone" or "noeboard" (for basic web-play only), default is "dgt"',
+            help='Type of e-board: "dgt", "certabo", "chesslink", "chessnut", "ichessone", "citrine", "osa" or "noeboard" (for basic web-play only), default is "dgt"',
         )
         self.parser.add_argument(
             "-theme",

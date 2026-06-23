@@ -1237,7 +1237,7 @@ class ChannelHandler(ServerRequestHandler):
                 logger.info("web display: engine name hidden")
         elif action == "eboard":
             eboard_type = self.get_argument("type", "").strip()
-            _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "none"}
+            _valid_eboards = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "citrine", "osa", "none"}
             if eboard_type in _valid_eboards:
                 # "none" means no board; write "noeboard" so EBoard['NOEBOARD'] resolves correctly
                 # on next startup (EBoard has no 'NONE' member).
@@ -1793,6 +1793,8 @@ class ChessBoardHandler(ServerRequestHandler):
             _dgt_util.EBoard.CHESSLINK: "ChessLink",
             _dgt_util.EBoard.CHESSNUT: "Chessnut",
             _dgt_util.EBoard.ICHESSONE: "iChessOne",
+            _dgt_util.EBoard.CITRINE: "Novag Citrine",
+            _dgt_util.EBoard.OSA: "Saitek OSA",
             _dgt_util.EBoard.NOEBOARD: "No e-board",
         }
         eboard_name = _eboard_labels.get(ModeInfo.get_eboard_type(), "DGT")

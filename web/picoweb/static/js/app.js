@@ -3340,6 +3340,9 @@ $(function () {
                         pickPromotion(null) // reset promotion dialog if still showing
                         clearBrainHint();
                         updateDGTPosition(data);
+                        if (hasDefinitiveGameResult() && window.setPicoGameActive) {
+                            window.setPicoGameActive(false);
+                        }
                         updateTutorMistakes(data.mistakes);
                         updateCheckCounters(data.variant, data.checks);
                         if (data.play === 'reload') {

@@ -7,7 +7,7 @@ import chess
 
 from dgt.api import DgtApi, EventApi, Message
 from dgt.translate import DgtTranslate
-from dgt.util import Mode, PicoCoach, TimeMode
+from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
@@ -117,6 +117,34 @@ class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("brain_hint", shared)
         write_to_clients.assert_any_call({"event": "BrainHint", "squares": []})
+
+
+class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
+    async def test_game_ends_publishes_inactive_game_before_final_fen(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4", "d8h4"):
+            board.push(chess.Move.from_uci(move))
+        shared = {"headers": {}, "system_info": {"game_started": True}}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.MATE,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        calls = [call.args[0] for call in write_to_clients.call_args_list]
+        self.assertEqual({"event": "SystemInfo", "msg": {"game_started": False}}, calls[0])
+        self.assertEqual("0-1", shared["headers"]["Result"])
+        self.assertEqual("Fen", calls[-1]["event"])
+        self.assertEqual("reload", calls[-1]["play"])
+        self.assertIn("0-1", calls[-1]["pgn"])
+        self.assertFalse(shared["system_info"]["game_started"])
 
 
 class TestServerWebBookSelection(unittest.TestCase):

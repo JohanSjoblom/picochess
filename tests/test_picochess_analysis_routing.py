@@ -7,6 +7,7 @@ from picochess import (
     remote_move_matches_current_position,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
+    should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
     tutor_analysis_allowed_in_mode,
 )
@@ -84,6 +85,60 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertFalse(
             should_reject_user_move_after_game_end(
                 interaction_mode=Mode.NORMAL,
+                game_declared=False,
+                game_ending="*",
+            )
+        )
+
+    def test_playing_mode_stops_analysis_after_game_end(self):
+        self.assertTrue(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.NORMAL,
+                game_over=True,
+                game_declared=False,
+                game_ending="*",
+            )
+        )
+        self.assertTrue(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.BRAIN,
+                game_over=False,
+                game_declared=True,
+                game_ending="*",
+            )
+        )
+        self.assertTrue(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.TRAINING,
+                game_over=False,
+                game_declared=False,
+                game_ending="1-0",
+            )
+        )
+
+    def test_non_playing_mode_can_still_analyse_finished_positions(self):
+        self.assertFalse(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.ANALYSIS,
+                game_over=True,
+                game_declared=True,
+                game_ending="0-1",
+            )
+        )
+        self.assertFalse(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.PONDER,
+                game_over=True,
+                game_declared=False,
+                game_ending="1-0",
+            )
+        )
+
+    def test_playing_mode_keeps_analysis_available_during_active_game(self):
+        self.assertFalse(
+            should_stop_analysis_after_game_end(
+                interaction_mode=Mode.NORMAL,
+                game_over=False,
                 game_declared=False,
                 game_ending="*",
             )

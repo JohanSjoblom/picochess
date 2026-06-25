@@ -165,6 +165,15 @@ def should_reject_user_move_after_game_end(
     return bool(game_declared) or (game_ending or "*") != "*"
 
 
+def should_stop_analysis_after_game_end(
+    interaction_mode: Mode, game_over: bool, game_declared: bool, game_ending: str | None
+) -> bool:
+    """Return true when playing-mode deep analysis should stop after game end."""
+    if interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+        return False
+    return bool(game_over) or bool(game_declared) or (game_ending or "*") != "*"
+
+
 def remote_move_matches_current_position(move: chess.Move, posted_fen: str | None, board: chess.Board) -> bool:
     """Return true when a web move's posted resulting FEN matches the live board."""
     if not posted_fen:
@@ -3613,6 +3622,8 @@ async def main() -> None:
             """return true if engine is analysing moves based on PlayMode"""
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
+            if self.playing_game_analysis_stopped():
+                return False
             if self.eng_plays() and self.state.loaded_pgn_finished:
                 return False
             # Save CPU at idle startup: skip analyser on the untouched standard
@@ -3643,6 +3654,8 @@ async def main() -> None:
             """Return whether tutor analysis should run for the current mode."""
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return False
+            if self.playing_game_analysis_stopped():
+                return False
             if self.eng_plays() and self.state.loaded_pgn_finished:
                 return False
             return not (
@@ -3653,6 +3666,15 @@ async def main() -> None:
         def eng_plays(self) -> bool:
             """return true if engine is playing moves"""
             return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
+
+        def playing_game_analysis_stopped(self) -> bool:
+            """Return true when a completed playing-mode game must not analyse."""
+            return should_stop_analysis_after_game_end(
+                self.state.interaction_mode,
+                self.state.game.is_game_over(),
+                self.state.game_declared,
+                ModeInfo.get_game_ending(),
+            )
 
         def _set_game_started(self, started: bool) -> None:
             """Update active-game lifecycle state and publish it to web clients."""
@@ -3739,6 +3761,11 @@ async def main() -> None:
             analysed_fen = ""  # analysis is only valid for this fen
             analysed_fen_for_web_engine = ""
             analysed_fen_for_web_tutor = ""
+            if self.playing_game_analysis_stopped():
+                await self._start_or_stop_analysis_as_needed()
+                if self.state.picotutor is not None:
+                    await self.state.picotutor.set_analysis_enabled(False)
+                return None
             if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser():
                 # here picotutor engine replaces playing engine analysis to save cpu
                 result = await self.state.picotutor.get_analysis()
@@ -5381,6 +5408,8 @@ async def main() -> None:
                 self.state.time_control.reset()
                 self.state.searchmoves.reset()
                 self.state.game_declared = False
+                if self.state.picotutor is not None:
+                    await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
 
                 await self.set_picotutor_position(new_game=True)
                 await self.set_wait_state(self.state.new_game_msg(newgame=True))
@@ -5517,6 +5546,8 @@ async def main() -> None:
                     self.state.best_move_posted = False
                     self.state.searchmoves.reset()
                     self.state.game_declared = False
+                    if self.state.picotutor is not None:
+                        await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
                     await self.update_elo_display()
 
                     if self.online_mode():
@@ -5640,6 +5671,8 @@ async def main() -> None:
                         self.state.legal_fens_after_cmove = []
                         self.is_out_of_time_already = False
                         self.state.game_declared = False
+                        if self.state.picotutor is not None:
+                            await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
                         await self.set_wait_state(
                             self.state.new_game_msg(newgame=newgame),
                         )

@@ -219,6 +219,23 @@ explicitly requires it.
 - PGN replay must keep the smart clock control state in sync with replay
   autoplay.
 
+## Web Explore State
+
+- Keep the Explore ON state explicit. In NOEBOARD/web-only play, the Explore
+  button must turn ON only when the user clicks it.
+- When a physical eboard is in use, the web board is an open playground rather
+  than the authoritative move source. In that case Explore may default ON so
+  web-board moves do not affect the physical game unless the user explicitly
+  leaves Explore.
+- PGN move-list navigation, watcher review links, finished-game review, loaded
+  PGNs, result/header updates, and DGT sync/reload paths must not turn Explore
+  ON implicitly. They may preserve Explore if it was already ON.
+- Keep OFF automations narrow and defensive. Turning Explore OFF is acceptable
+  when entering a playable live position, such as a new game or SET_POSITION,
+  so the user is not blocked from making normal web-board moves.
+- Avoid rebuilding a complex Explore state machine. Prefer preserving current
+  user intent, explicit user toggles, and the small set of defensive OFF resets.
+
 ## Merge And Risk Guidance
 
 - Keep web-client commits small and separable from backend game-flow changes.

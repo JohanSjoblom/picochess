@@ -2611,6 +2611,15 @@ class WebDisplay(DisplayMsg):
         self.shared["system_info"]["pending_engine_move"] = pending
         EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"pending_engine_move": pending}})
 
+    def _set_game_started(self, started: bool, force: bool = False):
+        """Publish the active-game lifecycle state used by the web client."""
+        self._create_system_info()
+        started = bool(started)
+        if not force and self.shared["system_info"].get("game_started") == started:
+            return
+        self.shared["system_info"]["game_started"] = started
+        EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"game_started": started}})
+
     def _create_headers(self):
         if "headers" not in self.shared:
             self.shared["headers"] = OrderedDict()
@@ -3372,6 +3381,7 @@ class WebDisplay(DisplayMsg):
                     EventHandler.write_to_clients({"event": "BrainHint", "squares": []})
 
         elif isinstance(message, Message.GAME_ENDS):
+            self._set_game_started(False, force=True)
             if message.result == GameResult.DRAW:
                 WebDisplay.result_sav = "1/2-1/2"
             elif message.result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):

@@ -644,7 +644,9 @@ function shouldAutoExploreWebClientAction() {
 }
 
 function shouldAutoExplorePgnSelection() {
-    return shouldAutoExploreWebClientAction();
+    // PGN navigation is review-only. Keep Explore explicit so browser-side
+    // moves and Web Stockfish analysis cannot start from a move-list click.
+    return false;
 }
 
 function updateWebExploreButton() {

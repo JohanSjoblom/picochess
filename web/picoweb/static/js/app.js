@@ -727,7 +727,12 @@ function resetWebExploreForPlayablePosition() {
 }
 
 function toggleWebExploreMode() {
-    setWebExploreMode(!webExploreMode);
+    if (webExploreMode) {
+        stopWebExploreMode(false);
+        goToDGTFen();
+    } else {
+        setWebExploreMode(true);
+    }
 }
 
 function stripFen(fen) {

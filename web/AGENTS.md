@@ -233,6 +233,9 @@ explicitly requires it.
 - Keep OFF automations narrow and defensive. Turning Explore OFF is acceptable
   when entering a playable live position, such as a new game or SET_POSITION,
   so the user is not blocked from making normal web-board moves.
+- When the user explicitly turns Explore OFF, the web client must perform a
+  full live-position sync, equivalent to the Sync button, including restoring
+  the last real move highlight/arrow and discarding explorer-only highlights.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
 

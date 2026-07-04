@@ -227,6 +227,17 @@ explicitly requires it.
   than the authoritative move source. In that case Explore may default ON so
   web-board moves do not affect the physical game unless the user explicitly
   leaves Explore.
+- In normal physical-eboard play, the backend must not accept web-board moves
+  as real game moves. The frontend should also default to the eboard-safe path
+  when board authority is unknown or stale.
+- `Mode.REMOTE` is the intentional exception: one player uses the physical
+  eboard and the remote opponent uses the web board. With Explore OFF, the web
+  client may submit real moves only for the remote side's turn; local-side moves
+  still come from the eboard.
+- Because `Mode.REMOTE` uses the web board as a real move-entry surface, it
+  should behave like NOEBOARD for the remote side: do not auto-set Explore ON
+  just because a physical eboard exists, and keep the board playable only for
+  the remote side to move.
 - PGN move-list navigation, watcher review links, finished-game review, loaded
   PGNs, result/header updates, and DGT sync/reload paths must not turn Explore
   ON implicitly. They may preserve Explore if it was already ON.

@@ -230,6 +230,10 @@ explicitly requires it.
 - In normal physical-eboard play, the backend must not accept web-board moves
   as real game moves. The frontend should also default to the eboard-safe path
   when board authority is unknown or stale.
+- With a physical eboard and Explore OFF, the web board should be read-only in
+  normal play. Do not update the browser PGN or post a move to the backend from
+  a board drag unless the client is explicitly in NOEBOARD or the `Mode.REMOTE`
+  exception below applies.
 - `Mode.REMOTE` is the intentional exception: one player uses the physical
   eboard and the remote opponent uses the web board. With Explore OFF, the web
   client may submit real moves only for the remote side's turn; local-side moves

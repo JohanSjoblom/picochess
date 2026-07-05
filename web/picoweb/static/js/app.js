@@ -643,6 +643,21 @@ function shouldAutoExploreWebClientAction() {
     return !!psi.has_board && psi.interaction_mode !== 'remote';
 }
 
+function canSubmitWebBoardMove(movingColor) {
+    var psi = window._picoSystemInfo || {};
+    if (!isCurrentPicoLivePosition() || !Object.prototype.hasOwnProperty.call(psi, 'has_board')) {
+        return false;
+    }
+    if (!psi.has_board) {
+        return true;
+    }
+    if (psi.interaction_mode === 'remote') {
+        var remoteColor = (psi.play_mode === 'user_white') ? 'black' : 'white';
+        return movingColor === remoteColor;
+    }
+    return false;
+}
+
 function shouldAutoExplorePgnSelection() {
     // PGN navigation is review-only. Keep Explore explicit so browser-side
     // moves and Web Stockfish analysis cannot start from a move-list click.
@@ -1259,6 +1274,7 @@ function toColor(chess) {
 
 var onSnapEnd = async function (source, target) {
     var tmpGame = createGamePointer();
+    var movingColor = toColor(tmpGame);
 
     if (!currentPosition) {
         currentPosition = {};
@@ -1280,8 +1296,14 @@ var onSnapEnd = async function (source, target) {
         return;
     }
 
-    if (webExploreMode || shouldAutoExploreWebClientAction()) {
+    if (webExploreMode) {
         startWebExploreFromGame(tmpGame, false);
+        updateChessGround();
+        updateStatus();
+        return;
+    }
+
+    if (!canSubmitWebBoardMove(movingColor)) {
         updateChessGround();
         updateStatus();
         return;
@@ -1329,28 +1351,16 @@ async function getMove(game, source, target) {
 
 function updateChessGround() {
     var tmpGame = createGamePointer();
-    var psi = window._picoSystemInfo || {};
-    var hasBoard = !!psi.has_board;
     var turnColor = toColor(tmpGame);
     var movableColor;
 
     if (webExploreMode) {
         movableColor = turnColor;
-    } else if (!hasBoard && isCurrentPicoLivePosition()) {
-        // No physical board: full diagram interactivity (NOEBOARD mode).
-        movableColor = turnColor;
-    } else if (psi.interaction_mode === 'remote') {
-        // REMOTE mode: local player uses the physical board; the remote
-        // opponent enters moves via the web diagram.  Only allow dragging
-        // when it is actually the remote side's turn.
-        var remoteColor = (psi.play_mode === 'user_white') ? 'black' : 'white';
-        movableColor = (turnColor === remoteColor) ? remoteColor : 'none';
-    } else if (hasBoard) {
-        // Physical board users may use the web diagram as a local playground.
-        // Legal web moves auto-enter Explore and are never sent as game moves.
+    } else if (canSubmitWebBoardMove(turnColor)) {
+        // NOEBOARD and REMOTE mode use the web board as a real move-entry surface.
         movableColor = turnColor;
     } else {
-        // Fallback: keep the diagram read-only.
+        // Physical eboard users need Explore ON before browser-side moves are playable.
         movableColor = 'none';
     }
 

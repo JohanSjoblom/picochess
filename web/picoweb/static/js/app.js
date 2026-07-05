@@ -635,12 +635,17 @@ function isLiveMoveEntryPosition() {
     return livePgnTreeActive && isCurrentPicoLivePosition();
 }
 
+function isPicoGameActive() {
+    var sysInfo = window._picoSystemInfo || {};
+    return Object.prototype.hasOwnProperty.call(sysInfo, 'game_started') && Boolean(sysInfo.game_started);
+}
+
 function updateSyncButtonAttention() {
     var btn = document.getElementById('DgtSyncBtn');
     if (!btn) {
         return;
     }
-    var needsSync = webExploreMode || !isLiveMoveEntryPosition();
+    var needsSync = isPicoGameActive() && (webExploreMode || !isLiveMoveEntryPosition());
     btn.classList.toggle('sync-attention', needsSync);
     btn.title = needsSync ? 'Sync with live game' : 'Sync with DGT board';
     btn.setAttribute('aria-label', btn.title);

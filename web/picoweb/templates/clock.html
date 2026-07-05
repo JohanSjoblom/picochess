@@ -724,9 +724,6 @@
                                                 <div id="engineStatus"></div>
 
                                                 <div class="analysis-toolbar" aria-label="Analysis controls">
-                                                    <button type="button" id="tutorWatchBtn" class="btn btn-sm btn-outline-primary analysis-toolbar-btn" title="Toggle Tutor analysis/watch" aria-label="Toggle Tutor analysis/watch">
-                                                        <i class="fa fa-eye-slash" aria-hidden="true"></i><span>T</span>
-                                                    </button>
                                                     <span class="analysis-control-set">
                                                         <span class="analysis-control-label">Pico</span>
                                                         <button id="engineToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
@@ -959,45 +956,6 @@
                             } catch (error) {
                                 console.error('Error starting new game:', error);
                             }
-                        }
-                    });
-                }
-
-                // Tutor+Watch combined button event handler
-                const tutorWatchBtn = document.getElementById('tutorWatchBtn');
-                if (tutorWatchBtn) {
-                    let tutorWatchActive = Boolean(window.picoWebConfig && window.picoWebConfig.tutorWatchActive);
-                    const tutorWatchSpan = tutorWatchBtn.querySelector('span');
-                    const tutorWatchIcon = tutorWatchBtn.querySelector('i');
-
-                    function setTutorWatchState(active) {
-                        tutorWatchActive = Boolean(active);
-                        if (tutorWatchActive) {
-                            tutorWatchBtn.classList.add('active');
-                            tutorWatchSpan.innerHTML = 'T';
-                            tutorWatchIcon.className = 'fa fa-eye';
-                        } else {
-                            tutorWatchBtn.classList.remove('active');
-                            tutorWatchSpan.innerHTML = 'T';
-                            tutorWatchIcon.className = 'fa fa-eye-slash';
-                        }
-                    }
-
-                    window.setTutorWatchState = setTutorWatchState;
-                    setTutorWatchState(tutorWatchActive);
-
-                    tutorWatchBtn.addEventListener('click', async function () {
-                        try {
-                            const nextActive = !tutorWatchActive;
-                            // Enviar acción combinada al servidor
-                            await fetch('/channel', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `action=tutor_watch&active=${nextActive}`
-                            });
-                            setTutorWatchState(nextActive);
-                        } catch (error) {
-                            console.error('Error toggling tutor+watch:', error);
                         }
                     });
                 }

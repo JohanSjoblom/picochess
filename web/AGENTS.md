@@ -259,6 +259,10 @@ explicitly requires it.
 - Keep OFF automations narrow and defensive. Turning Explore OFF is acceptable
   when entering a playable live position, such as a new game or SET_POSITION,
   so the user is not blocked from making normal web-board moves.
+- Outside an active game, PGN review and browser-side exploration are allowed to
+  be loose. Starting a new game is the reset back to live move-entry state:
+  Explore OFF, live PGN tree active, and normal move submission allowed
+  according to NOEBOARD/REMOTE/eboard rules.
 - When the user explicitly turns Explore OFF, the web client must perform a
   full live-position sync, equivalent to the Sync button, including restoring
   the last real move highlight/arrow and discarding explorer-only highlights.

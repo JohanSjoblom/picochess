@@ -248,6 +248,20 @@ div.dataTables_wrapper div.dataTables_length select {
     padding: 8px max(4px, 1vw);
 }
 
+#DgtSyncBtn.sync-attention {
+    background: linear-gradient(145deg, #f59e0b, #d97706) !important;
+    border-color: #b45309 !important;
+    color: #111827 !important;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35) !important;
+}
+
+#DgtSyncBtn.sync-attention:hover,
+#DgtSyncBtn.sync-attention:focus-visible {
+    background: linear-gradient(145deg, #fbbf24, #f59e0b) !important;
+    border-color: #92400e !important;
+    color: #111827 !important;
+}
+
 .nav-link.engine-mode-button {
     display: inline-flex;
     align-items: center;

@@ -314,6 +314,7 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
+var livePgnTreeActive = true;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
 var webAnalysisStopReasserted = false;
@@ -594,7 +595,7 @@ var gameDataTable = $('#GameTable').DataTable({
 
 gameDataTable.on('select', function (e, dt, type, indexes) {
     var data = gameDataTable.rows(indexes).data().pluck('pgn')[0].split("\n");
-    loadGame(data);
+    loadGame(data, { livePgnTree: false });
     updateStatus();
     removeHighlights();
 });
@@ -630,6 +631,26 @@ function isCurrentPicoLivePosition() {
     return currentPosition === fenHash.last || currentPosition.fen === fenHash.last.fen;
 }
 
+function isLiveMoveEntryPosition() {
+    return livePgnTreeActive && isCurrentPicoLivePosition();
+}
+
+function updateSyncButtonAttention() {
+    var btn = document.getElementById('DgtSyncBtn');
+    if (!btn) {
+        return;
+    }
+    var needsSync = webExploreMode || !isLiveMoveEntryPosition();
+    btn.classList.toggle('sync-attention', needsSync);
+    btn.title = needsSync ? 'Sync with live game' : 'Sync with DGT board';
+    btn.setAttribute('aria-label', btn.title);
+}
+
+function setLivePgnTreeActive(active) {
+    livePgnTreeActive = Boolean(active);
+    updateSyncButtonAttention();
+}
+
 function syncToCurrentPicoLivePosition() {
     if (fenHash && fenHash.last) {
         currentPosition = fenHash.last;
@@ -645,7 +666,7 @@ function shouldAutoExploreWebClientAction() {
 
 function canSubmitWebBoardMove(movingColor) {
     var psi = window._picoSystemInfo || {};
-    if (!isCurrentPicoLivePosition() || !Object.prototype.hasOwnProperty.call(psi, 'has_board')) {
+    if (!isLiveMoveEntryPosition() || !Object.prototype.hasOwnProperty.call(psi, 'has_board')) {
         return false;
     }
     if (!psi.has_board) {
@@ -676,6 +697,7 @@ function updateWebExploreButton() {
         'aria-pressed',
         webExploreMode ? 'true' : 'false'
     );
+    updateSyncButtonAttention();
 }
 
 function setWebExploreMode(enabled, redraw) {
@@ -1178,6 +1200,7 @@ function updateCurrentPosition(move, tmpGame) {
 var updateStatus = function () {
     var status = '';
     bindPgnFenLinks();
+    updateSyncButtonAttention();
 
     var moveColor = 'White';
     var tmpGame = createGamePointer();
@@ -1435,7 +1458,9 @@ function addNewMove(m, current_position, fen, props) {
     return { node: node, position: current_position };
 }
 
-function loadGame(pgn_lines) {
+function loadGame(pgn_lines, options) {
+    options = options || {};
+    setLivePgnTreeActive(options.livePgnTree !== false);
     fenHash = {};
 
     var curr_fen;
@@ -1679,6 +1704,7 @@ function download() {
 }
 
 function newBoard(fen) {
+    setLivePgnTreeActive(true);
     resetWebExploreForPlayablePosition();
     stopAnalysis();
 
@@ -2359,6 +2385,7 @@ function analyze(position_update) {
 }
 
 function updateDGTPosition(data) {
+    setLivePgnTreeActive(true);
     var preserveExplore = webExploreMode;
     if (data.play === 'reload') {
         // Takeback / switch-sides: always rebuild the move tree from the

@@ -2576,10 +2576,17 @@ function updateTutorMistakes(mistakes) {
         var figUser = figurinizeMove(item.user_move) || (item.user_move || '');
         var figBest = figurinizeMove(item.best_move) || (item.best_move || '');
         var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
-        entry.innerHTML = moveText + ' \u2014 ' + formatTutorMistakeImpact(item) + ', best: ' + figBest;
+        if (item.reason === 'variation') {
+            entry.innerHTML = moveText + ' \u2014 has sideline';
+        } else {
+            entry.innerHTML = moveText + ' \u2014 ' + formatTutorMistakeImpact(item) + ', best: ' + figBest;
+        }
         if (item.halfmove) {
             var mistakeHalfmove = parseInt(item.halfmove, 10);
-            var targetHalfmove = mistakeHalfmove > 2 ? mistakeHalfmove - 1 : mistakeHalfmove;
+            var explicitTargetHalfmove = parseInt(item.target_halfmove, 10);
+            var targetHalfmove = !Number.isNaN(explicitTargetHalfmove)
+                ? explicitTargetHalfmove
+                : (mistakeHalfmove > 2 ? mistakeHalfmove - 1 : mistakeHalfmove);
             entry.dataset.halfmove = targetHalfmove;
             entry.addEventListener('click', function () {
                 goToHalfmove(entry.dataset.halfmove);

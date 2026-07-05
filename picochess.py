@@ -76,7 +76,7 @@ from utilities import (
     set_window_control_backend_preference,
 )
 from utilities import AsyncRepeatingTimer
-from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations
+from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations, pgn_variation_review_points
 from server import WebDisplay, WebServer, WebVr, EventHandler
 from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
@@ -4567,6 +4567,7 @@ async def main() -> None:
                     "move": mov,
                     "play": "reload",
                     "variant": self.shared.get("variant", "chess"),
+                    "mistakes": pgn_variation_review_points(l_game_pgn),
                 }
                 self.shared["last_dgt_move_msg"] = result
                 EventHandler.write_to_clients(result)

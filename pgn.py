@@ -167,6 +167,45 @@ def pgn_has_variations(game: chess.pgn.Game | None) -> bool:
     return False
 
 
+def pgn_variation_review_points(game: chess.pgn.Game | None) -> list[dict]:
+    """Return lightweight WATCHER review points for mainline moves with sidelines."""
+    if not game:
+        return []
+
+    points: list[dict] = []
+    board = game.board()
+    parent: chess.pgn.GameNode = game
+    halfmove = 0
+
+    while parent.variations:
+        mainline_node = parent.variations[0]
+        halfmove += 1
+        move_prefix = f"{board.fullmove_number}." if board.turn == chess.WHITE else f"{board.fullmove_number}..."
+        try:
+            user_move = board.san(mainline_node.move)
+        except (AssertionError, ValueError):
+            user_move = mainline_node.move.uci()
+
+        if len(parent.variations) > 1:
+            points.append(
+                {
+                    "halfmove": halfmove,
+                    "target_halfmove": halfmove - 1 if halfmove > 2 else halfmove,
+                    "move_no": move_prefix,
+                    "user_move": user_move,
+                    "reason": "variation",
+                }
+            )
+
+        try:
+            board.push(mainline_node.move)
+        except (AssertionError, ValueError):
+            break
+        parent = mainline_node
+
+    return points
+
+
 # molli: support for player names from online game
 class ModeInfo:
     online_mode = False

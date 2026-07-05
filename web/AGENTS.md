@@ -151,6 +151,9 @@ explicitly requires it.
   `E` for selected-engine backend analysis and `T` for Tutor backend analysis.
 - Read and display backend tutor state when the web client opens, and keep it in
   sync via websocket updates.
+- When a PGN is loaded from disk, the WATCHER list may show lightweight review
+  points derived from mainline side variations. Do not recreate or persist
+  `PicoTutor.evaluated_moves` from PGN comments or old evaluation details.
 
 ## ANALYSES Tab CPU
 

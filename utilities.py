@@ -42,7 +42,7 @@ from typing import Optional
 from pathlib import Path
 
 # picochess version
-version = "4.3.2"
+version = "4.3.3"
 
 logger = logging.getLogger(__name__)
 

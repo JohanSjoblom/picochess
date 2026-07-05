@@ -137,9 +137,10 @@ explicitly requires it.
 ## Tutor Menu
 
 - The new Tutor menu should send only the changed setting.
-- Keep the quick combined Tutor toggle in the old `ANALYSES` tab. It is useful
-  for switching between Tutor analysis and selected-engine analysis, and for
-  PGN replay timing.
+- Tutor state is controlled from the overlay Tutor menu. Do not reintroduce the
+  old quick combined Tutor toggle in the `ANALYSES` tab; that toolbar should
+  stay focused on analysis visibility, variation visibility, Web Stockfish, and
+  Explore controls.
 - Coach is one mutually exclusive setting: `off`, `on`, `lift`, `brain`, or
   `hand`. Do not model Brain and Hand as independent toggles.
 - Brain/Hand are tutor coach modes for normal play, not web-only modes.

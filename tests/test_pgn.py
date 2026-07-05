@@ -8,7 +8,13 @@ import tempfile
 import unittest
 
 from dgt.util import PlayMode
-from pgn import PgnDisplay, add_picotutor_variations_to_game, pgn_has_variations, preserve_loaded_pgn_variations
+from pgn import (
+    PgnDisplay,
+    add_picotutor_variations_to_game,
+    pgn_has_variations,
+    pgn_variation_review_points,
+    preserve_loaded_pgn_variations,
+)
 
 EMPTY_GAME = """[Event "PicoChess Game"]
 [Site "?"]
@@ -181,6 +187,27 @@ class TestPgnDisplay(unittest.TestCase):
         board.push(chess.Move.from_uci("e2e4"))
         board.push(chess.Move.from_uci("e7e5"))
         self.assertFalse(pgn_has_variations(chess.pgn.Game.from_board(board)))
+
+    def test_pgn_variation_review_points_list_mainline_side_variations(self):
+        game = chess.pgn.read_game(io.StringIO("1. e4 e5 2. Nf3 ( 2. Bc4 Nf6 ) Nc6 *"))
+
+        self.assertEqual(
+            pgn_variation_review_points(game),
+            [
+                {
+                    "halfmove": 3,
+                    "target_halfmove": 2,
+                    "move_no": "2.",
+                    "user_move": "Nf3",
+                    "reason": "variation",
+                }
+            ],
+        )
+
+    def test_pgn_variation_review_points_ignore_plain_comments(self):
+        game = chess.pgn.read_game(io.StringIO("1. e4 {Comment only} e5 *"))
+
+        self.assertEqual(pgn_variation_review_points(game), [])
 
     def test_preserve_loaded_pgn_variations_copies_matching_loaded_side_lines(self):
         loaded_game = chess.pgn.read_game(io.StringIO("1. e4 ( 1. Nf3 d5 ) e5 *"))

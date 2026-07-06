@@ -640,12 +640,22 @@ function isPicoGameActive() {
     return Object.prototype.hasOwnProperty.call(sysInfo, 'game_started') && Boolean(sysInfo.game_started);
 }
 
+function isWebBoardMoveEntryRelevant() {
+    var sysInfo = window._picoSystemInfo || {};
+    if (!Object.prototype.hasOwnProperty.call(sysInfo, 'has_board')) {
+        return false;
+    }
+    return !sysInfo.has_board || sysInfo.interaction_mode === 'remote';
+}
+
 function updateSyncButtonAttention() {
     var btn = document.getElementById('DgtSyncBtn');
     if (!btn) {
         return;
     }
-    var needsSync = isPicoGameActive() && (webExploreMode || !isLiveMoveEntryPosition());
+    var needsSync = isPicoGameActive()
+        && isWebBoardMoveEntryRelevant()
+        && (webExploreMode || !isLiveMoveEntryPosition());
     btn.classList.toggle('sync-attention', needsSync);
     btn.title = needsSync ? 'Sync with live game' : 'Sync with DGT board';
     btn.setAttribute('aria-label', btn.title);

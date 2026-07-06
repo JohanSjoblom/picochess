@@ -241,10 +241,11 @@ explicitly requires it.
 - Track whether the loaded PGN tree is the live PicoChess game tree separately
   from the selected FEN. Database games, watcher/PGN review, and live gameplay
   can show the same board position while having different move-entry authority.
-  Use that state to guard web-board move submission. Highlight Sync only during
-  an active game when the user is away from live move entry; finished-game and
-  loaded-PGN review should not show amber just because there is no active game
-  to continue.
+  Use that state to guard web-board move submission. Highlight Sync only when
+  there is an active game, the web board is a real move-entry surface
+  (NOEBOARD or `Mode.REMOTE`), and the user is away from live move entry.
+  Finished-game review, loaded-PGN review, and normal physical-eboard play
+  should not show amber just because the browser board differs from live play.
 - `Mode.REMOTE` is the intentional exception: one player uses the physical
   eboard and the remote opponent uses the web board. With Explore OFF, the web
   client may submit real moves only for the remote side's turn; local-side moves

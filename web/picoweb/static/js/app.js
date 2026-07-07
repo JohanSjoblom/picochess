@@ -2876,6 +2876,44 @@ function updateBackendAnalysisLine(analysis) {
 var analysisDisplayVisible = false;
 var lastServerAnalysis = null;
 var lastServerAnalysisKey = null;
+var lastServerAnalysisBySource = {
+    engine: null,
+    tutor: null
+};
+
+function backendAnalysisSource(analysis) {
+    return String((analysis && analysis.source) || 'engine').toLowerCase() === 'tutor'
+        ? 'tutor'
+        : 'engine';
+}
+
+function isTutorBackendAnalysisPreferred() {
+    var settings = window._picoTutorSettings || {};
+    var coach = String(settings.tutor_coach || 'off').toLowerCase();
+    return Boolean(settings.tutor_active || settings.tutor_watcher || coach !== 'off');
+}
+
+function analysisFenMatches(reference, candidate) {
+    if (!candidate) return false;
+    var referenceFen = (reference && reference.fen) || (currentPosition && currentPosition.fen) || '';
+    if (!referenceFen || !candidate.fen) return true;
+    return candidate.fen === referenceFen;
+}
+
+function preferredBackendAnalysis(reference) {
+    var tutorAnalysis = lastServerAnalysisBySource.tutor;
+    var engineAnalysis = lastServerAnalysisBySource.engine;
+    if (isTutorBackendAnalysisPreferred() && analysisFenMatches(reference, tutorAnalysis)) {
+        return tutorAnalysis;
+    }
+    if (analysisFenMatches(reference, engineAnalysis)) {
+        return engineAnalysis;
+    }
+    if (analysisFenMatches(reference, tutorAnalysis)) {
+        return tutorAnalysis;
+    }
+    return reference || engineAnalysis || tutorAnalysis || null;
+}
 
 function backendAnalysisKey(analysis) {
     if (!analysis) {
@@ -3051,6 +3089,8 @@ function updateBackendAnalysis(analysis) {
     if (!analysis) {
         lastServerAnalysis = null;
         lastServerAnalysisKey = null;
+        lastServerAnalysisBySource.engine = null;
+        lastServerAnalysisBySource.tutor = null;
         updateBackendAnalysisSourceBadge('engine');
         // Clear content but keep button state
         var metaEl = document.getElementById('engineMeta');
@@ -3061,20 +3101,30 @@ function updateBackendAnalysis(analysis) {
     }
     // Upstream: explicit clear signal resets the engine line to placeholder state.
     if (analysis.clear) {
-        lastServerAnalysisKey = null;
-        updateBackendAnalysisSourceBadge(analysis.source);
-        setEngineLinePlaceholder();
+        lastServerAnalysisBySource[backendAnalysisSource(analysis)] = null;
+        var remainingAnalysis = preferredBackendAnalysis(null);
+        var remainingKey = backendAnalysisKey(remainingAnalysis);
+        var remainingUnchanged = remainingKey === lastServerAnalysisKey;
+        lastServerAnalysis = remainingAnalysis;
+        lastServerAnalysisKey = remainingKey;
+        if (!remainingAnalysis) {
+            updateBackendAnalysisSourceBadge(analysis.source);
+            setEngineLinePlaceholder();
+        } else if (analysisDisplayVisible && !remainingUnchanged) {
+            updateBackendAnalysisLine(remainingAnalysis);
+        }
         return;
     }
-    var analysisKey = backendAnalysisKey(analysis);
+    lastServerAnalysisBySource[backendAnalysisSource(analysis)] = analysis;
+    var displayAnalysis = preferredBackendAnalysis(analysis);
+    var analysisKey = backendAnalysisKey(displayAnalysis);
     var unchanged = analysisKey === lastServerAnalysisKey;
-    lastServerAnalysis = analysis;
+    lastServerAnalysis = displayAnalysis;
     lastServerAnalysisKey = analysisKey;
-    updateBackendAnalysisSourceBadge(analysis.source);
     if (!analysisDisplayVisible || unchanged) {
         return;
     }
-    updateBackendAnalysisLine(analysis);
+    updateBackendAnalysisLine(displayAnalysis);
 }
 
 function goToDGTFen() {

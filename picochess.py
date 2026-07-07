@@ -82,7 +82,16 @@ from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
 
 from dgt.api import Message, Event
-from dgt.util import GameResult, TimeMode, Mode, PlayMode, PicoComment, PicoCoach, game_result_from_header
+from dgt.util import (
+    GameResult,
+    TimeMode,
+    Mode,
+    PlayMode,
+    PicoComment,
+    PicoCoach,
+    flip_board_fen,
+    game_result_from_header,
+)
 from dgt.hw import DgtHw
 from dgt.pi import DgtPi
 from dgt.display import DgtDisplay
@@ -2582,6 +2591,26 @@ async def main() -> None:
             # wrong moves.
             _move_board = self.state.get_move_check_board()
             legal_fens_pico = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
+            if (
+                self.board_type == dgt.util.EBoard.DGT
+                and not self.state.dgtmenu.get_flip_board()
+                and fen
+            ):
+                flipped_fen = flip_board_fen(fen)
+                known_fens = set(legal_fens_pico)
+                known_fens.update(self.state.legal_fens)
+                known_fens.update(self.state.last_legal_fens)
+                known_fens.update(self.state.legal_fens_after_cmove)
+                known_fens.add(self.state.get_board_fen())
+                if self.state.done_computer_fen:
+                    known_fens.add(self.state.done_computer_fen)
+                if flipped_fen != fen and flipped_fen in known_fens and fen not in known_fens:
+                    logger.info(
+                        "DGT board orientation inferred from position; switching to B-in-front orientation"
+                    )
+                    self.state.dgtmenu.set_position_reverse_flipboard(True, self.state.play_mode)
+                    self.state.dgtmenu.set_dgt_fen(flipped_fen)
+                    fen = flipped_fen
             starting_board_fen = (
                 RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
             )

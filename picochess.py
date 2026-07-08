@@ -2801,7 +2801,7 @@ async def main() -> None:
                     handled_fen = False
 
             # standard legal move
-            elif fen in self.state.legal_fens:
+            elif fen in self.state.legal_fens and fen != self.state.done_computer_fen:
                 # Verify the move is actually legal from the CURRENT position.
                 # legal_fens may be stale if left over from a previous game that
                 # executed concurrently (asyncio.create_task per event).
@@ -3116,7 +3116,8 @@ async def main() -> None:
                             self.state.takeback_active = True
                             self._update_variant_shared()  # sync check counts etc. after multi-pop
                             await self.set_wait_state(
-                                Message.TAKE_BACK(game=self.state.game.copy())
+                                Message.TAKE_BACK(game=self.state.game.copy()),
+                                preserve_play_mode=True,
                             )  # new: force stop no matter if picochess turn
 
                             break

@@ -515,6 +515,24 @@ def _validate_setup_position_fen(fen: str, uci960_hint: bool = False) -> tuple[c
     raise ValueError("Invalid FEN position: " + ", ".join(statuses))
 
 
+def _build_scanned_setup_board(
+    board_fen: str,
+    side_to_play: bool,
+    castling: str,
+    uci960_enabled: bool,
+) -> chess.Board:
+    board_fen = (board_fen or "").strip()
+    if not board_fen or board_fen == "8/8/8/8/8/8/8/8":
+        raise ValueError("No valid board position scanned")
+
+    fen = f"{board_fen} {'w' if side_to_play else 'b'} {castling or '-'} - 0 1"
+    board = chess.Board(fen, chess960=uci960_enabled)
+    board.set_fen(board.fen())  # let python-chess discard impossible castling rights
+    if not board.is_valid():
+        raise ValueError(f"Invalid scanned board position: {board.status()}")
+    return board
+
+
 def _same_position(left: chess.Board, right: chess.Board) -> bool:
     return (
         left.board_fen() == right.board_fen()
@@ -678,8 +696,7 @@ class ChannelHandler(ServerRequestHandler):
                 castling = "-"
 
             fen = self.shared.get("dgt_fen")
-
-            if not fen or fen == "8/8/8/8/8/8/8/8":
+            if not fen:
                 logger.error("No valid board position scanned")
                 return None
 
@@ -687,21 +704,11 @@ class ChannelHandler(ServerRequestHandler):
             if board_reversed:
                 fen = flip_board_fen(fen)
 
-            # Build complete FEN with position settings.
-            fen += " {0} {1} - 0 1".format("w" if side_to_play else "b", castling)
-
-            # Validate FEN using python-chess.
             try:
-                bit_board = chess.Board(fen, chess960=uci960_enabled)
-                is_valid = bit_board.is_valid()
-
-                if not is_valid:
-                    logger.warning(f"FEN validation failed: {fen}")
-                    logger.warning(f"Status: {bit_board.status()}")
-                    return None
-
-                await Observable.fire(Event.SETUP_POSITION(fen=fen, uci960=uci960_enabled))
-                return fen
+                bit_board = _build_scanned_setup_board(fen, side_to_play, castling, uci960_enabled)
+                normalized_fen = bit_board.fen()
+                await Observable.fire(Event.SETUP_POSITION(fen=normalized_fen, uci960=uci960_enabled))
+                return normalized_fen
 
             except Exception as fen_error:
                 logger.error(f"FEN validation error: {fen_error}")

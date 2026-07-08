@@ -12,6 +12,7 @@ from server import (
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
     _apply_web_analysis_state,
+    _build_scanned_setup_board,
     _channel_action_requires_remote_auth,
     _clock_event,
     _coach_event_value,
@@ -308,6 +309,26 @@ class TestServerChannelAuth(unittest.TestCase):
 
 
 class TestServerSetPositionFromPgn(unittest.TestCase):
+    def test_scanned_position_drops_unavailable_castling_rights(self):
+        parsed = _build_scanned_setup_board(
+            "8/8/8/8/8/8/4K3/7k",
+            side_to_play=True,
+            castling="KQkq",
+            uci960_enabled=False,
+        )
+
+        self.assertTrue(parsed.is_valid())
+        self.assertEqual("8/8/8/8/8/8/4K3/7k w - - 0 1", parsed.fen())
+
+    def test_scanned_position_rejects_kingless_board(self):
+        with self.assertRaisesRegex(ValueError, "No valid board position scanned"):
+            _build_scanned_setup_board(
+                "8/8/8/8/8/8/8/8",
+                side_to_play=True,
+                castling="KQkq",
+                uci960_enabled=False,
+            )
+
     def test_web_pgn_prefix_reconstructs_selected_position_with_move_stack(self):
         pgn_text = """[Event "Example"]
 [Site "?"]

@@ -533,6 +533,17 @@ def _build_scanned_setup_board(
     return board
 
 
+def _orient_scanned_board_fen(
+    board_fen: str,
+    board_reversed: bool,
+    eboard_type: EBoardType,
+    raw_board_fen: bool,
+) -> str:
+    if eboard_type == EBoardType.DGT and raw_board_fen:
+        return flip_board_fen(board_fen) if not board_reversed else board_fen
+    return flip_board_fen(board_fen) if board_reversed else board_fen
+
+
 def _same_position(left: chess.Board, right: chess.Board) -> bool:
     return (
         left.board_fen() == right.board_fen()
@@ -700,9 +711,12 @@ class ChannelHandler(ServerRequestHandler):
                 logger.error("No valid board position scanned")
                 return None
 
-            # Check if board needs flipping.
-            if board_reversed:
-                fen = flip_board_fen(fen)
+            fen = _orient_scanned_board_fen(
+                fen,
+                board_reversed=board_reversed,
+                eboard_type=ModeInfo.get_eboard_type(),
+                raw_board_fen=bool(self.shared.get("dgt_fen_raw", False)),
+            )
 
             try:
                 bit_board = _build_scanned_setup_board(fen, side_to_play, castling, uci960_enabled)
@@ -3297,6 +3311,7 @@ class WebDisplay(DisplayMsg):
         elif isinstance(message, Message.DGT_FEN):
             # Update dgt_fen for board scan functionality
             self.shared["dgt_fen"] = message.fen.split(" ")[0]
+            self.shared["dgt_fen_raw"] = bool(message.raw)
 
         elif isinstance(message, Message.USER_MOVE_DONE):
             WebDisplay.result_sav = ""

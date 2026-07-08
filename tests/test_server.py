@@ -7,6 +7,7 @@ import chess
 
 from dgt.api import DgtApi, EventApi, Message
 from dgt.translate import DgtTranslate
+from dgt.util import EBoard as EBoardType
 from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
     WebDisplay,
@@ -23,6 +24,7 @@ from server import (
     _engine_book_choices,
     _engine_change_events,
     _mode_text,
+    _orient_scanned_board_fen,
     _select_engine_book,
     _select_web_book,
     _time_control_text,
@@ -328,6 +330,54 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
                 castling="KQkq",
                 uci960_enabled=False,
             )
+
+    def test_raw_dgt_scan_white_bottom_flips_to_chess_coordinates(self):
+        raw_spanish = "R2KQBNR/PPP1PPPP/2N5/3P4/3p2B1/5n2/ppp1pppp/rnbkqb1r"
+
+        oriented = _orient_scanned_board_fen(
+            raw_spanish,
+            board_reversed=False,
+            eboard_type=EBoardType.DGT,
+            raw_board_fen=True,
+        )
+
+        self.assertEqual("r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R", oriented)
+
+    def test_raw_dgt_scan_black_bottom_keeps_raw_coordinates(self):
+        raw_spanish = "R2KQBNR/PPP1PPPP/2N5/3P4/3p2B1/5n2/ppp1pppp/rnbkqb1r"
+
+        oriented = _orient_scanned_board_fen(
+            raw_spanish,
+            board_reversed=True,
+            eboard_type=EBoardType.DGT,
+            raw_board_fen=True,
+        )
+
+        self.assertEqual(raw_spanish, oriented)
+
+    def test_non_dgt_scan_keeps_existing_orientation_rule(self):
+        board_fen = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R"
+
+        oriented = _orient_scanned_board_fen(
+            board_fen,
+            board_reversed=False,
+            eboard_type=EBoardType.CHESSNUT,
+            raw_board_fen=True,
+        )
+
+        self.assertEqual(board_fen, oriented)
+
+    def test_normalized_dgt_scan_keeps_existing_orientation_rule(self):
+        board_fen = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R"
+
+        oriented = _orient_scanned_board_fen(
+            board_fen,
+            board_reversed=False,
+            eboard_type=EBoardType.DGT,
+            raw_board_fen=False,
+        )
+
+        self.assertEqual(board_fen, oriented)
 
     def test_web_pgn_prefix_reconstructs_selected_position_with_move_stack(self):
         pgn_text = """[Event "Example"]

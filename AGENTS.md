@@ -68,6 +68,22 @@ and explicit takeback handling.
   correction must continue to route through `Event.FEN` so same-position
   handling, including artwork/window switching, is preserved.
 
+## DGT Takeback Play-Mode Rule
+
+Preserve the existing physical DGT eboard takeback behavior.
+
+- Physical eboard takeback may be repeated for any number of plies.
+- After a physical takeback sequence, Picochess may infer play mode from the
+  resulting side to move, leaving the position ready for the user to move.
+- This is intentional: a typical correction flow is to take back the engine
+  move, take back the user move, then enter a better user move.
+- Do not force physical takeback to preserve the previous
+  `PlayMode.USER_WHITE` or `PlayMode.USER_BLACK`.
+- If the user wants the engine to move after a physical takeback sequence, the
+  existing switch-sides mechanism is the explicit control for that.
+- This rule is separate from web/menu explicit takeback behavior and from scan
+  side-to-move correction.
+
 ## Async Architecture
 
 Picochess has been ported from a thread-based design to one shared `asyncio`

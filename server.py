@@ -560,6 +560,13 @@ def _retag_setup_position_side(
     return _validate_setup_position_fen(retagged_fen, uci960_enabled or uci960_hint)
 
 
+def _cached_setup_position_fen(shared: dict) -> str:
+    last = (shared or {}).get("last_dgt_move_msg") or {}
+    if last.get("event") == "Game" and last.get("move") == "0000":
+        return last.get("fen", "")
+    return ""
+
+
 def _same_position(left: chess.Board, right: chess.Board) -> bool:
     return (
         left.board_fen() == right.board_fen()
@@ -967,7 +974,9 @@ class ChannelHandler(ServerRequestHandler):
                 side_to_play = self.get_argument("sideToPlay", "true").lower() == "true"
                 fen = self.get_argument("fen", "").strip()
                 if not fen:
-                    fen = (self.shared.get("last_dgt_move_msg") or {}).get("fen", "")
+                    fen = _cached_setup_position_fen(self.shared)
+                if not fen:
+                    raise ValueError("No scanned setup position is available")
                 bit_board, uci960_enabled = _retag_setup_position_side(fen, side_to_play)
                 logger.info("Setting scanned position side-to-move from web client: %s", bit_board.fen())
                 await Observable.fire(Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled))

@@ -14,6 +14,7 @@ from server import (
     OBOOKSRV_BOOK_FILE,
     _apply_web_analysis_state,
     _build_scanned_setup_board,
+    _cached_setup_position_fen,
     _channel_action_requires_remote_auth,
     _clock_event,
     _coach_event_value,
@@ -394,6 +395,28 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
     def test_retag_setup_position_side_rejects_invalid_position(self):
         with self.assertRaisesRegex(ValueError, "Invalid FEN position"):
             _retag_setup_position_side("8/8/8/8/8/8/8/8 w - - 0 1", side_to_play=False)
+
+    def test_cached_setup_position_fen_accepts_new_position_cache(self):
+        shared = {
+            "last_dgt_move_msg": {
+                "event": "Game",
+                "move": "0000",
+                "fen": "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+            }
+        }
+
+        self.assertEqual(shared["last_dgt_move_msg"]["fen"], _cached_setup_position_fen(shared))
+
+    def test_cached_setup_position_fen_rejects_played_move_cache(self):
+        shared = {
+            "last_dgt_move_msg": {
+                "event": "Fen",
+                "move": "e1g1",
+                "fen": "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 1 1",
+            }
+        }
+
+        self.assertEqual("", _cached_setup_position_fen(shared))
 
     def test_web_pgn_prefix_reconstructs_selected_position_with_move_stack(self):
         pgn_text = """[Event "Example"]

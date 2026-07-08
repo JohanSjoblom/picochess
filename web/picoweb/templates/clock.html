@@ -1674,13 +1674,6 @@
             }
 
             function _applyScannedPositionSide() {
-                if (!_positionSettings.scannedFen) return;
-                var scannedBoardFen = _positionSettings.scannedFen.split(/\s+/)[0];
-                var currentBoardFen = window.chessground1 && window.chessground1.getFen ? window.chessground1.getFen() : '';
-                if (currentBoardFen && currentBoardFen !== scannedBoardFen) {
-                    _positionSettings.scannedFen = '';
-                    return;
-                }
                 fetch('/channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

@@ -1,7 +1,9 @@
+import asyncio
+import threading
 import unittest
 from unittest.mock import patch
 
-from utilities import _choose_wayland_backend, get_engine_mame_par, get_window_command
+from utilities import AsyncRepeatingTimer, _choose_wayland_backend, get_engine_mame_par, get_window_command
 
 
 class TestUtilities(unittest.TestCase):
@@ -52,6 +54,22 @@ class TestUtilities(unittest.TestCase):
     @patch.dict("utilities.os.environ", {"PICOCHESS_WAYLAND_WINDOW_BACKEND": "ydotool"}, clear=False)
     def test_choose_wayland_backend_override_missing_tool(self, _):
         self.assertIsNone(_choose_wayland_backend())
+
+
+class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
+
+    async def test_start_from_worker_thread_wakes_event_loop(self):
+        loop = asyncio.get_running_loop()
+        fired = asyncio.Event()
+        timer = AsyncRepeatingTimer(0.01, fired.set, loop, repeating=False)
+
+        worker = threading.Thread(target=timer.start)
+        worker.start()
+        worker.join(timeout=1)
+
+        await asyncio.wait_for(fired.wait(), timeout=1)
+        await asyncio.sleep(0)
+        self.assertFalse(timer.is_running())
 
 
 if __name__ == "__main__":

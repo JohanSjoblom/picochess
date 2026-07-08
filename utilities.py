@@ -165,11 +165,29 @@ class AsyncRepeatingTimer:
             if not self.repeating:
                 self._running = False
 
+    def _running_in_target_loop(self):
+        try:
+            return asyncio.get_running_loop() is self.loop
+        except RuntimeError:
+            return False
+
+    def _start_task(self):
+        if self._running and self._task is None:
+            self._task = self.loop.create_task(self._run())
+
+    def _stop_task(self):
+        if self._task is not None:
+            self._task.cancel()
+            self._task = None
+
     def start(self):
         """Start the RepeatingTimer."""
         if not self._running:
             self._running = True
-            self._task = self.loop.create_task(self._run())
+            if self._running_in_target_loop():
+                self._start_task()
+            else:
+                self.loop.call_soon_threadsafe(self._start_task)
         else:
             logging.info("repeated timer already running - strange!")
 
@@ -177,9 +195,10 @@ class AsyncRepeatingTimer:
         """Stop the RepeatingTimer."""
         if self._running:
             self._running = False
-            if self._task is not None:
-                self._task.cancel()
-                self._task = None
+            if self._running_in_target_loop():
+                self._stop_task()
+            else:
+                self.loop.call_soon_threadsafe(self._stop_task)
         else:
             logging.debug("repeated timer already stopped - strange!")
 

@@ -25,6 +25,7 @@ from server import (
     _engine_change_events,
     _mode_text,
     _orient_scanned_board_fen,
+    _retag_setup_position_side,
     _select_engine_book,
     _select_web_book,
     _time_control_text,
@@ -306,6 +307,7 @@ class TestServerChannelAuth(unittest.TestCase):
             "new_book",
             "pause_resume",
             "scan_board",
+            "set_position_side",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)
 
@@ -378,6 +380,20 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
         )
 
         self.assertEqual(board_fen, oriented)
+
+    def test_retag_setup_position_side_changes_turn_only(self):
+        fen = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1"
+
+        retagged, uci960 = _retag_setup_position_side(fen, side_to_play=False)
+
+        self.assertFalse(uci960)
+        self.assertEqual("r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R", retagged.board_fen())
+        self.assertEqual(chess.BLACK, retagged.turn)
+        self.assertEqual("KQkq", retagged.castling_xfen())
+
+    def test_retag_setup_position_side_rejects_invalid_position(self):
+        with self.assertRaisesRegex(ValueError, "Invalid FEN position"):
+            _retag_setup_position_side("8/8/8/8/8/8/8/8 w - - 0 1", side_to_play=False)
 
     def test_web_pgn_prefix_reconstructs_selected_position_with_move_stack(self):
         pgn_text = """[Event "Example"]

@@ -544,6 +544,22 @@ def _orient_scanned_board_fen(
     return flip_board_fen(board_fen) if board_reversed else board_fen
 
 
+def _retag_setup_position_side(
+    fen: str,
+    side_to_play: bool,
+    uci960_hint: bool = False,
+) -> tuple[chess.Board, bool]:
+    board, uci960_enabled = _validate_setup_position_fen(fen, uci960_hint)
+    retagged_fen = "{} {} {} - {} {}".format(
+        board.board_fen(),
+        "w" if side_to_play else "b",
+        board.castling_xfen(),
+        board.halfmove_clock,
+        board.fullmove_number,
+    )
+    return _validate_setup_position_fen(retagged_fen, uci960_enabled or uci960_hint)
+
+
 def _same_position(left: chess.Board, right: chess.Board) -> bool:
     return (
         left.board_fen() == right.board_fen()
@@ -946,6 +962,23 @@ class ChannelHandler(ServerRequestHandler):
             result_fen = await self.process_board_scan()
             self.write({"success": result_fen is not None, "fen": result_fen})
             self.set_header("Content-Type", "application/json")
+        elif action == "set_position_side":
+            try:
+                side_to_play = self.get_argument("sideToPlay", "true").lower() == "true"
+                fen = self.get_argument("fen", "").strip()
+                if not fen:
+                    fen = (self.shared.get("last_dgt_move_msg") or {}).get("fen", "")
+                bit_board, uci960_enabled = _retag_setup_position_side(fen, side_to_play)
+                logger.info("Setting scanned position side-to-move from web client: %s", bit_board.fen())
+                await Observable.fire(Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled))
+                self.write({"success": True, "fen": bit_board.fen(), "uci960": uci960_enabled})
+                self.set_header("Content-Type", "application/json")
+            except ValueError as e:
+                logger.warning("set_position_side validation failed: %s", e)
+                self.set_status(400)
+                self.write({"success": False, "error": str(e)})
+                self.set_header("Content-Type", "application/json")
+                return
         elif action == "new_time":
             try:
                 mode_id = int(self.get_argument("time_mode", "0"))

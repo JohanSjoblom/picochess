@@ -1106,6 +1106,7 @@
                             if (response.ok) {
                                 const result = await response.json();
                                 if (result.success && result.fen) {
+                                    _positionSettings.scannedFen = result.fen;
                                     console.log('Escaneo completado. FEN:', result.fen);
                                 } else {
                                     console.error('Error: Posición inválida');
@@ -1603,7 +1604,8 @@
                 sideToMove:      'white',   // 'white' | 'black'
                 boardOrientation: 'normal', // 'normal' | 'flipped'
                 uci960:           false,    // false | true
-                castling: { wk: true, wq: true, bk: true, bq: true }
+                castling: { wk: true, wq: true, bk: true, bq: true },
+                scannedFen:       ''
             };
 
             var POSITION_PARAMS = {
@@ -1669,6 +1671,34 @@
                 if (el) el.textContent = _positionSettings.uci960 ? 'Chess960' : 'Standard';
                 el = document.getElementById('ovl-pos-castling-sub');
                 if (el) el.textContent = _castlingSub();
+            }
+
+            function _applyScannedPositionSide() {
+                if (!_positionSettings.scannedFen) return;
+                var scannedBoardFen = _positionSettings.scannedFen.split(/\s+/)[0];
+                var currentBoardFen = window.chessground1 && window.chessground1.getFen ? window.chessground1.getFen() : '';
+                if (currentBoardFen && currentBoardFen !== scannedBoardFen) {
+                    _positionSettings.scannedFen = '';
+                    return;
+                }
+                fetch('/channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        action:     'set_position_side',
+                        fen:        _positionSettings.scannedFen,
+                        sideToPlay: _positionSettings.sideToMove === 'white' ? 'true' : 'false'
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.success && d.fen) {
+                        _positionSettings.scannedFen = d.fen;
+                        var posSub = document.getElementById('ovl-position-sub');
+                        if (posSub) posSub.textContent = _positionSubLabel() + ' · Set';
+                    }
+                })
+                .catch(function() {});
             }
 
             function showPositionValues(param) {
@@ -1861,6 +1891,7 @@
                 .then(function(r) { return r.json(); })
                 .then(function(d) {
                     if (d.success) {
+                        if (d.fen) _positionSettings.scannedFen = d.fen;
                         var sub = document.getElementById('ovl-position-sub');
                         if (sub) sub.textContent = _positionSubLabel() + ' · Set';
                         close();
@@ -3508,6 +3539,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) {
                         if (d.success) {
+                            if (d.fen) _positionSettings.scannedFen = d.fen;
                             var sub = document.getElementById('ovl-position-sub');
                             if (sub) sub.textContent = _positionSubLabel() + ' · Set';
                             close();
@@ -3535,6 +3567,7 @@
                     _updatePositionParamSubs();
                     var posSub = document.getElementById('ovl-position-sub');
                     if (posSub) posSub.textContent = _positionSubLabel();
+                    if (pp === 'side') _applyScannedPositionSide();
                     return;
                 }
                 // Position: castling toggles

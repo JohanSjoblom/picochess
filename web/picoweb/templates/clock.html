@@ -1757,6 +1757,7 @@
                     _positionSettings.sideToMove = sideActive ? 'black' : 'white';
                     var sub = document.getElementById('ovl-position-sub');
                     if (sub) sub.textContent = _positionSubLabel();
+                    _applyScannedPositionSide();
                     renderPositionTiles();
                 }));
 

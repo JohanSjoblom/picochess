@@ -3116,8 +3116,7 @@ async def main() -> None:
                             self.state.takeback_active = True
                             self._update_variant_shared()  # sync check counts etc. after multi-pop
                             await self.set_wait_state(
-                                Message.TAKE_BACK(game=self.state.game.copy()),
-                                preserve_play_mode=True,
+                                Message.TAKE_BACK(game=self.state.game.copy())
                             )  # new: force stop no matter if picochess turn
 
                             break

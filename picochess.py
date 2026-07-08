@@ -2388,7 +2388,7 @@ async def main() -> None:
             self.state.pb_move = pb_move
             self.state.legal_fens_after_cmove = compute_legal_fens(game_copy, vb_after)
 
-        async def set_wait_state(self, msg: Message, start_search=True):
+        async def set_wait_state(self, msg: Message, start_search=True, preserve_play_mode=False):
             """Enter engine waiting (normal mode) and maybe (by parameter) start pondering."""
             if not self.state.done_computer_fen:
                 self.state.legal_fens = compute_legal_fens(self.state.game.copy(), self.state.get_variant_board())
@@ -2397,6 +2397,12 @@ async def main() -> None:
                 if self.state.done_computer_fen:
                     logger.debug("best move displayed, dont search and also keep play mode: %s", self.state.play_mode)
                     start_search = False
+                elif preserve_play_mode:
+                    logger.debug("preserving play mode: %s", self.state.play_mode)
+                    if self.picotutor_mode():
+                        await self.state.picotutor.set_user_color(
+                            self.state.get_user_color(), self.pgn_mode() or not self.eng_plays()
+                        )
                 else:
                     old_mode = self.state.play_mode
                     self.state.play_mode = (
@@ -5442,7 +5448,10 @@ async def main() -> None:
                     await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
 
                 await self.set_picotutor_position(new_game=True)
-                await self.set_wait_state(self.state.new_game_msg(newgame=True))
+                await self.set_wait_state(
+                    self.state.new_game_msg(newgame=True),
+                    preserve_play_mode=bool(getattr(event, "preserve_play_mode", False)),
+                )
                 if self.emulation_mode():
                     if self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                         # switch windows/tasks
@@ -5804,6 +5813,17 @@ async def main() -> None:
                             await self.think(
                                 Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode),
                                 searchlist=True,
+                            )
+                    elif self.eng_plays() and self.state.is_not_user_turn():
+                        if self.state.time_control.internal_running():
+                            await self.state.stop_clock()
+                        elif not self.state.check_game_state():
+                            text = self.state.play_mode.value
+                            await self.think(
+                                Message.PLAY_MODE(
+                                    play_mode=self.state.play_mode,
+                                    play_mode_text=self.state.dgttranslate.text(text),
+                                )
                             )
                     elif self.state.interaction_mode == Mode.PGNREPLAY:
                         # Built in PGN Replay mode - toggle autoplay on or off

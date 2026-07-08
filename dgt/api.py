@@ -347,7 +347,7 @@ class Event:
         EventApi.SET_PGN_REPLAY_TUTOR_REGENERATION,
         ["enabled"],
     )
-    SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game"])
+    SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game", "preserve_play_mode"])
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])
     SET_TIME_CONTROL = ClassFactory(EventApi.SET_TIME_CONTROL, ["tc_init", "time_text", "show_ok"])

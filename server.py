@@ -979,7 +979,13 @@ class ChannelHandler(ServerRequestHandler):
                     raise ValueError("No scanned setup position is available")
                 bit_board, uci960_enabled = _retag_setup_position_side(fen, side_to_play)
                 logger.info("Setting scanned position side-to-move from web client: %s", bit_board.fen())
-                await Observable.fire(Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled))
+                await Observable.fire(
+                    Event.SETUP_POSITION(
+                        fen=bit_board.fen(),
+                        uci960=uci960_enabled,
+                        preserve_play_mode=True,
+                    )
+                )
                 self.write({"success": True, "fen": bit_board.fen(), "uci960": uci960_enabled})
                 self.set_header("Content-Type", "application/json")
             except ValueError as e:

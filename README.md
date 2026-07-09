@@ -43,13 +43,14 @@ Get the installation script, give it execution rights, and run it as sudo. It wi
 - `sudo ./install-picochess.sh`
 - Default engine pack is `small`. If you want more engines and are OK with a longer download, use `sudo ./install-picochess.sh lite`.
 - If you install on a DGTPi/DGT3000 clock, run: `sudo ./install-picochess.sh dgtpi`
+- If you install on a standard Raspberry Pi 3 without a DGTPi/DGT3000 clock, run: `sudo ./install-picochess.sh pi3`
 - Reboot; Picochess should start as a service.
 
 The script installs the following services in `/etc/systemd/system/`:
 - picochess (main service)
 - picochess-update (stay updated)
 - gamesdb (games window on web page)
-- unblock-bt (only installed when using the `dgtpi` or `dgt3000` parameter; unblocks Bluetooth on boot for DGTPi)
+- unblock-bt (only installed when using the `pi3`, `dgtpi`, or `dgt3000` parameter; unblocks Bluetooth on boot)
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).

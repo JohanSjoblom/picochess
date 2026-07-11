@@ -6702,6 +6702,23 @@ class DgtTranslate(object):
                 small_text="chesnt",
             )
             ittxt = entxt
+        if text_id == "eboard_citrine_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Citrine    ",
+                medium_text="Citrine ",
+                small_text="citrin",
+            )
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Tablero Citrine",
+                large_text="Citrine    ",
+                medium_text="Citrine ",
+                small_text="citrin",
+            )
+            ittxt = entxt
         if text_id == "eboard_ichessone_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
@@ -6717,6 +6734,23 @@ class DgtTranslate(object):
                 large_text="iChessOne  ",
                 medium_text="iChess1 ",
                 small_text="ichess",
+            )
+            ittxt = entxt
+        if text_id == "eboard_osa_menu":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="",
+                large_text="Saitek OSA ",
+                medium_text="OSA     ",
+                small_text="osa   ",
+            )
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Tablero Saitek OSA",
+                large_text="Saitek OSA ",
+                medium_text="OSA     ",
+                small_text="osa   ",
             )
             ittxt = entxt
         if text_id == "eboard_noeboard_menu":

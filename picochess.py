@@ -1087,6 +1087,10 @@ async def main() -> None:
         board_type = dgt.util.EBoard.DGT
     ModeInfo.set_eboard_type(board_type)
 
+    eboard_display_consumer_cls = None
+    eboard_connect_coro = None
+    eboard_start_error = None
+
     # wire some dgt classes
     if board_type == dgt.util.EBoard.CHESSLINK:
         dgtboard: EBoard = ChessLinkBoard(main_loop)
@@ -1096,6 +1100,72 @@ async def main() -> None:
         dgtboard = IChessOneBoard(main_loop)
     elif board_type == dgt.util.EBoard.CERTABO:
         dgtboard = CertaboBoard(main_loop)
+    elif board_type == dgt.util.EBoard.CITRINE:
+        try:
+            from eboard.citrine.board import NovagBoard, NovagDisplay
+        except ModuleNotFoundError as exc:
+            if exc.name == "serial_asyncio":
+                eboard_start_error = (
+                    "Novag Citrine requires pyserial-asyncio. "
+                    "Install current requirements with venv/bin/python -m pip install -r requirements.txt"
+                )
+                logger.error(eboard_start_error)
+                dgtboard = DgtBoard(
+                    args.dgt_port,
+                    args.disable_revelation_leds,
+                    args.dgtpi,
+                    args.disable_et,
+                    main_loop,
+                    args.slow_slide,
+                )
+            else:
+                raise
+        else:
+            dgtboard = NovagBoard(main_loop)
+            eboard_display_consumer_cls = NovagDisplay
+            if args.dgt_port:
+                async def connect_citrine_board():
+                    connected = await dgtboard.connect(args.dgt_port)
+                    if not connected:
+                        logger.error("NovagBoard: cannot connect on %s", args.dgt_port)
+
+                eboard_connect_coro = connect_citrine_board
+            else:
+                eboard_start_error = "NovagBoard: no port defined (dgt-port missing)"
+                logger.error(eboard_start_error)
+    elif board_type == dgt.util.EBoard.OSA:
+        try:
+            from eboard.osa.board import OsaBoard, OsaDisplay
+        except ModuleNotFoundError as exc:
+            if exc.name == "serial_asyncio":
+                eboard_start_error = (
+                    "Saitek OSA requires pyserial-asyncio. "
+                    "Install current requirements with venv/bin/python -m pip install -r requirements.txt"
+                )
+                logger.error(eboard_start_error)
+                dgtboard = DgtBoard(
+                    args.dgt_port,
+                    args.disable_revelation_leds,
+                    args.dgtpi,
+                    args.disable_et,
+                    main_loop,
+                    args.slow_slide,
+                )
+            else:
+                raise
+        else:
+            dgtboard = OsaBoard(main_loop)
+            eboard_display_consumer_cls = OsaDisplay
+            if args.dgt_port:
+                async def connect_osa_board():
+                    connected = await dgtboard.connect(args.dgt_port)
+                    if not connected:
+                        logger.error("OsaBoard: cannot connect on %s", args.dgt_port)
+
+                eboard_connect_coro = connect_osa_board
+            else:
+                eboard_start_error = "OsaBoard: no port defined (dgt-port missing)"
+                logger.error(eboard_start_error)
     else:
         dgtboard = DgtBoard(
             args.dgt_port, args.disable_revelation_leds, args.dgtpi, args.disable_et, main_loop, args.slow_slide
@@ -1282,10 +1352,14 @@ async def main() -> None:
 
     if board_type == dgt.util.EBoard.NOEBOARD:
         logger.debug("starting PicoChess in no eboard mode")
+    elif eboard_start_error:
+        logger.error("starting PicoChess with eboard offline: %s", eboard_start_error)
     else:
         # Connect to DGT board
         logger.debug("starting PicoChess in board mode")
-        if args.dgtpi:
+        if eboard_connect_coro is not None:
+            non_main_tasks.add(asyncio.create_task(eboard_connect_coro()))
+        elif args.dgtpi:
             my_dgtpi = DgtPi(dgtboard, main_loop)
             dgtdispatcher.register("i2c")
             non_main_tasks.add(asyncio.create_task(my_dgtpi.dgt_consumer()))
@@ -1314,6 +1388,9 @@ async def main() -> None:
 
     my_pgn_display = PgnDisplay("games" + os.sep + args.pgn_file, emailer, shared, main_loop)
     non_main_tasks.add(asyncio.create_task(my_pgn_display.message_consumer()))
+    if eboard_display_consumer_cls is not None:
+        eboard_display_consumer = eboard_display_consumer_cls(dgtboard, main_loop)
+        non_main_tasks.add(asyncio.create_task(eboard_display_consumer.message_consumer()))
 
     # Update
     if args.enable_update:

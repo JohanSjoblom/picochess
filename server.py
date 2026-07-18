@@ -865,6 +865,14 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.PICOCOACH(picocoach=PicoCoach.COACH_OFF))
         elif action == "pause_resume":
             await Observable.fire(Event.PAUSE_RESUME())
+        elif action == "explore_surface":
+            surface = self.get_argument("surface", "").strip().lower()
+            if surface not in ("web", "brd"):
+                self.set_status(400)
+                self.write({"success": False, "error": "Invalid Explore surface"})
+                return
+            await Observable.fire(Event.SET_EXPLORE_SURFACE(surface=surface))
+            self.write({"success": True, "surface": surface})
         elif action == "resign_game":
             play_mode = (self.shared.get("game_info") or {}).get("play_mode")
             if play_mode == PlayMode.USER_BLACK:
@@ -2670,6 +2678,7 @@ class WebDisplay(DisplayMsg):
         if "system_info" not in self.shared:
             self.shared["system_info"] = {}
         self.shared["system_info"]["version"] = pico_version
+        self.shared["system_info"].setdefault("explore_surface", "web")
 
     def _set_pending_engine_move(self, pending: bool):
         """Publish whether an announced engine move is waiting on the physical board."""

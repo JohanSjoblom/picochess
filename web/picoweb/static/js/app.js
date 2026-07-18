@@ -705,14 +705,87 @@ function updateWebExploreButton() {
     if (!btn) {
         return;
     }
-    btn.textContent = webExploreMode ? 'ON' : 'OFF';
-    btn.classList.toggle('btn-warning', webExploreMode);
-    btn.classList.toggle('btn-primary', !webExploreMode);
+    // BRD and SYNC use backend analysis rather than the browser-local
+    // variation board, but Explore itself remains conceptually ON.
+    var exploreActive = webExploreMode || currentExploreSurface() !== 'web';
+    btn.textContent = exploreActive ? 'ON' : 'OFF';
+    btn.classList.toggle('btn-warning', exploreActive);
+    btn.classList.toggle('btn-primary', !exploreActive);
     btn.setAttribute(
         'aria-pressed',
-        webExploreMode ? 'true' : 'false'
+        exploreActive ? 'true' : 'false'
     );
     updateSyncButtonAttention();
+    updateExploreSurfaceControls();
+}
+
+function currentExploreSurface() {
+    var surface = String((window._picoSystemInfo || {}).explore_surface || 'web').toLowerCase();
+    return (surface === 'brd' || surface === 'sync') ? surface : 'web';
+}
+
+function canChooseExploreSurface() {
+    var psi = window._picoSystemInfo || {};
+    return Boolean(psi.has_board) && String(psi.interaction_mode || '').toLowerCase() === 'ponder';
+}
+
+function updateExploreSurfaceControls() {
+    var control = document.getElementById('exploreSurfaceControl');
+    var webBtn = document.getElementById('exploreSurfaceWebBtn');
+    var boardBtn = document.getElementById('exploreSurfaceBoardBtn');
+    var exploreBtn = document.getElementById('webExploreToggleBtn');
+    if (!control || !webBtn || !boardBtn || !exploreBtn) {
+        return;
+    }
+
+    var available = canChooseExploreSurface();
+    control.style.display = available ? 'inline-flex' : 'none';
+    var surface = currentExploreSurface();
+    var syncing = surface === 'sync';
+    var boardActive = surface === 'brd';
+    var webActive = surface === 'web';
+
+    webBtn.textContent = syncing ? 'SYNC' : 'WEB';
+    webBtn.classList.toggle('btn-warning', syncing);
+    webBtn.classList.toggle('btn-primary', webActive && !syncing);
+    webBtn.classList.toggle('btn-light', !webActive && !syncing);
+    boardBtn.classList.toggle('btn-warning', boardActive);
+    boardBtn.classList.toggle('btn-light', !boardActive);
+    boardBtn.classList.remove('btn-primary');
+
+    exploreBtn.disabled = available && (boardActive || syncing);
+    webBtn.disabled = !available || webActive || syncing;
+    boardBtn.disabled = !available || boardActive || syncing || (webActive && !webExploreMode);
+    webBtn.setAttribute('aria-pressed', webActive ? 'true' : 'false');
+    boardBtn.setAttribute('aria-pressed', boardActive ? 'true' : 'false');
+}
+
+function applyExploreSurfaceState(previousSurface) {
+    var surface = currentExploreSurface();
+    previousSurface = String(previousSurface || 'web').toLowerCase();
+    if ((surface === 'brd' || surface === 'sync') && previousSurface !== surface) {
+        goToDGTFen();
+    } else if (surface === 'web' && (previousSurface === 'brd' || previousSurface === 'sync')) {
+        startWebExploreFromLivePosition(false);
+        updateChessGround();
+        updateStatus();
+    }
+    updateExploreSurfaceControls();
+}
+
+function requestExploreSurface(surface) {
+    surface = String(surface || '').toLowerCase();
+    if (surface !== 'web' && surface !== 'brd') {
+        return;
+    }
+    if (surface === 'brd') {
+        goToDGTFen();
+    }
+    $('#exploreSurfaceWebBtn, #exploreSurfaceBoardBtn').prop('disabled', true);
+    $.post('/channel', { action: 'explore_surface', surface: surface })
+        .always(function () {
+            updateExploreSurfaceControls();
+        });
 }
 
 function setWebExploreMode(enabled, redraw) {
@@ -779,6 +852,9 @@ function resetWebExploreForPlayablePosition() {
 }
 
 function toggleWebExploreMode() {
+    if (currentExploreSurface() !== 'web') {
+        return;
+    }
     if (webExploreMode) {
         stopWebExploreMode(false);
         goToDGTFen();
@@ -3210,8 +3286,10 @@ function getAllInfo() {
         // interactivity — in particular the has_board flag locks the diagram
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
+        var previousExploreSurface = window._picoSystemInfo.explore_surface;
         Object.assign(window._picoSystemInfo, data);
         applyInitialWebExploreBoardPolicy();
+        applyExploreSurfaceState(previousExploreSurface);
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
         }
@@ -3615,8 +3693,10 @@ $(function () {
                         // diagram immediately locks/unlocks when mode changes.
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
+                        var _prevExploreSurface = window._picoSystemInfo.explore_surface;
                         Object.assign(window._picoSystemInfo, data.msg);
                         applyInitialWebExploreBoardPolicy();
+                        applyExploreSurfaceState(_prevExploreSurface);
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
                         if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
@@ -3730,8 +3810,11 @@ $(function () {
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
+    $('#exploreSurfaceWebBtn').on('click', function () { requestExploreSurface('web'); });
+    $('#exploreSurfaceBoardBtn').on('click', function () { requestExploreSurface('brd'); });
     applyPgnVariationVisibility();
     updateWebExploreButton();
+    updateExploreSurfaceControls();
 
     $('#analyzeMinus').on('click', multiPvDecrease);
     $('#analyzePlus').on('click', multiPvIncrease);

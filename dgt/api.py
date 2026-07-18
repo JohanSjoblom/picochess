@@ -59,6 +59,7 @@ class EventApi:
     NEW_ENGINE = "EVT_NEW_ENGINE"  # Change engine
     SET_INTERACTION_MODE = "EVT_SET_INTERACTION_MODE"  # Change interaction mode
     SET_PGN_REPLAY_TUTOR_REGENERATION = "EVT_SET_PGN_REPLAY_TUTOR_REGENERATION"
+    SET_EXPLORE_SURFACE = "EVT_SET_EXPLORE_SURFACE"
     SETUP_POSITION = "EVT_SETUP_POSITION"  # Setup custom position
     PAUSE_RESUME = "EVT_PAUSE_RESUME"  # Stops search or halt/resume running clock
     SWITCH_SIDES = "EVT_SWITCH_SIDES"  # Switch the side
@@ -347,6 +348,7 @@ class Event:
         EventApi.SET_PGN_REPLAY_TUTOR_REGENERATION,
         ["enabled"],
     )
+    SET_EXPLORE_SURFACE = ClassFactory(EventApi.SET_EXPLORE_SURFACE, ["surface"])
     SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game", "preserve_play_mode"])
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])

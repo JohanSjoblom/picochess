@@ -745,8 +745,15 @@
                                                         <button id="sf18ToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
                                                     </span>
                                                     <span class="analysis-control-set">
-                                                        <span class="analysis-control-label">Explore</span>
+                                                        <span class="analysis-control-label">Xplor</span>
                                                         <button id="webExploreToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Temporarily explore moves on the web board">OFF</button>
+                                                        <span id="exploreSurfaceControl" class="explore-surface-control" style="display:none">
+                                                            <span class="analysis-control-label">on</span>
+                                                            <span class="btn-group btn-group-sm" role="group" aria-label="Choose where to explore">
+                                                                <button id="exploreSurfaceWebBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Explore on the web board" aria-label="Explore on web board">WEB</button>
+                                                                <button id="exploreSurfaceBoardBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Explore on the physical e-board" aria-label="Explore on physical e-board">BRD</button>
+                                                            </span>
+                                                        </span>
                                                     </span>
                                                 </div>
 
@@ -859,7 +866,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=2"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=3"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos

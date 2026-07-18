@@ -2,6 +2,7 @@ import unittest
 
 import chess
 
+from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
     remote_move_matches_current_position,
@@ -10,10 +11,53 @@ from picochess import (
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
     tutor_analysis_allowed_in_mode,
+    user_move_pre_search_messages,
 )
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_user_move_opening_is_queued_before_engine_search(self):
+        board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        game_before = board.copy()
+        board.push(move)
+        user_move_message = Message.USER_MOVE_DONE(
+            move=move,
+            fen=game_before.fen(),
+            turn=game_before.turn,
+            game=board,
+        )
+        opening_message = Message.SHOW_TEXT(text_string="King's Pawn Game")
+
+        messages = user_move_pre_search_messages(
+            user_move_message,
+            opening_message=opening_message,
+        )
+
+        self.assertIs(messages[0], user_move_message)
+        self.assertIs(messages[1], opening_message)
+
+    def test_tutor_reveal_keeps_its_order_before_opening(self):
+        user_move_message = Message.USER_MOVE_DONE(
+            move=chess.Move.from_uci("e2e4"),
+            fen=chess.Board().fen(),
+            turn=chess.WHITE,
+            game=chess.Board(),
+        )
+        tutor_move = chess.Move.from_uci("d2d4")
+        opening_message = Message.SHOW_TEXT(text_string="Queen's Pawn Game")
+
+        messages = user_move_pre_search_messages(
+            user_move_message,
+            tutor_reveal_move=tutor_move,
+            opening_message=opening_message,
+        )
+
+        self.assertIs(messages[0], user_move_message)
+        self.assertIsInstance(messages[1], Message.TUTOR_MOVE_REVEAL)
+        self.assertEqual(messages[1].move, tutor_move)
+        self.assertIs(messages[2], opening_message)
+
     def test_tutor_analysis_is_disabled_in_ponder_mode(self):
         self.assertFalse(tutor_analysis_allowed_in_mode(Mode.PONDER))
         self.assertFalse(

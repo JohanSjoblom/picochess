@@ -198,6 +198,20 @@ def remote_move_matches_current_position(move: chess.Move, posted_fen: str | Non
     return posted_board_fen == expected.board_fen()
 
 
+def user_move_pre_search_messages(
+    user_move_message: Message,
+    tutor_reveal_move: chess.Move | None = None,
+    opening_message: Message | None = None,
+) -> list[Message]:
+    """Return user-move display messages in their required pre-search order."""
+    messages = [user_move_message]
+    if tutor_reveal_move is not None:
+        messages.append(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
+    if opening_message is not None:
+        messages.append(opening_message)
+    return messages
+
+
 class AlternativeMover:
     """Keep track of alternative moves."""
 
@@ -1740,7 +1754,7 @@ async def main() -> None:
 
         async def think(
             self,
-            msg: Message,
+            msg: Message | None,
             searchlist=False,
             tutor_reveal_move: chess.Move | None = None,
         ):
@@ -1748,9 +1762,13 @@ async def main() -> None:
             Start a new search on the current game.
 
             If a move is found in the opening book, fire an event in a few seconds.
+
+            ``msg`` may be None when the caller already emitted the move and any
+            related pre-search display messages.
             """
             self._set_game_started(True)
-            await DisplayMsg.show(msg)
+            if msg is not None:
+                await DisplayMsg.show(msg)
             if tutor_reveal_move is not None:
                 await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
             if not self.online_mode() or self.state.game.fullmove_number > 1:
@@ -3172,6 +3190,7 @@ async def main() -> None:
 
             eval_str = ""
             pending_picotutor_msgs: list[tuple[Message, float | None]] = []
+            opening_handled_before_search = False
 
             self.state.take_back_locked = False
 
@@ -3454,23 +3473,29 @@ async def main() -> None:
                                 else:
                                     # send move to engine
                                     logger.debug("starting think()")
-                                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
                                     if self.state.takeback_active and self.state.is_not_user_turn():
                                         # Allow additional takebacks to settle before starting engine search.
                                         await asyncio.sleep(0.6)
                                     if self.state.is_not_user_turn():
-                                        await self.think(msg, tutor_reveal_move=tutor_reveal_move)
+                                        opening_handled_before_search = await self._announce_user_move_before_search(
+                                            msg, tutor_reveal_move
+                                        )
+                                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                                        await self.think(None)
                                     else:
                                         logger.debug("skipping think() after takeback debounce: user turn")
                         else:
                             assert self.state.interaction_mode == Mode.BRAIN
                             logger.debug("new implementation of ponderhit - starting think")
-                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             if self.state.takeback_active and self.state.is_not_user_turn():
                                 # Allow additional takebacks to settle before starting engine search.
                                 await asyncio.sleep(0.6)
                             if self.state.is_not_user_turn():
-                                await self.think(msg, tutor_reveal_move=tutor_reveal_move)
+                                opening_handled_before_search = await self._announce_user_move_before_search(
+                                    msg, tutor_reveal_move
+                                )
+                                await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                                await self.think(None)
                             else:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 
@@ -3528,13 +3553,10 @@ async def main() -> None:
                     and not self.state.takeback_active
                     and not self.state.automatic_takeback
                 ):
-                    if self.state.dgtmenu.get_picoexplorer():
-                        opening_name = ""
-                        opening_in_book = False
-                        opening_eco, opening_name, _, opening_in_book = self.state.picotutor.get_opening()
-                        if opening_in_book and opening_name:
-                            ModeInfo.set_opening(self.state.book_in_use, str(opening_name), opening_eco)
-                            await DisplayMsg.show(Message.SHOW_TEXT(text_string=opening_name))
+                    if not opening_handled_before_search:
+                        opening_message = self._current_opening_message()
+                        if opening_message is not None:
+                            await DisplayMsg.show(opening_message)
                             await asyncio.sleep(0.7)
 
                     if self.state.dgtmenu.get_picocomment() != PicoComment.COM_OFF and not game_end:
@@ -3549,6 +3571,37 @@ async def main() -> None:
                 self.state.takeback_active = False
 
                 return True
+
+        def _current_opening_message(self) -> Message | None:
+            """Build and cache the opening message for the current tutor position."""
+            if not (self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer()):
+                return None
+            opening_eco, opening_name, _, opening_in_book = self.state.picotutor.get_opening()
+            if not (opening_in_book and opening_name):
+                return None
+            ModeInfo.set_opening(self.state.book_in_use, str(opening_name), opening_eco)
+            return Message.SHOW_TEXT(text_string=opening_name)
+
+        async def _announce_user_move_before_search(
+            self,
+            user_move_message: Message,
+            tutor_reveal_move: chess.Move | None,
+        ) -> bool:
+            """Announce a user move and its opening before starting engine search."""
+            opening_handled = (
+                self.picotutor_mode()
+                and not self.state.position_mode
+                and not self.state.takeback_active
+                and not self.state.automatic_takeback
+            )
+            opening_message = self._current_opening_message() if opening_handled else None
+            for message in user_move_pre_search_messages(
+                user_move_message,
+                tutor_reveal_move=tutor_reveal_move,
+                opening_message=opening_message,
+            ):
+                await DisplayMsg.show(message)
+            return opening_handled
 
         async def _deliver_picotutor_messages(self, pending_messages: list[tuple[Message, float | None]]) -> None:
             """Send queued picotutor messages after the move announcement."""

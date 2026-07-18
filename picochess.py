@@ -3001,12 +3001,10 @@ async def main() -> None:
 
                     if self.state.game.fullmove_number < 1:
                         ModeInfo.reset_opening()
-                    if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
-                        op_eco, op_name, op_moves, op_in_book = self.state.picotutor.get_opening()
-                        if op_in_book and op_name:
-                            ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
-                            await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
-                            await asyncio.sleep(0.7)
+                    opening_message = self._current_opening_message()
+                    if opening_message is not None:
+                        await DisplayMsg.show(opening_message)
+                        await asyncio.sleep(0.7)
 
                     if not self.online_mode() or self.state.game.fullmove_number > 1:
                         await self.state.start_clock()
@@ -3579,6 +3577,7 @@ async def main() -> None:
             opening_eco, opening_name, _, opening_in_book = self.state.picotutor.get_opening()
             if not (opening_in_book and opening_name):
                 return None
+            logger.debug("opening book set to %s", opening_name)
             ModeInfo.set_opening(self.state.book_in_use, str(opening_name), opening_eco)
             return Message.SHOW_TEXT(text_string=opening_name)
 
@@ -6610,13 +6609,10 @@ async def main() -> None:
 
                                     if self.state.game.fullmove_number < 1:
                                         ModeInfo.reset_opening()
-                                    if self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer():
-                                        op_eco, op_name, op_moves, op_in_book = self.state.picotutor.get_opening()
-                                        if op_in_book and op_name:
-                                            logger.debug("opening book set to %s", op_name)
-                                            ModeInfo.set_opening(self.state.book_in_use, str(op_name), op_eco)
-                                            await DisplayMsg.show(Message.SHOW_TEXT(text_string=op_name))
-                                            await asyncio.sleep(0.7)
+                                    opening_message = self._current_opening_message()
+                                    if opening_message is not None:
+                                        await DisplayMsg.show(opening_message)
+                                        await asyncio.sleep(0.7)
 
                                     if not self.online_mode() or self.state.game.fullmove_number > 1:
                                         await self.state.start_clock()

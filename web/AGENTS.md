@@ -328,6 +328,12 @@ normal `SETUP_POSITION` behavior stays unchanged outside this exact state; do
 not extend arbitrary turn changes to the move-preserving `Mode.ANALYSIS` or
 `Mode.KIBITZ` branches implicitly.
 
+Takeback is always available while BRD owns Explore in any supported mode,
+including when the selected engine is MAME or online and normal play would
+lock takeback. These pops affect only the disposable branch: PicoTutor and the
+selected engine remain anchored, and OFF/WEB restoration still replaces the
+whole branch with the saved checkpoint.
+
 After set-pieces synchronization, preserve the visible `Position ok`
 confirmation. It is the user's signal that BRD restoration is complete and it
 is safe to continue recording moves or change modes.

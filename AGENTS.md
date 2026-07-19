@@ -461,6 +461,11 @@ the same code path.
   not clear or alter the saved Explore checkpoint. The scratch move stack and
   en-passant state are deliberately reset so later legal moves and takebacks
   use the corrected turn cleanly.
+- Takeback is always allowed while BRD owns Explore in `Mode.PONDER`,
+  `Mode.ANALYSIS`, or `Mode.KIBITZ`. The normal MAME, online-engine, and
+  takeback-lock restrictions do not apply to this disposable branch. Tutor and
+  the selected engine remain isolated, and leaving BRD still restores the
+  checkpoint regardless of how far the scratch branch was taken back.
 
 ## Non-Playing Mode Engine Switch Rules
 

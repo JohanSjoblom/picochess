@@ -8,6 +8,7 @@ from picochess import (
     backend_analysis_allowed_during_physical_explore,
     physical_explore_allowed_in_mode,
     remote_move_matches_current_position,
+    should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
     should_stop_analysis_after_game_end,
@@ -109,6 +110,35 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         for mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.OBSERVE, Mode.REMOTE, Mode.PGNREPLAY):
             with self.subTest(mode=mode):
                 self.assertFalse(physical_explore_allowed_in_mode(mode))
+
+    def test_brd_explore_always_allows_takeback(self):
+        for guard in (
+            {"take_back_locked": True},
+            {"online_mode": True},
+            {"emulation_mode": True},
+            {
+                "take_back_locked": True,
+                "online_mode": True,
+                "emulation_mode": True,
+            },
+        ):
+            args = {
+                "take_back_locked": False,
+                "online_mode": False,
+                "emulation_mode": False,
+                "automatic_takeback": False,
+                "physical_explore_brd_active": True,
+            }
+            args.update(guard)
+            with self.subTest(guard=guard):
+                self.assertFalse(should_block_takeback(**args))
+
+    def test_normal_takeback_guards_remain_unchanged(self):
+        self.assertTrue(should_block_takeback(True, False, False, False))
+        self.assertTrue(should_block_takeback(False, True, False, False))
+        self.assertTrue(should_block_takeback(False, False, True, False))
+        self.assertFalse(should_block_takeback(False, False, True, True))
+        self.assertFalse(should_block_takeback(False, False, False, False))
 
     def test_king_lift_reaches_setpieces_threshold_before_coach(self):
         self.assertTrue(should_show_setpieces_after_lift_timeout("K", is_hand_mode=False))

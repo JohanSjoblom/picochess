@@ -1179,6 +1179,23 @@ def backend_analysis_allowed_during_physical_explore(physical_explore_active: bo
     return not physical_explore_active
 
 
+def should_block_takeback(
+    take_back_locked: bool,
+    online_mode: bool,
+    emulation_mode: bool,
+    automatic_takeback: bool,
+    physical_explore_brd_active: bool = False,
+) -> bool:
+    """Keep normal takeback guards, except inside the disposable BRD branch."""
+    if physical_explore_brd_active:
+        return False
+    return bool(
+        take_back_locked
+        or online_mode
+        or (emulation_mode and not automatic_takeback)
+    )
+
+
 def should_use_tutor_analysis(
     interaction_mode: Mode,
     pgn_mode: bool,
@@ -3277,10 +3294,16 @@ async def main() -> None:
 
             # Check if this is a previous legal position and allow user to restart from this position
             else:
-                if (
-                    self.state.take_back_locked
-                    or self.online_mode()
-                    or (self.emulation_mode() and not self.state.automatic_takeback)
+                if should_block_takeback(
+                    take_back_locked=self.state.take_back_locked,
+                    online_mode=self.online_mode(),
+                    emulation_mode=self.emulation_mode(),
+                    automatic_takeback=self.state.automatic_takeback,
+                    physical_explore_brd_active=(
+                        self.state.explore_surface == "brd"
+                        and self.state.has_compatible_explore_checkpoint()
+                        and physical_explore_allowed_in_mode(self.state.interaction_mode)
+                    ),
                 ):
                     handled_fen = False
                 else:
@@ -7473,10 +7496,16 @@ async def main() -> None:
                 self.state.best_sent_depth.reset()
                 if self.state.game.move_stack and (
                     event.take_back == "PGN_TAKEBACK"
-                    or not (
-                        self.state.take_back_locked
-                        or self.online_mode()
-                        or (self.emulation_mode() and not self.state.automatic_takeback)
+                    or not should_block_takeback(
+                        take_back_locked=self.state.take_back_locked,
+                        online_mode=self.online_mode(),
+                        emulation_mode=self.emulation_mode(),
+                        automatic_takeback=self.state.automatic_takeback,
+                        physical_explore_brd_active=(
+                            self.state.explore_surface == "brd"
+                            and self.state.has_compatible_explore_checkpoint()
+                            and physical_explore_allowed_in_mode(self.state.interaction_mode)
+                        ),
                     )
                 ):
                     await self.get_rid_of_engine_move()  # unnecessary engine move not yet done

@@ -411,8 +411,8 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
-        # WEB/BRD Explore handoff in Mode.PONDER.  The checkpoint is an
-        # engine-position bookmark only; move history is deliberately omitted.
+        # WEB/BRD Explore handoff in Mode.PONDER.  Preserve the anchor's move
+        # history so fast physical exploration cannot accidentally erase it.
         self.explore_surface = "web"
         self.explore_checkpoint_game: chess.Board | None = None
         self.explore_checkpoint_variant = None
@@ -426,10 +426,10 @@ class PicochessState:
         self._antichess_board = None  # chess.variant.AntichessBoard instance when variant == "antichess"
 
     def set_explore_checkpoint(self) -> None:
-        """Remember the current engine position without retaining move history."""
-        self.explore_checkpoint_game = self.game.copy(stack=False)
+        """Remember the current engine position and its move history."""
+        self.explore_checkpoint_game = self.game.copy(stack=True)
         variant_board = self.get_variant_board()
-        self.explore_checkpoint_variant = variant_board.copy(stack=False) if variant_board is not None else None
+        self.explore_checkpoint_variant = variant_board.copy(stack=True) if variant_board is not None else None
         self.explore_checkpoint_variant_name = self.variant
         self.explore_restore_pending = False
 
@@ -441,19 +441,19 @@ class PicochessState:
         )
 
     def restore_explore_checkpoint(self) -> bool:
-        """Install the saved position as a fresh, history-free analysis board."""
+        """Restore the saved position and discard only its temporary branch."""
         if not self.has_compatible_explore_checkpoint():
             return False
-        self.game = self.explore_checkpoint_game.copy(stack=False)
+        self.game = self.explore_checkpoint_game.copy(stack=True)
         checkpoint_variant = self.explore_checkpoint_variant
         if self.variant == "3check":
-            self._threecheck_board = checkpoint_variant.copy(stack=False) if checkpoint_variant is not None else None
+            self._threecheck_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "atomic":
-            self._atomic_board = checkpoint_variant.copy(stack=False) if checkpoint_variant is not None else None
+            self._atomic_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "racingkings":
-            self._racingkings_board = checkpoint_variant.copy(stack=False) if checkpoint_variant is not None else None
+            self._racingkings_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "antichess":
-            self._antichess_board = checkpoint_variant.copy(stack=False) if checkpoint_variant is not None else None
+            self._antichess_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         return True
 
     def clear_explore_checkpoint(self) -> None:

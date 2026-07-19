@@ -417,6 +417,15 @@ class PicochessState:
         self.explore_checkpoint_game: chess.Board | None = None
         self.explore_checkpoint_variant = None
         self.explore_checkpoint_variant_name: str | None = None
+        self.explore_origin_mode: Mode | None = None
+        self.explore_checkpoint_origin_mode: Mode | None = None
+        self.explore_checkpoint_play_mode: PlayMode | None = None
+        self.explore_checkpoint_game_started: bool | None = None
+        self.explore_checkpoint_time_control: dict[str, Any] | None = None
+        self.explore_return_play_mode: PlayMode | None = None
+        self.explore_return_mode: Mode | None = None
+        self.explore_return_fen: str | None = None
+        self.explore_return_moves: tuple[chess.Move, ...] | None = None
         self.explore_restore_pending = False
         # Chess variant support (e.g., "3check", "atomic")
         self.variant = "chess"
@@ -426,12 +435,72 @@ class PicochessState:
         self._antichess_board = None  # chess.variant.AntichessBoard instance when variant == "antichess"
 
     def set_explore_checkpoint(self) -> None:
-        """Remember the current engine position and its move history."""
+        """Remember the current position plus enough context for a safe return."""
         self.explore_checkpoint_game = self.game.copy(stack=True)
         variant_board = self.get_variant_board()
         self.explore_checkpoint_variant = variant_board.copy(stack=True) if variant_board is not None else None
         self.explore_checkpoint_variant_name = self.variant
+        self.explore_checkpoint_origin_mode = self.explore_origin_mode
+        self.explore_checkpoint_play_mode = self.play_mode
+        self.explore_checkpoint_game_started = self.game_started
+        self.explore_checkpoint_time_control = self._snapshot_explore_time_control()
+        self._clear_explore_return_context()
         self.explore_restore_pending = False
+
+    def _snapshot_explore_time_control(self) -> dict[str, Any] | None:
+        """Copy stopped-clock state without retaining mutable timer dictionaries."""
+        if self.time_control is None:
+            return None
+        return {
+            "parameters": copy.deepcopy(self.time_control.get_parameters()),
+            "clock_time": copy.deepcopy(self.time_control.clock_time),
+            "moves_to_go": self.time_control.moves_to_go,
+        }
+
+    def _restore_explore_time_control(self) -> None:
+        """Restore checkpoint clock values, deliberately leaving the clock stopped."""
+        snapshot = self.explore_checkpoint_time_control
+        if self.time_control is None or snapshot is None:
+            return
+        self.time_control.stop_internal(log=False)
+        parameters = copy.deepcopy(snapshot["parameters"])
+        self.time_control.mode = parameters["mode"]
+        self.time_control.move_time = parameters["fixed"]
+        self.time_control.game_time = parameters["blitz"]
+        self.time_control.fisch_inc = parameters["fischer"]
+        self.time_control.moves_to_go_orig = parameters["moves_to_go"]
+        self.time_control.game_time2 = parameters["blitz2"]
+        self.time_control.depth = parameters["depth"]
+        self.time_control.node = parameters["node"]
+        self.time_control.internal_time = parameters["internal_time"]
+        self.time_control.clock_time = copy.deepcopy(snapshot["clock_time"])
+        self.time_control.moves_to_go = snapshot["moves_to_go"]
+        self.time_control.timer = None
+        self.time_control.run_color = None
+        self.time_control.active_color = None
+        self.time_control.start_time = None
+
+    def _clear_explore_return_context(self) -> None:
+        self.explore_return_play_mode = None
+        self.explore_return_mode = None
+        self.explore_return_fen = None
+        self.explore_return_moves = None
+
+    def can_preserve_restored_explore_play_mode(self, return_mode: Mode) -> bool:
+        """Return whether the untouched restored checkpoint may resume a playing mode."""
+        return bool(
+            self.explore_return_play_mode is not None
+            and self.explore_return_mode == return_mode
+            and self.explore_return_fen == self.game.fen()
+            and self.explore_return_moves == tuple(self.game.move_stack)
+        )
+
+    def physical_explore_active(self) -> bool:
+        """Return whether temporary physical PONDER moves own the live board."""
+        return bool(
+            self.interaction_mode == Mode.PONDER
+            and self.explore_surface in ("brd", "sync")
+        )
 
     def has_compatible_explore_checkpoint(self) -> bool:
         """Return whether the checkpoint can be restored for the active variant."""
@@ -454,14 +523,29 @@ class PicochessState:
             self._racingkings_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "antichess":
             self._antichess_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
+        if self.explore_checkpoint_play_mode is not None:
+            self.play_mode = self.explore_checkpoint_play_mode
+        if self.explore_checkpoint_game_started is not None:
+            self.game_started = self.explore_checkpoint_game_started
+        self._restore_explore_time_control()
+        self.explore_return_play_mode = self.explore_checkpoint_play_mode
+        self.explore_return_mode = self.explore_checkpoint_origin_mode
+        self.explore_return_fen = self.game.fen()
+        self.explore_return_moves = tuple(self.game.move_stack)
         return True
 
-    def clear_explore_checkpoint(self) -> None:
+    def clear_explore_checkpoint(self, preserve_return_context: bool = False) -> None:
         """Discard any active WEB/BRD handoff state."""
         self.explore_surface = "web"
         self.explore_checkpoint_game = None
         self.explore_checkpoint_variant = None
         self.explore_checkpoint_variant_name = None
+        self.explore_checkpoint_origin_mode = None
+        self.explore_checkpoint_play_mode = None
+        self.explore_checkpoint_game_started = None
+        self.explore_checkpoint_time_control = None
+        if not preserve_return_context:
+            self._clear_explore_return_context()
         self.explore_restore_pending = False
 
     def push_move(self, move: chess.Move) -> None:
@@ -2305,6 +2389,12 @@ async def main() -> None:
         def picotutor_mode(self):
             enabled = False
 
+            # Physical PONDER exploration is a temporary scratch branch.  Keep
+            # PicoTutor on the checkpoint so its move and evaluation history
+            # can continue unchanged after the physical board is restored.
+            if self.state.physical_explore_active():
+                return False
+
             # Disable PicoTutor for chess variants (3check, etc.)
             if self.state.variant != "chess":
                 return False
@@ -3871,7 +3961,9 @@ async def main() -> None:
             self.state.fen_error_occured = False
             self.state.position_mode = False
             self.state.delay_fen_error = 4
-            self.state.clear_explore_checkpoint()
+            # Keep the one-shot return context so a subsequent manual switch
+            # back to a playing mode can preserve its original play side.
+            self.state.clear_explore_checkpoint(preserve_return_context=True)
             self._publish_explore_surface("web")
             await DisplayMsg.show(Message.EXIT_MENU())
             await self._start_or_stop_analysis_as_needed()
@@ -3890,6 +3982,7 @@ async def main() -> None:
             if not self.state.restore_explore_checkpoint():
                 self._clear_explore_handoff()
                 return
+            self._set_game_started(self.state.game_started)
 
             # Block all analyser output before the first await below.  The
             # logical position is restored now; the e-board may still show the
@@ -6912,8 +7005,14 @@ async def main() -> None:
 
             elif isinstance(event, Event.SET_INTERACTION_MODE):
                 self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
+                preserve_restored_explore_play_mode = bool(
+                    self.state.interaction_mode == Mode.PONDER
+                    and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
+                    and self.state.can_preserve_restored_explore_play_mode(event.mode)
+                )
                 if self.state.interaction_mode == Mode.PONDER and event.mode != Mode.PONDER:
                     self._clear_explore_handoff()
+                    self.state.explore_origin_mode = None
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move
@@ -6948,12 +7047,17 @@ async def main() -> None:
                             await self.read_pgn_file(file_name_only, start_replay=True)
                         await self._start_or_stop_analysis_as_needed()
                     else:
+                        if event.mode == Mode.PONDER and self.state.interaction_mode != Mode.PONDER:
+                            self.state.explore_origin_mode = self.state.interaction_mode
                         self.state.interaction_mode = event.mode
                         await self.engine_mode()
                         msg = Message.INTERACTION_MODE(
                             mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
                         )
-                        await self.set_wait_state(msg)  # dont clear searchmoves here
+                        await self.set_wait_state(
+                            msg,
+                            preserve_play_mode=preserve_restored_explore_play_mode,
+                        )  # dont clear searchmoves here
 
             elif isinstance(event, Event.SET_PGN_REPLAY_TUTOR_REGENERATION):
                 self._set_pgn_replay_tutor_regeneration(event.enabled, override=True)

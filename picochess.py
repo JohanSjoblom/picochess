@@ -411,8 +411,8 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
-        # WEB/BRD Explore handoff in Mode.PONDER.  Preserve the anchor's move
-        # history so fast physical exploration cannot accidentally erase it.
+        # WEB/BRD Explore handoff in non-playing analysis modes. Preserve the
+        # anchor's move history so physical sidelines remain temporary.
         self.explore_surface = "web"
         self.explore_checkpoint_game: chess.Board | None = None
         self.explore_checkpoint_variant = None
@@ -496,9 +496,9 @@ class PicochessState:
         )
 
     def physical_explore_active(self) -> bool:
-        """Return whether temporary physical PONDER moves own the live board."""
+        """Return whether temporary physical Explore moves own the live board."""
         return bool(
-            self.interaction_mode == Mode.PONDER
+            physical_explore_allowed_in_mode(self.interaction_mode)
             and self.explore_surface in ("brd", "sync")
         )
 
@@ -1150,6 +1150,11 @@ def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     return interaction_mode != Mode.PONDER
 
 
+def physical_explore_allowed_in_mode(interaction_mode: Mode) -> bool:
+    """Return whether a mode supports temporary legal variations on the e-board."""
+    return interaction_mode in (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ)
+
+
 def should_use_tutor_analysis(
     interaction_mode: Mode,
     pgn_mode: bool,
@@ -1157,9 +1162,10 @@ def should_use_tutor_analysis(
     engine_is_playing: bool,
     engine_move_was_book: bool,
     is_user_turn: bool,
+    physical_explore_active: bool = False,
 ) -> bool:
     """Return True when tutor analysis should replace engine analysis."""
-    if not tutor_analysis_allowed_in_mode(interaction_mode):
+    if physical_explore_active or not tutor_analysis_allowed_in_mode(interaction_mode):
         return False
     if pgn_mode or engine_should_skip_analyser:
         return True
@@ -3855,6 +3861,7 @@ async def main() -> None:
                 engine_is_playing=self.eng_plays(),
                 engine_move_was_book=self.state.engine_move_was_book,
                 is_user_turn=self.state.is_user_turn(),
+                physical_explore_active=self.state.physical_explore_active(),
             )
 
         def need_engine_analyser(self) -> bool:
@@ -3893,6 +3900,8 @@ async def main() -> None:
 
         def tutor_analysis_enabled_for_current_mode(self) -> bool:
             """Return whether tutor analysis should run for the current mode."""
+            if self.state.physical_explore_active():
+                return False
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return False
             if self.playing_game_analysis_stopped():
@@ -3936,7 +3945,7 @@ async def main() -> None:
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
         def _clear_explore_handoff(self) -> None:
-            """Drop a PONDER Explore handoff without changing the current board."""
+            """Drop a physical Explore handoff without changing the current board."""
             restore_was_pending = self.state.explore_restore_pending
             had_handoff = bool(
                 self.state.explore_surface != "web"
@@ -3953,8 +3962,17 @@ async def main() -> None:
             if had_handoff:
                 self._publish_explore_surface("web")
 
+        async def _reconcile_explore_analysis_sources(self) -> None:
+            """Apply selected-engine ownership during BRD and normal routing on WEB."""
+            tutor_analysis_enabled = self.tutor_analysis_enabled_for_current_mode()
+            if self.state.picotutor is not None:
+                await self.state.picotutor.set_analysis_enabled(tutor_analysis_enabled)
+            self.state.best_sent_depth.reset()
+            await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
+            await self._start_or_stop_analysis_as_needed()
+
         async def _finish_explore_restore(self) -> None:
-            """Complete physical synchronization and resume normal PONDER analysis."""
+            """Complete physical synchronization and resume normal mode analysis."""
             logger.info("physical Explore checkpoint restored")
             self.state.stop_fen_timer()
             self.state.error_fen = None
@@ -3966,7 +3984,7 @@ async def main() -> None:
             self.state.clear_explore_checkpoint(preserve_return_context=True)
             self._publish_explore_surface("web")
             await DisplayMsg.show(Message.EXIT_MENU())
-            await self._start_or_stop_analysis_as_needed()
+            await self._reconcile_explore_analysis_sources()
 
         async def _restore_explore_checkpoint(self) -> None:
             """Restore the WEB/BRD handoff position and wait for the e-board."""
@@ -4022,8 +4040,14 @@ async def main() -> None:
             if surface not in ("web", "brd"):
                 logger.warning("invalid Explore surface requested: %s", surface)
                 return
-            if self.state.interaction_mode != Mode.PONDER or self.board_type == dgt.util.EBoard.NOEBOARD:
-                logger.warning("Explore surface %s is only available in PONDER with an e-board", surface)
+            if (
+                not physical_explore_allowed_in_mode(self.state.interaction_mode)
+                or self.board_type == dgt.util.EBoard.NOEBOARD
+            ):
+                logger.warning(
+                    "Explore surface %s is only available in PONDER, ANALYSIS, or KIBITZ with an e-board",
+                    surface,
+                )
                 self._clear_explore_handoff()
                 return
             if self.state.explore_restore_pending:
@@ -4045,6 +4069,7 @@ async def main() -> None:
                 self.state.set_explore_checkpoint()
                 self._publish_explore_surface("brd")
                 logger.info("physical Explore started from checkpoint %s", self.state.get_fen())
+                await self._reconcile_explore_analysis_sources()
             elif self.state.explore_surface == "brd":
                 await self._restore_explore_checkpoint()
 
@@ -7013,6 +7038,8 @@ async def main() -> None:
                 if self.state.interaction_mode == Mode.PONDER and event.mode != Mode.PONDER:
                     self._clear_explore_handoff()
                     self.state.explore_origin_mode = None
+                elif self.state.physical_explore_active() and event.mode != self.state.interaction_mode:
+                    self._clear_explore_handoff()
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move

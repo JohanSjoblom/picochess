@@ -729,7 +729,8 @@ function currentExploreSurface() {
 
 function canChooseExploreSurface() {
     var psi = window._picoSystemInfo || {};
-    return Boolean(psi.has_board) && String(psi.interaction_mode || '').toLowerCase() === 'ponder';
+    var mode = String(psi.interaction_mode || '').toLowerCase();
+    return Boolean(psi.has_board) && ['ponder', 'analysis', 'kibitz'].indexOf(mode) !== -1;
 }
 
 function updateExploreSurfaceControls() {

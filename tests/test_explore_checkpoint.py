@@ -130,16 +130,18 @@ class TestExploreCheckpoint(unittest.TestCase):
         self.state.clear_explore_checkpoint()
         self.assertIsNone(self.state.explore_return_play_mode)
 
-    def test_physical_explore_marks_only_ponder_brd_and_sync_as_temporary(self):
-        self.state.interaction_mode = Mode.PONDER
-        self.state.explore_surface = "web"
-        self.assertFalse(self.state.physical_explore_active())
+    def test_physical_explore_marks_supported_brd_and_sync_as_temporary(self):
+        for mode in (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ):
+            with self.subTest(mode=mode):
+                self.state.interaction_mode = mode
+                self.state.explore_surface = "web"
+                self.assertFalse(self.state.physical_explore_active())
 
-        self.state.explore_surface = "brd"
-        self.assertTrue(self.state.physical_explore_active())
+                self.state.explore_surface = "brd"
+                self.assertTrue(self.state.physical_explore_active())
 
-        self.state.explore_surface = "sync"
-        self.assertTrue(self.state.physical_explore_active())
+                self.state.explore_surface = "sync"
+                self.assertTrue(self.state.physical_explore_active())
 
         self.state.interaction_mode = Mode.NORMAL
         self.assertFalse(self.state.physical_explore_active())

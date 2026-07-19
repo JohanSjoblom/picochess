@@ -4,7 +4,9 @@ import unittest
 import chess
 import chess.variant
 
+from dgt.util import Mode, PlayMode, TimeMode
 from picochess import PicochessState
+from timecontrol import TimeControl
 
 
 class TestExploreCheckpoint(unittest.TestCase):
@@ -81,6 +83,66 @@ class TestExploreCheckpoint(unittest.TestCase):
         self.assertEqual([anchor_move], self.state._atomic_board.move_stack)
         self.assertEqual([anchor_move], self.state.game.move_stack)
         self.assertNotIn(temporary_move, self.state._atomic_board.move_stack)
+
+    def test_checkpoint_restores_playing_and_clock_context_but_leaves_clock_stopped(self):
+        anchor_move = chess.Move.from_uci("e2e4")
+        self.state.push_move(anchor_move)
+        self.state.explore_origin_mode = Mode.NORMAL
+        self.state.play_mode = PlayMode.USER_BLACK
+        self.state.game_started = True
+        self.state.time_control = TimeControl(
+            mode=TimeMode.BLITZ,
+            blitz=5,
+            internal_time={chess.WHITE: 247.5, chess.BLACK: 231.25},
+        )
+        self.state.time_control.clock_time = {chess.WHITE: 247, chess.BLACK: 231}
+        self.state.time_control.moves_to_go = 7
+
+        self.state.set_explore_checkpoint()
+        self.state.play_mode = PlayMode.USER_WHITE
+        self.state.game_started = False
+        self.state.time_control.internal_time[chess.WHITE] = 12
+        self.state.time_control.clock_time[chess.BLACK] = 9
+        self.state.time_control.moves_to_go = 1
+
+        self.assertTrue(self.state.restore_explore_checkpoint())
+        self.assertEqual(PlayMode.USER_BLACK, self.state.play_mode)
+        self.assertTrue(self.state.game_started)
+        self.assertEqual(247.5, self.state.time_control.internal_time[chess.WHITE])
+        self.assertEqual(231.25, self.state.time_control.internal_time[chess.BLACK])
+        self.assertEqual({chess.WHITE: 247, chess.BLACK: 231}, self.state.time_control.clock_time)
+        self.assertEqual(7, self.state.time_control.moves_to_go)
+        self.assertFalse(self.state.time_control.internal_running())
+        self.assertTrue(self.state.can_preserve_restored_explore_play_mode(Mode.NORMAL))
+        self.assertFalse(self.state.can_preserve_restored_explore_play_mode(Mode.BRAIN))
+
+    def test_return_play_mode_context_only_survives_an_unchanged_completed_restore(self):
+        self.state.explore_origin_mode = Mode.NORMAL
+        self.state.set_explore_checkpoint()
+        self.assertTrue(self.state.restore_explore_checkpoint())
+
+        self.state.clear_explore_checkpoint(preserve_return_context=True)
+        self.assertTrue(self.state.can_preserve_restored_explore_play_mode(Mode.NORMAL))
+
+        self.state.push_move(chess.Move.from_uci("e2e4"))
+        self.assertFalse(self.state.can_preserve_restored_explore_play_mode(Mode.NORMAL))
+
+        self.state.clear_explore_checkpoint()
+        self.assertIsNone(self.state.explore_return_play_mode)
+
+    def test_physical_explore_marks_only_ponder_brd_and_sync_as_temporary(self):
+        self.state.interaction_mode = Mode.PONDER
+        self.state.explore_surface = "web"
+        self.assertFalse(self.state.physical_explore_active())
+
+        self.state.explore_surface = "brd"
+        self.assertTrue(self.state.physical_explore_active())
+
+        self.state.explore_surface = "sync"
+        self.assertTrue(self.state.physical_explore_active())
+
+        self.state.interaction_mode = Mode.NORMAL
+        self.assertFalse(self.state.physical_explore_active())
 
 
 if __name__ == "__main__":

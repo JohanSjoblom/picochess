@@ -224,3 +224,22 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(display._brain_hint_text)
         self.assertEqual(0.0, display._brain_hint_until)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_clear_analysis_drops_cached_eval_but_keeps_last_real_move(self, _dispatch_fire):
+        display = self.create_display()
+        last_move = chess.Move.from_uci("e2e4")
+        display.last_move = last_move
+        display.hint_move = chess.Move.from_uci("e7e5")
+        display.hint_fen = chess.Board().fen()
+        display.hint_turn = chess.BLACK
+        display.score = object()
+        display.depth = 18
+
+        await display._process_message(Message.CLEAR_ANALYSIS())
+
+        self.assertEqual(last_move, display.last_move)
+        self.assertEqual(chess.Move.null(), display.hint_move)
+        self.assertIsNone(display.hint_fen)
+        self.assertIsNone(display.hint_turn)
+        self.assertEqual(0, display.depth)

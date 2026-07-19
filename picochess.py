@@ -1155,6 +1155,11 @@ def physical_explore_allowed_in_mode(interaction_mode: Mode) -> bool:
     return interaction_mode in (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ)
 
 
+def backend_analysis_allowed_during_physical_explore(physical_explore_active: bool) -> bool:
+    """BRD variations belong to user-controlled browser analysis, not backend engines."""
+    return not physical_explore_active
+
+
 def should_use_tutor_analysis(
     interaction_mode: Mode,
     pgn_mode: bool,
@@ -1165,7 +1170,10 @@ def should_use_tutor_analysis(
     physical_explore_active: bool = False,
 ) -> bool:
     """Return True when tutor analysis should replace engine analysis."""
-    if physical_explore_active or not tutor_analysis_allowed_in_mode(interaction_mode):
+    if (
+        not backend_analysis_allowed_during_physical_explore(physical_explore_active)
+        or not tutor_analysis_allowed_in_mode(interaction_mode)
+    ):
         return False
     if pgn_mode or engine_should_skip_analyser:
         return True
@@ -2395,10 +2403,12 @@ async def main() -> None:
         def picotutor_mode(self):
             enabled = False
 
-            # Physical PONDER exploration is a temporary scratch branch.  Keep
-            # PicoTutor on the checkpoint so its move and evaluation history
-            # can continue unchanged after the physical board is restored.
-            if self.state.physical_explore_active():
+            # Physical Explore is a temporary scratch branch. Keep PicoTutor
+            # on the checkpoint so its move and evaluation history can resume
+            # unchanged after the physical board is restored.
+            if self.state.explore_restore_pending or not backend_analysis_allowed_during_physical_explore(
+                self.state.physical_explore_active()
+            ):
                 return False
 
             # Disable PicoTutor for chess variants (3check, etc.)
@@ -3866,7 +3876,9 @@ async def main() -> None:
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
-            if self.state.explore_restore_pending:
+            if self.state.explore_restore_pending or not backend_analysis_allowed_during_physical_explore(
+                self.state.physical_explore_active()
+            ):
                 return False
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
@@ -3900,7 +3912,7 @@ async def main() -> None:
 
         def tutor_analysis_enabled_for_current_mode(self) -> bool:
             """Return whether tutor analysis should run for the current mode."""
-            if self.state.physical_explore_active():
+            if not backend_analysis_allowed_during_physical_explore(self.state.physical_explore_active()):
                 return False
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return False
@@ -3963,11 +3975,12 @@ async def main() -> None:
                 self._publish_explore_surface("web")
 
         async def _reconcile_explore_analysis_sources(self) -> None:
-            """Apply selected-engine ownership during BRD and normal routing on WEB."""
+            """Pause backend analysis during BRD and restore normal routing on WEB."""
             tutor_analysis_enabled = self.tutor_analysis_enabled_for_current_mode()
             if self.state.picotutor is not None:
                 await self.state.picotutor.set_analysis_enabled(tutor_analysis_enabled)
             self.state.best_sent_depth.reset()
+            await DisplayMsg.show(Message.CLEAR_ANALYSIS())
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
             await self._start_or_stop_analysis_as_needed()
 
@@ -4148,6 +4161,12 @@ async def main() -> None:
                 # The logical board already contains the checkpoint, but the
                 # physical board does not yet match it.  Do not display a
                 # cached evaluation for a position the user has not restored.
+                await self._start_or_stop_analysis_as_needed()
+                return None
+            if not backend_analysis_allowed_during_physical_explore(self.state.physical_explore_active()):
+                # BRD Explore is analysed only by user-controlled browser
+                # Stockfish. Do not publish stale tutor or selected-engine
+                # buffers for the disposable physical branch.
                 await self._start_or_stop_analysis_as_needed()
                 return None
             info: InfoDict | None = None

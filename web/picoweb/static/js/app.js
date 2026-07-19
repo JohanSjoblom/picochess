@@ -314,6 +314,9 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
+// Local target used while the backend restores BRD Explore to its checkpoint.
+// The backend surface still follows its existing brd -> sync -> web lifecycle.
+var exploreReturnTarget = 'web';
 var livePgnTreeActive = true;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
@@ -730,32 +733,42 @@ function canChooseExploreSurface() {
 }
 
 function updateExploreSurfaceControls() {
-    var control = document.getElementById('exploreSurfaceControl');
-    var webBtn = document.getElementById('exploreSurfaceWebBtn');
-    var boardBtn = document.getElementById('exploreSurfaceBoardBtn');
-    var exploreBtn = document.getElementById('webExploreToggleBtn');
-    if (!control || !webBtn || !boardBtn || !exploreBtn) {
+    var control = document.getElementById('exploreThreeStateControl');
+    var offBtn = document.getElementById('exploreOffBtn');
+    var webBtn = document.getElementById('exploreWebBtn');
+    var boardBtn = document.getElementById('exploreBoardBtn');
+    var legacyBtn = document.getElementById('webExploreToggleBtn');
+    if (!control || !offBtn || !webBtn || !boardBtn || !legacyBtn) {
         return;
     }
 
     var available = canChooseExploreSurface();
     control.style.display = available ? 'inline-flex' : 'none';
+    legacyBtn.style.display = available ? 'none' : 'inline-block';
     var surface = currentExploreSurface();
     var syncing = surface === 'sync';
     var boardActive = surface === 'brd';
-    var webActive = surface === 'web';
+    var webActive = surface === 'web' && webExploreMode;
+    var offActive = surface === 'web' && !webExploreMode;
+    if (syncing) {
+        webActive = exploreReturnTarget !== 'off';
+        offActive = exploreReturnTarget === 'off';
+    }
 
-    webBtn.textContent = syncing ? 'SYNC' : 'WEB';
-    webBtn.classList.toggle('btn-warning', syncing);
-    webBtn.classList.toggle('btn-primary', webActive && !syncing);
-    webBtn.classList.toggle('btn-light', !webActive && !syncing);
+    [offBtn, webBtn, boardBtn].forEach(function (btn) {
+        btn.classList.remove('btn-primary');
+    });
+    offBtn.classList.toggle('btn-warning', offActive);
+    offBtn.classList.toggle('btn-light', !offActive);
+    webBtn.classList.toggle('btn-warning', webActive);
+    webBtn.classList.toggle('btn-light', !webActive);
     boardBtn.classList.toggle('btn-warning', boardActive);
     boardBtn.classList.toggle('btn-light', !boardActive);
-    boardBtn.classList.remove('btn-primary');
 
-    exploreBtn.disabled = available && (boardActive || syncing);
-    webBtn.disabled = !available || webActive || syncing;
-    boardBtn.disabled = !available || boardActive || syncing || (webActive && !webExploreMode);
+    offBtn.disabled = !available || syncing;
+    webBtn.disabled = !available || syncing;
+    boardBtn.disabled = !available || syncing;
+    offBtn.setAttribute('aria-pressed', offActive ? 'true' : 'false');
     webBtn.setAttribute('aria-pressed', webActive ? 'true' : 'false');
     boardBtn.setAttribute('aria-pressed', boardActive ? 'true' : 'false');
 }
@@ -766,7 +779,13 @@ function applyExploreSurfaceState(previousSurface) {
     if ((surface === 'brd' || surface === 'sync') && previousSurface !== surface) {
         goToDGTFen();
     } else if (surface === 'web' && (previousSurface === 'brd' || previousSurface === 'sync')) {
-        startWebExploreFromLivePosition(false);
+        if (exploreReturnTarget === 'off') {
+            stopWebExploreMode(false);
+            syncToCurrentPicoLivePosition();
+        } else {
+            startWebExploreFromLivePosition(false);
+        }
+        exploreReturnTarget = 'web';
         updateChessGround();
         updateStatus();
     }
@@ -781,11 +800,47 @@ function requestExploreSurface(surface) {
     if (surface === 'brd') {
         goToDGTFen();
     }
-    $('#exploreSurfaceWebBtn, #exploreSurfaceBoardBtn').prop('disabled', true);
+    $('#exploreOffBtn, #exploreWebBtn, #exploreBoardBtn').prop('disabled', true);
     $.post('/channel', { action: 'explore_surface', surface: surface })
-        .always(function () {
+        .fail(function () {
             updateExploreSurfaceControls();
         });
+}
+
+function selectThreeStateExplore(mode) {
+    mode = String(mode || '').toLowerCase();
+    if (!canChooseExploreSurface() || currentExploreSurface() === 'sync') {
+        return;
+    }
+
+    var surface = currentExploreSurface();
+    if (mode === 'off') {
+        if (surface === 'web' && !webExploreMode) {
+            return;
+        }
+        exploreReturnTarget = 'off';
+        if (surface === 'brd') {
+            requestExploreSurface('web');
+        } else {
+            stopWebExploreMode(false);
+            goToDGTFen();
+            updateChessGround();
+            updateStatus();
+        }
+    } else if (mode === 'web') {
+        if (surface === 'web' && webExploreMode) {
+            return;
+        }
+        exploreReturnTarget = 'web';
+        if (surface === 'brd') {
+            requestExploreSurface('web');
+        } else {
+            startWebExploreFromLivePosition(true);
+        }
+    } else if (mode === 'brd' && surface !== 'brd') {
+        requestExploreSurface('brd');
+    }
+    updateExploreSurfaceControls();
 }
 
 function setWebExploreMode(enabled, redraw) {
@@ -3810,8 +3865,9 @@ $(function () {
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
-    $('#exploreSurfaceWebBtn').on('click', function () { requestExploreSurface('web'); });
-    $('#exploreSurfaceBoardBtn').on('click', function () { requestExploreSurface('brd'); });
+    $('#exploreOffBtn').on('click', function () { selectThreeStateExplore('off'); });
+    $('#exploreWebBtn').on('click', function () { selectThreeStateExplore('web'); });
+    $('#exploreBoardBtn').on('click', function () { selectThreeStateExplore('brd'); });
     applyPgnVariationVisibility();
     updateWebExploreButton();
     updateExploreSurfaceControls();

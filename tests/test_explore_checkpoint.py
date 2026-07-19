@@ -61,6 +61,47 @@ class TestExploreCheckpoint(unittest.TestCase):
         self.assertEqual(checkpoint_fen, self.state.game.fen())
         self.assertEqual(anchor_moves, self.state.game.move_stack)
 
+    def test_ponder_brd_side_change_resets_only_scratch_history(self):
+        anchor_moves = [
+            chess.Move.from_uci("e2e4"),
+            chess.Move.from_uci("e7e5"),
+            chess.Move.from_uci("g1f3"),
+        ]
+        for move in anchor_moves:
+            self.state.push_move(move)
+        checkpoint_fen = self.state.game.fen()
+        self.state.interaction_mode = Mode.PONDER
+        self.state.explore_surface = "brd"
+        self.state.set_explore_checkpoint()
+
+        self.state.push_move(chess.Move.from_uci("b8c6"))
+        self.state.game.ep_square = chess.E3
+        castling_rights = self.state.game.castling_rights
+
+        self.assertTrue(self.state.set_explore_scratch_turn(chess.BLACK))
+        self.assertEqual(chess.BLACK, self.state.game.turn)
+        self.assertEqual([], self.state.game.move_stack)
+        self.assertIsNone(self.state.game.ep_square)
+        self.assertEqual(castling_rights, self.state.game.castling_rights)
+        self.assertTrue(self.state.has_compatible_explore_checkpoint())
+
+        self.assertTrue(self.state.restore_explore_checkpoint())
+        self.assertEqual(checkpoint_fen, self.state.game.fen())
+        self.assertEqual(anchor_moves, self.state.game.move_stack)
+
+    def test_explore_side_change_is_limited_to_ponder_brd(self):
+        self.state.set_explore_checkpoint()
+        for mode, surface in (
+            (Mode.ANALYSIS, "brd"),
+            (Mode.KIBITZ, "brd"),
+            (Mode.PONDER, "web"),
+            (Mode.PONDER, "sync"),
+        ):
+            with self.subTest(mode=mode, surface=surface):
+                self.state.interaction_mode = mode
+                self.state.explore_surface = surface
+                self.assertFalse(self.state.set_explore_scratch_turn(chess.BLACK))
+
     def test_checkpoint_cannot_cross_variant_change(self):
         self.state.set_explore_checkpoint()
         self.state.variant = "atomic"

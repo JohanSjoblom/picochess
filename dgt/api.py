@@ -351,7 +351,10 @@ class Event:
         ["enabled"],
     )
     SET_EXPLORE_SURFACE = ClassFactory(EventApi.SET_EXPLORE_SURFACE, ["surface"])
-    SETUP_POSITION = ClassFactory(EventApi.SETUP_POSITION, ["fen", "uci960", "game", "preserve_play_mode"])
+    SETUP_POSITION = ClassFactory(
+        EventApi.SETUP_POSITION,
+        ["fen", "uci960", "game", "preserve_play_mode", "side_only"],
+    )
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])
     SET_TIME_CONTROL = ClassFactory(EventApi.SET_TIME_CONTROL, ["tc_init", "time_text", "show_ok"])

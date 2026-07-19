@@ -2735,7 +2735,11 @@ class DgtMenu(object):
                 self.flip_board = self.menu_position_reverse
                 # @todo figure out PlayMode white or black here
                 self.set_position_reverse_flipboard(self.flip_board, PlayMode.USER_WHITE)
-                event = Event.SETUP_POSITION(fen=bit_board.fen(), uci960=self.menu_position_uci960)
+                event = Event.SETUP_POSITION(
+                    fen=bit_board.fen(),
+                    uci960=self.menu_position_uci960,
+                    side_only=True,
+                )
                 await Observable.fire(event)
                 # self._reset_moves_and_score() done in "START_NEW_GAME"
                 text = self.save_choices()

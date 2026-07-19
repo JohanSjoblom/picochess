@@ -534,6 +534,25 @@ class PicochessState:
         self.explore_return_moves = tuple(self.game.move_stack)
         return True
 
+    def set_explore_scratch_turn(self, turn: chess.Color) -> bool:
+        """Retag a PONDER/BRD scratch position without touching its checkpoint."""
+        if (
+            self.interaction_mode != Mode.PONDER
+            or self.explore_surface != "brd"
+            or not self.has_compatible_explore_checkpoint()
+            or self.variant != "chess"
+        ):
+            return False
+
+        # A side correction starts a fresh disposable line. Keeping the old
+        # scratch stack would make later pops restore turns from before the
+        # correction. The independent checkpoint still owns the real history.
+        scratch = self.game.copy(stack=False)
+        scratch.turn = bool(turn)
+        scratch.ep_square = None
+        self.game = scratch
+        return True
+
     def clear_explore_checkpoint(self, preserve_return_context: bool = False) -> None:
         """Discard any active WEB/BRD handoff state."""
         self.explore_surface = "web"
@@ -4090,6 +4109,42 @@ async def main() -> None:
             elif self.state.explore_surface == "brd":
                 await self._restore_explore_checkpoint()
 
+        async def _set_explore_scratch_turn(self, turn: chess.Color) -> None:
+            """Change only the disposable PONDER/BRD position's side to move."""
+            physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
+            if (
+                self.state.position_mode
+                or self.state.fen_timer_running
+                or physical_fen != self.state.get_board_fen()
+            ):
+                logger.info("physical Explore side change requires a settled e-board position")
+                await DisplayMsg.show(Message.WRONG_FEN())
+                return
+            if not self.state.set_explore_scratch_turn(turn):
+                logger.warning("physical Explore side change is only available in standard PONDER/BRD")
+                return
+
+            logger.info(
+                "physical Explore scratch side changed to %s",
+                "white" if turn == chess.WHITE else "black",
+            )
+            self.state.stop_fen_timer()
+            self.state.error_fen = None
+            self.state.fen_error_occured = False
+            self.state.position_mode = False
+            self.state.best_sent_depth.reset()
+            self.state.done_computer_fen = None
+            self.state.done_move = self.state.pb_move = chess.Move.null()
+            self.state.searchmoves.reset()
+            self.state.game_declared = False
+            self.state.takeback_active = False
+            self.state.automatic_takeback = False
+            self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+            self.state.legal_fens_after_cmove = []
+            self.state.last_legal_fens = []
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
+            await DisplayMsg.show(self.state.new_game_msg(newgame=False))
+
         def _set_pgn_replay_autoplay(self, enabled: bool, mode: Mode | None = None) -> None:
             """Update PGN replay autoplay and publish it to connected web clients."""
             enabled = bool(enabled)
@@ -5777,6 +5832,19 @@ async def main() -> None:
                     await self.analyse(allow_autoplay=False)
                 # end of NEW_ENGINE
 
+            elif (
+                isinstance(event, Event.SETUP_POSITION)
+                and getattr(event, "side_only", False)
+                and self.state.interaction_mode == Mode.PONDER
+                and self.state.explore_surface == "brd"
+            ):
+                try:
+                    explore_turn = chess.Board(event.fen, chess960=event.uci960).turn
+                except (TypeError, ValueError):
+                    logger.warning("invalid physical Explore side-change fen: %s", event.fen)
+                else:
+                    await self._set_explore_scratch_turn(explore_turn)
+
             elif isinstance(event, Event.SETUP_POSITION):
                 logger.debug("setting up custom fen: %s", event.fen)
                 self._clear_explore_handoff()
@@ -6263,6 +6331,13 @@ async def main() -> None:
                             )
                     else:
                         logger.warning("wrong function call [alternative]! mode: %s", self.state.interaction_mode)
+
+            elif (
+                isinstance(event, Event.SWITCH_SIDES)
+                and self.state.interaction_mode == Mode.PONDER
+                and self.state.explore_surface == "brd"
+            ):
+                await self._set_explore_scratch_turn(not self.state.game.turn)
 
             elif isinstance(event, Event.SWITCH_SIDES):
                 self.state.best_sent_depth.reset()  # safest to drop optimisation when switching sides

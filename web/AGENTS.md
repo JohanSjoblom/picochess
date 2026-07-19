@@ -320,6 +320,14 @@ analysis visibility and settings. Clearing backend analysis on BRD entry should
 reset content to its placeholder state without changing ANALYSES-tab row
 visibility.
 
+In `Mode.PONDER` BRD Explore, `Position -> Side to move` and the quick
+switch-sides command retag only the disposable physical scratch position so
+browser Stockfish can analyse the intended side. They clear scratch history
+and en-passant state but must retain the independent Explore checkpoint. The
+normal `SETUP_POSITION` behavior stays unchanged outside this exact state; do
+not extend arbitrary turn changes to the move-preserving `Mode.ANALYSIS` or
+`Mode.KIBITZ` branches implicitly.
+
 After set-pieces synchronization, preserve the visible `Position ok`
 confirmation. It is the user's signal that BRD restoration is complete and it
 is safe to continue recording moves or change modes.

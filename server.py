@@ -992,6 +992,7 @@ class ChannelHandler(ServerRequestHandler):
                         fen=bit_board.fen(),
                         uci960=uci960_enabled,
                         preserve_play_mode=True,
+                        side_only=True,
                     )
                 )
                 self.write({"success": True, "fen": bit_board.fen(), "uci960": uci960_enabled})

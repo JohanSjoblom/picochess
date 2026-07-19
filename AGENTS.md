@@ -456,6 +456,11 @@ the same code path.
   clear any stale tutor analysis shown in the web client.
 - Web client and clock analysis shown in `Mode.PONDER` must reflect the
   selected engine, not tutor.
+- During active PONDER/BRD Explore, `Position -> Side to move` and the quick
+  switch-sides command change only the disposable scratch position. They must
+  not clear or alter the saved Explore checkpoint. The scratch move stack and
+  en-passant state are deliberately reset so later legal moves and takebacks
+  use the corrected turn cleanly.
 
 ## Non-Playing Mode Engine Switch Rules
 

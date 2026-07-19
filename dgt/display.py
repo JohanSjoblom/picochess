@@ -175,6 +175,14 @@ class DgtDisplay(DisplayMsg):
         self.score = self.dgttranslate.text("N10_score", None)
         self.depth = 0
 
+    def _clear_cached_analysis(self):
+        """Clear analyser-only display state without discarding the last real move."""
+        self.hint_move = chess.Move.null()
+        self.hint_fen = None
+        self.hint_turn = None
+        self.score = self.dgttranslate.text("N10_score", None)
+        self.depth = 0
+
     @staticmethod
     def _score_to_string(score_val, length="l"):
         if Rev2Info.get_web_only():
@@ -1498,6 +1506,11 @@ class DgtDisplay(DisplayMsg):
 
         elif isinstance(message, Message.NEW_DEPTH):
             self.depth = message.depth
+
+        elif isinstance(message, Message.CLEAR_ANALYSIS):
+            self._clear_cached_analysis()
+            await self.force_leds_off()
+            await self._exit_menu()
 
         elif isinstance(message, Message.IP_INFO):
             self.dgtmenu.int_ip = message.info["int_ip"]

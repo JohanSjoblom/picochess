@@ -307,10 +307,18 @@ the live backend/e-board game as an implicit anchor; BRD needs an explicit
 backend checkpoint and a set-pieces synchronization before normal input can
 resume.
 
-During BRD, PicoTutor remains frozen at the checkpoint and the selected
-Picochess engine supplies backend analysis. Browser Stockfish stays independent
-and must not be toggled automatically when ownership changes. Users may compare
-both engines; hiding the Web row remains the explicit way to stop browser CPU.
+During BRD, PicoTutor remains frozen at the checkpoint and selected-engine
+backend analysis also stops. Browser Stockfish is the only intended analyser
+for the disposable physical branch. It remains independent and must not be
+shown, hidden, started, or stopped automatically when ownership changes. If the
+Web row is hidden or no capable browser is active, BRD still works but has no
+evaluation. Hiding the Web row remains the explicit way to stop browser CPU.
+
+Browser Stockfish results remain client-local. They are not sent back to the
+backend or DGT clock, and separate connected clients may choose different Web
+analysis visibility and settings. Clearing backend analysis on BRD entry should
+reset content to its placeholder state without changing ANALYSES-tab row
+visibility.
 
 After set-pieces synchronization, preserve the visible `Position ok`
 confirmation. It is the user's signal that BRD restoration is complete and it

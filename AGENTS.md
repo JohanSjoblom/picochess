@@ -202,6 +202,11 @@ clock-driving analyser at a time. That analyser is either the selected main
 engine or the tutor `best_engine`; do not let both run deep analysis for the
 same cycle.
 
+Physical BRD Explore is the deliberate zero-backend-analyser exception. While
+BRD owns the temporary variation (including physical synchronization), neither
+the selected main engine nor tutor may analyse. User-controlled browser
+Stockfish is the only intended Explore analyser for that branch.
+
 - `picotutor` `best_engine` `ContinuousAnalysis` for tutor-driven analysis paths
   when it is the user turn.
 - Engine `ContinuousAnalysis` for tutor-off analysis paths, especially when the
@@ -385,14 +390,18 @@ Physical BRD Explore is supported only in `Mode.PONDER`, `Mode.ANALYSIS`, and
 - Do not push, pop, reset, or analyse PicoTutor against the temporary BRD
   branch. Tutor stays anchored at the checkpoint so its move/evaluation
   history can resume unchanged after restoration.
-- During BRD ownership, the selected main engine is the sole backend deep
-  analyser. Stop tutor analysis, clear stale tutor output, and reconcile back
-  to normal mode routing only after physical synchronization completes. This
-  must continue to satisfy the one-deep-backend-analyser CPU invariant.
-- Browser Stockfish remains an independent, user-controlled browser analyser.
-  Do not automatically stop it when BRD is selected; users may intentionally
-  compare it with the selected Picochess engine. On localhost this can consume
-  additional CPU, so hiding Web analysis must still stop its worker.
+- During BRD ownership, stop both tutor analysis and selected-main-engine
+  analysis. Do not read or publish cached backend buffers for the disposable
+  branch. Clear stale web and DGT/clock analysis caches without changing row
+  visibility, then reconcile both backend lifecycle guards back to normal mode
+  routing only after physical synchronization.
+- Browser Stockfish is the intended BRD analysis source and remains entirely
+  user controlled. Do not automatically show, hide, start, or stop Web analysis
+  when Explore ownership changes. If Web analysis is hidden or no capable web
+  client is active, BRD exploration still works but produces no evaluation.
+- Browser analysis is not routed back to the backend or DGT clock. Do not imply
+  that a BRD evaluation is available on physical displays unless a separate,
+  explicit browser-to-backend design is added later.
 
 Keep the current scope bounded. Mate/draw announcements and physical
 start-position `NEW_GAME` behavior during a temporary BRD branch are not given
@@ -438,7 +447,9 @@ the same code path.
 
 - `Mode.PONDER` is analysis-only. It does not save a PGN move stack.
 - In `Mode.PONDER`, analysis must always come from the currently selected main
-  engine.
+  engine, except while physical BRD Explore owns the disposable branch. BRD
+  pauses all backend analysis and leaves evaluation to user-controlled browser
+  Stockfish.
 - Tutor analysis must never be used in `Mode.PONDER`, even if watcher/coach is
   enabled.
 - Entering `Mode.PONDER` must prevent tutor analysis from starting and must
@@ -460,7 +471,8 @@ the same code path.
 
 ## Tutor Behavior Outside PONDER
 
-- Non-`PONDER` modes keep the existing tutor behavior.
+- Non-`PONDER` modes keep the existing tutor behavior outside physical BRD
+  Explore. BRD freezes tutor at its checkpoint in `ANALYSIS` and `KIBITZ`.
 - If tutor is active in other non-playing modes such as `ANALYSIS`, `KIBITZ`,
   `OBSERVE`, or `PGNREPLAY`, tutor may remain the active analysis source.
 - A selected-engine change in those tutor-driven modes should not be treated as

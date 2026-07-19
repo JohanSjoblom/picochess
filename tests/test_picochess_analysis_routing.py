@@ -5,6 +5,7 @@ import chess
 from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
+    backend_analysis_allowed_during_physical_explore,
     physical_explore_allowed_in_mode,
     remote_move_matches_current_position,
     should_show_setpieces_after_lift_timeout,
@@ -85,7 +86,9 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
             )
         )
 
-    def test_physical_explore_uses_selected_engine_in_tutor_modes(self):
+    def test_physical_explore_pauses_all_backend_analysis(self):
+        self.assertTrue(backend_analysis_allowed_during_physical_explore(False))
+        self.assertFalse(backend_analysis_allowed_during_physical_explore(True))
         for mode in (Mode.ANALYSIS, Mode.KIBITZ):
             with self.subTest(mode=mode):
                 self.assertTrue(physical_explore_allowed_in_mode(mode))

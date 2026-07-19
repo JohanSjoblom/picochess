@@ -3983,6 +3983,10 @@ async def main() -> None:
             # back to a playing mode can preserve its original play side.
             self.state.clear_explore_checkpoint(preserve_return_context=True)
             self._publish_explore_surface("web")
+            await DisplayMsg.show(
+                Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
+            )
+            await asyncio.sleep(1)
             await DisplayMsg.show(Message.EXIT_MENU())
             await self._reconcile_explore_analysis_sources()
 

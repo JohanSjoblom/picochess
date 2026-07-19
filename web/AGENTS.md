@@ -270,6 +270,59 @@ explicitly requires it.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
 
+## Three-State WEB And BRD Explore
+
+With a physical eboard, Explore has an ownership control in the supported
+non-playing analysis modes:
+
+- Backend `Mode.PONDER` (user-facing `ANALYSIS`)
+- Backend `Mode.ANALYSIS` (user-facing `MOVE HINT`/Hint On)
+- Backend `Mode.KIBITZ` (user-facing `EVAL.SCORE`/Eval)
+
+Only those modes show the combined `Explore OFF | WEB | BRD` control. Keep the
+legacy two-state Explore control and behavior unchanged for NOEBOARD and all
+other modes, so users outside this feature do not see a UI regression.
+
+- `OFF` means physical moves operate on the live/recorded main line.
+- `WEB` means browser moves use the local `webExploreGame` variation while the
+  backend game and physical eboard remain the anchor. In MOVE HINT and EVAL,
+  physical moves may continue recording the main line while WEB Explore is on.
+- `BRD` means physical moves use the backend's temporary checkpoint branch.
+  The browser must follow the live physical exploration position, while the
+  recorded main line remains anchored in backend checkpoint state.
+- Backend surface `sync` is a transitional state, not a fourth user choice.
+  Disable all three buttons while it is active and retain whether the user
+  requested WEB or OFF as the return target.
+- When BRD or sync starts, show the physical/live DGT position rather than a
+  stale browser variation. When synchronization finishes, rebuild the browser
+  from the restored backend game and then apply the saved WEB/OFF target.
+- The backend's `explore_surface` in shared `system_info` is authoritative for
+  BRD and sync. Do not infer physical ownership solely from local button state.
+- Do not automatically change `interaction_mode` when BRD is selected. WEB and
+  BRD are parallel Explore surfaces within the existing mode.
+
+WEB and BRD share one product invariant: Explore never changes the recorded
+main line. Their implementations are intentionally asymmetric. WEB already has
+the live backend/e-board game as an implicit anchor; BRD needs an explicit
+backend checkpoint and a set-pieces synchronization before normal input can
+resume.
+
+During BRD, PicoTutor remains frozen at the checkpoint and the selected
+Picochess engine supplies backend analysis. Browser Stockfish stays independent
+and must not be toggled automatically when ownership changes. Users may compare
+both engines; hiding the Web row remains the explicit way to stop browser CPU.
+
+After set-pieces synchronization, preserve the visible `Position ok`
+confirmation. It is the user's signal that BRD restoration is complete and it
+is safe to continue recording moves or change modes.
+
+PGN navigation alone remains browser review and must not silently become a BRD
+anchor. `Position -> Set Pos` explicitly promotes the selected node's PGN
+prefix to the backend live game. The web client then replaces its active tree
+with that prefix; later moves from the previously loaded game are no longer in
+the live session. Use this path when the user intends to create and record a
+new continuation from the selected point.
+
 ## Merge And Risk Guidance
 
 - Keep web-client commits small and separable from backend game-flow changes.

@@ -349,6 +349,62 @@ Preserve this data flow:
 - Keep `get_eval_mistakes()` based on the same stored data so the web UI and
   saved PGN stay consistent.
 
+## Explore Ownership And Physical-Board Checkpoints
+
+Explore means that a disposable variation may change the surface being
+explored, but must not change the recorded main line.
+
+- `OFF` has no temporary branch. Physical eboard moves extend the live move
+  stack and, in move-preserving modes, the eventual PGN.
+- `WEB` gives the browser board a local disposable variation. The live
+  Picochess game and physical eboard remain the implicit anchor. In
+  `Mode.ANALYSIS` and `Mode.KIBITZ`, physical eboard moves still extend the
+  recorded main line while the browser variation remains disposable.
+- `BRD` temporarily gives the physical eboard to a disposable variation. The
+  backend must therefore keep an explicit checkpoint because the live board
+  object is temporarily used for exploration moves.
+- WEB and BRD are complementary ownership choices, not feature-identical
+  boards. Browser-only conveniences do not need physical-board equivalents.
+
+Physical BRD Explore is supported only in `Mode.PONDER`, `Mode.ANALYSIS`, and
+`Mode.KIBITZ`. Keep the interaction mode unchanged while switching
+`OFF|WEB|BRD`; do not introduce hidden automatic transitions to PONDER.
+
+- The BRD checkpoint preserves the exact game position, move stack, active
+  variant board, play mode, game lifecycle state, and stopped clock values
+  needed for a safe return.
+- Returning from BRD to WEB or OFF restores the logical checkpoint first, then
+  enters a protected physical-sync state. No board scan or analyser output may
+  escape that guard while the pieces still show the temporary branch.
+- Complete the return only when the physical board matches the checkpoint.
+  Emit the existing `PICOTUTOR_MSG("POSOK")` confirmation so users know they
+  may continue or change modes.
+- In `Mode.ANALYSIS` and `Mode.KIBITZ`, moves made outside BRD continue the
+  preserved move stack and are eligible for normal PGN saving. Temporary BRD
+  moves must not appear in that stack or PGN after restoration.
+- Do not push, pop, reset, or analyse PicoTutor against the temporary BRD
+  branch. Tutor stays anchored at the checkpoint so its move/evaluation
+  history can resume unchanged after restoration.
+- During BRD ownership, the selected main engine is the sole backend deep
+  analyser. Stop tutor analysis, clear stale tutor output, and reconcile back
+  to normal mode routing only after physical synchronization completes. This
+  must continue to satisfy the one-deep-backend-analyser CPU invariant.
+- Browser Stockfish remains an independent, user-controlled browser analyser.
+  Do not automatically stop it when BRD is selected; users may intentionally
+  compare it with the selected Picochess engine. On localhost this can consume
+  additional CPU, so hiding Web analysis must still stop its worker.
+
+Keep the current scope bounded. Mate/draw announcements and physical
+start-position `NEW_GAME` behavior during a temporary BRD branch are not given
+special Explore suppression. Add such policy only in response to a deliberate
+feature decision and user evidence, not as incidental checkpoint complexity.
+
+Selecting a historical PGN node in the web client is browser review only.
+`Position -> Set Pos` is the explicit promotion path: it replaces the active
+game with the selected PGN prefix and its move stack, so the original suffix is
+no longer part of the live session. That is a new-continuation workflow, not a
+temporary full-loaded-game checkpoint.
+
 ## PGN Replay Architectures
 
 There are two PGN replay mechanisms. They serve a similar purpose but are not

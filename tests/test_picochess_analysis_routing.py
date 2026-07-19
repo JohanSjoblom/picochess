@@ -5,6 +5,7 @@ import chess
 from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
+    physical_explore_allowed_in_mode,
     remote_move_matches_current_position,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
@@ -83,6 +84,28 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 is_user_turn=True,
             )
         )
+
+    def test_physical_explore_uses_selected_engine_in_tutor_modes(self):
+        for mode in (Mode.ANALYSIS, Mode.KIBITZ):
+            with self.subTest(mode=mode):
+                self.assertTrue(physical_explore_allowed_in_mode(mode))
+                self.assertFalse(
+                    should_use_tutor_analysis(
+                        interaction_mode=mode,
+                        pgn_mode=False,
+                        engine_should_skip_analyser=False,
+                        engine_is_playing=False,
+                        engine_move_was_book=False,
+                        is_user_turn=True,
+                        physical_explore_active=True,
+                    )
+                )
+
+    def test_physical_explore_remains_limited_to_three_analysis_modes(self):
+        self.assertTrue(physical_explore_allowed_in_mode(Mode.PONDER))
+        for mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.OBSERVE, Mode.REMOTE, Mode.PGNREPLAY):
+            with self.subTest(mode=mode):
+                self.assertFalse(physical_explore_allowed_in_mode(mode))
 
     def test_king_lift_reaches_setpieces_threshold_before_coach(self):
         self.assertTrue(should_show_setpieces_after_lift_timeout("K", is_hand_mode=False))

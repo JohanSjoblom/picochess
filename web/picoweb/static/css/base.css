@@ -934,12 +934,7 @@ td.result {
     min-width: 0;
 }
 
-.explore-surface-control {
-    align-items: center;
-    gap: 0.18rem;
-}
-
-.explore-surface-control .btn-group .analysis-toolbar-btn {
+.explore-three-state-control .analysis-toolbar-btn {
     min-width: 42px;
 }
 

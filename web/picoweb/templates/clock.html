@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/base.css?v=2" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -745,14 +745,12 @@
                                                         <button id="sf18ToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
                                                     </span>
                                                     <span class="analysis-control-set">
-                                                        <span class="analysis-control-label">Xplor</span>
+                                                        <span class="analysis-control-label">Explore</span>
                                                         <button id="webExploreToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Temporarily explore moves on the web board">OFF</button>
-                                                        <span id="exploreSurfaceControl" class="explore-surface-control" style="display:none">
-                                                            <span class="analysis-control-label">on</span>
-                                                            <span class="btn-group btn-group-sm" role="group" aria-label="Choose where to explore">
-                                                                <button id="exploreSurfaceWebBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Explore on the web board" aria-label="Explore on web board">WEB</button>
-                                                                <button id="exploreSurfaceBoardBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Explore on the physical e-board" aria-label="Explore on physical e-board">BRD</button>
-                                                            </span>
+                                                        <span id="exploreThreeStateControl" class="btn-group btn-group-sm explore-three-state-control" role="group" aria-label="Choose Explore state" style="display:none">
+                                                            <button id="exploreOffBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Turn Explore off" aria-label="Turn Explore off">OFF</button>
+                                                            <button id="exploreWebBtn" class="btn btn-sm btn-warning analysis-toolbar-btn" title="Explore on the web board" aria-label="Explore on web board">WEB</button>
+                                                            <button id="exploreBoardBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Explore on the physical e-board" aria-label="Explore on physical e-board">BRD</button>
                                                         </span>
                                                     </span>
                                                 </div>
@@ -866,7 +864,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=3"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=4"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos

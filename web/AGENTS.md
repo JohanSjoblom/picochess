@@ -272,21 +272,38 @@ explicitly requires it.
 
 ## PONDER Position Checkpoint Menu
 
-The physical-board checkpoint belongs to user-facing ANALYSIS
-(`Mode.PONDER`), not to browser Explore.
+The checkpoint belongs to user-facing ANALYSIS (`Mode.PONDER`), not to browser
+Explore. Its backend state is board-independent, but its currently demonstrated
+user-facing value is giving a physical eboard a recoverable temporary analysis
+session.
 
 - Keep Explore as its original `OFF|ON` browser-local control. Do not expose a
   physical-board ownership selector.
+- In NOEBOARD use, Web Explore already acts as the browser-local equivalent of
+  temporary PONDER analysis: legal browser variations are disposable and the
+  backend game remains intact. Keep it as the primary web-only workflow; do not
+  add a competing temporary-analysis control without a concrete use case.
+- Keep the two mechanisms independent. Web Explore may be active while a
+  physical-board PONDER checkpoint session is in progress.
 - Show Save Checkpoint and Restore Checkpoint in the Position menu only while
   the backend interaction mode is `ponder`.
 - Restore is disabled until `system_info.position_checkpoint_available` is
   true. Save may replace the one existing checkpoint.
 - The commands do not change interaction mode and do not start or stop browser
   Stockfish. Normal selected-engine PONDER analysis continues.
-- After restoration, the backend asks the user to set the physical pieces and
-  sends `Position ok` when synchronization completes.
+- With a physical eboard, restoration asks the user to set the pieces and sends
+  `Position ok` when synchronization completes. With NOEBOARD, restoration is
+  logical and completes immediately.
 - `Mode.ANALYSIS` and `Mode.KIBITZ` keep their ordinary move-recording and
   tutor behavior; they have no checkpoint menu actions.
+
+If a future ANALYSIS-tab shortcut automates this workflow, label and model it
+as a temporary analysis session rather than another Explore mode.
+`Temporary analysis active` means that the backend has completed the transition
+to `Mode.PONDER` and saved a checkpoint. Starting it must be one ordered backend
+operation rather than separate client requests. Restoring may wait for physical
+piece synchronization and then leave the user in `Mode.PONDER`; switching back
+to the earlier playing mode can remain an explicit user action.
 
 PGN navigation alone remains browser review. `Position -> Set Pos` explicitly
 promotes the selected node's PGN prefix to the backend live game; it is not a

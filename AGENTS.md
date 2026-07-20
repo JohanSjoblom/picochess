@@ -202,11 +202,6 @@ clock-driving analyser at a time. That analyser is either the selected main
 engine or the tutor `best_engine`; do not let both run deep analysis for the
 same cycle.
 
-Physical BRD Explore is the deliberate zero-backend-analyser exception. While
-BRD owns the temporary variation (including physical synchronization), neither
-the selected main engine nor tutor may analyse. User-controlled browser
-Stockfish is the only intended Explore analyser for that branch.
-
 - `picotutor` `best_engine` `ContinuousAnalysis` for tutor-driven analysis paths
   when it is the user turn.
 - Engine `ContinuousAnalysis` for tutor-off analysis paths, especially when the
@@ -354,59 +349,28 @@ Preserve this data flow:
 - Keep `get_eval_mistakes()` based on the same stored data so the web UI and
   saved PGN stay consistent.
 
-## Explore Ownership And Physical-Board Checkpoints
+## PONDER Position Checkpoints
 
-Explore means that a disposable variation may change the surface being
-explored, but must not change the recorded main line.
+Physical-board exploration is an extension of `Mode.PONDER`, not an extension
+of browser Explore. Keep the browser Explore control and its local disposable
+variation independent from this feature.
 
-- `OFF` has no temporary branch. Physical eboard moves extend the live move
-  stack and, in move-preserving modes, the eventual PGN.
-- `WEB` gives the browser board a local disposable variation. The live
-  Picochess game and physical eboard remain the implicit anchor. In
-  `Mode.ANALYSIS` and `Mode.KIBITZ`, physical eboard moves still extend the
-  recorded main line while the browser variation remains disposable.
-- `BRD` temporarily gives the physical eboard to a disposable variation. The
-  backend must therefore keep an explicit checkpoint because the live board
-  object is temporarily used for exploration moves.
-- WEB and BRD are complementary ownership choices, not feature-identical
-  boards. Browser-only conveniences do not need physical-board equivalents.
-
-Physical BRD Explore is supported only in `Mode.PONDER`, `Mode.ANALYSIS`, and
-`Mode.KIBITZ`. Keep the interaction mode unchanged while switching
-`OFF|WEB|BRD`; do not introduce hidden automatic transitions to PONDER.
-
-- The BRD checkpoint preserves the exact game position, move stack, active
-  variant board, play mode, game lifecycle state, and stopped clock values
-  needed for a safe return.
-- Returning from BRD to WEB or OFF restores the logical checkpoint first, then
-  enters a protected physical-sync state. No board scan or analyser output may
-  escape that guard while the pieces still show the temporary branch.
-- Complete the return only when the physical board matches the checkpoint.
-  Emit the existing `PICOTUTOR_MSG("POSOK")` confirmation so users know they
-  may continue or change modes.
-- In `Mode.ANALYSIS` and `Mode.KIBITZ`, moves made outside BRD continue the
-  preserved move stack and are eligible for normal PGN saving. Temporary BRD
-  moves must not appear in that stack or PGN after restoration.
-- Do not push, pop, reset, or analyse PicoTutor against the temporary BRD
-  branch. Tutor stays anchored at the checkpoint so its move/evaluation
-  history can resume unchanged after restoration.
-- During BRD ownership, stop both tutor analysis and selected-main-engine
-  analysis. Do not read or publish cached backend buffers for the disposable
-  branch. Clear stale web and DGT/clock analysis caches without changing row
-  visibility, then reconcile both backend lifecycle guards back to normal mode
-  routing only after physical synchronization.
-- Browser Stockfish is the intended BRD analysis source and remains entirely
-  user controlled. Do not automatically show, hide, start, or stop Web analysis
-  when Explore ownership changes. If Web analysis is hidden or no capable web
-  client is active, BRD exploration still works but produces no evaluation.
-- Browser analysis is not routed back to the backend or DGT clock. Do not imply
-  that a BRD evaluation is available on physical displays unless a separate,
-  explicit browser-to-backend design is added later.
-
-Keep the current scope bounded. Mate/draw announcements and physical
-start-position `NEW_GAME` behavior during a temporary BRD branch are not given
-special Explore suppression. Add such policy only in response to a deliberate
-feature decision and user evidence, not as incidental checkpoint complexity.
+- The Position web menu exposes manual Save Checkpoint and Restore Checkpoint
+  commands only in `Mode.PONDER`. Do not change modes automatically.
+- There is one reusable checkpoint. Saving replaces it; restoring does not
+  consume it.
+- Preserve the exact game position, move stack, active variant board, play
+  mode, game lifecycle state, and stopped clock values.
+- Restore the logical checkpoint first, then enter a protected physical-sync
+  state. No board scan or analyser output may escape while the pieces still
+  show the later PONDER position.
+- Complete restoration only when the physical board matches the checkpoint,
+  then emit `PICOTUTOR_MSG("POSOK")` and resume normal PONDER engine analysis.
+- New Game, loading another game, changing variant, setting a live position
+  outside PONDER, and ending a real game outside PONDER clear the checkpoint.
+  Flexible setup and game-ending positions inside PONDER preserve it.
+- `Mode.ANALYSIS` and `Mode.KIBITZ` have no checkpoint-specific behavior and
+  continue to preserve and save their normal PGN move stacks.
 
 Selecting a historical PGN node in the web client is browser review only.
 `Position -> Set Pos` is the explicit promotion path: it replaces the active
@@ -447,25 +411,24 @@ the same code path.
 
 - `Mode.PONDER` is analysis-only. It does not save a PGN move stack.
 - In `Mode.PONDER`, analysis must always come from the currently selected main
-  engine, except while physical BRD Explore owns the disposable branch. BRD
-  pauses all backend analysis and leaves evaluation to user-controlled browser
-  Stockfish.
+  engine. A pending physical checkpoint restore temporarily suppresses stale
+  analysis until the eboard matches the restored position.
 - Tutor analysis must never be used in `Mode.PONDER`, even if watcher/coach is
   enabled.
+- Do not push, pop, or reset Tutor for ordinary PONDER moves. Keep Tutor frozen
+  at the checkpoint anchor. If a checkpoint is saved after the PONDER position
+  has already changed, synchronize Tutor to that new anchor once; if PONDER is
+  left without restoring, synchronize Tutor to the retained live position
+  before the destination mode may enable it.
 - Entering `Mode.PONDER` must prevent tutor analysis from starting and must
   clear any stale tutor analysis shown in the web client.
 - Web client and clock analysis shown in `Mode.PONDER` must reflect the
   selected engine, not tutor.
-- During active PONDER/BRD Explore, `Position -> Side to move` and the quick
-  switch-sides command change only the disposable scratch position. They must
-  not clear or alter the saved Explore checkpoint. The scratch move stack and
-  en-passant state are deliberately reset so later legal moves and takebacks
-  use the corrected turn cleanly.
-- Takeback is always allowed while BRD owns Explore in `Mode.PONDER`,
-  `Mode.ANALYSIS`, or `Mode.KIBITZ`. The normal MAME, online-engine, and
-  takeback-lock restrictions do not apply to this disposable branch. Tutor and
-  the selected engine remain isolated, and leaving BRD still restores the
-  checkpoint regardless of how far the scratch branch was taken back.
+- In PONDER, `Position -> Side to move` and the quick switch-sides command
+  change the current analysis position without clearing the checkpoint. They
+  deliberately reset the current move stack and en-passant state.
+- Takeback is always allowed in PONDER. The normal MAME, online-engine, and
+  takeback-lock restrictions apply to playing modes, not flexible analysis.
 
 ## Non-Playing Mode Engine Switch Rules
 
@@ -481,8 +444,7 @@ the same code path.
 
 ## Tutor Behavior Outside PONDER
 
-- Non-`PONDER` modes keep the existing tutor behavior outside physical BRD
-  Explore. BRD freezes tutor at its checkpoint in `ANALYSIS` and `KIBITZ`.
+- Non-`PONDER` modes keep their existing tutor behavior.
 - If tutor is active in other non-playing modes such as `ANALYSIS`, `KIBITZ`,
   `OBSERVE`, or `PGNREPLAY`, tutor may remain the active analysis source.
 - A selected-engine change in those tutor-driven modes should not be treated as

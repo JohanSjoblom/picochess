@@ -270,80 +270,27 @@ explicitly requires it.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
 
-## Three-State WEB And BRD Explore
+## PONDER Position Checkpoint Menu
 
-With a physical eboard, Explore has an ownership control in the supported
-non-playing analysis modes:
+The physical-board checkpoint belongs to user-facing ANALYSIS
+(`Mode.PONDER`), not to browser Explore.
 
-- Backend `Mode.PONDER` (user-facing `ANALYSIS`)
-- Backend `Mode.ANALYSIS` (user-facing `MOVE HINT`/Hint On)
-- Backend `Mode.KIBITZ` (user-facing `EVAL.SCORE`/Eval)
+- Keep Explore as its original `OFF|ON` browser-local control. Do not expose a
+  physical-board ownership selector.
+- Show Save Checkpoint and Restore Checkpoint in the Position menu only while
+  the backend interaction mode is `ponder`.
+- Restore is disabled until `system_info.position_checkpoint_available` is
+  true. Save may replace the one existing checkpoint.
+- The commands do not change interaction mode and do not start or stop browser
+  Stockfish. Normal selected-engine PONDER analysis continues.
+- After restoration, the backend asks the user to set the physical pieces and
+  sends `Position ok` when synchronization completes.
+- `Mode.ANALYSIS` and `Mode.KIBITZ` keep their ordinary move-recording and
+  tutor behavior; they have no checkpoint menu actions.
 
-Only those modes show the combined `Explore OFF | WEB | BRD` control. Keep the
-legacy two-state Explore control and behavior unchanged for NOEBOARD and all
-other modes, so users outside this feature do not see a UI regression.
-
-- `OFF` means physical moves operate on the live/recorded main line.
-- `WEB` means browser moves use the local `webExploreGame` variation while the
-  backend game and physical eboard remain the anchor. In MOVE HINT and EVAL,
-  physical moves may continue recording the main line while WEB Explore is on.
-- `BRD` means physical moves use the backend's temporary checkpoint branch.
-  The browser must follow the live physical exploration position, while the
-  recorded main line remains anchored in backend checkpoint state.
-- Backend surface `sync` is a transitional state, not a fourth user choice.
-  Disable all three buttons while it is active and retain whether the user
-  requested WEB or OFF as the return target.
-- When BRD or sync starts, show the physical/live DGT position rather than a
-  stale browser variation. When synchronization finishes, rebuild the browser
-  from the restored backend game and then apply the saved WEB/OFF target.
-- The backend's `explore_surface` in shared `system_info` is authoritative for
-  BRD and sync. Do not infer physical ownership solely from local button state.
-- Do not automatically change `interaction_mode` when BRD is selected. WEB and
-  BRD are parallel Explore surfaces within the existing mode.
-
-WEB and BRD share one product invariant: Explore never changes the recorded
-main line. Their implementations are intentionally asymmetric. WEB already has
-the live backend/e-board game as an implicit anchor; BRD needs an explicit
-backend checkpoint and a set-pieces synchronization before normal input can
-resume.
-
-During BRD, PicoTutor remains frozen at the checkpoint and selected-engine
-backend analysis also stops. Browser Stockfish is the only intended analyser
-for the disposable physical branch. It remains independent and must not be
-shown, hidden, started, or stopped automatically when ownership changes. If the
-Web row is hidden or no capable browser is active, BRD still works but has no
-evaluation. Hiding the Web row remains the explicit way to stop browser CPU.
-
-Browser Stockfish results remain client-local. They are not sent back to the
-backend or DGT clock, and separate connected clients may choose different Web
-analysis visibility and settings. Clearing backend analysis on BRD entry should
-reset content to its placeholder state without changing ANALYSES-tab row
-visibility.
-
-In `Mode.PONDER` BRD Explore, `Position -> Side to move` and the quick
-switch-sides command retag only the disposable physical scratch position so
-browser Stockfish can analyse the intended side. They clear scratch history
-and en-passant state but must retain the independent Explore checkpoint. The
-normal `SETUP_POSITION` behavior stays unchanged outside this exact state; do
-not extend arbitrary turn changes to the move-preserving `Mode.ANALYSIS` or
-`Mode.KIBITZ` branches implicitly.
-
-Takeback is always available while BRD owns Explore in any supported mode,
-including when the selected engine is MAME or online and normal play would
-lock takeback. These pops affect only the disposable branch: PicoTutor and the
-selected engine remain anchored, and OFF/WEB restoration still replaces the
-whole branch with the saved checkpoint.
-
-After set-pieces synchronization, preserve the visible `Position ok`
-confirmation. It is the user's signal that BRD restoration is complete and it
-is safe to continue recording moves or change modes.
-
-PGN navigation alone remains browser review and must not silently become a BRD
-anchor. `Position -> Set Pos` explicitly promotes the selected node's PGN
-prefix to the backend live game. The web client then replaces its active tree
-with that prefix; later moves from the previously loaded game are no longer in
-the live session. Use this path when the user intends to create and record a
-new continuation from the selected point.
+PGN navigation alone remains browser review. `Position -> Set Pos` explicitly
+promotes the selected node's PGN prefix to the backend live game; it is not a
+checkpoint operation.
 
 ## Merge And Risk Guidance
 

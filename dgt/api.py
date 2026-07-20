@@ -59,7 +59,8 @@ class EventApi:
     NEW_ENGINE = "EVT_NEW_ENGINE"  # Change engine
     SET_INTERACTION_MODE = "EVT_SET_INTERACTION_MODE"  # Change interaction mode
     SET_PGN_REPLAY_TUTOR_REGENERATION = "EVT_SET_PGN_REPLAY_TUTOR_REGENERATION"
-    SET_EXPLORE_SURFACE = "EVT_SET_EXPLORE_SURFACE"
+    SAVE_POSITION_CHECKPOINT = "EVT_SAVE_POSITION_CHECKPOINT"
+    RESTORE_POSITION_CHECKPOINT = "EVT_RESTORE_POSITION_CHECKPOINT"
     SETUP_POSITION = "EVT_SETUP_POSITION"  # Setup custom position
     PAUSE_RESUME = "EVT_PAUSE_RESUME"  # Stops search or halt/resume running clock
     SWITCH_SIDES = "EVT_SWITCH_SIDES"  # Switch the side
@@ -110,7 +111,6 @@ class MessageApi:
     BOOK_MOVE = "MSG_BOOK_MOVE"  # Show book move
     NEW_PV = "MSG_NEW_PV"  # Show the new Principal Variation
     WEB_ANALYSIS = "MSG_WEB_ANALYSIS"  # Web-only analysis payload
-    CLEAR_ANALYSIS = "MSG_CLEAR_ANALYSIS"  # Clear cached backend analysis from physical displays
     REVIEW_MOVE_DONE = "MSG_REVIEW_MOVE_DONE"  # Player is reviewing a game (analysis, kibitz or observe modes)
     ENGINE_READY = "MSG_ENGINE_READY"
     ENGINE_STARTUP = "MSG_ENGINE_STARTUP"  # first time a new engine is ready
@@ -244,7 +244,6 @@ class Message:
     BOOK_MOVE = ClassFactory(MessageApi.BOOK_MOVE, [])
     NEW_PV = ClassFactory(MessageApi.NEW_PV, ["pv", "mode", "game"])
     WEB_ANALYSIS = ClassFactory(MessageApi.WEB_ANALYSIS, ["analysis"])
-    CLEAR_ANALYSIS = ClassFactory(MessageApi.CLEAR_ANALYSIS, [])
     REVIEW_MOVE_DONE = ClassFactory(MessageApi.REVIEW_MOVE_DONE, ["move", "fen", "turn", "game"])
     ENGINE_READY = ClassFactory(
         MessageApi.ENGINE_READY, ["eng", "eng_text", "engine_name", "has_levels", "has_960", "has_ponder", "show_ok"]
@@ -350,7 +349,8 @@ class Event:
         EventApi.SET_PGN_REPLAY_TUTOR_REGENERATION,
         ["enabled"],
     )
-    SET_EXPLORE_SURFACE = ClassFactory(EventApi.SET_EXPLORE_SURFACE, ["surface"])
+    SAVE_POSITION_CHECKPOINT = ClassFactory(EventApi.SAVE_POSITION_CHECKPOINT, [])
+    RESTORE_POSITION_CHECKPOINT = ClassFactory(EventApi.RESTORE_POSITION_CHECKPOINT, [])
     SETUP_POSITION = ClassFactory(
         EventApi.SETUP_POSITION,
         ["fen", "uci960", "game", "preserve_play_mode", "side_only"],

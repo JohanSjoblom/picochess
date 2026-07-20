@@ -307,7 +307,8 @@ class TestServerChannelAuth(unittest.TestCase):
             "contlast",
             "new_book",
             "pause_resume",
-            "explore_surface",
+            "save_position_checkpoint",
+            "restore_position_checkpoint",
             "scan_board",
             "set_position_side",
         ):

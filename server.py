@@ -865,14 +865,26 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.PICOCOACH(picocoach=PicoCoach.COACH_OFF))
         elif action == "pause_resume":
             await Observable.fire(Event.PAUSE_RESUME())
-        elif action == "explore_surface":
-            surface = self.get_argument("surface", "").strip().lower()
-            if surface not in ("web", "brd"):
-                self.set_status(400)
-                self.write({"success": False, "error": "Invalid Explore surface"})
+        elif action == "save_position_checkpoint":
+            mode = str((self.shared.get("system_info") or {}).get("interaction_mode", "")).lower()
+            if mode != "ponder":
+                self.set_status(409)
+                self.write({"success": False, "error": "Checkpoint commands require ANALYSIS mode"})
                 return
-            await Observable.fire(Event.SET_EXPLORE_SURFACE(surface=surface))
-            self.write({"success": True, "surface": surface})
+            await Observable.fire(Event.SAVE_POSITION_CHECKPOINT())
+            self.write({"success": True})
+        elif action == "restore_position_checkpoint":
+            system_info = self.shared.get("system_info") or {}
+            if str(system_info.get("interaction_mode", "")).lower() != "ponder":
+                self.set_status(409)
+                self.write({"success": False, "error": "Checkpoint commands require ANALYSIS mode"})
+                return
+            if not system_info.get("position_checkpoint_available", False):
+                self.set_status(409)
+                self.write({"success": False, "error": "No checkpoint is available"})
+                return
+            await Observable.fire(Event.RESTORE_POSITION_CHECKPOINT())
+            self.write({"success": True})
         elif action == "resign_game":
             play_mode = (self.shared.get("game_info") or {}).get("play_mode")
             if play_mode == PlayMode.USER_BLACK:
@@ -2679,7 +2691,7 @@ class WebDisplay(DisplayMsg):
         if "system_info" not in self.shared:
             self.shared["system_info"] = {}
         self.shared["system_info"]["version"] = pico_version
-        self.shared["system_info"].setdefault("explore_surface", "web")
+        self.shared["system_info"].setdefault("position_checkpoint_available", False)
 
     def _set_pending_engine_move(self, pending: bool):
         """Publish whether an announced engine move is waiting on the physical board."""

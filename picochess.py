@@ -411,22 +411,18 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
-        # WEB/BRD Explore handoff in non-playing analysis modes. Preserve the
-        # anchor's move history so physical sidelines remain temporary.
-        self.explore_surface = "web"
-        self.explore_checkpoint_game: chess.Board | None = None
-        self.explore_checkpoint_variant = None
-        self.explore_checkpoint_variant_name: str | None = None
-        self.explore_origin_mode: Mode | None = None
-        self.explore_checkpoint_origin_mode: Mode | None = None
-        self.explore_checkpoint_play_mode: PlayMode | None = None
-        self.explore_checkpoint_game_started: bool | None = None
-        self.explore_checkpoint_time_control: dict[str, Any] | None = None
-        self.explore_return_play_mode: PlayMode | None = None
-        self.explore_return_mode: Mode | None = None
-        self.explore_return_fen: str | None = None
-        self.explore_return_moves: tuple[chess.Move, ...] | None = None
-        self.explore_restore_pending = False
+        # One reusable PONDER checkpoint. It preserves the complete position
+        # and move stack while the user freely analyses on the physical board.
+        self.position_checkpoint_game: chess.Board | None = None
+        self.position_checkpoint_variant = None
+        self.position_checkpoint_variant_name: str | None = None
+        self.position_checkpoint_play_mode: PlayMode | None = None
+        self.position_checkpoint_game_started: bool | None = None
+        self.position_checkpoint_time_control: dict[str, Any] | None = None
+        self.position_checkpoint_restore_pending = False
+        self.position_checkpoint_restored_play_mode: PlayMode | None = None
+        self.position_checkpoint_restored_fen: str | None = None
+        self.position_checkpoint_restored_moves: tuple[chess.Move, ...] | None = None
         # Chess variant support (e.g., "3check", "atomic")
         self.variant = "chess"
         self._threecheck_board = None  # chess.variant.ThreeCheckBoard instance when variant == "3check"
@@ -434,20 +430,19 @@ class PicochessState:
         self._racingkings_board = None  # chess.variant.RacingKingsBoard instance when variant == "racingkings"
         self._antichess_board = None  # chess.variant.AntichessBoard instance when variant == "antichess"
 
-    def set_explore_checkpoint(self) -> None:
-        """Remember the current position plus enough context for a safe return."""
-        self.explore_checkpoint_game = self.game.copy(stack=True)
+    def save_position_checkpoint(self) -> None:
+        """Remember the current PONDER position plus its complete move history."""
+        self.position_checkpoint_game = self.game.copy(stack=True)
         variant_board = self.get_variant_board()
-        self.explore_checkpoint_variant = variant_board.copy(stack=True) if variant_board is not None else None
-        self.explore_checkpoint_variant_name = self.variant
-        self.explore_checkpoint_origin_mode = self.explore_origin_mode
-        self.explore_checkpoint_play_mode = self.play_mode
-        self.explore_checkpoint_game_started = self.game_started
-        self.explore_checkpoint_time_control = self._snapshot_explore_time_control()
-        self._clear_explore_return_context()
-        self.explore_restore_pending = False
+        self.position_checkpoint_variant = variant_board.copy(stack=True) if variant_board is not None else None
+        self.position_checkpoint_variant_name = self.variant
+        self.position_checkpoint_play_mode = self.play_mode
+        self.position_checkpoint_game_started = self.game_started
+        self.position_checkpoint_time_control = self._snapshot_position_checkpoint_time_control()
+        self.position_checkpoint_restore_pending = False
+        self._clear_position_checkpoint_restore_context()
 
-    def _snapshot_explore_time_control(self) -> dict[str, Any] | None:
+    def _snapshot_position_checkpoint_time_control(self) -> dict[str, Any] | None:
         """Copy stopped-clock state without retaining mutable timer dictionaries."""
         if self.time_control is None:
             return None
@@ -457,9 +452,9 @@ class PicochessState:
             "moves_to_go": self.time_control.moves_to_go,
         }
 
-    def _restore_explore_time_control(self) -> None:
+    def _restore_position_checkpoint_time_control(self) -> None:
         """Restore checkpoint clock values, deliberately leaving the clock stopped."""
-        snapshot = self.explore_checkpoint_time_control
+        snapshot = self.position_checkpoint_time_control
         if self.time_control is None or snapshot is None:
             return
         self.time_control.stop_internal(log=False)
@@ -480,41 +475,32 @@ class PicochessState:
         self.time_control.active_color = None
         self.time_control.start_time = None
 
-    def _clear_explore_return_context(self) -> None:
-        self.explore_return_play_mode = None
-        self.explore_return_mode = None
-        self.explore_return_fen = None
-        self.explore_return_moves = None
-
-    def can_preserve_restored_explore_play_mode(self, return_mode: Mode) -> bool:
-        """Return whether the untouched restored checkpoint may resume a playing mode."""
-        return bool(
-            self.explore_return_play_mode is not None
-            and self.explore_return_mode == return_mode
-            and self.explore_return_fen == self.game.fen()
-            and self.explore_return_moves == tuple(self.game.move_stack)
-        )
-
-    def physical_explore_active(self) -> bool:
-        """Return whether temporary physical Explore moves own the live board."""
-        return bool(
-            physical_explore_allowed_in_mode(self.interaction_mode)
-            and self.explore_surface in ("brd", "sync")
-        )
-
-    def has_compatible_explore_checkpoint(self) -> bool:
+    def has_compatible_position_checkpoint(self) -> bool:
         """Return whether the checkpoint can be restored for the active variant."""
         return bool(
-            self.explore_checkpoint_game is not None
-            and self.explore_checkpoint_variant_name == self.variant
+            self.position_checkpoint_game is not None
+            and self.position_checkpoint_variant_name == self.variant
         )
 
-    def restore_explore_checkpoint(self) -> bool:
-        """Restore the saved position and discard only its temporary branch."""
-        if not self.has_compatible_explore_checkpoint():
+    def _clear_position_checkpoint_restore_context(self) -> None:
+        self.position_checkpoint_restored_play_mode = None
+        self.position_checkpoint_restored_fen = None
+        self.position_checkpoint_restored_moves = None
+
+    def can_preserve_position_checkpoint_play_mode(self) -> bool:
+        """Return whether play may resume from an unchanged restored checkpoint."""
+        return bool(
+            self.position_checkpoint_restored_play_mode is not None
+            and self.position_checkpoint_restored_fen == self.game.fen()
+            and self.position_checkpoint_restored_moves == tuple(self.game.move_stack)
+        )
+
+    def restore_position_checkpoint(self) -> bool:
+        """Restore the saved position and complete move stack."""
+        if not self.has_compatible_position_checkpoint():
             return False
-        self.game = self.explore_checkpoint_game.copy(stack=True)
-        checkpoint_variant = self.explore_checkpoint_variant
+        self.game = self.position_checkpoint_game.copy(stack=True)
+        checkpoint_variant = self.position_checkpoint_variant
         if self.variant == "3check":
             self._threecheck_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "atomic":
@@ -523,49 +509,41 @@ class PicochessState:
             self._racingkings_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
         elif self.variant == "antichess":
             self._antichess_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
-        if self.explore_checkpoint_play_mode is not None:
-            self.play_mode = self.explore_checkpoint_play_mode
-        if self.explore_checkpoint_game_started is not None:
-            self.game_started = self.explore_checkpoint_game_started
-        self._restore_explore_time_control()
-        self.explore_return_play_mode = self.explore_checkpoint_play_mode
-        self.explore_return_mode = self.explore_checkpoint_origin_mode
-        self.explore_return_fen = self.game.fen()
-        self.explore_return_moves = tuple(self.game.move_stack)
+        if self.position_checkpoint_play_mode is not None:
+            self.play_mode = self.position_checkpoint_play_mode
+        if self.position_checkpoint_game_started is not None:
+            self.game_started = self.position_checkpoint_game_started
+        self._restore_position_checkpoint_time_control()
+        self.position_checkpoint_restored_play_mode = self.position_checkpoint_play_mode
+        self.position_checkpoint_restored_fen = self.game.fen()
+        self.position_checkpoint_restored_moves = tuple(self.game.move_stack)
         return True
 
-    def set_explore_scratch_turn(self, turn: chess.Color) -> bool:
-        """Retag a PONDER/BRD scratch position without touching its checkpoint."""
-        if (
-            self.interaction_mode != Mode.PONDER
-            or self.explore_surface != "brd"
-            or not self.has_compatible_explore_checkpoint()
-            or self.variant != "chess"
-        ):
+    def set_ponder_turn(self, turn: chess.Color) -> bool:
+        """Retag the current standard-chess PONDER position without touching its checkpoint."""
+        if self.interaction_mode != Mode.PONDER or self.variant != "chess":
             return False
 
         # A side correction starts a fresh disposable line. Keeping the old
         # scratch stack would make later pops restore turns from before the
-        # correction. The independent checkpoint still owns the real history.
+        # correction. An independent checkpoint, when present, still owns the
+        # saved history.
         scratch = self.game.copy(stack=False)
         scratch.turn = bool(turn)
         scratch.ep_square = None
         self.game = scratch
         return True
 
-    def clear_explore_checkpoint(self, preserve_return_context: bool = False) -> None:
-        """Discard any active WEB/BRD handoff state."""
-        self.explore_surface = "web"
-        self.explore_checkpoint_game = None
-        self.explore_checkpoint_variant = None
-        self.explore_checkpoint_variant_name = None
-        self.explore_checkpoint_origin_mode = None
-        self.explore_checkpoint_play_mode = None
-        self.explore_checkpoint_game_started = None
-        self.explore_checkpoint_time_control = None
-        if not preserve_return_context:
-            self._clear_explore_return_context()
-        self.explore_restore_pending = False
+    def clear_position_checkpoint(self) -> None:
+        """Discard the saved PONDER checkpoint."""
+        self.position_checkpoint_game = None
+        self.position_checkpoint_variant = None
+        self.position_checkpoint_variant_name = None
+        self.position_checkpoint_play_mode = None
+        self.position_checkpoint_game_started = None
+        self.position_checkpoint_time_control = None
+        self.position_checkpoint_restore_pending = False
+        self._clear_position_checkpoint_restore_context()
 
     def push_move(self, move: chess.Move) -> None:
         """Push a move to the game board and sync variant board if active."""
@@ -1169,25 +1147,15 @@ def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     return interaction_mode != Mode.PONDER
 
 
-def physical_explore_allowed_in_mode(interaction_mode: Mode) -> bool:
-    """Return whether a mode supports temporary legal variations on the e-board."""
-    return interaction_mode in (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ)
-
-
-def backend_analysis_allowed_during_physical_explore(physical_explore_active: bool) -> bool:
-    """BRD variations belong to user-controlled browser analysis, not backend engines."""
-    return not physical_explore_active
-
-
 def should_block_takeback(
     take_back_locked: bool,
     online_mode: bool,
     emulation_mode: bool,
     automatic_takeback: bool,
-    physical_explore_brd_active: bool = False,
+    ponder_mode: bool = False,
 ) -> bool:
-    """Keep normal takeback guards, except inside the disposable BRD branch."""
-    if physical_explore_brd_active:
+    """Keep normal takeback guards, except in flexible PONDER analysis."""
+    if ponder_mode:
         return False
     return bool(
         take_back_locked
@@ -1203,13 +1171,9 @@ def should_use_tutor_analysis(
     engine_is_playing: bool,
     engine_move_was_book: bool,
     is_user_turn: bool,
-    physical_explore_active: bool = False,
 ) -> bool:
     """Return True when tutor analysis should replace engine analysis."""
-    if (
-        not backend_analysis_allowed_during_physical_explore(physical_explore_active)
-        or not tutor_analysis_allowed_in_mode(interaction_mode)
-    ):
+    if not tutor_analysis_allowed_in_mode(interaction_mode):
         return False
     if pgn_mode or engine_should_skip_analyser:
         return True
@@ -2439,12 +2403,10 @@ async def main() -> None:
         def picotutor_mode(self):
             enabled = False
 
-            # Physical Explore is a temporary scratch branch. Keep PicoTutor
-            # on the checkpoint so its move and evaluation history can resume
-            # unchanged after the physical board is restored.
-            if self.state.explore_restore_pending or not backend_analysis_allowed_during_physical_explore(
-                self.state.physical_explore_active()
-            ):
+            # PONDER is an independent physical-analysis sandbox. Keep the
+            # tutor board, move history, and evaluations frozen at its anchor;
+            # selected-engine analysis is the only backend analysis in PONDER.
+            if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return False
 
             # Disable PicoTutor for chess variants (3check, etc.)
@@ -2483,7 +2445,7 @@ async def main() -> None:
             if self.engine and hasattr(self.engine, "variant"):
                 new_variant = self.engine.variant
                 if new_variant != prev_variant:
-                    self._clear_explore_handoff()
+                    self._clear_position_checkpoint()
                 # Variants with non-standard board state should reset when switching away.
                 # Racing Kings has a custom start position; Atomic keeps explosions only
                 # on its variant board while self.state.game keeps standard captures.
@@ -2826,12 +2788,12 @@ async def main() -> None:
                     self.state.dgtmenu.set_dgt_fen(flipped_fen)
                     fen = flipped_fen
 
-            # Returning from BRD to WEB restores the saved logical position
-            # first, then waits for the physical pieces.  During that short
-            # window no scan may fall through to flexible PONDER setup.
-            if self.state.explore_restore_pending:
+            # A checkpoint restore updates the logical position first, then
+            # waits for the physical pieces. During that window no scan may
+            # fall through to flexible PONDER setup.
+            if self.state.position_checkpoint_restore_pending:
                 if fen == self.state.get_board_fen():
-                    await self._finish_explore_restore()
+                    await self._finish_position_checkpoint_restore()
                 else:
                     self.state.stop_fen_timer()
                     self.state.error_fen = fen
@@ -3299,11 +3261,7 @@ async def main() -> None:
                     online_mode=self.online_mode(),
                     emulation_mode=self.emulation_mode(),
                     automatic_takeback=self.state.automatic_takeback,
-                    physical_explore_brd_active=(
-                        self.state.explore_surface == "brd"
-                        and self.state.has_compatible_explore_checkpoint()
-                        and physical_explore_allowed_in_mode(self.state.interaction_mode)
-                    ),
+                    ponder_mode=self.state.interaction_mode == Mode.PONDER,
                 ):
                     handled_fen = False
                 else:
@@ -3913,14 +3871,11 @@ async def main() -> None:
                 engine_is_playing=self.eng_plays(),
                 engine_move_was_book=self.state.engine_move_was_book,
                 is_user_turn=self.state.is_user_turn(),
-                physical_explore_active=self.state.physical_explore_active(),
             )
 
         def need_engine_analyser(self) -> bool:
             """return true if engine is analysing moves based on PlayMode"""
-            if self.state.explore_restore_pending or not backend_analysis_allowed_during_physical_explore(
-                self.state.physical_explore_active()
-            ):
+            if self.state.position_checkpoint_restore_pending:
                 return False
             if self.pgn_mode() or (self.engine and self.engine.should_skip_engine_analyser()):
                 return False
@@ -3954,8 +3909,6 @@ async def main() -> None:
 
         def tutor_analysis_enabled_for_current_mode(self) -> bool:
             """Return whether tutor analysis should run for the current mode."""
-            if not backend_analysis_allowed_during_physical_explore(self.state.physical_explore_active()):
-                return False
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return False
             if self.playing_game_analysis_stopped():
@@ -3990,83 +3943,99 @@ async def main() -> None:
             self.shared["system_info"]["game_started"] = started
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"game_started": started}})
 
-        def _publish_explore_surface(self, surface: str) -> None:
-            """Publish the global physical Explore handoff state to web clients."""
-            self.state.explore_surface = surface
+        def _publish_position_checkpoint_available(self) -> None:
+            """Publish whether the current variant has a reusable checkpoint."""
             self.shared.setdefault("system_info", {})
-            update = {"explore_surface": surface}
+            update = {
+                "position_checkpoint_available": self.state.has_compatible_position_checkpoint()
+            }
             self.shared["system_info"].update(update)
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
-        def _clear_explore_handoff(self) -> None:
-            """Drop a physical Explore handoff without changing the current board."""
-            restore_was_pending = self.state.explore_restore_pending
-            had_handoff = bool(
-                self.state.explore_surface != "web"
-                or self.state.explore_checkpoint_game is not None
-                or restore_was_pending
-            )
+        def _clear_position_checkpoint(self) -> None:
+            """Drop the manual checkpoint and cancel any pending physical restore."""
+            restore_was_pending = self.state.position_checkpoint_restore_pending
             if restore_was_pending:
                 self.state.stop_fen_timer()
                 self.state.error_fen = None
                 self.state.fen_error_occured = False
                 self.state.position_mode = False
                 self.state.delay_fen_error = 4
-            self.state.clear_explore_checkpoint()
-            if had_handoff:
-                self._publish_explore_surface("web")
+            self.state.clear_position_checkpoint()
+            self._publish_position_checkpoint_available()
 
-        async def _reconcile_explore_analysis_sources(self) -> None:
-            """Pause backend analysis during BRD and restore normal routing on WEB."""
-            tutor_analysis_enabled = self.tutor_analysis_enabled_for_current_mode()
-            if self.state.picotutor is not None:
-                await self.state.picotutor.set_analysis_enabled(tutor_analysis_enabled)
-            self.state.best_sent_depth.reset()
-            await DisplayMsg.show(Message.CLEAR_ANALYSIS())
-            await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
-            await self._start_or_stop_analysis_as_needed()
-
-        async def _finish_explore_restore(self) -> None:
-            """Complete physical synchronization and resume normal mode analysis."""
-            logger.info("physical Explore checkpoint restored")
+        async def _finish_position_checkpoint_restore(self) -> None:
+            """Complete physical synchronization and resume PONDER analysis."""
+            logger.info("position checkpoint restore complete")
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.fen_error_occured = False
             self.state.position_mode = False
             self.state.delay_fen_error = 4
-            # Keep the one-shot return context so a subsequent manual switch
-            # back to a playing mode can preserve its original play side.
-            self.state.clear_explore_checkpoint(preserve_return_context=True)
-            self._publish_explore_surface("web")
+            self.state.position_checkpoint_restore_pending = False
             await DisplayMsg.show(
                 Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
             )
             await asyncio.sleep(1)
             await DisplayMsg.show(Message.EXIT_MENU())
-            await self._reconcile_explore_analysis_sources()
+            await self._start_or_stop_analysis_as_needed()
 
-        async def _restore_explore_checkpoint(self) -> None:
-            """Restore the WEB/BRD handoff position and wait for the e-board."""
-            if not self.state.has_compatible_explore_checkpoint():
-                logger.warning("Explore restore requested without a compatible checkpoint")
-                self._clear_explore_handoff()
+        async def _save_position_checkpoint(self) -> None:
+            """Save a settled PONDER position and its full move stack."""
+            if self.state.interaction_mode != Mode.PONDER:
+                logger.warning("position checkpoints can only be saved in PONDER")
+                return
+            physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
+            if (
+                self.state.position_mode
+                or self.state.fen_timer_running
+                or (
+                    self.board_type != dgt.util.EBoard.NOEBOARD
+                    and physical_fen != self.state.get_board_fen()
+                )
+            ):
+                logger.info("position checkpoint requires a settled e-board")
+                await DisplayMsg.show(Message.WRONG_FEN())
+                return
+            self.state.save_position_checkpoint()
+            # Normally Tutor is already at this position because PONDER never
+            # pushed moves to it. If the checkpoint is saved after the user has
+            # already changed the PONDER position, establish that new anchor
+            # once and then leave Tutor frozen there.
+            if (
+                self.state.picotutor is not None
+                and self.state.picotutor.board.fen() != self.state.game.fen()
+            ):
+                await self.state.picotutor.set_analysis_enabled(False)
+                await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
+            self._publish_position_checkpoint_available()
+            logger.info("position checkpoint saved at %s", self.state.get_fen())
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="CHECKPOINT SAVED"))
+
+        async def _restore_position_checkpoint(self) -> None:
+            """Restore the manual PONDER checkpoint and wait for the e-board."""
+            if self.state.interaction_mode != Mode.PONDER:
+                logger.warning("position checkpoints can only be restored in PONDER")
+                return
+            if not self.state.has_compatible_position_checkpoint():
+                logger.warning("checkpoint restore requested without a compatible checkpoint")
+                self._publish_position_checkpoint_available()
                 return
 
             await self.engine.stop_analysis()
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.position_mode = False
-            if not self.state.restore_explore_checkpoint():
-                self._clear_explore_handoff()
+            if not self.state.restore_position_checkpoint():
+                self._publish_position_checkpoint_available()
                 return
             self._set_game_started(self.state.game_started)
 
             # Block all analyser output before the first await below.  The
             # logical position is restored now; the e-board may still show the
             # explored branch for an arbitrary amount of time.
-            self.state.explore_restore_pending = True
+            self.state.position_checkpoint_restore_pending = True
             self.state.position_mode = True
-            self._publish_explore_surface("sync")
             self._update_variant_shared()
             self.state.best_sent_depth.reset()
             self.state.done_computer_fen = None
@@ -4083,72 +4052,35 @@ async def main() -> None:
             await self.engine.newgame(self.state.engine_board_copy(), False)
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
             await DisplayMsg.show(self.state.new_game_msg(newgame=False))
-            await self.set_picotutor_position(new_game=True)
 
             physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
-            if physical_fen == self.state.get_board_fen():
-                await self._finish_explore_restore()
+            if self.board_type == dgt.util.EBoard.NOEBOARD or physical_fen == self.state.get_board_fen():
+                await self._finish_position_checkpoint_restore()
                 return
 
             await self._start_or_stop_analysis_as_needed()
             await DisplayMsg.show(Message.WRONG_FEN())
 
-        async def _set_explore_surface(self, surface: str) -> None:
-            """Switch physical ANALYSIS exploration between WEB and BRD."""
-            surface = str(surface or "").strip().lower()
-            if surface not in ("web", "brd"):
-                logger.warning("invalid Explore surface requested: %s", surface)
-                return
-            if (
-                not physical_explore_allowed_in_mode(self.state.interaction_mode)
-                or self.board_type == dgt.util.EBoard.NOEBOARD
-            ):
-                logger.warning(
-                    "Explore surface %s is only available in PONDER, ANALYSIS, or KIBITZ with an e-board",
-                    surface,
-                )
-                self._clear_explore_handoff()
-                return
-            if self.state.explore_restore_pending:
-                logger.info("ignoring Explore surface change while physical restore is pending")
-                return
-            if surface == "brd":
-                if self.state.explore_surface == "brd":
-                    return
-                physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
-                if (
-                    self.state.position_mode
-                    or self.state.fen_timer_running
-                    or physical_fen != self.state.get_board_fen()
-                ):
-                    logger.info("physical Explore requires a settled e-board at the analysis position")
-                    self._publish_explore_surface("web")
-                    await DisplayMsg.show(Message.WRONG_FEN())
-                    return
-                self.state.set_explore_checkpoint()
-                self._publish_explore_surface("brd")
-                logger.info("physical Explore started from checkpoint %s", self.state.get_fen())
-                await self._reconcile_explore_analysis_sources()
-            elif self.state.explore_surface == "brd":
-                await self._restore_explore_checkpoint()
-
-        async def _set_explore_scratch_turn(self, turn: chess.Color) -> None:
-            """Change only the disposable PONDER/BRD position's side to move."""
+        async def _set_ponder_turn(self, turn: chess.Color) -> None:
+            """Change the current PONDER position's side to move."""
             physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
             if (
                 self.state.position_mode
                 or self.state.fen_timer_running
-                or physical_fen != self.state.get_board_fen()
+                or (
+                    self.board_type != dgt.util.EBoard.NOEBOARD
+                    and physical_fen != self.state.get_board_fen()
+                )
             ):
-                logger.info("physical Explore side change requires a settled e-board position")
+                logger.info("PONDER side change requires a settled e-board position")
                 await DisplayMsg.show(Message.WRONG_FEN())
                 return
-            if not self.state.set_explore_scratch_turn(turn):
-                logger.warning("physical Explore side change is only available in standard PONDER/BRD")
+            if not self.state.set_ponder_turn(turn):
+                logger.warning("side change is only available in standard PONDER")
                 return
 
             logger.info(
-                "physical Explore scratch side changed to %s",
+                "PONDER side changed to %s",
                 "white" if turn == chess.WHITE else "black",
             )
             self.state.stop_fen_timer()
@@ -4165,8 +4097,11 @@ async def main() -> None:
             self.state.legal_fens = compute_legal_fens(self.state.game.copy())
             self.state.legal_fens_after_cmove = []
             self.state.last_legal_fens = []
+            await self.engine.newgame(self.state.engine_board_copy(), False)
+            await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
             await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
             await DisplayMsg.show(self.state.new_game_msg(newgame=False))
+            await self._start_or_stop_analysis_as_needed()
 
         def _set_pgn_replay_autoplay(self, enabled: bool, mode: Mode | None = None) -> None:
             """Update PGN replay autoplay and publish it to connected web clients."""
@@ -4235,16 +4170,10 @@ async def main() -> None:
         async def analyse(self, triggered_by_timer: bool = False, allow_autoplay: bool = True) -> InfoDict | None:
             """analyse, observe etc depening on mode - create analysis info
             this is executed periodically in the background_analyse_timer task"""
-            if self.state.explore_restore_pending:
+            if self.state.position_checkpoint_restore_pending:
                 # The logical board already contains the checkpoint, but the
                 # physical board does not yet match it.  Do not display a
                 # cached evaluation for a position the user has not restored.
-                await self._start_or_stop_analysis_as_needed()
-                return None
-            if not backend_analysis_allowed_during_physical_explore(self.state.physical_explore_active()):
-                # BRD Explore is analysed only by user-controlled browser
-                # Stockfish. Do not publish stale tutor or selected-engine
-                # buffers for the disposable physical branch.
                 await self._start_or_stop_analysis_as_needed()
                 return None
             info: InfoDict | None = None
@@ -4518,12 +4447,12 @@ async def main() -> None:
                 internal_fen = game_fen
                 external_fen = self.state.error_fen
                 fen_res = compare_fen(external_fen, internal_fen)
-                if self.state.explore_restore_pending:
-                    logger.info("waiting for physical Explore checkpoint position")
+                if self.state.position_checkpoint_restore_pending:
+                    logger.info("waiting for physical checkpoint position")
                     if fen_res:
                         await DisplayMsg.show(Message.POSITION_FAIL(fen_result=fen_res))
                     else:
-                        await self._finish_explore_restore()
+                        await self._finish_position_checkpoint_restore()
                     return
                 if fen_res and len(fen_res) > 4:
                     lifted_piece_char = fen_res[4]
@@ -5396,6 +5325,8 @@ async def main() -> None:
             #  @todo2 should be more state variables to reset here?
             self._set_game_started(False)
             self._set_pgn_replay_autoplay(False)  # prevent autoplay starting for next pgn read
+            if self.state.interaction_mode != Mode.PONDER:
+                self._clear_position_checkpoint()
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
             self.state.pgn_engine_games = []
@@ -5448,6 +5379,14 @@ async def main() -> None:
                 and not isinstance(event, Event.NEW_SCORE)
             ):
                 logger.debug("received event from evt_queue: %s", event)
+            if (
+                self.state.position_checkpoint_restore_pending
+                and isinstance(event, Event.SET_INTERACTION_MODE)
+                and event.mode != Mode.PONDER
+            ):
+                logger.info("ignoring mode change until the physical checkpoint restore is complete")
+                await DisplayMsg.show(Message.WRONG_FEN())
+                return
             if isinstance(event, Event.FEN):
                 await self.process_fen(event.fen, self.state)
 
@@ -5859,18 +5798,18 @@ async def main() -> None:
                 isinstance(event, Event.SETUP_POSITION)
                 and getattr(event, "side_only", False)
                 and self.state.interaction_mode == Mode.PONDER
-                and self.state.explore_surface == "brd"
             ):
                 try:
-                    explore_turn = chess.Board(event.fen, chess960=event.uci960).turn
+                    ponder_turn = chess.Board(event.fen, chess960=event.uci960).turn
                 except (TypeError, ValueError):
-                    logger.warning("invalid physical Explore side-change fen: %s", event.fen)
+                    logger.warning("invalid PONDER side-change fen: %s", event.fen)
                 else:
-                    await self._set_explore_scratch_turn(explore_turn)
+                    await self._set_ponder_turn(ponder_turn)
 
             elif isinstance(event, Event.SETUP_POSITION):
                 logger.debug("setting up custom fen: %s", event.fen)
-                self._clear_explore_handoff()
+                if self.state.interaction_mode != Mode.PONDER:
+                    self._clear_position_checkpoint()
                 uci960 = event.uci960
                 self.state.position_mode = False
                 self.reset_setpieces_window_switch()
@@ -5956,7 +5895,7 @@ async def main() -> None:
                 await asyncio.sleep(1)
 
             elif isinstance(event, Event.NEW_GAME):
-                self._clear_explore_handoff()
+                self._clear_position_checkpoint()
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
@@ -6358,9 +6297,8 @@ async def main() -> None:
             elif (
                 isinstance(event, Event.SWITCH_SIDES)
                 and self.state.interaction_mode == Mode.PONDER
-                and self.state.explore_surface == "brd"
             ):
-                await self._set_explore_scratch_turn(not self.state.game.turn)
+                await self._set_ponder_turn(not self.state.game.turn)
 
             elif isinstance(event, Event.SWITCH_SIDES):
                 self.state.best_sent_depth.reset()  # safest to drop optimisation when switching sides
@@ -7151,16 +7089,12 @@ async def main() -> None:
 
             elif isinstance(event, Event.SET_INTERACTION_MODE):
                 self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
-                preserve_restored_explore_play_mode = bool(
-                    self.state.interaction_mode == Mode.PONDER
+                leaving_ponder = self.state.interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
+                preserve_checkpoint_play_mode = bool(
+                    leaving_ponder
                     and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
-                    and self.state.can_preserve_restored_explore_play_mode(event.mode)
+                    and self.state.can_preserve_position_checkpoint_play_mode()
                 )
-                if self.state.interaction_mode == Mode.PONDER and event.mode != Mode.PONDER:
-                    self._clear_explore_handoff()
-                    self.state.explore_origin_mode = None
-                elif self.state.physical_explore_active() and event.mode != self.state.interaction_mode:
-                    self._clear_explore_handoff()
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
                     await self.get_rid_of_engine_move()  # force/get-rid of engine move
@@ -7195,16 +7129,24 @@ async def main() -> None:
                             await self.read_pgn_file(file_name_only, start_replay=True)
                         await self._start_or_stop_analysis_as_needed()
                     else:
-                        if event.mode == Mode.PONDER and self.state.interaction_mode != Mode.PONDER:
-                            self.state.explore_origin_mode = self.state.interaction_mode
                         self.state.interaction_mode = event.mode
+                        # If the user deliberately keeps the changed PONDER
+                        # position instead of restoring, synchronize Tutor once
+                        # before the destination mode can enable it again.
+                        if (
+                            leaving_ponder
+                            and self.state.picotutor is not None
+                            and self.state.picotutor.board.fen() != self.state.game.fen()
+                        ):
+                            await self.state.picotutor.set_analysis_enabled(False)
+                            await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
                         await self.engine_mode()
                         msg = Message.INTERACTION_MODE(
                             mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
                         )
                         await self.set_wait_state(
                             msg,
-                            preserve_play_mode=preserve_restored_explore_play_mode,
+                            preserve_play_mode=preserve_checkpoint_play_mode,
                         )  # dont clear searchmoves here
 
             elif isinstance(event, Event.SET_PGN_REPLAY_TUTOR_REGENERATION):
@@ -7214,8 +7156,11 @@ async def main() -> None:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 await self._start_or_stop_analysis_as_needed()
 
-            elif isinstance(event, Event.SET_EXPLORE_SURFACE):
-                await self._set_explore_surface(event.surface)
+            elif isinstance(event, Event.SAVE_POSITION_CHECKPOINT):
+                await self._save_position_checkpoint()
+
+            elif isinstance(event, Event.RESTORE_POSITION_CHECKPOINT):
+                await self._restore_position_checkpoint()
 
             elif isinstance(event, Event.SET_OPENING_BOOK):
                 book_file = event.book["file"]
@@ -7249,7 +7194,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.READ_GAME):
                 if event.pgn_filename:
-                    self._clear_explore_handoff()
+                    self._clear_position_checkpoint()
                     show_headers = getattr(event, "show_headers", True)
                     if show_headers:
                         await DisplayMsg.show(Message.READ_GAME(pgn_filename=event.pgn_filename))
@@ -7501,11 +7446,7 @@ async def main() -> None:
                         online_mode=self.online_mode(),
                         emulation_mode=self.emulation_mode(),
                         automatic_takeback=self.state.automatic_takeback,
-                        physical_explore_brd_active=(
-                            self.state.explore_surface == "brd"
-                            and self.state.has_compatible_explore_checkpoint()
-                            and physical_explore_allowed_in_mode(self.state.interaction_mode)
-                        ),
+                        ponder_mode=self.state.interaction_mode == Mode.PONDER,
                     )
                 ):
                     await self.get_rid_of_engine_move()  # unnecessary engine move not yet done

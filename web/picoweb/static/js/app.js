@@ -314,9 +314,6 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
-// Local target used while the backend restores BRD Explore to its checkpoint.
-// The backend surface still follows its existing brd -> sync -> web lifecycle.
-var exploreReturnTarget = 'web';
 var livePgnTreeActive = true;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
@@ -708,140 +705,14 @@ function updateWebExploreButton() {
     if (!btn) {
         return;
     }
-    // BRD and SYNC use backend analysis rather than the browser-local
-    // variation board, but Explore itself remains conceptually ON.
-    var exploreActive = webExploreMode || currentExploreSurface() !== 'web';
-    btn.textContent = exploreActive ? 'ON' : 'OFF';
-    btn.classList.toggle('btn-warning', exploreActive);
-    btn.classList.toggle('btn-primary', !exploreActive);
+    btn.textContent = webExploreMode ? 'ON' : 'OFF';
+    btn.classList.toggle('btn-warning', webExploreMode);
+    btn.classList.toggle('btn-primary', !webExploreMode);
     btn.setAttribute(
         'aria-pressed',
-        exploreActive ? 'true' : 'false'
+        webExploreMode ? 'true' : 'false'
     );
     updateSyncButtonAttention();
-    updateExploreSurfaceControls();
-}
-
-function currentExploreSurface() {
-    var surface = String((window._picoSystemInfo || {}).explore_surface || 'web').toLowerCase();
-    return (surface === 'brd' || surface === 'sync') ? surface : 'web';
-}
-
-function canChooseExploreSurface() {
-    var psi = window._picoSystemInfo || {};
-    var mode = String(psi.interaction_mode || '').toLowerCase();
-    return Boolean(psi.has_board) && ['ponder', 'analysis', 'kibitz'].indexOf(mode) !== -1;
-}
-
-function updateExploreSurfaceControls() {
-    var control = document.getElementById('exploreThreeStateControl');
-    var offBtn = document.getElementById('exploreOffBtn');
-    var webBtn = document.getElementById('exploreWebBtn');
-    var boardBtn = document.getElementById('exploreBoardBtn');
-    var legacyBtn = document.getElementById('webExploreToggleBtn');
-    if (!control || !offBtn || !webBtn || !boardBtn || !legacyBtn) {
-        return;
-    }
-
-    var available = canChooseExploreSurface();
-    control.style.display = available ? 'inline-flex' : 'none';
-    legacyBtn.style.display = available ? 'none' : 'inline-block';
-    var surface = currentExploreSurface();
-    var syncing = surface === 'sync';
-    var boardActive = surface === 'brd';
-    var webActive = surface === 'web' && webExploreMode;
-    var offActive = surface === 'web' && !webExploreMode;
-    if (syncing) {
-        webActive = exploreReturnTarget !== 'off';
-        offActive = exploreReturnTarget === 'off';
-    }
-
-    [offBtn, webBtn, boardBtn].forEach(function (btn) {
-        btn.classList.remove('btn-primary');
-    });
-    offBtn.classList.toggle('btn-warning', offActive);
-    offBtn.classList.toggle('btn-light', !offActive);
-    webBtn.classList.toggle('btn-warning', webActive);
-    webBtn.classList.toggle('btn-light', !webActive);
-    boardBtn.classList.toggle('btn-warning', boardActive);
-    boardBtn.classList.toggle('btn-light', !boardActive);
-
-    offBtn.disabled = !available || syncing;
-    webBtn.disabled = !available || syncing;
-    boardBtn.disabled = !available || syncing;
-    offBtn.setAttribute('aria-pressed', offActive ? 'true' : 'false');
-    webBtn.setAttribute('aria-pressed', webActive ? 'true' : 'false');
-    boardBtn.setAttribute('aria-pressed', boardActive ? 'true' : 'false');
-}
-
-function applyExploreSurfaceState(previousSurface) {
-    var surface = currentExploreSurface();
-    previousSurface = String(previousSurface || 'web').toLowerCase();
-    if ((surface === 'brd' || surface === 'sync') && previousSurface !== surface) {
-        goToDGTFen();
-    } else if (surface === 'web' && (previousSurface === 'brd' || previousSurface === 'sync')) {
-        if (exploreReturnTarget === 'off') {
-            stopWebExploreMode(false);
-            syncToCurrentPicoLivePosition();
-        } else {
-            startWebExploreFromLivePosition(false);
-        }
-        exploreReturnTarget = 'web';
-        updateChessGround();
-        updateStatus();
-    }
-    updateExploreSurfaceControls();
-}
-
-function requestExploreSurface(surface) {
-    surface = String(surface || '').toLowerCase();
-    if (surface !== 'web' && surface !== 'brd') {
-        return;
-    }
-    if (surface === 'brd') {
-        goToDGTFen();
-    }
-    $('#exploreOffBtn, #exploreWebBtn, #exploreBoardBtn').prop('disabled', true);
-    $.post('/channel', { action: 'explore_surface', surface: surface })
-        .fail(function () {
-            updateExploreSurfaceControls();
-        });
-}
-
-function selectThreeStateExplore(mode) {
-    mode = String(mode || '').toLowerCase();
-    if (!canChooseExploreSurface() || currentExploreSurface() === 'sync') {
-        return;
-    }
-
-    var surface = currentExploreSurface();
-    if (mode === 'off') {
-        if (surface === 'web' && !webExploreMode) {
-            return;
-        }
-        exploreReturnTarget = 'off';
-        if (surface === 'brd') {
-            requestExploreSurface('web');
-        } else {
-            stopWebExploreMode(false);
-            goToDGTFen();
-            updateChessGround();
-            updateStatus();
-        }
-    } else if (mode === 'web') {
-        if (surface === 'web' && webExploreMode) {
-            return;
-        }
-        exploreReturnTarget = 'web';
-        if (surface === 'brd') {
-            requestExploreSurface('web');
-        } else {
-            startWebExploreFromLivePosition(true);
-        }
-    } else if (mode === 'brd' && surface !== 'brd') {
-        requestExploreSurface('brd');
-    }
-    updateExploreSurfaceControls();
 }
 
 function setWebExploreMode(enabled, redraw) {
@@ -908,9 +779,6 @@ function resetWebExploreForPlayablePosition() {
 }
 
 function toggleWebExploreMode() {
-    if (currentExploreSurface() !== 'web') {
-        return;
-    }
     if (webExploreMode) {
         stopWebExploreMode(false);
         goToDGTFen();
@@ -3342,10 +3210,8 @@ function getAllInfo() {
         // interactivity — in particular the has_board flag locks the diagram
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
-        var previousExploreSurface = window._picoSystemInfo.explore_surface;
         Object.assign(window._picoSystemInfo, data);
         applyInitialWebExploreBoardPolicy();
-        applyExploreSurfaceState(previousExploreSurface);
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
         }
@@ -3749,10 +3615,8 @@ $(function () {
                         // diagram immediately locks/unlocks when mode changes.
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
-                        var _prevExploreSurface = window._picoSystemInfo.explore_surface;
                         Object.assign(window._picoSystemInfo, data.msg);
                         applyInitialWebExploreBoardPolicy();
-                        applyExploreSurfaceState(_prevExploreSurface);
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
                         if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
@@ -3866,12 +3730,8 @@ $(function () {
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
-    $('#exploreOffBtn').on('click', function () { selectThreeStateExplore('off'); });
-    $('#exploreWebBtn').on('click', function () { selectThreeStateExplore('web'); });
-    $('#exploreBoardBtn').on('click', function () { selectThreeStateExplore('brd'); });
     applyPgnVariationVisibility();
     updateWebExploreButton();
-    updateExploreSurfaceControls();
 
     $('#analyzeMinus').on('click', multiPvDecrease);
     $('#analyzePlus').on('click', multiPvIncrease);

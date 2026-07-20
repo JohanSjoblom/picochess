@@ -747,11 +747,6 @@
                                                     <span class="analysis-control-set">
                                                         <span class="analysis-control-label">Explore</span>
                                                         <button id="webExploreToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Temporarily explore moves on the web board">OFF</button>
-                                                        <span id="exploreThreeStateControl" class="btn-group btn-group-sm explore-three-state-control" role="group" aria-label="Choose Explore state" style="display:none">
-                                                            <button id="exploreOffBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Turn Explore off" aria-label="Turn Explore off">OFF</button>
-                                                            <button id="exploreWebBtn" class="btn btn-sm btn-warning analysis-toolbar-btn" title="Explore on the web board" aria-label="Explore on web board">WEB</button>
-                                                            <button id="exploreBoardBtn" class="btn btn-sm btn-light analysis-toolbar-btn" title="Explore on the physical e-board" aria-label="Explore on physical e-board">BRD</button>
-                                                        </span>
                                                     </span>
                                                 </div>
 
@@ -864,7 +859,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=4"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=5"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos
@@ -1801,8 +1796,29 @@
 	                });
 	                gridEl.appendChild(setPosTile);
 
-	                // 3 empty fillers
-	                for (var _pi = 0; _pi < 3; _pi++) {
+	                var sysInfo = window._picoSystemInfo || {};
+	                var checkpointMode = String(sysInfo.interaction_mode || '').toLowerCase() === 'ponder';
+	                var checkpointAvailable = Boolean(sysInfo.position_checkpoint_available);
+	                if (checkpointMode) {
+	                    var saveCheckpointTile = _pTile('📌', 'Save Checkpoint',
+	                        checkpointAvailable ? 'Replace saved point' : 'Remember position',
+	                        checkpointAvailable, function() {
+	                            _doPositionCheckpoint('save_position_checkpoint', saveCheckpointTile);
+	                        });
+	                    gridEl.appendChild(saveCheckpointTile);
+
+	                    var restoreCheckpointTile = _pTile('↩', 'Restore Checkpoint',
+	                        checkpointAvailable ? 'Return to saved point' : 'No checkpoint saved',
+	                        false, function() {
+	                            _doPositionCheckpoint('restore_position_checkpoint', restoreCheckpointTile);
+	                        });
+	                    restoreCheckpointTile.disabled = !checkpointAvailable;
+	                    gridEl.appendChild(restoreCheckpointTile);
+	                }
+
+	                // Keep the 3x3 tile grid complete in every mode.
+	                var fillerCount = checkpointMode ? 1 : 3;
+	                for (var _pi = 0; _pi < fillerCount; _pi++) {
 	                    var _pe = document.createElement('button');
 	                    _pe.className = 'pico-sub-tile pico-empty-tile';
 	                    _pe.setAttribute('aria-hidden', 'true'); _pe.tabIndex = -1;
@@ -1862,9 +1878,40 @@
                 if (subPanel) subPanel.style.display = 'none';
                 if (mainGrid) mainGrid.style.display = '';
                 renderPositionTiles();
-            }
+	            }
 
-            function _doPositionScan(tileEl) {
+	            function _doPositionCheckpoint(action, tileEl) {
+	                if (tileEl) {
+	                    var label = tileEl.querySelector('.pico-sub-tile-label');
+	                    var sub = tileEl.querySelector('.pico-sub-tile-sub');
+	                    if (label) label.textContent = action === 'save_position_checkpoint'
+	                        ? '⏳ Saving…' : '⏳ Restoring…';
+	                    if (sub) sub.textContent = 'Please wait';
+	                    tileEl.disabled = true;
+	                }
+	                fetch('/channel', {
+	                    method: 'POST',
+	                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+	                    body: new URLSearchParams({ action: action })
+	                })
+	                .then(function(r) {
+	                    if (!r.ok) throw new Error('Checkpoint request failed');
+	                    return r.json();
+	                })
+	                .then(function() { close(); })
+	                .catch(function() {
+	                    if (tileEl) {
+	                        var label = tileEl.querySelector('.pico-sub-tile-label');
+	                        var sub = tileEl.querySelector('.pico-sub-tile-sub');
+	                        if (label) label.textContent = '⚠ Checkpoint failed';
+	                        if (sub) sub.textContent = 'Try again';
+	                        tileEl.disabled = false;
+	                        setTimeout(function() { renderPositionTiles(); }, 2500);
+	                    }
+	                });
+	            }
+
+	            function _doPositionScan(tileEl) {
                 if (tileEl) {
                     var lEl = tileEl.querySelector('.pico-sub-tile-label');
                     var sEl = tileEl.querySelector('.pico-sub-tile-sub');

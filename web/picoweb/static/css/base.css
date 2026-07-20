@@ -934,10 +934,6 @@ td.result {
     min-width: 0;
 }
 
-.explore-three-state-control .analysis-toolbar-btn {
-    min-width: 42px;
-}
-
 .analysis-control-label {
     color: var(--bs-secondary-color, #6c757d);
     font-size: 0.8rem;

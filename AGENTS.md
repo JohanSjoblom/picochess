@@ -368,32 +368,39 @@ disposable legal-variation workflow and should remain the primary control.
   In that case logical restoration completes immediately; there is no physical
   `set pieces` synchronization phase.
 
-- The Position web menu exposes manual Save Checkpoint and Restore Checkpoint
-  commands only in `Mode.PONDER`. Do not change modes automatically.
-- There is one reusable checkpoint. Saving replaces it; restoring does not
-  consume it.
+- Every real transition from another interaction mode into `Mode.PONDER`
+  automatically creates a fresh checkpoint and records the previous mode.
+  Re-selecting PONDER while already there must not replace the checkpoint.
+- Do not expose a separate Save Checkpoint command. The physical-eboard web UI
+  exposes one contextual return command in the Mode menu only while PONDER has
+  a compatible checkpoint.
+- There is one session checkpoint. Restoring may reuse it while physical
+  synchronization is in progress; leaving PONDER ends and clears it.
 - Preserve the exact game position, move stack, active variant board, play
   mode, game lifecycle state, and stopped clock values.
-- Restore the logical checkpoint first. With a physical eboard, then enter a
-  protected physical-sync state: no board scan or analyser output may escape
-  while the pieces still show the later PONDER position. Complete restoration
-  only when the physical board matches, then emit `PICOTUTOR_MSG("POSOK")` and
-  resume normal PONDER engine analysis. With NOEBOARD, finish immediately after
-  logical restoration.
+- An ordinary mode change out of PONDER means that the user accepts the current
+  analysis position. Synchronize Tutor to that retained position, clear the
+  checkpoint, and continue the requested transition without a confirmation
+  prompt.
+- The contextual return command restores the logical checkpoint first. With a
+  physical eboard, then enter a protected physical-sync state: no board scan or
+  analyser output may escape while the pieces still show the later PONDER
+  position. Complete restoration only when the physical board matches, then
+  emit `PICOTUTOR_MSG("POSOK")` and automatically return to the interaction
+  mode saved by the checkpoint. With NOEBOARD, synchronization finishes
+  immediately, although browser Explore remains the primary web-only workflow
+  and the contextual return control is not normally exposed there.
 - New Game, loading another game, changing variant, setting a live position
   outside PONDER, and ending a real game outside PONDER clear the checkpoint.
   Flexible setup and game-ending positions inside PONDER preserve it.
 - `Mode.ANALYSIS` and `Mode.KIBITZ` have no checkpoint-specific behavior and
   continue to preserve and save their normal PGN move stacks.
 
-If this workflow is automated later, call it a temporary analysis session.
-`Temporary analysis active` must mean both that the backend has entered
-`Mode.PONDER` and that its checkpoint has been saved. Implement starting that
-session as one ordered backend transaction, not as independent browser requests
-to change mode and save. Restoring may return the checkpoint and complete any
-required physical synchronization while deliberately leaving the user in
-`Mode.PONDER`; automatic return to the previous playing mode is a separate
-policy decision.
+Treat this lifecycle as a temporary analysis session. `Temporary analysis
+active` means both that the backend has entered `Mode.PONDER` and that its
+automatic checkpoint exists. Entering PONDER and saving must remain one ordered
+backend transition, not independent browser requests. The return command is the
+explicit rollback path; an ordinary mode change is the implicit commit path.
 
 Selecting a historical PGN node in the web client is browser review only.
 `Position -> Set Pos` is the explicit promotion path: it replaces the active

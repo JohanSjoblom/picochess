@@ -270,7 +270,7 @@ explicitly requires it.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
 
-## PONDER Position Checkpoint Menu
+## Temporary ANALYSIS Return
 
 The checkpoint belongs to user-facing ANALYSIS (`Mode.PONDER`), not to browser
 Explore. Its backend state is board-independent, but its currently demonstrated
@@ -285,25 +285,31 @@ session.
   add a competing temporary-analysis control without a concrete use case.
 - Keep the two mechanisms independent. Web Explore may be active while a
   physical-board PONDER checkpoint session is in progress.
-- Show Save Checkpoint and Restore Checkpoint in the Position menu only while
-  the backend interaction mode is `ponder`.
-- Restore is disabled until `system_info.position_checkpoint_available` is
-  true. Save may replace the one existing checkpoint.
-- The commands do not change interaction mode and do not start or stop browser
-  Stockfish. Normal selected-engine PONDER analysis continues.
-- With a physical eboard, restoration asks the user to set the pieces and sends
-  `Position ok` when synchronization completes. With NOEBOARD, restoration is
-  logical and completes immediately.
+- Do not put checkpoint actions in the Position menu and do not expose Save.
+  A transition into backend `Mode.PONDER` automatically creates the checkpoint
+  and remembers the previous interaction mode.
+- With a physical eboard, replace the already-selected ANALYSIS tile in the
+  Mode menu with a contextual `Return to <previous mode>` action while
+  `system_info.position_checkpoint_available` is true. Do not add a tenth tile
+  or another permanent quick button during this menu-first experiment.
+- A normal click on any other mode accepts the current PONDER position and
+  clears the checkpoint. This is the existing leave-ANALYSIS behavior and must
+  not show a blocking confirmation.
+- The contextual return action restores the saved position and move stack. It
+  asks the user to set the physical pieces, waits for `Position ok`, and then
+  automatically changes to `system_info.position_checkpoint_return_mode`.
+- The return action does not start or stop browser Stockfish. Web Explore stays
+  independent throughout the temporary PONDER visit.
+- The underlying restore remains logical and immediate with NOEBOARD, but Web
+  Explore is the primary web-only workflow, so do not normally expose the
+  contextual temporary-analysis return action there.
 - `Mode.ANALYSIS` and `Mode.KIBITZ` keep their ordinary move-recording and
   tutor behavior; they have no checkpoint menu actions.
 
-If a future ANALYSIS-tab shortcut automates this workflow, label and model it
-as a temporary analysis session rather than another Explore mode.
-`Temporary analysis active` means that the backend has completed the transition
-to `Mode.PONDER` and saved a checkpoint. Starting it must be one ordered backend
-operation rather than separate client requests. Restoring may wait for physical
-piece synchronization and then leave the user in `Mode.PONDER`; switching back
-to the earlier playing mode can remain an explicit user action.
+If a future quick shortcut is justified by testing, label and model it as a
+temporary ANALYSIS visit rather than another Explore mode. Its first click may
+enter PONDER and its second click may invoke the same contextual return action;
+do not create a separate checkpoint or restore implementation for the shortcut.
 
 PGN navigation alone remains browser review. `Position -> Set Pos` explicitly
 promotes the selected node's PGN prefix to the backend live game; it is not a

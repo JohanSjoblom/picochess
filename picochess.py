@@ -411,12 +411,13 @@ class PicochessState:
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
         self.best_sent_depth = BestSeenDepth()  # best seen depth for a playing enginge
         self.pending_engine_result: str | None = None
-        # One reusable PONDER checkpoint. It preserves the complete position
-        # and move stack while the user freely analyses on the physical board.
+        # One PONDER-session checkpoint. It preserves the complete position,
+        # move stack, and return mode while the user analyses temporarily.
         self.position_checkpoint_game: chess.Board | None = None
         self.position_checkpoint_variant = None
         self.position_checkpoint_variant_name: str | None = None
         self.position_checkpoint_play_mode: PlayMode | None = None
+        self.position_checkpoint_interaction_mode: Mode | None = None
         self.position_checkpoint_game_started: bool | None = None
         self.position_checkpoint_time_control: dict[str, Any] | None = None
         self.position_checkpoint_restore_pending = False
@@ -430,13 +431,14 @@ class PicochessState:
         self._racingkings_board = None  # chess.variant.RacingKingsBoard instance when variant == "racingkings"
         self._antichess_board = None  # chess.variant.AntichessBoard instance when variant == "antichess"
 
-    def save_position_checkpoint(self) -> None:
-        """Remember the current PONDER position plus its complete move history."""
+    def save_position_checkpoint(self, interaction_mode: Mode | None = None) -> None:
+        """Remember the position, history, and mode from before temporary analysis."""
         self.position_checkpoint_game = self.game.copy(stack=True)
         variant_board = self.get_variant_board()
         self.position_checkpoint_variant = variant_board.copy(stack=True) if variant_board is not None else None
         self.position_checkpoint_variant_name = self.variant
         self.position_checkpoint_play_mode = self.play_mode
+        self.position_checkpoint_interaction_mode = interaction_mode
         self.position_checkpoint_game_started = self.game_started
         self.position_checkpoint_time_control = self._snapshot_position_checkpoint_time_control()
         self.position_checkpoint_restore_pending = False
@@ -540,6 +542,7 @@ class PicochessState:
         self.position_checkpoint_variant = None
         self.position_checkpoint_variant_name = None
         self.position_checkpoint_play_mode = None
+        self.position_checkpoint_interaction_mode = None
         self.position_checkpoint_game_started = None
         self.position_checkpoint_time_control = None
         self.position_checkpoint_restore_pending = False
@@ -3947,13 +3950,18 @@ async def main() -> None:
             """Publish whether the current variant has a reusable checkpoint."""
             self.shared.setdefault("system_info", {})
             update = {
-                "position_checkpoint_available": self.state.has_compatible_position_checkpoint()
+                "position_checkpoint_available": self.state.has_compatible_position_checkpoint(),
+                "position_checkpoint_return_mode": (
+                    self.state.position_checkpoint_interaction_mode.name.lower()
+                    if self.state.position_checkpoint_interaction_mode is not None
+                    else None
+                ),
             }
             self.shared["system_info"].update(update)
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": update})
 
         def _clear_position_checkpoint(self) -> None:
-            """Drop the manual checkpoint and cancel any pending physical restore."""
+            """End the temporary-analysis checkpoint and any pending physical restore."""
             restore_was_pending = self.state.position_checkpoint_restore_pending
             if restore_was_pending:
                 self.state.stop_fen_timer()
@@ -3965,39 +3973,38 @@ async def main() -> None:
             self._publish_position_checkpoint_available()
 
         async def _finish_position_checkpoint_restore(self) -> None:
-            """Complete physical synchronization and resume PONDER analysis."""
+            """Complete synchronization and return to the mode saved by the checkpoint."""
             logger.info("position checkpoint restore complete")
+            return_mode = self.state.position_checkpoint_interaction_mode
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.fen_error_occured = False
             self.state.position_mode = False
             self.state.delay_fen_error = 4
-            self.state.position_checkpoint_restore_pending = False
             await DisplayMsg.show(
                 Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
             )
             await asyncio.sleep(1)
             await DisplayMsg.show(Message.EXIT_MENU())
-            await self._start_or_stop_analysis_as_needed()
+            self.state.position_checkpoint_restore_pending = False
+            if return_mode is not None and return_mode != Mode.PONDER:
+                logger.info("returning from temporary analysis to %s", return_mode)
+                await Observable.fire(
+                    Event.SET_INTERACTION_MODE(
+                        mode=return_mode,
+                        mode_text=self.state.dgttranslate.text(return_mode.value),
+                        show_ok=True,
+                    )
+                )
+            else:
+                await self._start_or_stop_analysis_as_needed()
 
-        async def _save_position_checkpoint(self) -> None:
-            """Save a settled PONDER position and its full move stack."""
+        async def _save_position_checkpoint(self, return_mode: Mode) -> None:
+            """Start a temporary-analysis checkpoint after entering PONDER."""
             if self.state.interaction_mode != Mode.PONDER:
                 logger.warning("position checkpoints can only be saved in PONDER")
                 return
-            physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
-            if (
-                self.state.position_mode
-                or self.state.fen_timer_running
-                or (
-                    self.board_type != dgt.util.EBoard.NOEBOARD
-                    and physical_fen != self.state.get_board_fen()
-                )
-            ):
-                logger.info("position checkpoint requires a settled e-board")
-                await DisplayMsg.show(Message.WRONG_FEN())
-                return
-            self.state.save_position_checkpoint()
+            self.state.save_position_checkpoint(interaction_mode=return_mode)
             # Normally Tutor is already at this position because PONDER never
             # pushed moves to it. If the checkpoint is saved after the user has
             # already changed the PONDER position, establish that new anchor
@@ -4009,11 +4016,14 @@ async def main() -> None:
                 await self.state.picotutor.set_analysis_enabled(False)
                 await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
             self._publish_position_checkpoint_available()
-            logger.info("position checkpoint saved at %s", self.state.get_fen())
-            await DisplayMsg.show(Message.SHOW_TEXT(text_string="CHECKPOINT SAVED"))
+            logger.info(
+                "temporary analysis checkpoint saved at %s for return to %s",
+                self.state.get_fen(),
+                return_mode,
+            )
 
         async def _restore_position_checkpoint(self) -> None:
-            """Restore the manual PONDER checkpoint and wait for the e-board."""
+            """Restore the PONDER checkpoint, synchronize, and return to its saved mode."""
             if self.state.interaction_mode != Mode.PONDER:
                 logger.warning("position checkpoints can only be restored in PONDER")
                 return
@@ -7089,11 +7099,15 @@ async def main() -> None:
 
             elif isinstance(event, Event.SET_INTERACTION_MODE):
                 self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
-                leaving_ponder = self.state.interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
+                old_interaction_mode = self.state.interaction_mode
+                entering_ponder = old_interaction_mode != Mode.PONDER and event.mode == Mode.PONDER
+                leaving_ponder = old_interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
+                returning_restored_checkpoint = bool(
+                    leaving_ponder and self.state.can_preserve_position_checkpoint_play_mode()
+                )
                 preserve_checkpoint_play_mode = bool(
-                    leaving_ponder
+                    returning_restored_checkpoint
                     and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
-                    and self.state.can_preserve_position_checkpoint_play_mode()
                 )
                 if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     # things to do when we change from a playing mode to non-playing
@@ -7115,7 +7129,20 @@ async def main() -> None:
                     if event.mode == Mode.PONDER:
                         self.state.newgame_happened = False
                     await self.stop_search_and_clock()
-                    if event.mode == Mode.PGNREPLAY:
+                    if leaving_ponder:
+                        # A normal mode selection commits the current PONDER
+                        # position.  A restore has already put Tutor and the
+                        # game back at the checkpoint.  In either case the
+                        # temporary-analysis checkpoint ends with this mode
+                        # transition.
+                        if (
+                            self.state.picotutor is not None
+                            and self.state.picotutor.board.fen() != self.state.game.fen()
+                        ):
+                            await self.state.picotutor.set_analysis_enabled(False)
+                            await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
+                        self._clear_position_checkpoint()
+                    if event.mode == Mode.PGNREPLAY and not returning_restored_checkpoint:
                         loaded_pgn_game = self.state.loaded_pgn_game
                         if loaded_pgn_game is not None:
                             file_name_only = self.state.loaded_pgn_filename or "loaded PGN"
@@ -7130,16 +7157,8 @@ async def main() -> None:
                         await self._start_or_stop_analysis_as_needed()
                     else:
                         self.state.interaction_mode = event.mode
-                        # If the user deliberately keeps the changed PONDER
-                        # position instead of restoring, synchronize Tutor once
-                        # before the destination mode can enable it again.
-                        if (
-                            leaving_ponder
-                            and self.state.picotutor is not None
-                            and self.state.picotutor.board.fen() != self.state.game.fen()
-                        ):
-                            await self.state.picotutor.set_analysis_enabled(False)
-                            await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
+                        if entering_ponder:
+                            await self._save_position_checkpoint(old_interaction_mode)
                         await self.engine_mode()
                         msg = Message.INTERACTION_MODE(
                             mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
@@ -7155,9 +7174,6 @@ async def main() -> None:
                     await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 await self._start_or_stop_analysis_as_needed()
-
-            elif isinstance(event, Event.SAVE_POSITION_CHECKPOINT):
-                await self._save_position_checkpoint()
 
             elif isinstance(event, Event.RESTORE_POSITION_CHECKPOINT):
                 await self._restore_position_checkpoint()

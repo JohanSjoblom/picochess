@@ -1262,8 +1262,14 @@
                 if (!gridEl) return;
                 gridEl.innerHTML = '';
                 var current = String((window._picoSystemInfo || {}).interaction_mode || 'normal').toLowerCase();
+                var checkpointAvailable = Boolean((window._picoSystemInfo || {}).position_checkpoint_available);
+                var checkpointReturnMode = (window._picoSystemInfo || {}).position_checkpoint_return_mode;
                 var coach   = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
                 var hbActive = current === 'normal' && (coach === 'brain' || coach === 'hand');
+                var checkpointReturnLabel = checkpointReturnMode === 'normal'
+                    && (coach === 'brain' || coach === 'hand')
+                    ? 'Hand & Brain'
+                    : modeLabel(checkpointReturnMode);
 
                 _modeDefs.forEach(function(def) {
                     var isActive = def.key === 'handbrain'
@@ -1272,10 +1278,18 @@
                     var btn = document.createElement('button');
                     btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
                     var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
-                    lEl.textContent = def.icon + ' ' + def.label;
+                    var isAnalysisReturn = def.key === 'ponder'
+                        && current === 'ponder'
+                        && checkpointAvailable
+                        && Boolean((window._picoSystemInfo || {}).has_board);
+                    lEl.textContent = isAnalysisReturn
+                        ? '↩ Return to ' + checkpointReturnLabel
+                        : def.icon + ' ' + def.label;
                     btn.appendChild(lEl);
                     btn.addEventListener('click', function() {
-                        if (def.key === 'handbrain') {
+                        if (isAnalysisReturn) {
+                            _doAnalysisReturn(btn);
+                        } else if (def.key === 'handbrain') {
                             navigateTo(showModeHandBrainGrid);
                         } else if (def.key === 'pgnreplay') {
                             navigateTo(showModePgnReplayGrid);
@@ -1796,29 +1810,8 @@
 	                });
 	                gridEl.appendChild(setPosTile);
 
-	                var sysInfo = window._picoSystemInfo || {};
-	                var checkpointMode = String(sysInfo.interaction_mode || '').toLowerCase() === 'ponder';
-	                var checkpointAvailable = Boolean(sysInfo.position_checkpoint_available);
-	                if (checkpointMode) {
-	                    var saveCheckpointTile = _pTile('📌', 'Save Checkpoint',
-	                        checkpointAvailable ? 'Replace saved point' : 'Remember position',
-	                        checkpointAvailable, function() {
-	                            _doPositionCheckpoint('save_position_checkpoint', saveCheckpointTile);
-	                        });
-	                    gridEl.appendChild(saveCheckpointTile);
-
-	                    var restoreCheckpointTile = _pTile('↩', 'Restore Checkpoint',
-	                        checkpointAvailable ? 'Return to saved point' : 'No checkpoint saved',
-	                        false, function() {
-	                            _doPositionCheckpoint('restore_position_checkpoint', restoreCheckpointTile);
-	                        });
-	                    restoreCheckpointTile.disabled = !checkpointAvailable;
-	                    gridEl.appendChild(restoreCheckpointTile);
-	                }
-
-	                // Keep the 3x3 tile grid complete in every mode.
-	                var fillerCount = checkpointMode ? 1 : 3;
-	                for (var _pi = 0; _pi < fillerCount; _pi++) {
+	                // Keep the 3x3 tile grid complete.
+	                for (var _pi = 0; _pi < 3; _pi++) {
 	                    var _pe = document.createElement('button');
 	                    _pe.className = 'pico-sub-tile pico-empty-tile';
 	                    _pe.setAttribute('aria-hidden', 'true'); _pe.tabIndex = -1;
@@ -1880,19 +1873,16 @@
                 renderPositionTiles();
 	            }
 
-	            function _doPositionCheckpoint(action, tileEl) {
+	            function _doAnalysisReturn(tileEl) {
 	                if (tileEl) {
 	                    var label = tileEl.querySelector('.pico-sub-tile-label');
-	                    var sub = tileEl.querySelector('.pico-sub-tile-sub');
-	                    if (label) label.textContent = action === 'save_position_checkpoint'
-	                        ? '⏳ Saving…' : '⏳ Restoring…';
-	                    if (sub) sub.textContent = 'Please wait';
+	                    if (label) label.textContent = '⏳ Restoring…';
 	                    tileEl.disabled = true;
 	                }
 	                fetch('/channel', {
 	                    method: 'POST',
 	                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-	                    body: new URLSearchParams({ action: action })
+	                    body: new URLSearchParams({ action: 'restore_position_checkpoint' })
 	                })
 	                .then(function(r) {
 	                    if (!r.ok) throw new Error('Checkpoint request failed');
@@ -1902,11 +1892,9 @@
 	                .catch(function() {
 	                    if (tileEl) {
 	                        var label = tileEl.querySelector('.pico-sub-tile-label');
-	                        var sub = tileEl.querySelector('.pico-sub-tile-sub');
 	                        if (label) label.textContent = '⚠ Checkpoint failed';
-	                        if (sub) sub.textContent = 'Try again';
 	                        tileEl.disabled = false;
-	                        setTimeout(function() { renderPositionTiles(); }, 2500);
+	                        setTimeout(function() { renderModeTiles(); }, 2500);
 	                    }
 	                });
 	            }

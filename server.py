@@ -865,19 +865,11 @@ class ChannelHandler(ServerRequestHandler):
                     await Observable.fire(Event.PICOCOACH(picocoach=PicoCoach.COACH_OFF))
         elif action == "pause_resume":
             await Observable.fire(Event.PAUSE_RESUME())
-        elif action == "save_position_checkpoint":
-            mode = str((self.shared.get("system_info") or {}).get("interaction_mode", "")).lower()
-            if mode != "ponder":
-                self.set_status(409)
-                self.write({"success": False, "error": "Checkpoint commands require ANALYSIS mode"})
-                return
-            await Observable.fire(Event.SAVE_POSITION_CHECKPOINT())
-            self.write({"success": True})
         elif action == "restore_position_checkpoint":
             system_info = self.shared.get("system_info") or {}
             if str(system_info.get("interaction_mode", "")).lower() != "ponder":
                 self.set_status(409)
-                self.write({"success": False, "error": "Checkpoint commands require ANALYSIS mode"})
+                self.write({"success": False, "error": "Return requires ANALYSIS mode"})
                 return
             if not system_info.get("position_checkpoint_available", False):
                 self.set_status(409)
@@ -2692,6 +2684,7 @@ class WebDisplay(DisplayMsg):
             self.shared["system_info"] = {}
         self.shared["system_info"]["version"] = pico_version
         self.shared["system_info"].setdefault("position_checkpoint_available", False)
+        self.shared["system_info"].setdefault("position_checkpoint_return_mode", None)
 
     def _set_pending_engine_move(self, pending: bool):
         """Publish whether an announced engine move is waiting on the physical board."""

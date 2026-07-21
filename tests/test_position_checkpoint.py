@@ -33,7 +33,8 @@ class TestPositionCheckpoint(unittest.TestCase):
         self.assertEqual(anchor_moves, self.state.game.move_stack)
 
     def test_checkpoint_is_reusable_until_cleared(self):
-        self.state.save_position_checkpoint()
+        self.state.save_position_checkpoint(interaction_mode=Mode.NORMAL)
+        self.assertEqual(Mode.NORMAL, self.state.position_checkpoint_interaction_mode)
         self.state.game.remove_piece_at(chess.E2)
 
         self.assertTrue(self.state.restore_position_checkpoint())
@@ -45,6 +46,7 @@ class TestPositionCheckpoint(unittest.TestCase):
 
         self.state.clear_position_checkpoint()
         self.assertFalse(self.state.has_compatible_position_checkpoint())
+        self.assertIsNone(self.state.position_checkpoint_interaction_mode)
         self.assertFalse(self.state.restore_position_checkpoint())
 
     def test_checkpoint_recovers_history_after_flexible_position_replacement(self):

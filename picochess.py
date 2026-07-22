@@ -421,6 +421,7 @@ class PicochessState:
         self.position_checkpoint_game_started: bool | None = None
         self.position_checkpoint_time_control: dict[str, Any] | None = None
         self.position_checkpoint_restore_pending = False
+        self.position_checkpoint_restore_completing = False
         self.position_checkpoint_restored_play_mode: PlayMode | None = None
         self.position_checkpoint_restored_fen: str | None = None
         self.position_checkpoint_restored_moves: tuple[chess.Move, ...] | None = None
@@ -442,6 +443,7 @@ class PicochessState:
         self.position_checkpoint_game_started = self.game_started
         self.position_checkpoint_time_control = self._snapshot_position_checkpoint_time_control()
         self.position_checkpoint_restore_pending = False
+        self.position_checkpoint_restore_completing = False
         self._clear_position_checkpoint_restore_context()
 
     def _snapshot_position_checkpoint_time_control(self) -> dict[str, Any] | None:
@@ -521,6 +523,17 @@ class PicochessState:
         self.position_checkpoint_restored_moves = tuple(self.game.move_stack)
         return True
 
+    def claim_position_checkpoint_restore_completion(self) -> bool:
+        """Claim the one completion path for an active checkpoint restore."""
+        if not self.position_checkpoint_restore_pending or self.position_checkpoint_restore_completing:
+            return False
+        self.position_checkpoint_restore_completing = True
+        return True
+
+    def release_position_checkpoint_restore_completion(self) -> None:
+        """Release checkpoint completion ownership after success or failure."""
+        self.position_checkpoint_restore_completing = False
+
     def set_ponder_turn(self, turn: chess.Color) -> bool:
         """Retag the current standard-chess PONDER position without touching its checkpoint."""
         if self.interaction_mode != Mode.PONDER or self.variant != "chess":
@@ -546,6 +559,7 @@ class PicochessState:
         self.position_checkpoint_game_started = None
         self.position_checkpoint_time_control = None
         self.position_checkpoint_restore_pending = False
+        self.position_checkpoint_restore_completing = False
         self._clear_position_checkpoint_restore_context()
 
     def push_move(self, move: chess.Move) -> None:
@@ -1143,6 +1157,11 @@ def compute_legal_fens(game_copy: chess.Board, variant_board=None):
         fens.append(board.board_fen())
         board.pop()
     return fens
+
+
+def boards_match_position_and_history(first: chess.Board, second: chess.Board) -> bool:
+    """Return whether two boards have the same position and recorded move stack."""
+    return first.fen() == second.fen() and tuple(first.move_stack) == tuple(second.move_stack)
 
 
 def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
@@ -3974,30 +3993,41 @@ async def main() -> None:
 
         async def _finish_position_checkpoint_restore(self) -> None:
             """Complete synchronization and return to the mode saved by the checkpoint."""
-            logger.info("position checkpoint restore complete")
-            return_mode = self.state.position_checkpoint_interaction_mode
-            self.state.stop_fen_timer()
-            self.state.error_fen = None
-            self.state.fen_error_occured = False
-            self.state.position_mode = False
-            self.state.delay_fen_error = 4
-            await DisplayMsg.show(
-                Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
-            )
-            await asyncio.sleep(1)
-            await DisplayMsg.show(Message.EXIT_MENU())
-            self.state.position_checkpoint_restore_pending = False
-            if return_mode is not None and return_mode != Mode.PONDER:
-                logger.info("returning from temporary analysis to %s", return_mode)
-                await Observable.fire(
-                    Event.SET_INTERACTION_MODE(
-                        mode=return_mode,
-                        mode_text=self.state.dgttranslate.text(return_mode.value),
-                        show_ok=True,
-                    )
+            if not self.state.claim_position_checkpoint_restore_completion():
+                logger.debug("checkpoint restore completion already claimed or no longer pending")
+                return
+            return_event_queued = False
+            try:
+                logger.info("position checkpoint restore complete")
+                return_mode = self.state.position_checkpoint_interaction_mode
+                self.state.stop_fen_timer()
+                self.state.error_fen = None
+                self.state.fen_error_occured = False
+                self.state.position_mode = False
+                self.state.delay_fen_error = 4
+                await DisplayMsg.show(
+                    Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
                 )
-            else:
-                await self._start_or_stop_analysis_as_needed()
+                await asyncio.sleep(1)
+                await DisplayMsg.show(Message.EXIT_MENU())
+                self.state.position_checkpoint_restore_pending = False
+                if return_mode is not None and return_mode != Mode.PONDER:
+                    logger.info("returning from temporary analysis to %s", return_mode)
+                    await Observable.fire(
+                        Event.SET_INTERACTION_MODE(
+                            mode=return_mode,
+                            mode_text=self.state.dgttranslate.text(return_mode.value),
+                            show_ok=True,
+                        )
+                    )
+                    # The event is queued, not processed inline. Keep ownership
+                    # until that mode transition clears the checkpoint.
+                    return_event_queued = True
+                else:
+                    await self._start_or_stop_analysis_as_needed()
+            finally:
+                if not return_event_queued:
+                    self.state.release_position_checkpoint_restore_completion()
 
         async def _save_position_checkpoint(self, return_mode: Mode) -> None:
             """Start a temporary-analysis checkpoint after entering PONDER."""
@@ -4011,7 +4041,7 @@ async def main() -> None:
             # once and then leave Tutor frozen there.
             if (
                 self.state.picotutor is not None
-                and self.state.picotutor.board.fen() != self.state.game.fen()
+                and not boards_match_position_and_history(self.state.picotutor.board, self.state.game)
             ):
                 await self.state.picotutor.set_analysis_enabled(False)
                 await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
@@ -4031,20 +4061,33 @@ async def main() -> None:
                 logger.warning("checkpoint restore requested without a compatible checkpoint")
                 self._publish_position_checkpoint_available()
                 return
-
-            await self.engine.stop_analysis()
-            self.state.stop_fen_timer()
-            self.state.error_fen = None
-            self.state.position_mode = False
-            if not self.state.restore_position_checkpoint():
-                self._publish_position_checkpoint_available()
+            if (
+                self.state.position_checkpoint_restore_pending
+                or self.state.position_checkpoint_restore_completing
+            ):
+                logger.info("position checkpoint restore already in progress")
                 return
+
+            # Claim the complete restore transaction before its first await so
+            # duplicate requests cannot start a second restore concurrently.
+            self.state.position_checkpoint_restore_pending = True
+            try:
+                await self.engine.stop_analysis()
+                self.state.stop_fen_timer()
+                self.state.error_fen = None
+                self.state.position_mode = False
+                if not self.state.restore_position_checkpoint():
+                    self.state.position_checkpoint_restore_pending = False
+                    self._publish_position_checkpoint_available()
+                    return
+            except Exception:
+                self.state.position_checkpoint_restore_pending = False
+                raise
             self._set_game_started(self.state.game_started)
 
             # Block all analyser output before the first await below.  The
             # logical position is restored now; the e-board may still show the
             # explored branch for an arbitrary amount of time.
-            self.state.position_checkpoint_restore_pending = True
             self.state.position_mode = True
             self._update_variant_shared()
             self.state.best_sent_depth.reset()
@@ -7137,7 +7180,7 @@ async def main() -> None:
                         # transition.
                         if (
                             self.state.picotutor is not None
-                            and self.state.picotutor.board.fen() != self.state.game.fen()
+                            and not boards_match_position_and_history(self.state.picotutor.board, self.state.game)
                         ):
                             await self.state.picotutor.set_analysis_enabled(False)
                             await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)

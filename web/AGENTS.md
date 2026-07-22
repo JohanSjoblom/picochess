@@ -274,22 +274,24 @@ explicitly requires it.
 
 The checkpoint belongs to user-facing ANALYSIS (`Mode.PONDER`), not to browser
 Explore. Its backend state is board-independent, but its currently demonstrated
-user-facing value is giving a physical eboard a recoverable temporary analysis
-session.
+user-facing value is giving ANALYSIS a recoverable temporary session, especially
+on a physical eboard.
 
 - Keep Explore as its original `OFF|ON` browser-local control. Do not expose a
   physical-board ownership selector.
 - In NOEBOARD use, Web Explore already acts as the browser-local equivalent of
   temporary PONDER analysis: legal browser variations are disposable and the
-  backend game remains intact. Keep it as the primary web-only workflow; do not
-  add a competing temporary-analysis control without a concrete use case.
+  backend game remains intact. Keep it as the primary web-only workflow, while
+  still exposing the PONDER return action for symmetry, testing, and possible
+  backend-analysis use cases.
 - Keep the two mechanisms independent. Web Explore may be active while a
   physical-board PONDER checkpoint session is in progress.
 - Do not put checkpoint actions in the Position menu and do not expose Save.
   A transition into backend `Mode.PONDER` automatically creates the checkpoint
   and remembers the previous interaction mode.
-- With a physical eboard, replace the already-selected ANALYSIS tile in the
-  Mode menu with a contextual `Return to <previous mode>` action while
+- In both physical-eboard and NOEBOARD configurations, replace the
+  already-selected ANALYSIS tile in the Mode menu with a contextual
+  `Return to <previous mode>` action while
   `system_info.position_checkpoint_available` is true. Do not add a tenth tile
   or another permanent quick button during this menu-first experiment.
 - A normal click on any other mode accepts the current PONDER position and
@@ -300,9 +302,8 @@ session.
   automatically changes to `system_info.position_checkpoint_return_mode`.
 - The return action does not start or stop browser Stockfish. Web Explore stays
   independent throughout the temporary PONDER visit.
-- The underlying restore remains logical and immediate with NOEBOARD, but Web
-  Explore is the primary web-only workflow, so do not normally expose the
-  contextual temporary-analysis return action there.
+- With NOEBOARD, restoration is logical and immediate; no `set pieces` phase is
+  required.
 - `Mode.ANALYSIS` and `Mode.KIBITZ` keep their ordinary move-recording and
   tutor behavior; they have no checkpoint menu actions.
 

@@ -359,8 +359,9 @@ disposable legal-variation workflow and should remain the primary control.
 
 - Treat browser Explore as the browser-local equivalent of temporary PONDER
   analysis: it preserves the backend game while the browser follows a
-  disposable legal variation. Do not duplicate that workflow for NOEBOARD
-  users without a concrete additional use case.
+  disposable legal variation. The contextual PONDER return command is still
+  exposed in NOEBOARD for functional symmetry, testing, and any broader
+  backend-analysis workflows users may discover.
 - Keep browser Explore and PONDER checkpoints independent. Browser Explore may
   remain active while the backend and physical eboard are being used in
   `Mode.PONDER`.
@@ -371,9 +372,9 @@ disposable legal-variation workflow and should remain the primary control.
 - Every real transition from another interaction mode into `Mode.PONDER`
   automatically creates a fresh checkpoint and records the previous mode.
   Re-selecting PONDER while already there must not replace the checkpoint.
-- Do not expose a separate Save Checkpoint command. The physical-eboard web UI
-  exposes one contextual return command in the Mode menu only while PONDER has
-  a compatible checkpoint.
+- Do not expose a separate Save Checkpoint command. The web UI exposes one
+  contextual return command in the Mode menu only while PONDER has a compatible
+  checkpoint, with or without a physical eboard.
 - There is one session checkpoint. Restoring may reuse it while physical
   synchronization is in progress; leaving PONDER ends and clears it.
 - Preserve the exact game position, move stack, active variant board, play
@@ -388,8 +389,7 @@ disposable legal-variation workflow and should remain the primary control.
   position. Complete restoration only when the physical board matches, then
   emit `PICOTUTOR_MSG("POSOK")` and automatically return to the interaction
   mode saved by the checkpoint. With NOEBOARD, synchronization finishes
-  immediately, although browser Explore remains the primary web-only workflow
-  and the contextual return control is not normally exposed there.
+  immediately and the same contextual return control remains available.
 - New Game, loading another game, changing variant, setting a live position
   outside PONDER, and ending a real game outside PONDER clear the checkpoint.
   Flexible setup and game-ending positions inside PONDER preserve it.

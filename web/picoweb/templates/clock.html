@@ -1280,8 +1280,7 @@
                     var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
                     var isAnalysisReturn = def.key === 'ponder'
                         && current === 'ponder'
-                        && checkpointAvailable
-                        && Boolean((window._picoSystemInfo || {}).has_board);
+                        && checkpointAvailable;
                     lEl.textContent = isAnalysisReturn
                         ? '↩ Return to ' + checkpointReturnLabel
                         : def.icon + ' ' + def.label;

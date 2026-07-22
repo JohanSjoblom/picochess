@@ -419,6 +419,7 @@ class PicochessState:
         self.position_checkpoint_play_mode: PlayMode | None = None
         self.position_checkpoint_interaction_mode: Mode | None = None
         self.position_checkpoint_game_started: bool | None = None
+        self.position_checkpoint_game_declared: bool | None = None
         self.position_checkpoint_time_control: dict[str, Any] | None = None
         self.position_checkpoint_restore_pending = False
         self.position_checkpoint_restore_completing = False
@@ -441,6 +442,7 @@ class PicochessState:
         self.position_checkpoint_play_mode = self.play_mode
         self.position_checkpoint_interaction_mode = interaction_mode
         self.position_checkpoint_game_started = self.game_started
+        self.position_checkpoint_game_declared = self.game_declared
         self.position_checkpoint_time_control = self._snapshot_position_checkpoint_time_control()
         self.position_checkpoint_restore_pending = False
         self.position_checkpoint_restore_completing = False
@@ -517,6 +519,8 @@ class PicochessState:
             self.play_mode = self.position_checkpoint_play_mode
         if self.position_checkpoint_game_started is not None:
             self.game_started = self.position_checkpoint_game_started
+        if self.position_checkpoint_game_declared is not None:
+            self.game_declared = self.position_checkpoint_game_declared
         self._restore_position_checkpoint_time_control()
         self.position_checkpoint_restored_play_mode = self.position_checkpoint_play_mode
         self.position_checkpoint_restored_fen = self.game.fen()
@@ -557,6 +561,7 @@ class PicochessState:
         self.position_checkpoint_play_mode = None
         self.position_checkpoint_interaction_mode = None
         self.position_checkpoint_game_started = None
+        self.position_checkpoint_game_declared = None
         self.position_checkpoint_time_control = None
         self.position_checkpoint_restore_pending = False
         self.position_checkpoint_restore_completing = False
@@ -4094,7 +4099,6 @@ async def main() -> None:
             self.state.done_computer_fen = None
             self.state.done_move = self.state.pb_move = chess.Move.null()
             self.state.searchmoves.reset()
-            self.state.game_declared = False
             self.state.takeback_active = False
             self.state.automatic_takeback = False
             self.state.legal_fens = compute_legal_fens(

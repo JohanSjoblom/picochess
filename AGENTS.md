@@ -379,6 +379,9 @@ disposable legal-variation workflow and should remain the primary control.
   synchronization is in progress; leaving PONDER ends and clears it.
 - Preserve the exact game position, move stack, active variant board, play
   mode, game lifecycle state, and stopped clock values.
+- Treat restore as a single-owner transaction. Duplicate return commands and
+  repeated matching eboard scans must not emit multiple `POSOK` messages or
+  start more than one return-mode transition.
 - An ordinary mode change out of PONDER means that the user accepts the current
   analysis position. Synchronize Tutor to that retained position, clear the
   checkpoint, and continue the requested transition without a confirmation
@@ -449,7 +452,8 @@ the same code path.
   at the checkpoint anchor. If a checkpoint is saved after the PONDER position
   has already changed, synchronize Tutor to that new anchor once; if PONDER is
   left without restoring, synchronize Tutor to the retained live position
-  before the destination mode may enable it.
+  before the destination mode may enable it. Compare both FEN and move stack
+  when deciding whether that synchronization is necessary.
 - Entering `Mode.PONDER` must prevent tutor analysis from starting and must
   clear any stale tutor analysis shown in the web client.
 - Web client and clock analysis shown in `Mode.PONDER` must reflect the

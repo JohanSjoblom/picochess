@@ -5,7 +5,7 @@ import chess
 import chess.variant
 
 from dgt.util import Mode, PlayMode, TimeMode
-from picochess import PicochessState
+from picochess import PicochessState, boards_match_position_and_history
 from timecontrol import TimeControl
 
 
@@ -48,6 +48,30 @@ class TestPositionCheckpoint(unittest.TestCase):
         self.assertFalse(self.state.has_compatible_position_checkpoint())
         self.assertIsNone(self.state.position_checkpoint_interaction_mode)
         self.assertFalse(self.state.restore_position_checkpoint())
+
+    def test_restore_completion_has_only_one_owner(self):
+        self.state.position_checkpoint_restore_pending = True
+
+        self.assertTrue(self.state.claim_position_checkpoint_restore_completion())
+        self.assertFalse(self.state.claim_position_checkpoint_restore_completion())
+
+        self.state.release_position_checkpoint_restore_completion()
+        self.assertTrue(self.state.claim_position_checkpoint_restore_completion())
+
+        self.state.clear_position_checkpoint()
+        self.assertFalse(self.state.position_checkpoint_restore_pending)
+        self.assertFalse(self.state.position_checkpoint_restore_completing)
+        self.assertFalse(self.state.claim_position_checkpoint_restore_completion())
+
+    def test_board_history_comparison_detects_equal_fen_with_different_stack(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        same_history = board.copy(stack=True)
+        no_history = board.copy(stack=False)
+
+        self.assertEqual(board.fen(), no_history.fen())
+        self.assertTrue(boards_match_position_and_history(board, same_history))
+        self.assertFalse(boards_match_position_and_history(board, no_history))
 
     def test_checkpoint_recovers_history_after_flexible_position_replacement(self):
         anchor_moves = [chess.Move.from_uci("e2e4"), chess.Move.from_uci("e7e5")]

@@ -87,6 +87,17 @@ class TestPositionCheckpoint(unittest.TestCase):
         self.assertEqual(checkpoint_fen, self.state.game.fen())
         self.assertEqual(anchor_moves, self.state.game.move_stack)
 
+    def test_checkpoint_restores_declared_game_state(self):
+        self.state.game_declared = True
+        self.state.save_position_checkpoint()
+        self.state.game_declared = False
+
+        self.assertTrue(self.state.restore_position_checkpoint())
+        self.assertTrue(self.state.game_declared)
+
+        self.state.clear_position_checkpoint()
+        self.assertIsNone(self.state.position_checkpoint_game_declared)
+
     def test_ponder_side_change_does_not_touch_checkpoint(self):
         anchor_moves = [chess.Move.from_uci("e2e4"), chess.Move.from_uci("e7e5")]
         for move in anchor_moves:

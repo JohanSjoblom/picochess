@@ -3,6 +3,13 @@
 set -euo pipefail
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+github_repo_from_remote() {
+  local url=$1
+  url=${url%.git}
+  url=${url#*github.com/}
+  url=${url#*github.com:}
+  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
+}
 
 issue_number=${1:-}
 [[ $issue_number =~ ^[1-9][0-9]*$ ]] || die "Usage: ./scripts/contribute ISSUE_NUMBER"
@@ -14,7 +21,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Run this inside a Pi
 origin_url=$(git remote get-url origin 2>/dev/null) || die "No origin remote found. Fork Picochess, then clone your fork."
 [[ $origin_url == *github.com* ]] || die "The origin remote must point to GitHub."
 
-origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+origin_repo=$(github_repo_from_remote "$(git remote get-url origin)") || die "The origin remote must point to a GitHub repository."
 upstream_repo=$origin_repo
 if [[ $(gh repo view "$origin_repo" --json isFork --jq .isFork) == true ]]; then
   upstream_repo=$(gh repo view "$origin_repo" --json parent --jq .parent.nameWithOwner)

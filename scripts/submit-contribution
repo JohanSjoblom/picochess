@@ -3,6 +3,13 @@
 set -euo pipefail
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+github_repo_from_remote() {
+  local url=$1
+  url=${url%.git}
+  url=${url#*github.com/}
+  url=${url#*github.com:}
+  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
+}
 ask_yes_no() { read -r -p "$1 [y/N] " answer; [[ ${answer,,} == y || ${answer,,} == yes ]]; }
 
 command -v gh >/dev/null || die "GitHub CLI (gh) is required. In Codespaces it is already installed."
@@ -39,7 +46,7 @@ title=${title:-$default_title}
 git commit -m "$title"
 git push --set-upstream origin "$branch"
 
-origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+origin_repo=$(github_repo_from_remote "$(git remote get-url origin)") || die "The origin remote must point to a GitHub repository."
 upstream_repo=$origin_repo
 if [[ $(gh repo view "$origin_repo" --json isFork --jq .isFork) == true ]]; then
   upstream_repo=$(gh repo view "$origin_repo" --json parent --jq .parent.nameWithOwner)

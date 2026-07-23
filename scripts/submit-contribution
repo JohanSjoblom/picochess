@@ -3,14 +3,6 @@
 set -euo pipefail
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
-github_repo_from_remote() {
-  local url=$1
-  url=${url%.git}
-  url=${url#https://github.com/}
-  url=${url#http://github.com/}
-  url=${url#git@github.com:}
-  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
-}
 ask_yes_no() { read -r -p "$1 [y/N] " answer; [[ ${answer,,} == y || ${answer,,} == yes ]]; }
 
 command -v gh >/dev/null || die "GitHub CLI (gh) is required. In Codespaces it is already installed."
@@ -49,8 +41,8 @@ git push --set-upstream origin "$branch"
 
 origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 upstream_repo=$origin_repo
-if git remote get-url upstream >/dev/null 2>&1; then
-  upstream_repo=$(github_repo_from_remote "$(git remote get-url upstream)" || printf '%s' "$origin_repo")
+if [[ $(gh repo view "$origin_repo" --json isFork --jq .isFork) == true ]]; then
+  upstream_repo=$(gh repo view "$origin_repo" --json parent --jq .parent.nameWithOwner)
 fi
 owner=${origin_repo%%/*}
 body=$(printf '%s\n\n' '## What does this change?')

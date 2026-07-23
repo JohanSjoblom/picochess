@@ -3,14 +3,6 @@
 set -euo pipefail
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
-github_repo_from_remote() {
-  local url=$1
-  url=${url%.git}
-  url=${url#https://github.com/}
-  url=${url#http://github.com/}
-  url=${url#git@github.com:}
-  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
-}
 
 issue_number=${1:-}
 [[ $issue_number =~ ^[1-9][0-9]*$ ]] || die "Usage: ./scripts/contribute ISSUE_NUMBER"
@@ -24,8 +16,8 @@ origin_url=$(git remote get-url origin 2>/dev/null) || die "No origin remote fou
 
 origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 upstream_repo=$origin_repo
-if git remote get-url upstream >/dev/null 2>&1; then
-  upstream_repo=$(github_repo_from_remote "$(git remote get-url upstream)" || printf '%s' "$origin_repo")
+if [[ $(gh repo view "$origin_repo" --json isFork --jq .isFork) == true ]]; then
+  upstream_repo=$(gh repo view "$origin_repo" --json parent --jq .parent.nameWithOwner)
 fi
 gh issue view "$issue_number" --repo "$upstream_repo" >/dev/null || die "Issue #$issue_number was not found in $upstream_repo."
 

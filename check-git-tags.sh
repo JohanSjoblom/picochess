@@ -8,7 +8,7 @@ REPO_DIR="/opt/picochess"
 cd "$REPO_DIR" || exit 1
 
 # Default number of tags to show
-NUM_TAGS=10
+NUM_TAGS=12
 
 # Allow override via command-line argument (must be a number)
 case "$1" in

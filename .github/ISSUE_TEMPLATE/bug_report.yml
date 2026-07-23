@@ -1,0 +1,50 @@
+name: Bug report
+description: Tell us what went wrong so we can reproduce it.
+title: "Bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Picochess. You do not need to know Python to report a useful bug.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem in plain language.
+      placeholder: I expected ... but instead ...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest set of steps that shows the problem.
+      placeholder: |
+        1. Start Picochess with ...
+        2. Choose ...
+        3. Make the move / press ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where does this happen?
+      options:
+        - Raspberry Pi
+        - Linux PC
+        - Web browser only
+        - DGT Pi 3000
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Helpful details (optional)
+      description: Picochess version, OS, browser, board/clock model, screenshots, or relevant log lines. Please remove passwords and private information.

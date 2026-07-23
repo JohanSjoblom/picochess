@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Picochess Google Group
+    url: https://groups.google.com/g/picochess
+    about: Ask for general help, setup advice, or discussion that is not a bug report or improvement proposal.

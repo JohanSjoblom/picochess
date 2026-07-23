@@ -1,0 +1,34 @@
+name: Improvement idea
+description: Suggest a small, clearly described improvement.
+title: "Idea: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Clear ideas are welcome, whether or not you plan to code them. A maintainer can help decide the technical approach.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      placeholder: It is difficult to ... because ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Your proposed improvement
+      description: Describe what a person would see or be able to do.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example or sketch (optional)
+      description: A screenshot, drawing, sample wording, or step-by-step example is especially helpful.
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Would you like to help implement it?
+      options:
+        - label: I would like to try with AI assistance and would welcome maintainer guidance.
+        - label: I am reporting the idea only.

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+target_repo=${PICOCHESS_CONTRIBUTION_TARGET_REPO:-JohanSjoblom/picochess}
 github_repo_from_remote() {
   local url=$1
   url=${url%.git}
@@ -47,10 +48,6 @@ git commit -m "$title"
 git push --set-upstream origin "$branch"
 
 origin_repo=$(github_repo_from_remote "$(git remote get-url origin)") || die "The origin remote must point to a GitHub repository."
-upstream_repo=$origin_repo
-if [[ $(gh repo view "$origin_repo" --json isFork --jq .isFork) == true ]]; then
-  upstream_repo=$(gh repo view "$origin_repo" --json parent --jq .parent.nameWithOwner)
-fi
 owner=${origin_repo%%/*}
 body=$(printf '%s\n\n' '## What does this change?')
 [[ -n $issue_number ]] && body+=$(printf 'Closes #%s\n\n' "$issue_number")
@@ -65,5 +62,5 @@ body+=$(printf '%s\n' \
   '- [ ] No AI assistance was used.' \
   '- [ ] I used AI assistance and reviewed the change myself.')
 
-gh pr create --repo "$upstream_repo" --head "$owner:$branch" --base "$(gh repo view "$upstream_repo" --json defaultBranchRef --jq .defaultBranchRef.name)" --draft --title "$title" --body "$body"
+gh pr create --repo "$target_repo" --head "$owner:$branch" --base "$(gh repo view "$target_repo" --json defaultBranchRef --jq .defaultBranchRef.name)" --draft --title "$title" --body "$body"
 printf '\nDraft pull request created. Thank you—maintainers can now help review it.\n'

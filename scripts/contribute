@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Create a safe, issue-named contribution branch for a GitHub issue.
+set -euo pipefail
+
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+github_repo_from_remote() {
+  local url=$1
+  url=${url%.git}
+  url=${url#https://github.com/}
+  url=${url#http://github.com/}
+  url=${url#git@github.com:}
+  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
+}
+
+issue_number=${1:-}
+[[ $issue_number =~ ^[1-9][0-9]*$ ]] || die "Usage: ./scripts/contribute ISSUE_NUMBER"
+command -v gh >/dev/null || die "GitHub CLI (gh) is required. In Codespaces it is already installed."
+gh auth status >/dev/null 2>&1 || die "Please sign in first: gh auth login"
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Run this inside a Picochess Git checkout."
+[[ -z $(git status --porcelain) ]] || die "Your checkout has uncommitted changes. Commit, stash, or discard them first."
+
+origin_url=$(git remote get-url origin 2>/dev/null) || die "No origin remote found. Fork Picochess, then clone your fork."
+[[ $origin_url == *github.com* ]] || die "The origin remote must point to GitHub."
+
+origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+upstream_repo=$origin_repo
+if git remote get-url upstream >/dev/null 2>&1; then
+  upstream_repo=$(github_repo_from_remote "$(git remote get-url upstream)" || printf '%s' "$origin_repo")
+fi
+gh issue view "$issue_number" --repo "$upstream_repo" >/dev/null || die "Issue #$issue_number was not found in $upstream_repo."
+
+default_branch=$(gh repo view "$upstream_repo" --json defaultBranchRef --jq .defaultBranchRef.name)
+branch="contrib/issue-$issue_number"
+git fetch origin "$default_branch" --quiet
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+  git switch "$branch"
+else
+  git switch --create "$branch" "origin/$default_branch"
+fi
+
+printf '\nReady to work on issue #%s in branch %s.\n' "$issue_number" "$branch"
+printf 'Next: read CONTRIBUTING-AI.md, make and test the change, then run ./scripts/submit-contribution\n'

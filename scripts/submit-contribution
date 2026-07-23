@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Test, commit, push, and open a draft pull request with guided prompts.
+set -euo pipefail
+
+die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+github_repo_from_remote() {
+  local url=$1
+  url=${url%.git}
+  url=${url#https://github.com/}
+  url=${url#http://github.com/}
+  url=${url#git@github.com:}
+  [[ $url =~ ^[^/]+/[^/]+$ ]] && printf '%s' "$url"
+}
+ask_yes_no() { read -r -p "$1 [y/N] " answer; [[ ${answer,,} == y || ${answer,,} == yes ]]; }
+
+command -v gh >/dev/null || die "GitHub CLI (gh) is required. In Codespaces it is already installed."
+gh auth status >/dev/null 2>&1 || die "Please sign in first: gh auth login"
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Run this inside a Picochess Git checkout."
+branch=$(git branch --show-current)
+[[ -n $branch && $branch != main && $branch != master ]] || die "Create an issue branch first: ./scripts/contribute ISSUE_NUMBER"
+[[ -n $(git status --porcelain) ]] || die "There are no changes to submit."
+
+printf '\nChanges to review:\n'
+git status --short
+git diff --stat
+
+if ask_yes_no "Run unit tests now?"; then
+  [[ -x venv/bin/tox ]] || die "venv/bin/tox is missing. Create the project virtual environment first, or run tests manually and explain that in the PR."
+  venv/bin/tox -e unit
+else
+  printf 'Tests were skipped. Please explain why in the pull request.\n'
+fi
+
+ask_yes_no "Stage every change shown above?" || die "Nothing was staged. Review your changes and run this command again."
+git add -A
+printf '\nStaged changes:\n'
+git diff --cached --stat
+
+issue_number=''
+if [[ $branch =~ ^contrib/issue-([1-9][0-9]*)$ ]]; then issue_number=${BASH_REMATCH[1]}; fi
+default_title="Contribution: describe this change"
+[[ -n $issue_number ]] && default_title="Fix #$issue_number: "
+read -r -p "Commit and PR title [$default_title] " title
+title=${title:-$default_title}
+[[ $title != "$default_title" ]] || die "Please enter a descriptive title after the suggested prefix."
+
+git commit -m "$title"
+git push --set-upstream origin "$branch"
+
+origin_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+upstream_repo=$origin_repo
+if git remote get-url upstream >/dev/null 2>&1; then
+  upstream_repo=$(github_repo_from_remote "$(git remote get-url upstream)" || printf '%s' "$origin_repo")
+fi
+owner=${origin_repo%%/*}
+body=$(printf '%s\n\n' '## What does this change?')
+[[ -n $issue_number ]] && body+=$(printf 'Closes #%s\n\n' "$issue_number")
+body+=$(printf '%s\n' \
+  '## How did you test it?' \
+  '' \
+  '- [ ] I ran the relevant automated tests, or explain below why I could not.' \
+  '- [ ] I tried the change manually where practical.' \
+  '' \
+  '## AI assistance' \
+  '' \
+  '- [ ] No AI assistance was used.' \
+  '- [ ] I used AI assistance and reviewed the change myself.')
+
+gh pr create --repo "$upstream_repo" --head "$owner:$branch" --base "$(gh repo view "$upstream_repo" --json defaultBranchRef --jq .defaultBranchRef.name)" --draft --title "$title" --body "$body"
+printf '\nDraft pull request created. Thank you—maintainers can now help review it.\n'

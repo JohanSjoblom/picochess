@@ -1918,6 +1918,18 @@ class ChessBoardHandler(ServerRequestHandler):
         return bool(self.shared.get("web_audio_backend_remote", False))
 
 
+class RetroClockHandler(ServerRequestHandler):
+    """Render the compact clock-only web client for small retro displays."""
+
+    def initialize(self, theme="dark", shared=None):
+        self.theme = theme
+        self.shared = shared
+
+    def get(self):
+        self.set_header("Cache-Control", "no-store")
+        self.render("web/picoweb/templates/retro_clock.html", theme=self.theme)
+
+
 class HelpHandler(ServerRequestHandler):
     def initialize(self, theme="dark"):
         self.theme = theme
@@ -2370,6 +2382,7 @@ class WebServer:
         return tornado.web.Application(
             [
                 (r"/", ChessBoardHandler, dict(theme=theme, pieces=pieces, board=board, shared=shared)),
+                (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),
                 (r"/info", InfoHandler, dict(shared=shared)),

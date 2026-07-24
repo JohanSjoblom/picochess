@@ -485,6 +485,12 @@ def _clock_event(shared: dict, text, running: bool = False):
     return {"event": "Clock", "msg": text, "running": shared["clock_running"]}
 
 
+def _clock_menu_active(shared: dict) -> bool:
+    """Return whether the physical-clock menu is currently being shown."""
+    dgtmenu = shared.get("dgtmenu")
+    return bool(dgtmenu and (dgtmenu.inside_main_menu() or dgtmenu.inside_updt_menu()))
+
+
 def _truthy_web_arg(value: str) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
@@ -1545,6 +1551,8 @@ class InfoHandler(ServerRequestHandler):
                 self.write(self.shared["clock_text"])
         if action == "get_clock_state":
             self.write({"running": bool(self.shared.get("clock_running", False))})
+        if action == "get_clock_menu_state":
+            self.write({"active": _clock_menu_active(self.shared)})
         if action == "get_engines":
             from uci.engine_provider import EngineProvider
 

@@ -17,6 +17,7 @@ from server import (
     _cached_setup_position_fen,
     _channel_action_requires_remote_auth,
     _clock_event,
+    _clock_menu_active,
     _coach_event_value,
     _coach_setting,
     _board_from_web_pgn_prefix,
@@ -87,6 +88,25 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
         text = _display_text_from_label("PGN Replay")
         self.assert_display_text(text)
         self.assertEqual("PGN Replay", text.web_text)
+
+
+class TestServerClockMenuHelpers(unittest.TestCase):
+    class ClockMenu:
+        def __init__(self, main=False, update=False):
+            self.main = main
+            self.update = update
+
+        def inside_main_menu(self):
+            return self.main
+
+        def inside_updt_menu(self):
+            return self.update
+
+    def test_clock_menu_active_only_for_clock_menus(self):
+        self.assertFalse(_clock_menu_active({}))
+        self.assertTrue(_clock_menu_active({"dgtmenu": self.ClockMenu(main=True)}))
+        self.assertTrue(_clock_menu_active({"dgtmenu": self.ClockMenu(update=True)}))
+        self.assertFalse(_clock_menu_active({"dgtmenu": self.ClockMenu()}))
 
 
 class TestServerTutorCoachHelpers(unittest.TestCase):

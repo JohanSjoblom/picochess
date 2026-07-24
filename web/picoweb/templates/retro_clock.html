@@ -10,8 +10,8 @@
     <style>
         :root {
             color-scheme: dark;
-            --case: #252a2f;
-            --case-edge: #101316;
+            --case: #6c3e22;
+            --case-edge: #2b160b;
             --lcd: #c8ca9e;
             --lcd-text: #222b20;
             --button: #515960;
@@ -31,7 +31,7 @@
             place-items: center;
             overflow: hidden;
             padding: var(--page-padding);
-            background: #101214;
+            background: radial-gradient(circle at top, #2c211b, #100e0c 70%);
             color: #f4f5f6;
             font-family: system-ui, sans-serif;
         }
@@ -49,8 +49,11 @@
             padding: clamp(12px, 4cqw, 28px);
             border: 3px solid var(--case-edge);
             border-radius: 18px;
-            background: linear-gradient(145deg, #3c444a, var(--case));
-            box-shadow: inset 0 2px 1px rgba(255, 255, 255, .12), 0 14px 35px rgba(0, 0, 0, .55);
+            background:
+                linear-gradient(125deg, rgba(255, 211, 143, .15), transparent 34%, rgba(24, 9, 3, .32)),
+                repeating-linear-gradient(101deg, rgba(54, 24, 10, .22) 0 2px, rgba(169, 105, 57, .08) 2px 8px, rgba(61, 27, 11, .18) 8px 11px),
+                linear-gradient(145deg, #9a6237, var(--case) 55%, #482511);
+            box-shadow: inset 0 2px 1px rgba(255, 234, 194, .22), inset 0 -6px 12px rgba(37, 13, 3, .25), 0 14px 35px rgba(0, 0, 0, .55);
         }
 
         #lever {

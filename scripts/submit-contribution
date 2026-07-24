@@ -49,6 +49,12 @@ git push --set-upstream origin "$branch"
 
 origin_repo=$(github_repo_from_remote "$(git remote get-url origin)") || die "The origin remote must point to a GitHub repository."
 owner=${origin_repo%%/*}
+existing_pr=$(gh pr list --repo "$target_repo" --head "$owner:$branch" --state open --json url --jq '.[0].url')
+if [[ -n $existing_pr ]]; then
+  printf '\nExisting draft pull request updated: %s\n' "$existing_pr"
+  exit 0
+fi
+
 body=$(printf '%s\n\n' '## What does this change?')
 [[ -n $issue_number ]] && body+=$(printf 'Closes #%s\n\n' "$issue_number")
 body+=$(printf '%s\n' \

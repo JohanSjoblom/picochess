@@ -161,7 +161,27 @@
             const connection = document.getElementById('connection');
             const centerButton = document.getElementById('center');
             const leverButton = document.getElementById('lever');
+            const evaluationButton = document.getElementById('evaluation');
+            const hintButton = document.getElementById('hint');
             let leverRight = false;
+
+            const setMenuMode = (active) => {
+                const evaluationIcon = evaluationButton.querySelector('.fa');
+                const hintIcon = hintButton.querySelector('.fa');
+                evaluationIcon.classList.toggle('fa-bar-chart-o', !active);
+                evaluationIcon.classList.toggle('fa-minus', active);
+                hintIcon.classList.toggle('fa-lightbulb-o', !active);
+                hintIcon.classList.toggle('fa-plus', active);
+                evaluationButton.title = active ? 'Menu previous' : 'Show evaluation';
+                evaluationButton.setAttribute('aria-label', evaluationButton.title);
+                hintButton.title = active ? 'Menu next' : 'Show hint';
+                hintButton.setAttribute('aria-label', hintButton.title);
+            };
+
+            const refreshMenuState = () => fetch('/info?action=get_clock_menu_state')
+                .then((response) => response.json())
+                .then((state) => setMenuMode(Boolean(state.active)))
+                .catch(() => {});
 
             const updateClock = (text, running) => {
                 if (typeof text === 'string' && text) clockText.innerHTML = text;
@@ -176,9 +196,9 @@
 
             const channel = (action, extra = {}) => {
                 const body = new URLSearchParams({ action, ...extra });
-                return fetch('/channel', { method: 'POST', body }).catch(() => {
-                    connection.textContent = 'Control unavailable';
-                });
+                return fetch('/channel', { method: 'POST', body })
+                    .then(() => window.setTimeout(refreshMenuState, 150))
+                    .catch(() => { connection.textContent = 'Control unavailable'; });
             };
 
             leverButton.addEventListener('click', () => {
@@ -190,10 +210,15 @@
             document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));
             document.getElementById('center').addEventListener('click', () => channel('clockbutton', { button: '2' }));
             document.getElementById('hint').addEventListener('click', () => channel('clockbutton', { button: '3' }));
-            document.getElementById('right').addEventListener('click', () => channel('clockbutton', { button: '4' }));
+            document.getElementById('right').addEventListener('click', () => {
+                // Give immediate visual feedback; the backend state refresh confirms it.
+                setMenuMode(true);
+                channel('clockbutton', { button: '4' });
+            });
 
             fetch('/info?action=get_clock_text').then((response) => response.text()).then((text) => updateClock(text)).catch(() => {});
             fetch('/info?action=get_clock_state').then((response) => response.json()).then((state) => updateClock(null, Boolean(state.running))).catch(() => {});
+            refreshMenuState();
 
             const connect = () => {
                 const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';

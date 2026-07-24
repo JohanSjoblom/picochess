@@ -17,6 +17,7 @@
             --button: #515960;
             --button-active: #68737b;
             --accent: #e7a42d;
+            --page-padding: clamp(8px, 3vw, 24px);
         }
 
         * { box-sizing: border-box; }
@@ -24,38 +25,48 @@
         html, body { height: 100%; margin: 0; }
 
         body {
+            height: 100svh;
             min-height: 100svh;
             display: grid;
             place-items: center;
-            padding: clamp(8px, 3vw, 24px);
+            overflow: hidden;
+            padding: var(--page-padding);
             background: #101214;
             color: #f4f5f6;
             font-family: system-ui, sans-serif;
         }
 
         .clock-case {
-            width: min(100%, 520px);
-            min-height: min(100svh - 16px, 480px);
+            width: auto;
+            max-width: 100%;
+            height: min(100%, 410px);
+            aspect-ratio: 1.65;
+            min-height: 0;
             display: grid;
             container-type: inline-size;
             grid-template-rows: auto 1fr auto;
-            gap: clamp(12px, 3vh, 24px);
-            padding: clamp(16px, 5vw, 32px);
+            gap: clamp(8px, 2.4cqw, 18px);
+            padding: clamp(12px, 4cqw, 28px);
             border: 3px solid var(--case-edge);
-            border-radius: 24px;
+            border-radius: 18px;
             background: linear-gradient(145deg, #3c444a, var(--case));
             box-shadow: inset 0 2px 1px rgba(255, 255, 255, .12), 0 14px 35px rgba(0, 0, 0, .55);
         }
 
-        .brand {
-            margin: 0;
-            text-align: center;
-            color: var(--accent);
-            font-size: clamp(.72rem, 3vw, .95rem);
-            font-weight: 700;
-            letter-spacing: .18em;
+        #lever {
+            justify-self: center;
+            width: min(82%, 440px);
+            min-height: clamp(30px, 8cqw, 48px);
+            border-radius: 8px 8px 3px 3px;
+            background: linear-gradient(180deg, #121517, #3b4247 45%, #171b1e);
+            box-shadow: inset 0 2px 1px rgba(255, 255, 255, .16), 0 3px 0 #101214;
+            color: #d8dde0;
+            font-size: clamp(.72rem, 2.4cqw, 1rem);
+            letter-spacing: .12em;
             text-transform: uppercase;
         }
+
+        #lever.lever-right { transform: translateX(3px) rotate(1deg); }
 
         .lcd {
             display: flex;
@@ -63,9 +74,9 @@
             justify-content: center;
             min-height: 0;
             overflow: hidden;
-            padding: clamp(12px, 4vw, 28px) clamp(6px, 2vw, 16px);
-            border: 7px solid #15191b;
-            border-radius: 10px;
+            padding: clamp(8px, 2.5cqw, 20px) clamp(4px, 1.5cqw, 12px);
+            border: clamp(4px, 1.4cqw, 7px) solid #15191b;
+            border-radius: 7px;
             background: linear-gradient(135deg, #b6b98d, var(--lcd));
             box-shadow: inset 0 0 18px rgba(38, 44, 32, .38);
             color: var(--lcd-text);
@@ -78,7 +89,7 @@
             align-items: center;
             grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             font-family: "Courier New", monospace;
-            font-size: clamp(1.3rem, 8.5cqw, 3rem);
+            font-size: clamp(1.3rem, 8.5cqw, 3.6rem);
             font-weight: 700;
             letter-spacing: -.08em;
             line-height: 1;
@@ -91,41 +102,55 @@
 
         .controls {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: clamp(8px, 3vw, 18px);
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: clamp(3px, 1.4cqw, 10px);
+            padding: clamp(4px, 1.2cqw, 8px);
+            border-radius: 7px;
+            background: #161a1d;
         }
 
         button {
             min-width: 44px;
-            min-height: 52px;
+            min-height: clamp(42px, 9cqw, 60px);
             border: 2px solid #1d2226;
-            border-radius: 12px;
+            border-radius: 5px;
             background: linear-gradient(145deg, #68727a, var(--button));
             box-shadow: inset 0 1px 1px rgba(255, 255, 255, .22), 0 3px 0 #161a1d;
             color: white;
             cursor: pointer;
-            font-size: clamp(1.15rem, 6vw, 1.65rem);
+            font-size: clamp(1rem, 4.6cqw, 1.6rem);
             touch-action: manipulation;
         }
 
         button:hover, button:focus-visible { background: var(--button-active); outline: 2px solid var(--accent); outline-offset: 2px; }
         button:active { transform: translateY(2px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .4), 0 1px 0 #161a1d; }
-        #pause { border-radius: 50%; background: linear-gradient(145deg, #dcad4d, #b77c16); }
-        #connection { min-height: 1em; margin: -8px 0 0; text-align: center; color: #aeb5ba; font-size: .72rem; }
+        #center { background: linear-gradient(145deg, #dcad4d, #b77c16); }
+        #connection { min-height: 1em; margin: 3px 0 -2px; text-align: center; color: #aeb5ba; font-size: .72rem; }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            body { padding: 8px; }
+
+            .clock-case {
+                width: auto;
+                max-width: 100%;
+                height: min(410px, calc(100svh - 16px));
+            }
+        }
     </style>
 </head>
 <body>
     <main class="clock-case" aria-label="Picochess clock">
-        <p class="brand">Picochess</p>
+        <button type="button" id="lever" title="Switch sides" aria-label="Switch sides">Lever</button>
         <section class="lcd" aria-live="polite" aria-label="Clock" role="timer">
             <div id="clock-text">--:--</div>
         </section>
         <div>
             <div class="controls" aria-label="Clock controls">
-                <button type="button" id="switch-sides" title="Switch sides" aria-label="Switch sides"><i class="fa fa-arrows-v" aria-hidden="true"></i></button>
+                <button type="button" id="left" title="Last move or menu up" aria-label="Last move or menu up"><i class="fa fa-caret-left" aria-hidden="true"></i></button>
                 <button type="button" id="evaluation" title="Show evaluation" aria-label="Show evaluation"><i class="fa fa-bar-chart-o" aria-hidden="true"></i></button>
-                <button type="button" id="pause" title="Pause or resume clock" aria-label="Pause or resume clock"><i class="fa fa-play" aria-hidden="true"></i></button>
+                <button type="button" id="center" title="Pause, resume, or menu select" aria-label="Pause, resume, or menu select"><i class="fa fa-play" aria-hidden="true"></i></button>
                 <button type="button" id="hint" title="Show hint" aria-label="Show hint"><i class="fa fa-lightbulb-o" aria-hidden="true"></i></button>
+                <button type="button" id="right" title="Open menu or menu down" aria-label="Open menu or menu down"><i class="fa fa-caret-right" aria-hidden="true"></i></button>
             </div>
             <p id="connection" aria-live="polite"></p>
         </div>
@@ -134,16 +159,18 @@
         (() => {
             const clockText = document.getElementById('clock-text');
             const connection = document.getElementById('connection');
-            const pauseButton = document.getElementById('pause');
+            const centerButton = document.getElementById('center');
+            const leverButton = document.getElementById('lever');
+            let leverRight = false;
 
             const updateClock = (text, running) => {
                 if (typeof text === 'string' && text) clockText.innerHTML = text;
                 if (typeof running === 'boolean') {
-                    const icon = pauseButton.querySelector('.fa');
+                    const icon = centerButton.querySelector('.fa');
                     icon.classList.toggle('fa-pause', running);
                     icon.classList.toggle('fa-play', !running);
-                    pauseButton.title = running ? 'Pause clock' : 'Resume clock';
-                    pauseButton.setAttribute('aria-label', pauseButton.title);
+                    centerButton.title = running ? 'Pause clock' : 'Resume clock';
+                    centerButton.setAttribute('aria-label', centerButton.title);
                 }
             };
 
@@ -154,10 +181,16 @@
                 });
             };
 
-            document.getElementById('switch-sides').addEventListener('click', () => channel('clockbutton', { button: '64' }));
+            leverButton.addEventListener('click', () => {
+                leverRight = !leverRight;
+                leverButton.classList.toggle('lever-right', leverRight);
+                channel('clockbutton', { button: leverRight ? '64' : '-64' });
+            });
+            document.getElementById('left').addEventListener('click', () => channel('clockbutton', { button: '0' }));
             document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));
-            document.getElementById('pause').addEventListener('click', () => channel('pause_resume'));
+            document.getElementById('center').addEventListener('click', () => channel('clockbutton', { button: '2' }));
             document.getElementById('hint').addEventListener('click', () => channel('clockbutton', { button: '3' }));
+            document.getElementById('right').addEventListener('click', () => channel('clockbutton', { button: '4' }));
 
             fetch('/info?action=get_clock_text').then((response) => response.text()).then((text) => updateClock(text)).catch(() => {});
             fetch('/info?action=get_clock_state').then((response) => response.json()).then((state) => updateClock(null, Boolean(state.running))).catch(() => {});

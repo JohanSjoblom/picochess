@@ -51,7 +51,7 @@ origin_repo=$(github_repo_from_remote "$(git remote get-url origin)") || die "Th
 owner=${origin_repo%%/*}
 existing_pr=$(gh pr list --repo "$target_repo" --head "$owner:$branch" --state open --json url --jq '.[0].url')
 if [[ -n $existing_pr ]]; then
-  printf '\nExisting draft pull request updated: %s\n' "$existing_pr"
+  printf '\nExisting pull request updated: %s\n' "$existing_pr"
   exit 0
 fi
 

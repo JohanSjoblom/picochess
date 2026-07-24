@@ -11,7 +11,7 @@ You can help Picochess without being an experienced programmer. The most valuabl
 5. Read [CONTRIBUTING-AI.md](CONTRIBUTING-AI.md), describe the linked issue to your AI coding assistant, then review and test its work.
 6. Use the workspace terminal to run `./scripts/submit-contribution`. It guides you through testing, committing, pushing, and creating a **draft pull request** to `JohanSjoblom/picochess`.
 
-If you make further changes, run `./scripts/submit-contribution` again. It creates another commit and updates the existing draft pull request.
+If you make further changes, run `./scripts/submit-contribution` again. It creates another commit and updates the existing pull request.
 
 The pull request is a request for review, not a claim that the work is perfect. Draft PRs are encouraged. A maintainer will help review the technical details.
 

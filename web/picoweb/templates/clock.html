@@ -2118,11 +2118,24 @@
                 var cats = [
                     { icon:'🎨', label:'Board',  key:'board'  },
                     { icon:'♟️', label:'Pieces', key:'pieces' },
-                    { icon:'🌓', label:'Theme',  key:'theme'  }
+                    { icon:'🌓', label:'Theme',  key:'theme'  },
+                    { icon:'🕰️', label:'Clock Only', key:'clock' }
                 ];
                 var grid = document.createElement('div');
                 grid.className = 'pico-sub-tile-grid';
                 cats.forEach(function(cat) {
+                    if (cat.key === 'clock') {
+                        var clockBtn = document.createElement('button');
+                        clockBtn.className = 'pico-sub-tile';
+                        var clockLabel = document.createElement('span'); clockLabel.className = 'pico-sub-tile-label';
+                        clockLabel.textContent = cat.icon + ' ' + cat.label;
+                        var clockSub = document.createElement('span'); clockSub.className = 'pico-sub-tile-sub';
+                        clockSub.textContent = 'Retro touch display';
+                        clockBtn.appendChild(clockLabel); clockBtn.appendChild(clockSub);
+                        clockBtn.addEventListener('click', function() { window.location.assign('/clock'); });
+                        grid.appendChild(clockBtn);
+                        return;
+                    }
                     var dc = DISPLAY_CATS[cat.key];
                     var curLabel = '';
                     if (dc) {
@@ -2141,7 +2154,7 @@
                     btn.addEventListener('click', function() { navigateTo(function() { showDisplayCat(cat.key); }); });
                     grid.appendChild(btn);
                 });
-                for (var _di = 0; _di < 6; _di++) {
+                for (var _di = 0; _di < 5; _di++) {
                     var _de = document.createElement('button'); _de.className = 'pico-sub-tile pico-empty-tile';
                     _de.setAttribute('aria-hidden','true'); _de.tabIndex = -1; grid.appendChild(_de);
                 }

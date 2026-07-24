@@ -56,9 +56,16 @@
             box-shadow: inset 0 2px 1px rgba(255, 234, 194, .22), inset 0 -6px 12px rgba(37, 13, 3, .25), 0 14px 35px rgba(0, 0, 0, .55);
         }
 
-        #lever {
+        .top-controls {
             justify-self: center;
             width: min(82%, 440px);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 48px;
+            gap: clamp(6px, 1.8cqw, 12px);
+        }
+
+        #lever {
+            width: 100%;
             min-height: clamp(30px, 8cqw, 48px);
             border-radius: 8px 8px 3px 3px;
             background: linear-gradient(180deg, #121517, #3b4247 45%, #171b1e);
@@ -70,6 +77,15 @@
         }
 
         #lever.lever-right { transform: translateX(3px) rotate(1deg); }
+
+        #back {
+            min-width: 44px;
+            min-height: clamp(42px, 8cqw, 48px);
+            padding: 0;
+            border-radius: 8px 8px 3px 3px;
+            background: linear-gradient(180deg, #343b40, #1a1e21);
+            font-size: clamp(1rem, 3.8cqw, 1.35rem);
+        }
 
         .lcd {
             display: flex;
@@ -136,14 +152,18 @@
             .clock-case {
                 width: auto;
                 max-width: 100%;
-                height: min(410px, calc(100svh - 16px));
+                /* Keep the 1.65:1 case within both the short viewport and its width. */
+                height: min(410px, calc(100svh - 16px), calc(60.606vw - 10px));
             }
         }
     </style>
 </head>
 <body>
     <main class="clock-case" aria-label="Picochess clock">
-        <button type="button" id="lever" title="Switch sides" aria-label="Switch sides">Lever</button>
+        <div class="top-controls">
+            <button type="button" id="lever" title="Switch sides" aria-label="Switch sides">Lever</button>
+            <button type="button" id="back" title="Return to Picochess" aria-label="Return to Picochess"><i class="fa fa-arrow-left" aria-hidden="true"></i></button>
+        </div>
         <section class="lcd" aria-live="polite" aria-label="Clock" role="timer">
             <div id="clock-text">--:--</div>
         </section>
@@ -164,6 +184,7 @@
             const connection = document.getElementById('connection');
             const centerButton = document.getElementById('center');
             const leverButton = document.getElementById('lever');
+            const backButton = document.getElementById('back');
             const evaluationButton = document.getElementById('evaluation');
             const hintButton = document.getElementById('hint');
             let leverRight = false;
@@ -209,6 +230,7 @@
                 leverButton.classList.toggle('lever-right', leverRight);
                 channel('clockbutton', { button: leverRight ? '64' : '-64' });
             });
+            backButton.addEventListener('click', () => window.location.assign('/'));
             document.getElementById('left').addEventListener('click', () => channel('clockbutton', { button: '0' }));
             document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));
             document.getElementById('center').addEventListener('click', () => channel('clockbutton', { button: '2' }));

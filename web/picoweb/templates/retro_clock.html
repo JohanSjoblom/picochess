@@ -37,6 +37,7 @@
             width: min(100%, 520px);
             min-height: min(100svh - 16px, 480px);
             display: grid;
+            container-type: inline-size;
             grid-template-rows: auto 1fr auto;
             gap: clamp(12px, 3vh, 24px);
             padding: clamp(16px, 5vw, 32px);
@@ -71,20 +72,20 @@
         }
 
         #clock-text {
-            display: flex;
+            display: grid;
             width: 100%;
             min-width: 0;
             align-items: center;
-            justify-content: space-around;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             font-family: "Courier New", monospace;
-            font-size: clamp(2rem, 12vw, 5.5rem);
+            font-size: clamp(1.3rem, 8.5cqw, 3rem);
             font-weight: 700;
             letter-spacing: -.08em;
             line-height: 1;
             white-space: nowrap;
         }
 
-        #clock-text .ctime-l, #clock-text .ctime-r { flex: 1; min-width: 0; text-align: center; }
+        #clock-text .ctime-l, #clock-text .ctime-r { min-width: 0; text-align: center; }
         #clock-text .ctime-inactive { opacity: .4; }
         #clock-text .fa { flex: 0 0 auto; font-size: .48em; opacity: .55; }
 

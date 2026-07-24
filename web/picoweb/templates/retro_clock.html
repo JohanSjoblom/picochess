@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en" data-theme="{{ 'light' if theme == 'light' else 'dark' }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#252a2f">
+    <title>Picochess Clock</title>
+    <link rel="shortcut icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <link rel="stylesheet" href="/static/css/font-awesome.min.css">
+    <style>
+        :root {
+            color-scheme: dark;
+            --case: #252a2f;
+            --case-edge: #101316;
+            --lcd: #c8ca9e;
+            --lcd-text: #222b20;
+            --button: #515960;
+            --button-active: #68737b;
+            --accent: #e7a42d;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body { height: 100%; margin: 0; }
+
+        body {
+            min-height: 100svh;
+            display: grid;
+            place-items: center;
+            padding: clamp(8px, 3vw, 24px);
+            background: #101214;
+            color: #f4f5f6;
+            font-family: system-ui, sans-serif;
+        }
+
+        .clock-case {
+            width: min(100%, 520px);
+            min-height: min(100svh - 16px, 480px);
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: clamp(12px, 3vh, 24px);
+            padding: clamp(16px, 5vw, 32px);
+            border: 3px solid var(--case-edge);
+            border-radius: 24px;
+            background: linear-gradient(145deg, #3c444a, var(--case));
+            box-shadow: inset 0 2px 1px rgba(255, 255, 255, .12), 0 14px 35px rgba(0, 0, 0, .55);
+        }
+
+        .brand {
+            margin: 0;
+            text-align: center;
+            color: var(--accent);
+            font-size: clamp(.72rem, 3vw, .95rem);
+            font-weight: 700;
+            letter-spacing: .18em;
+            text-transform: uppercase;
+        }
+
+        .lcd {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            overflow: hidden;
+            padding: clamp(12px, 4vw, 28px) clamp(6px, 2vw, 16px);
+            border: 7px solid #15191b;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #b6b98d, var(--lcd));
+            box-shadow: inset 0 0 18px rgba(38, 44, 32, .38);
+            color: var(--lcd-text);
+        }
+
+        #clock-text {
+            display: flex;
+            width: 100%;
+            min-width: 0;
+            align-items: center;
+            justify-content: space-around;
+            font-family: "Courier New", monospace;
+            font-size: clamp(2rem, 12vw, 5.5rem);
+            font-weight: 700;
+            letter-spacing: -.08em;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        #clock-text .ctime-l, #clock-text .ctime-r { flex: 1; min-width: 0; text-align: center; }
+        #clock-text .ctime-inactive { opacity: .4; }
+        #clock-text .fa { flex: 0 0 auto; font-size: .48em; opacity: .55; }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: clamp(8px, 3vw, 18px);
+        }
+
+        button {
+            min-width: 44px;
+            min-height: 52px;
+            border: 2px solid #1d2226;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #68727a, var(--button));
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, .22), 0 3px 0 #161a1d;
+            color: white;
+            cursor: pointer;
+            font-size: clamp(1.15rem, 6vw, 1.65rem);
+            touch-action: manipulation;
+        }
+
+        button:hover, button:focus-visible { background: var(--button-active); outline: 2px solid var(--accent); outline-offset: 2px; }
+        button:active { transform: translateY(2px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .4), 0 1px 0 #161a1d; }
+        #pause { border-radius: 50%; background: linear-gradient(145deg, #dcad4d, #b77c16); }
+        #connection { min-height: 1em; margin: -8px 0 0; text-align: center; color: #aeb5ba; font-size: .72rem; }
+    </style>
+</head>
+<body>
+    <main class="clock-case" aria-label="Picochess clock">
+        <p class="brand">Picochess</p>
+        <section class="lcd" aria-live="polite" aria-label="Clock" role="timer">
+            <div id="clock-text">--:--</div>
+        </section>
+        <div>
+            <div class="controls" aria-label="Clock controls">
+                <button type="button" id="switch-sides" title="Switch sides" aria-label="Switch sides"><i class="fa fa-arrows-v" aria-hidden="true"></i></button>
+                <button type="button" id="evaluation" title="Show evaluation" aria-label="Show evaluation"><i class="fa fa-bar-chart-o" aria-hidden="true"></i></button>
+                <button type="button" id="pause" title="Pause or resume clock" aria-label="Pause or resume clock"><i class="fa fa-play" aria-hidden="true"></i></button>
+                <button type="button" id="hint" title="Show hint" aria-label="Show hint"><i class="fa fa-lightbulb-o" aria-hidden="true"></i></button>
+            </div>
+            <p id="connection" aria-live="polite"></p>
+        </div>
+    </main>
+    <script>
+        (() => {
+            const clockText = document.getElementById('clock-text');
+            const connection = document.getElementById('connection');
+            const pauseButton = document.getElementById('pause');
+
+            const updateClock = (text, running) => {
+                if (typeof text === 'string' && text) clockText.innerHTML = text;
+                if (typeof running === 'boolean') {
+                    const icon = pauseButton.querySelector('.fa');
+                    icon.classList.toggle('fa-pause', running);
+                    icon.classList.toggle('fa-play', !running);
+                    pauseButton.title = running ? 'Pause clock' : 'Resume clock';
+                    pauseButton.setAttribute('aria-label', pauseButton.title);
+                }
+            };
+
+            const channel = (action, extra = {}) => {
+                const body = new URLSearchParams({ action, ...extra });
+                return fetch('/channel', { method: 'POST', body }).catch(() => {
+                    connection.textContent = 'Control unavailable';
+                });
+            };
+
+            document.getElementById('switch-sides').addEventListener('click', () => channel('clockbutton', { button: '64' }));
+            document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));
+            document.getElementById('pause').addEventListener('click', () => channel('pause_resume'));
+            document.getElementById('hint').addEventListener('click', () => channel('clockbutton', { button: '3' }));
+
+            fetch('/info?action=get_clock_text').then((response) => response.text()).then((text) => updateClock(text)).catch(() => {});
+            fetch('/info?action=get_clock_state').then((response) => response.json()).then((state) => updateClock(null, Boolean(state.running))).catch(() => {});
+
+            const connect = () => {
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const socket = new WebSocket(protocol + '//' + location.host + '/event');
+                socket.onopen = () => { connection.textContent = ''; };
+                socket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.event === 'Clock') updateClock(data.msg, data.running);
+                };
+                socket.onclose = () => {
+                    connection.textContent = 'Reconnecting…';
+                    window.setTimeout(connect, 2000);
+                };
+                socket.onerror = () => socket.close();
+            };
+            connect();
+        })();
+    </script>
+</body>
+</html>

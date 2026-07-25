@@ -12,6 +12,7 @@ from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
+    OBOOKSRV_BOOK_LABEL,
     _apply_web_analysis_state,
     _build_scanned_setup_board,
     _cached_setup_position_fen,
@@ -263,6 +264,22 @@ class TestServerWebBookSelection(unittest.TestCase):
         self.assertEqual(OBOOKSRV_BOOK_FILE, selected["file"])
         self.assertNotIn("system_info", shared)
 
+    @patch("server.get_opening_books")
+    def test_web_books_are_alphabetical_after_obooksrv(self, get_opening_books):
+        get_opening_books.return_value = [
+            {"file": "zulu.bin", "text": "Zulu"},
+            {"file": "alpha.bin", "text": "Alpha"},
+            {"file": "beta.bin", "text": "beta"},
+        ]
+
+        books = _web_book_choices()
+
+        self.assertEqual(
+            [OBOOKSRV_BOOK_LABEL, "Alpha", "beta", "Zulu"],
+            [book["label"] for book in books],
+        )
+        self.assertEqual([0, 1, 2, 3], [book["index"] for book in books])
+
 
 class TestServerWebEngineSelection(unittest.TestCase):
     def setUp(self):
@@ -324,6 +341,19 @@ class TestServerEngineBookSelection(unittest.TestCase):
         self.assertIsNotNone(selected)
         self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
         self.assertTrue(selected["label"])
+
+    @patch("server.get_opening_books")
+    def test_engine_books_are_alphabetical(self, get_opening_books):
+        get_opening_books.return_value = [
+            {"file": "zulu.bin", "text": "Zulu"},
+            {"file": "alpha.bin", "text": "Alpha"},
+            {"file": "beta.bin", "text": "beta"},
+        ]
+
+        books = _engine_book_choices()
+
+        self.assertEqual(["Alpha", "beta", "Zulu"], [book["label"] for book in books])
+        self.assertEqual([0, 1, 2], [book["index"] for book in books])
 
 
 class TestServerWebAnalysisState(unittest.TestCase):

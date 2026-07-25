@@ -124,11 +124,16 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual(["Mephisto", "Novag", "Novag"], [entry["manufacturer"] for entry in retro])
 
     def test_payload_keeps_legacy_retro_entries_flat(self):
-        EngineProvider.retro_engines = [{"name": "Retro", "file": "retro", "level_dict": {}}]
+        EngineProvider.retro_engines = [
+            {"name": "Zulu", "file": "retro-0", "level_dict": {}},
+            {"name": "Alpha", "file": "retro-1", "level_dict": {}},
+        ]
+        EngineProvider.set_engine_menu_sort("engine")
 
         payload = _engine_menu_payload()
         retro = [entry for entry in payload["engines"] if entry["category"] == "retro"]
 
+        self.assertEqual(["retro-1", "retro-0"], [entry["file"] for entry in retro])
         self.assertEqual("", retro[0]["manufacturer"])
 
     @patch("server.write_picochess_ini")

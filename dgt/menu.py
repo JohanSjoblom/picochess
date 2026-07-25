@@ -753,9 +753,12 @@ class DgtMenu(object):
     def _step_retro_engine_in_group(self, step: int):
         groups = EngineProvider.get_retro_groups()
         if not groups:
-            self.menu_retro_engine_index = (self.menu_retro_engine_index + step) % len(
-                EngineProvider.retro_engines
-            )
+            indexes = EngineProvider.get_flat_retro_engine_indexes()
+            try:
+                current_position = indexes.index(self.menu_retro_engine_index)
+            except ValueError:
+                current_position = 0
+            self.menu_retro_engine_index = indexes[(current_position + step) % len(indexes)]
             return
         group = groups[self.menu_retro_manufacturer_index]
         indexes = group["engine_indexes"]

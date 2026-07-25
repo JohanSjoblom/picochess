@@ -68,6 +68,14 @@ class EngineProvider(object):
             group_items.sort(key=lambda item: item[0].casefold())
         return [{"manufacturer": manufacturer, "engine_indexes": indexes} for manufacturer, indexes in group_items]
 
+    @classmethod
+    def get_flat_retro_engine_indexes(cls) -> List[int]:
+        """Return the presentation order used when retro.ini has no manufacturer metadata."""
+        indexes = list(range(len(cls.retro_engines)))
+        if cls.engine_menu_sort in ("engine", "manufacturer"):
+            indexes.sort(key=lambda item: (str(cls.retro_engines[item].get("name", "")).casefold(), item))
+        return indexes
+
     @staticmethod
     def engine_matches(installed_file: str, requested_file: Optional[str]) -> bool:
         """Return True when a configured engine path resolves to an installed engine entry."""

@@ -36,7 +36,7 @@ def _retro_manufacturers(lines) -> dict[str, str]:
     for raw_line in lines:
         line = raw_line.rstrip("\r\n")
         directive = _RETRO_MANUFACTURER_RE.match(line)
-        if directive:
+        if directive and directive.group(1).strip():
             current_manufacturer = directive.group(1).strip()
             continue
         section = _INI_SECTION_RE.match(line)

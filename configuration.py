@@ -34,6 +34,12 @@ class Configuration:
         )
         self.parser.add_argument("-el", "--engine-level", type=str, help="UCI engine level", default=None)
         self.parser.add_argument(
+            "--engine-menu-sort",
+            choices=["file", "engine", "manufacturer"],
+            default="file",
+            help="Retro engine menu order: file, engine name, or manufacturer",
+        )
+        self.parser.add_argument(
             "-er",
             "--engine-remote",
             type=str,

@@ -352,6 +352,50 @@ def _engine_change_events(eng: dict, level_name: str, dgttranslate):
     )
 
 
+def _engine_menu_payload() -> dict:
+    """Serialize engine choices in presentation order without changing catalog indexes."""
+    from uci.engine_provider import EngineProvider
+
+    engines = []
+
+    def _entry(engine, category, manufacturer=""):
+        return {
+            "name": engine.get("name", ""),
+            "file": engine.get("file", ""),
+            "elo": engine.get("elo", ""),
+            "levels": list(engine.get("level_dict", {}).keys()),
+            "category": category,
+            "manufacturer": manufacturer,
+        }
+
+    engines.extend(_entry(engine, "modern") for engine in EngineProvider.modern_engines)
+    retro_groups = EngineProvider.get_retro_groups()
+    if retro_groups:
+        for group in retro_groups:
+            engines.extend(
+                _entry(EngineProvider.retro_engines[index], "retro", group["manufacturer"])
+                for index in group["engine_indexes"]
+            )
+    else:
+        engines.extend(_entry(engine, "retro") for engine in EngineProvider.retro_engines)
+    engines.extend(_entry(engine, "favorites") for engine in EngineProvider.favorite_engines)
+    return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
+
+
+def _apply_engine_menu_sort(shared: dict, sort_order: str):
+    """Persist and apply a valid live Retro-menu presentation order."""
+    from uci.engine_provider import EngineProvider
+
+    requested = str(sort_order or "").strip().lower()
+    if requested not in ("file", "engine", "manufacturer"):
+        return None
+    dgtmenu = shared.get("dgtmenu")
+    selected = dgtmenu.set_engine_menu_sort(requested) if dgtmenu else EngineProvider.set_engine_menu_sort(requested)
+    write_picochess_ini("engine-menu-sort", selected)
+    shared.setdefault("system_info", {})["engine_menu_sort"] = selected
+    return selected
+
+
 def _text_to_label(text_obj) -> str:
     """Extract a plain string from a DGT Text object or passthrough if already a str."""
     if text_obj is None:
@@ -971,6 +1015,17 @@ class ChannelHandler(ServerRequestHandler):
             if eng:
                 for event in _engine_change_events(eng, level, dgttranslate):
                     await Observable.fire(event)
+        elif action == "engine_menu_sort":
+            selected_sort = _apply_engine_menu_sort(self.shared, self.get_argument("val", ""))
+            self.set_header("Content-Type", "application/json")
+            if selected_sort is None:
+                self.set_status(400)
+                self.write({"success": False, "error": "Invalid engine menu sort order"})
+            else:
+                EventHandler.write_to_clients(
+                    {"event": "SystemInfo", "msg": {"engine_menu_sort": selected_sort}}
+                )
+                self.write({"success": True, "engine_menu_sort": selected_sort})
         elif action == "new_engine_book":
             selected = _select_engine_book(self.get_argument("file", ""))
             if selected:
@@ -1554,27 +1609,8 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_clock_menu_state":
             self.write({"active": _clock_menu_active(self.shared)})
         if action == "get_engines":
-            from uci.engine_provider import EngineProvider
-
-            engines = []
-
-            def _add(eng_list, category):
-                for eng in eng_list:
-                    engines.append(
-                        {
-                            "name": eng.get("name", ""),
-                            "file": eng.get("file", ""),
-                            "elo": eng.get("elo", ""),
-                            "levels": list(eng.get("level_dict", {}).keys()),
-                            "category": category,
-                        }
-                    )
-
-            _add(EngineProvider.modern_engines, "modern")
-            _add(EngineProvider.retro_engines, "retro")
-            _add(EngineProvider.favorite_engines, "favorites")
             self.set_header("Content-Type", "application/json")
-            self.write(json.dumps({"engines": engines}))
+            self.write(json.dumps(_engine_menu_payload()))
         if action == "get_voices":
             # Return available speakers for the current language.
             # Speakers are sub-directories of talker/voices/{lang}/.
@@ -1620,6 +1656,9 @@ class InfoHandler(ServerRequestHandler):
                 settings["capital"] = "on" if ecl in (True, "True", "true") else "off"
                 se = config.get("show-engine")
                 settings["show_engine"] = "on" if se in (True, "True", "true") else "off"
+                from uci.engine_provider import EngineProvider
+
+                settings["engine_menu_sort"] = EngineProvider.engine_menu_sort
                 # Retro speed (stored as float 0.0–10.0; UI shows as % strings)
                 try:
                     rspeed_f = float(config.get("rspeed", 1.0))

@@ -25,6 +25,8 @@ from server import (
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
+    _engine_menu_payload,
+    _apply_engine_menu_sort,
     _mode_text,
     _orient_scanned_board_fen,
     _retag_setup_position_side,
@@ -35,6 +37,7 @@ from server import (
     _validate_setup_position_fen,
     _web_book_choices,
 )
+from uci.engine_provider import EngineProvider
 from utilities import version as pico_version
 
 
@@ -88,6 +91,70 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
         text = _display_text_from_label("PGN Replay")
         self.assert_display_text(text)
         self.assertEqual("PGN Replay", text.web_text)
+
+
+class TestEngineMenuHelpers(unittest.TestCase):
+    def setUp(self):
+        self.original_modern = EngineProvider.modern_engines
+        self.original_retro = EngineProvider.retro_engines
+        self.original_favorites = EngineProvider.favorite_engines
+        self.original_sort = EngineProvider.engine_menu_sort
+        EngineProvider.modern_engines = [{"name": "Modern", "file": "modern", "level_dict": {}}]
+        EngineProvider.favorite_engines = [{"name": "Favorite", "file": "favorite", "level_dict": {}}]
+
+    def tearDown(self):
+        EngineProvider.modern_engines = self.original_modern
+        EngineProvider.retro_engines = self.original_retro
+        EngineProvider.favorite_engines = self.original_favorites
+        EngineProvider.engine_menu_sort = self.original_sort
+
+    def test_payload_uses_grouped_presentation_order_and_original_files(self):
+        EngineProvider.retro_engines = [
+            {"name": "Zulu", "file": "retro-0", "level_dict": {}, "manufacturer": "Novag"},
+            {"name": "Beta", "file": "retro-1", "level_dict": {}, "manufacturer": "Mephisto"},
+            {"name": "Alpha", "file": "retro-2", "level_dict": {}, "manufacturer": "Novag"},
+        ]
+        EngineProvider.set_engine_menu_sort("manufacturer")
+
+        payload = _engine_menu_payload()
+        retro = [entry for entry in payload["engines"] if entry["category"] == "retro"]
+
+        self.assertEqual("manufacturer", payload["engine_menu_sort"])
+        self.assertEqual(["retro-1", "retro-2", "retro-0"], [entry["file"] for entry in retro])
+        self.assertEqual(["Mephisto", "Novag", "Novag"], [entry["manufacturer"] for entry in retro])
+
+    def test_payload_keeps_legacy_retro_entries_flat(self):
+        EngineProvider.retro_engines = [{"name": "Retro", "file": "retro", "level_dict": {}}]
+
+        payload = _engine_menu_payload()
+        retro = [entry for entry in payload["engines"] if entry["category"] == "retro"]
+
+        self.assertEqual("", retro[0]["manufacturer"])
+
+    @patch("server.write_picochess_ini")
+    def test_apply_sort_updates_live_dgt_menu_and_persists(self, write_ini):
+        class FakeDgtMenu:
+            def __init__(self):
+                self.value = None
+
+            def set_engine_menu_sort(self, value):
+                self.value = value
+                return EngineProvider.set_engine_menu_sort(value)
+
+        menu = FakeDgtMenu()
+        shared = {"dgtmenu": menu}
+
+        result = _apply_engine_menu_sort(shared, "engine")
+
+        self.assertEqual("engine", result)
+        self.assertEqual("engine", menu.value)
+        self.assertEqual("engine", shared["system_info"]["engine_menu_sort"])
+        write_ini.assert_called_once_with("engine-menu-sort", "engine")
+
+    @patch("server.write_picochess_ini")
+    def test_apply_sort_rejects_unknown_value(self, write_ini):
+        self.assertIsNone(_apply_engine_menu_sort({}, "elo"))
+        write_ini.assert_not_called()
 
 
 class TestServerClockMenuHelpers(unittest.TestCase):

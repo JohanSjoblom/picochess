@@ -2206,7 +2206,8 @@
             var _engCatDefs = [
                 { icon: '💻', label: 'Modern',    value: 'modern'    },
                 { icon: '🕰️', label: 'Retro',     value: 'retro'     },
-                { icon: '⭐',  label: 'Favorites', value: 'favorites' }
+                { icon: '⭐',  label: 'Favorites', value: 'favorites' },
+                { icon: '↕️', label: 'Sort Order', value: 'sort'      }
             ];
 
             function renderEngineCatTiles() {
@@ -2221,14 +2222,62 @@
                     var lEl = document.createElement('span'); lEl.className = 'pico-tile-label';
                     lEl.textContent = cat.icon + ' ' + cat.label;
                     btn.appendChild(lEl);
-                    btn.addEventListener('click', function() { navigateTo(function() { openEngineCat(cat.value); }); });
+                    if (cat.value === 'sort') {
+                        var sortLabels = {file:'File order', engine:'Engine name', manufacturer:'Manufacturer'};
+                        var sortValue = (window._picoCurrentSettings || {}).engine_menu_sort || 'file';
+                        var sEl = document.createElement('span'); sEl.className = 'pico-tile-sub';
+                        sEl.textContent = sortLabels[sortValue] || sortLabels.file;
+                        btn.appendChild(sEl);
+                    }
+                    btn.addEventListener('click', function() {
+                        if (cat.value === 'sort') {
+                            navigateTo(showEngineSort);
+                        } else {
+                            navigateTo(function() { openEngineCat(cat.value); });
+                        }
+                    });
                     grid.appendChild(btn);
                 });
-                for (var i = 0; i < 6; i++) {
+                for (var i = _engCatDefs.length; i < 9; i++) {
                     var e = document.createElement('button'); e.className = 'pico-tile pico-empty-tile';
                     e.setAttribute('aria-hidden','true'); e.tabIndex = -1; grid.appendChild(e);
                 }
                 gridEl.appendChild(grid);
+            }
+
+            function showEngineSort() {
+                setOverlayPath('Engine > Sort Order');
+                document.getElementById('ovl-engine-cat-grid').style.display = 'none';
+                document.getElementById('ovl-engine-cat-back').style.display = '';
+                var lbl = document.getElementById('ovl-engine-sub-label');
+                lbl.style.display = '';
+                lbl.textContent = '↕️ Sort Order';
+                document.getElementById('ovl-engine-sub-panel').style.display = 'flex';
+                document.getElementById('ovl-level-col').style.display = 'none';
+                var listEl = document.getElementById('ovl-engine-list');
+                listEl.innerHTML = '';
+                var current = (window._picoCurrentSettings || {}).engine_menu_sort || 'file';
+                [
+                    {value:'file', label:'File order'},
+                    {value:'engine', label:'Engine name'},
+                    {value:'manufacturer', label:'Manufacturer'}
+                ].forEach(function(option) {
+                    var btn = document.createElement('button');
+                    btn.className = 'pico-picker-item' + (option.value === current ? ' selected' : '');
+                    var nameEl = document.createElement('strong');
+                    nameEl.textContent = option.label;
+                    btn.appendChild(nameEl);
+                    btn.addEventListener('click', function() {
+                        listEl.querySelectorAll('.pico-picker-item').forEach(function(el) {
+                            el.classList.remove('selected');
+                        });
+                        btn.classList.add('selected');
+                        setCurrentSetting('engine_menu_sort', option.value);
+                        post('action=engine_menu_sort&val=' + encodeURIComponent(option.value));
+                        setTimeout(goBack, 180);
+                    });
+                    listEl.appendChild(btn);
+                });
             }
 
             function openEngineCat(cat) {
@@ -2255,8 +2304,16 @@
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         _engAllData = data.engines || [];
+                        setCurrentSetting('engine_menu_sort', data.engine_menu_sort || 'file');
                         if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
-                        _showEngineList(cat);
+                        var hasManufacturers = cat === 'retro' && _engAllData.some(function(eng) {
+                            return (eng.category || '') === 'retro' && Boolean(eng.manufacturer);
+                        });
+                        if (hasManufacturers) {
+                            _showManufacturerList(cat);
+                        } else {
+                            _showEngineList(cat);
+                        }
                     })
                     .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
             }
@@ -2268,6 +2325,13 @@
                 document.getElementById('ovl-engine-sub-label').style.display = 'none';
                 document.getElementById('ovl-engine-cat-grid').style.display = '';
                 renderEngineCatTiles();
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        renderEngineCatTiles();
+                    })
+                    .catch(function() {});
             }
 
             function populateLevels(file, levels) {
@@ -2407,13 +2471,47 @@
             /* ── engine category filter ──────────────── */
             var _engCurrentCat = 'modern';
             var _engAllData    = [];
-            function _showEngineList(cat) {
+            function _showManufacturerList(cat) {
+                var listEl = document.getElementById('ovl-engine-list');
+                var levelEl = document.getElementById('ovl-level-col');
+                levelEl.style.display = 'none';
+                document.getElementById('ovl-level-list').innerHTML = '';
+                listEl.innerHTML = '';
+                setOverlayPath('Engine > Retro > Manufacturer');
+                var manufacturers = [];
+                _engAllData.forEach(function(eng) {
+                    if ((eng.category || '') !== cat || !eng.manufacturer) return;
+                    if (manufacturers.indexOf(eng.manufacturer) === -1) manufacturers.push(eng.manufacturer);
+                });
+                var currentEngine = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
+                manufacturers.forEach(function(manufacturer) {
+                    var btn = document.createElement('button');
+                    var containsCurrent = _engAllData.some(function(eng) {
+                        return eng.category === cat && eng.manufacturer === manufacturer
+                            && (eng.name || eng.file) === currentEngine;
+                    });
+                    btn.className = 'pico-picker-item' + (containsCurrent ? ' selected' : '');
+                    var nameEl = document.createElement('strong');
+                    nameEl.textContent = manufacturer;
+                    btn.appendChild(nameEl);
+                    btn.addEventListener('click', function() {
+                        navigateTo(function() { _showEngineList(cat, manufacturer); });
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            function _showEngineList(cat, manufacturer) {
                 var listEl  = document.getElementById('ovl-engine-list');
                 var levelEl = document.getElementById('ovl-level-col');
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 listEl.innerHTML = '';
-                var filtered = _engAllData.filter(function(e) { return !cat || cat === 'all' || (e.category || 'modern') === cat; });
+                if (manufacturer) setOverlayPath('Engine > Retro > ' + manufacturer);
+                var filtered = _engAllData.filter(function(e) {
+                    var categoryMatches = !cat || cat === 'all' || (e.category || 'modern') === cat;
+                    return categoryMatches && (!manufacturer || e.manufacturer === manufacturer);
+                });
                 if (!filtered.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">None</div>'; return; }
                 var _curEngineName = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
                 filtered.forEach(function(eng) {

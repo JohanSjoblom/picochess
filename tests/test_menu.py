@@ -20,6 +20,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         EngineProvider.installed_engines = list(
             EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.favorite_engines
         )
+        EngineProvider.set_engine_menu_sort("file")
 
         trans = DgtTranslate("none", 0, "en", "version")
         menu = DgtMenu(
@@ -241,6 +242,25 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, menu.menu_retro_engine_index)
         self.assertEqual(0, menu.menu_retro_manufacturer_index)
         self.assertEqual("Alpha", EngineProvider.get_retro_groups()[0]["manufacturer"])
+
+    @patch("platform.machine")
+    async def test_flat_retro_engine_sort_changes_navigation_not_indexes(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        original_names = [engine["name"] for engine in EngineProvider.retro_engines]
+        expected_indexes = sorted(
+            range(len(EngineProvider.retro_engines)),
+            key=lambda index: (EngineProvider.retro_engines[index]["name"].casefold(), index),
+        )
+        menu.menu_retro_engine_index = expected_indexes[0]
+        menu.set_engine_menu_sort("engine")
+
+        menu.enter_retro_eng_menu()
+        await menu.main_down()
+        self.assertEqual(MenuState.ENG_RETRO_NAME, menu.state)
+        menu.main_right()
+
+        self.assertEqual(expected_indexes[1], menu.menu_retro_engine_index)
+        self.assertEqual(original_names, [engine["name"] for engine in EngineProvider.retro_engines])
 
     @patch("platform.machine")
     async def test_modern_engine_retrieval(self, machine_mock):

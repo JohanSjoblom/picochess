@@ -44,6 +44,11 @@ class TestEngineProvider(unittest.TestCase):
         EngineProvider.retro_engines = [{"name": "One"}, {"name": "Two"}]
         self.assertEqual([], EngineProvider.get_retro_groups())
 
+    def test_flat_retro_engine_sort_preserves_original_indexes(self):
+        EngineProvider.retro_engines = [{"name": "Zulu"}, {"name": "Alpha"}, {"name": "Beta"}]
+        EngineProvider.set_engine_menu_sort("engine")
+        self.assertEqual([1, 2, 0], EngineProvider.get_flat_retro_engine_indexes())
+
     def test_retro_groups_keep_original_indexes_in_file_order(self):
         EngineProvider.retro_engines = [
             {"name": "Zulu", "manufacturer": ""},

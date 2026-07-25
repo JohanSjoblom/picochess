@@ -377,7 +377,10 @@ def _engine_menu_payload() -> dict:
                 for index in group["engine_indexes"]
             )
     else:
-        engines.extend(_entry(engine, "retro") for engine in EngineProvider.retro_engines)
+        engines.extend(
+            _entry(EngineProvider.retro_engines[index], "retro")
+            for index in EngineProvider.get_flat_retro_engine_indexes()
+        )
     engines.extend(_entry(engine, "favorites") for engine in EngineProvider.favorite_engines)
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 

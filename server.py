@@ -412,10 +412,20 @@ def _text_to_label(text_obj) -> str:
     return ""
 
 
+def _sorted_opening_books():
+    """Return opening books alphabetically by their visible label."""
+    def _sort_key(book):
+        book_file = str(book.get("file", "")).strip()
+        label = _text_to_label(book.get("text")) or os.path.basename(book_file)
+        return label.casefold(), book_file.casefold()
+
+    return sorted(get_opening_books(), key=_sort_key)
+
+
 def _web_book_choices():
     """Return the web book-picker choices including the ObookSrv pseudo-entry."""
     books = [{"index": 0, "file": OBOOKSRV_BOOK_FILE, "label": OBOOKSRV_BOOK_LABEL}]
-    for offset, book in enumerate(get_opening_books(), start=1):
+    for offset, book in enumerate(_sorted_opening_books(), start=1):
         books.append(
             {
                 "index": offset,
@@ -441,7 +451,7 @@ def _configured_engine_book_file() -> str:
 def _engine_book_choices():
     """Return the real engine-book choices, excluding the ObookSrv pseudo-entry."""
     choices = []
-    for index, book in enumerate(get_opening_books()):
+    for index, book in enumerate(_sorted_opening_books()):
         choices.append(
             {
                 "index": index,
@@ -455,7 +465,7 @@ def _engine_book_choices():
 def _select_engine_book(book_file: str):
     """Resolve a real engine-book file to the matching configured book entry."""
     selected_file = str(book_file or "").strip()
-    library = get_opening_books()
+    library = _sorted_opening_books()
     if not library:
         return None
     for index, book in enumerate(library):

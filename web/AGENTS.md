@@ -69,6 +69,12 @@ explicitly requires it.
 - The old `BOOK` tab changes only the opening information shown to the human in
   the web client. It must keep the special `ObookSrv` index 0 entry.
 - Do not let the old `BOOK` tab change the playing engine book.
+- Present both web book pickers alphabetically by their visible labels. Keep
+  the web-only `ObookSrv` entry pinned first in the `BOOK`-tab picker.
+- The `BOOK` tab uses one compact selector that opens its own modern picker;
+  do not restore slow previous/next book cycling. Its selection remains
+  browser-specific and must use the web-book action rather than the Engine Book
+  action.
 
 ## Game Lifecycle State
 

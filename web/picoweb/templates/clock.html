@@ -424,7 +424,7 @@
 
         .book-header-row {
             display: grid;
-            grid-template-columns: 2rem minmax(0, 1fr) 2rem;
+            grid-template-columns: minmax(0, 1fr) 2rem;
             align-items: center;
             gap: 0.5rem;
             width: 100%;
@@ -781,19 +781,14 @@
                                                 <div id="currentBookContainer" class="mb-2 d-none">
                                                     <div class="alert alert-secondary py-1 px-2 text-center mb-2">
                                                         <div class="book-header-row">
-                                                            <button type="button" id="bookPrev"
-                                                                class="btn btn-sm btn-primary book-switch-btn"
-                                                                aria-label="Previous opening book" title="Previous book">
-                                                                <i class="fa fa-chevron-left" aria-hidden="true"></i>
-                                                            </button>
                                                             <span class="book-title">
                                                                 <span class="fw-bold">Book:&nbsp;</span>
                                                                 <span id="currentBookName">No book</span>
                                                             </span>
-                                                            <button type="button" id="bookNext"
+                                                            <button type="button" id="bookSelect"
                                                                 class="btn btn-sm btn-primary book-switch-btn"
-                                                                aria-label="Next opening book" title="Next book">
-                                                                <i class="fa fa-chevron-right" aria-hidden="true"></i>
+                                                                aria-label="Select opening book" title="Select opening book">
+                                                                <i class="fa fa-chevron-down" aria-hidden="true"></i>
                                                             </button>
                                                         </div>
                                                     </div>
@@ -1142,6 +1137,7 @@
                 'overlay-time': 'Time',
                 'overlay-engine': 'Engine',
                 'overlay-book': 'Engine Book',
+                'overlay-web-book': 'Book Explorer',
                 'overlay-tutor': 'Tutor',
                 'overlay-position': 'Position',
                 'overlay-game': 'Game',
@@ -2468,6 +2464,48 @@
                     .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
             }
 
+            function showWebBook() {
+                showSubpanel('overlay-web-book');
+                var listEl = document.getElementById('ovl-web-book-list');
+                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div>';
+                fetch('/book?action=get_book_list')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        listEl.innerHTML = '';
+                        webBookList = data.books || [];
+                        var storedIndex = parseInt(localStorage.getItem(webBookStorageKey), 10);
+                        if (Number.isFinite(storedIndex) && storedIndex >= 0 && storedIndex < webBookList.length) {
+                            currentWebBookIndex = storedIndex;
+                        } else if (typeof data.current_index === 'number') {
+                            currentWebBookIndex = data.current_index;
+                        } else {
+                            currentWebBookIndex = 0;
+                        }
+                        webBookList.forEach(function(book) {
+                            var btn = document.createElement('button');
+                            btn.className = 'pico-picker-item';
+                            btn.classList.toggle('selected', book.index === currentWebBookIndex);
+                            var label = book.label || book.file || ('Book ' + (book.index + 1));
+                            var nameEl = document.createElement('strong');
+                            nameEl.textContent = label;
+                            btn.appendChild(nameEl);
+                            btn.addEventListener('click', function() {
+                                listEl.querySelectorAll('.pico-picker-item').forEach(function(el) {
+                                    el.classList.remove('selected');
+                                });
+                                btn.classList.add('selected');
+                                selectWebBook(book.index);
+                                setTimeout(close, 180);
+                            });
+                            listEl.appendChild(btn);
+                        });
+                        if (!webBookList.length) {
+                            listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No books found</div>';
+                        }
+                    })
+                    .catch(function() { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Failed to load</div>'; });
+            }
+
             /* ── engine category filter ──────────────── */
             var _engCurrentCat = 'modern';
             var _engAllData    = [];
@@ -3767,6 +3805,7 @@
                 showMode: function() { navigateTo(showMode); },
                 showTime: function() { navigateTo(showTime); },
                 showBook: function() { navigateTo(showEngineBook); },
+                showWebBook: function() { navigateTo(showWebBook); },
                 showTutor: function() { navigateTo(showTutor); },
                 showPosition: function() { navigateTo(showPosition); },
                 showGame: function() { navigateTo(showGame); },
@@ -4201,6 +4240,18 @@
                     <div id="ovl-book-list"><div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div></div>
                 </div>
             </div><!-- #overlay-book -->
+
+            <!-- WEB BOOK EXPLORER SUB-PANEL -->
+            <div id="overlay-web-book" class="pico-subpanel">
+                <div class="pico-picker-header">
+                    <button class="pico-overlay-back">‹ Back</button>
+                    <span class="pico-picker-title">Book Explorer</span>
+                </div>
+                <div class="pico-picker-col" style="flex:1; overflow-y:auto;">
+                    <div class="pico-picker-col-label">Select Display Book</div>
+                    <div id="ovl-web-book-list"><div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">Loading…</div></div>
+                </div>
+            </div><!-- #overlay-web-book -->
 
             <!-- TUTOR SUB-PANEL -->
             <div id="overlay-tutor" class="pico-subpanel">

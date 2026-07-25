@@ -335,7 +335,7 @@ var dataTableFen = START_FEN;
 
 // web-specific opening book selection (independent from engine)
 var webBookList = [];
-var webBookStorageKey = 'webBookIndexV2';
+var webBookStorageKey = 'webBookIndexV3';
 var currentWebBookIndex = parseInt(localStorage.getItem(webBookStorageKey)) || 0;
 var chessGameType = 0; // 0=Standard ; 1=Chess960
 var computerside = ""; // color played by the computer
@@ -463,12 +463,12 @@ function loadWebBookList() {
     });
 }
 
-function changeWebBook(delta) {
+function selectWebBook(index) {
     if (!webBookList.length) { return; }
-    var nextIndex = (currentWebBookIndex + delta + webBookList.length) % webBookList.length;
+    var nextIndex = Math.max(0, Math.min(parseInt(index, 10) || 0, webBookList.length - 1));
     currentWebBookIndex = nextIndex;
     localStorage.setItem(webBookStorageKey, currentWebBookIndex);
-    $.getJSON('/book',
+    return $.getJSON('/book',
         { action: 'set_book_index', index: nextIndex },
         function (data) {
             if (data && data.book) {
@@ -3703,8 +3703,12 @@ $(function () {
 
     $.fn.dataTable.ext.errMode = 'throw';
 
-    $('#bookPrev').on('click', function () { changeWebBook(-1); });
-    $('#bookNext').on('click', function () { changeWebBook(1); });
+    $('#bookSelect').on('click', function () {
+        if (window.picoOverlay) {
+            window.picoOverlay.open();
+            window.picoOverlay.showWebBook();
+        }
+    });
 
     // Static bindings for persistent SHOW/HIDE and ± buttons.
     $('#engineToggleBtn').on('click', function () {

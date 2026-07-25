@@ -423,14 +423,15 @@
         }
 
         .book-header-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 2rem;
+            display: flex;
             align-items: center;
+            justify-content: center;
             gap: 0.5rem;
             width: 100%;
         }
 
         .book-title {
+            flex: 0 1 auto;
             min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -3685,6 +3686,10 @@
                     goBack();
                     return;
                 }
+                if (e.target.closest('#ovl-web-book-back')) {
+                    close();
+                    return;
+                }
 
                 if (e.target.closest('.pico-overlay-back')) { goBack(); return; }
                 if (e.target.closest('#backToMenuBtn')) { goBack(); return; }
@@ -3805,7 +3810,12 @@
                 showMode: function() { navigateTo(showMode); },
                 showTime: function() { navigateTo(showTime); },
                 showBook: function() { navigateTo(showEngineBook); },
-                showWebBook: function() { navigateTo(showWebBook); },
+                showWebBook: function() {
+                    navStack = [];
+                    showWebBook();
+                    currentView = showWebBook;
+                    updateOverlayBack();
+                },
                 showTutor: function() { navigateTo(showTutor); },
                 showPosition: function() { navigateTo(showPosition); },
                 showGame: function() { navigateTo(showGame); },
@@ -4244,7 +4254,7 @@
             <!-- WEB BOOK EXPLORER SUB-PANEL -->
             <div id="overlay-web-book" class="pico-subpanel">
                 <div class="pico-picker-header">
-                    <button class="pico-overlay-back">‹ Back</button>
+                    <button class="pico-overlay-back" id="ovl-web-book-back">‹ Back</button>
                     <span class="pico-picker-title">Book Explorer</span>
                 </div>
                 <div class="pico-picker-col" style="flex:1; overflow-y:auto;">

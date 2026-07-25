@@ -75,6 +75,9 @@ explicitly requires it.
   do not restore slow previous/next book cycling. Its selection remains
   browser-specific and must use the web-book action rather than the Engine Book
   action.
+- Treat the `BOOK`-tab picker as standalone rather than as a submenu of the
+  settings overlay. Its Back control closes the picker and returns visually to
+  the BOOK tab; it must not lead into the main settings menu.
 
 ## Game Lifecycle State
 

@@ -78,6 +78,9 @@ engine = /opt/picochess/engines/x86_64/a-stockf
 ## For a (correct) value please take a look at 'engines/<your_platform>/<engine_name>.uci'
 engine-level = Elo@2200
 
+## Retro engine menu ordering: file, engine, or manufacturer. Default is file.
+#engine-menu-sort = file
+
 ### =========================
 ### = Remote engine options =
 ### =========================

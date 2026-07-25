@@ -1258,7 +1258,7 @@ async def main() -> None:
     if unknown:
         logger.warning("invalid parameter given %s", unknown)
 
-    EngineProvider.init()
+    EngineProvider.init(args.engine_menu_sort)
 
     Rev2Info.set_dgtpi(args.dgtpi)
     state.flag_flexible_ponder = args.flexible_analysis

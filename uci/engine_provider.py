@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+from collections import OrderedDict
 from typing import Dict, List, Optional
 
 from uci.read import read_engine_ini
@@ -25,9 +26,11 @@ class EngineProvider(object):
     retro_engines: List[Dict[str, str]] = []
     favorite_engines: List[Dict[str, str]] = []
     installed_engines: List[Dict[str, str]] = []
+    engine_menu_sort = "file"
 
     @classmethod
-    def init(cls):
+    def init(cls, engine_menu_sort: str = "file"):
+        cls.set_engine_menu_sort(engine_menu_sort)
         cls.modern_engines: List[Dict[str, str]] = read_engine_ini(filename="engines.ini")
         cls.retro_engines: List[Dict[str, str]] = read_engine_ini(filename="retro.ini")
         cls.favorite_engines: List[Dict[str, str]] = read_engine_ini(filename="favorites.ini")
@@ -37,6 +40,33 @@ class EngineProvider(object):
         if not cls.favorite_engines:
             cls.favorite_engines = cls.modern_engines
         cls.installed_engines: List[Dict[str, str]] = cls.modern_engines + cls.retro_engines + cls.favorite_engines
+
+    @classmethod
+    def set_engine_menu_sort(cls, sort_order: str) -> str:
+        """Set presentation ordering without changing any engine-list indexes."""
+        normalized = str(sort_order or "file").strip().lower()
+        cls.engine_menu_sort = normalized if normalized in ("file", "engine", "manufacturer") else "file"
+        return cls.engine_menu_sort
+
+    @classmethod
+    def get_retro_groups(cls) -> List[Dict]:
+        """Return manufacturer groups containing stable indexes into retro_engines."""
+        if not any(str(engine.get("manufacturer", "")).strip() for engine in cls.retro_engines):
+            return []
+
+        groups = OrderedDict()
+        for index, engine in enumerate(cls.retro_engines):
+            manufacturer = str(engine.get("manufacturer", "")).strip() or "Other"
+            groups.setdefault(manufacturer, []).append(index)
+
+        if cls.engine_menu_sort in ("engine", "manufacturer"):
+            for indexes in groups.values():
+                indexes.sort(key=lambda item: (str(cls.retro_engines[item].get("name", "")).casefold(), item))
+
+        group_items = list(groups.items())
+        if cls.engine_menu_sort == "manufacturer":
+            group_items.sort(key=lambda item: item[0].casefold())
+        return [{"manufacturer": manufacturer, "engine_indexes": indexes} for manufacturer, indexes in group_items]
 
     @staticmethod
     def engine_matches(installed_file: str, requested_file: Optional[str]) -> bool:

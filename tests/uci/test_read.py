@@ -38,7 +38,7 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
             "retro.ini",
             "; Manufacturer: Mephisto\n"
             + ENGINE_SECTION.format(section="mame/one", name="One")
-            + "; ordinary comment\n;Manufacturer: Novag\n; manufacturer: Novag\n"
+            + "; ordinary comment\n;Manufacturer: Novag\n; manufacturer: Novag\n; Manufacturer:   \n"
             + ENGINE_SECTION.format(section="mame/two", name="Two"),
         )
         self.assertEqual(["Mephisto", "Mephisto"], [engine["manufacturer"] for engine in engines])

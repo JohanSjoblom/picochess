@@ -2303,8 +2303,8 @@
                         _engAllData = data.engines || [];
                         setCurrentSetting('engine_menu_sort', data.engine_menu_sort || 'file');
                         if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
-                        var hasManufacturers = cat === 'retro' && _engAllData.some(function(eng) {
-                            return (eng.category || '') === 'retro' && Boolean(eng.manufacturer);
+                        var hasManufacturers = _engAllData.some(function(eng) {
+                            return (eng.category || '') === cat && Boolean(eng.manufacturer);
                         });
                         if (hasManufacturers) {
                             _showManufacturerList(cat);
@@ -2516,7 +2516,8 @@
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 listEl.innerHTML = '';
-                setOverlayPath('Engine > Retro > Manufacturer');
+                var catDef = _engCatDefs.find(function(d) { return d.value === cat; }) || { label: cat };
+                setOverlayPath('Engine > ' + catDef.label + ' > Manufacturer');
                 var manufacturers = [];
                 _engAllData.forEach(function(eng) {
                     if ((eng.category || '') !== cat || !eng.manufacturer) return;
@@ -2546,7 +2547,10 @@
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 listEl.innerHTML = '';
-                if (manufacturer) setOverlayPath('Engine > Retro > ' + manufacturer);
+                if (manufacturer) {
+                    var catDef = _engCatDefs.find(function(d) { return d.value === cat; }) || { label: cat };
+                    setOverlayPath('Engine > ' + catDef.label + ' > ' + manufacturer);
+                }
                 var filtered = _engAllData.filter(function(e) {
                     var categoryMatches = !cat || cat === 'all' || (e.category || 'modern') === cat;
                     return categoryMatches && (!manufacturer || e.manufacturer === manufacturer);

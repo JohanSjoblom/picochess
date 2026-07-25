@@ -79,6 +79,16 @@ explicitly requires it.
   settings overlay. Its Back control closes the picker and returns visually to
   the BOOK tab; it must not lead into the main settings menu.
 
+## Engine Manufacturer Metadata
+
+- Parse strict `; Manufacturer: ...` directives in every engine INI catalog,
+  including `engines.ini`, `retro.ini`, `favorites.ini`, and future catalogs.
+- Each engine category independently enables its manufacturer level when at
+  least one entry has metadata. Missing metadata in a grouped category belongs
+  to `Other`.
+- If a category has no manufacturer metadata, preserve the previous flat list.
+  Under engine or manufacturer sorting, that fallback list is alphabetical.
+
 ## Game Lifecycle State
 
 - `game_started` is a lifecycle flag for the web client and CPU-saving analysis

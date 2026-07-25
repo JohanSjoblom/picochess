@@ -51,17 +51,22 @@ class EngineProvider(object):
     @classmethod
     def get_retro_groups(cls) -> List[Dict]:
         """Return manufacturer groups containing stable indexes into retro_engines."""
-        if not any(str(engine.get("manufacturer", "")).strip() for engine in cls.retro_engines):
+        return cls.get_engine_groups(cls.retro_engines)
+
+    @classmethod
+    def get_engine_groups(cls, engines: List[Dict]) -> List[Dict]:
+        """Return optional manufacturer groups for any engine catalog."""
+        if not any(str(engine.get("manufacturer", "")).strip() for engine in engines):
             return []
 
         groups = OrderedDict()
-        for index, engine in enumerate(cls.retro_engines):
+        for index, engine in enumerate(engines):
             manufacturer = str(engine.get("manufacturer", "")).strip() or "Other"
             groups.setdefault(manufacturer, []).append(index)
 
         if cls.engine_menu_sort in ("engine", "manufacturer"):
             for indexes in groups.values():
-                indexes.sort(key=lambda item: (str(cls.retro_engines[item].get("name", "")).casefold(), item))
+                indexes.sort(key=lambda item: (str(engines[item].get("name", "")).casefold(), item))
 
         group_items = list(groups.items())
         if cls.engine_menu_sort == "manufacturer":
@@ -71,9 +76,14 @@ class EngineProvider(object):
     @classmethod
     def get_flat_retro_engine_indexes(cls) -> List[int]:
         """Return the presentation order used when retro.ini has no manufacturer metadata."""
-        indexes = list(range(len(cls.retro_engines)))
+        return cls.get_flat_engine_indexes(cls.retro_engines)
+
+    @classmethod
+    def get_flat_engine_indexes(cls, engines: List[Dict]) -> List[int]:
+        """Return flat presentation indexes for an engine catalog."""
+        indexes = list(range(len(engines)))
         if cls.engine_menu_sort in ("engine", "manufacturer"):
-            indexes.sort(key=lambda item: (str(cls.retro_engines[item].get("name", "")).casefold(), item))
+            indexes.sort(key=lambda item: (str(engines[item].get("name", "")).casefold(), item))
         return indexes
 
     @staticmethod

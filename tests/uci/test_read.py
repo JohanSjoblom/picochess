@@ -43,7 +43,7 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
         )
         self.assertEqual(["Mephisto", "Mephisto"], [engine["manufacturer"] for engine in engines])
 
-    def test_ungrouped_retro_entries_have_empty_manufacturer(self):
+    def test_ungrouped_entries_have_empty_manufacturer(self):
         engines = self._read(
             "retro.ini",
             ENGINE_SECTION.format(section="mame/one", name="One")
@@ -52,9 +52,16 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
         )
         self.assertEqual(["", "Novag"], [engine["manufacturer"] for engine in engines])
 
-    def test_manufacturer_directive_is_ignored_outside_retro_ini(self):
+    def test_manufacturer_directive_applies_to_every_engine_ini(self):
         engines = self._read(
             "engines.ini",
             "; Manufacturer: Mephisto\n" + ENGINE_SECTION.format(section="one", name="One"),
         )
-        self.assertNotIn("manufacturer", engines[0])
+        self.assertEqual("Mephisto", engines[0]["manufacturer"])
+
+    def test_future_engine_ini_without_directives_keeps_empty_metadata(self):
+        engines = self._read(
+            "community.ini",
+            ENGINE_SECTION.format(section="one", name="One"),
+        )
+        self.assertEqual("", engines[0]["manufacturer"])

@@ -476,6 +476,22 @@ the same code path.
 - The `best_sent_depth` optimization must be reset on engine switch so the new
   engine can send fresh depth updates immediately.
 
+## Engine Manufacturer Menus
+
+- Parse strict `; Manufacturer: <name>` directives in every engine INI, not
+  only `retro.ini`. This also applies to future engine catalogs read through
+  the common INI loader.
+- Manufacturer grouping is decided independently for each catalog. If no
+  engine in a catalog has manufacturer metadata, preserve the original flat
+  engine list.
+- If at least one engine in a catalog has manufacturer metadata, group entries
+  without metadata under `Other`.
+- Presentation sorting and grouping must retain stable indexes into the
+  original engine catalogs; engine selection and persisted paths depend on
+  those indexes.
+- Keep the web menu and DGT/clock menu behavior aligned for Modern, Retro, and
+  Special/Favorites catalogs.
+
 ## Tutor Behavior Outside PONDER
 
 - Non-`PONDER` modes keep their existing tutor behavior.

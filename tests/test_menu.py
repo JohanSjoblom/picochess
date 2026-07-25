@@ -244,6 +244,36 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Alpha", EngineProvider.get_retro_groups()[0]["manufacturer"])
 
     @patch("platform.machine")
+    async def test_grouped_modern_and_special_engine_menus(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        for engine, manufacturer in zip(EngineProvider.modern_engines, ["Open Source", "Other", "Other"]):
+            engine["manufacturer"] = manufacturer
+        for engine, manufacturer in zip(EngineProvider.favorite_engines, ["Favorites", "Favorites", "Classic"]):
+            engine["manufacturer"] = manufacturer
+
+        menu.enter_modern_eng_menu()
+        manufacturer = await menu.main_down()
+        self.assertEqual(MenuState.ENG_MODERN_MANUFACTURER, menu.state)
+        self.assertEqual("Open Source", manufacturer.web_text)
+        engine_name = await menu.main_down()
+        self.assertEqual(MenuState.ENG_MODERN_NAME, menu.state)
+        self.assertEqual(0, menu.menu_modern_engine_index)
+        menu.main_up()
+        self.assertEqual(MenuState.ENG_MODERN_MANUFACTURER, menu.state)
+
+        menu.enter_fav_eng_menu()
+        manufacturer = await menu.main_down()
+        self.assertEqual(MenuState.ENG_FAV_MANUFACTURER, menu.state)
+        self.assertEqual("Favorites", manufacturer.web_text)
+        menu.main_right()
+        engine_name = await menu.main_down()
+        self.assertEqual(MenuState.ENG_FAV_NAME, menu.state)
+        self.assertEqual(2, menu.menu_fav_engine_index)
+        self.assertEqual(EngineProvider.favorite_engines[2]["text"].large_text, engine_name.large_text)
+        menu.main_up()
+        self.assertEqual(MenuState.ENG_FAV_MANUFACTURER, menu.state)
+
+    @patch("platform.machine")
     async def test_flat_retro_engine_sort_changes_navigation_not_indexes(self, machine_mock):
         menu = self.create_menu(machine_mock)
         original_names = [engine["name"] for engine in EngineProvider.retro_engines]

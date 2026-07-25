@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from uci.read import read_engine_ini
 
@@ -65,3 +66,7 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
             ENGINE_SECTION.format(section="one", name="One"),
         )
         self.assertEqual("", engines[0]["manufacturer"])
+
+    @patch("builtins.open", side_effect=PermissionError("catalog is not readable"))
+    def test_unreadable_engine_ini_keeps_previous_empty_catalog_fallback(self, _open):
+        self.assertEqual([], read_engine_ini(engine_path="/engines", filename="retro.ini"))

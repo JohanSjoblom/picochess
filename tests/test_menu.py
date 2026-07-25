@@ -202,6 +202,47 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(MenuState.ENG_RETRO_NAME, menu.state)
 
     @patch("platform.machine")
+    async def test_grouped_retro_engine_menu_traversal_uses_stable_indexes(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        manufacturers = ["Mephisto", "Mephisto", "Novag"]
+        for engine, manufacturer in zip(EngineProvider.retro_engines, manufacturers):
+            engine["manufacturer"] = manufacturer
+        EngineProvider.set_engine_menu_sort("file")
+
+        menu.enter_retro_eng_menu()
+        manufacturer = await menu.main_down()
+        self.assertEqual(MenuState.ENG_RETRO_MANUFACTURER, menu.state)
+        self.assertEqual("Mephisto", manufacturer.web_text)
+
+        manufacturer = menu.main_right()
+        self.assertEqual("Novag", manufacturer.web_text)
+        engine_name = await menu.main_down()
+        self.assertEqual(MenuState.ENG_RETRO_NAME, menu.state)
+        self.assertEqual(2, menu.menu_retro_engine_index)
+        self.assertEqual(EngineProvider.retro_engines[2]["text"].large_text, engine_name.large_text)
+
+        menu.main_up()
+        self.assertEqual(MenuState.ENG_RETRO_MANUFACTURER, menu.state)
+        menu.main_left()
+        await menu.main_down()
+        self.assertEqual(0, menu.menu_retro_engine_index)
+        menu.main_right()
+        self.assertEqual(1, menu.menu_retro_engine_index)
+
+    @patch("platform.machine")
+    async def test_grouped_retro_sort_change_retains_current_engine(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        EngineProvider.retro_engines[0]["manufacturer"] = "Zulu"
+        EngineProvider.retro_engines[1]["manufacturer"] = "Alpha"
+        menu.menu_retro_engine_index = 1
+
+        menu.set_engine_menu_sort("manufacturer")
+
+        self.assertEqual(1, menu.menu_retro_engine_index)
+        self.assertEqual(0, menu.menu_retro_manufacturer_index)
+        self.assertEqual("Alpha", EngineProvider.get_retro_groups()[0]["manufacturer"])
+
+    @patch("platform.machine")
     async def test_modern_engine_retrieval(self, machine_mock):
         menu = self.create_menu(machine_mock)
         menu.set_state_current_engine("")

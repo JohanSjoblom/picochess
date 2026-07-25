@@ -69,7 +69,7 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
                 lines = file.readlines()
                 manufacturers = _engine_manufacturers(lines)
                 config.read_string("".join(lines))
-    except FileNotFoundError:
+    except OSError:
         pass
 
     library = []

@@ -44,6 +44,24 @@ class TestEngineProvider(unittest.TestCase):
         EngineProvider.retro_engines = [{"name": "One"}, {"name": "Two"}]
         self.assertEqual([], EngineProvider.get_retro_groups())
 
+    def test_generic_groups_are_absent_without_metadata(self):
+        engines = [{"name": "One", "manufacturer": ""}, {"name": "Two"}]
+        self.assertEqual([], EngineProvider.get_engine_groups(engines))
+
+    def test_generic_groups_collect_missing_metadata_under_other(self):
+        engines = [
+            {"name": "Zulu", "manufacturer": ""},
+            {"name": "Beta", "manufacturer": "Maker"},
+        ]
+        EngineProvider.set_engine_menu_sort("manufacturer")
+        self.assertEqual(
+            [
+                {"manufacturer": "Maker", "engine_indexes": [1]},
+                {"manufacturer": "Other", "engine_indexes": [0]},
+            ],
+            EngineProvider.get_engine_groups(engines),
+        )
+
     def test_flat_retro_engine_sort_preserves_original_indexes(self):
         EngineProvider.retro_engines = [{"name": "Zulu"}, {"name": "Alpha"}, {"name": "Beta"}]
         EngineProvider.set_engine_menu_sort("engine")

@@ -25,17 +25,17 @@ from dgt.api import Dgt
 
 logger = logging.getLogger(__name__)
 
-_RETRO_MANUFACTURER_RE = re.compile(r"^; Manufacturer: (.+?)\s*$")
+_ENGINE_MANUFACTURER_RE = re.compile(r"^; Manufacturer: (.+?)\s*$")
 _INI_SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
 
 
-def _retro_manufacturers(lines) -> dict[str, str]:
-    """Map retro.ini sections to the active strict manufacturer directive."""
+def _engine_manufacturers(lines) -> dict[str, str]:
+    """Map engine INI sections to the active strict manufacturer directive."""
     manufacturers = {}
     current_manufacturer = ""
     for raw_line in lines:
         line = raw_line.rstrip("\r\n")
-        directive = _RETRO_MANUFACTURER_RE.match(line)
+        directive = _ENGINE_MANUFACTURER_RE.match(line)
         if directive and directive.group(1).strip():
             current_manufacturer = directive.group(1).strip()
             continue
@@ -59,19 +59,16 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
                 program_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
                 engine_path = program_path + os.sep + "engines" + os.sep + platform.machine()
             logger.debug("complete path without shell: %s", str(engine_path + os.sep + filename))
-            if filename == "retro.ini":
-                with open(engine_path + os.sep + filename, "r", encoding="utf-8") as file:
-                    manufacturers = _retro_manufacturers(file)
-            config.read(engine_path + os.sep + filename)
+            with open(engine_path + os.sep + filename, "r", encoding="utf-8") as file:
+                lines = file.readlines()
+            manufacturers = _engine_manufacturers(lines)
+            config.read_string("".join(lines))
         else:
             logger.debug("complete path: %s", str(engine_path + os.sep + filename))
             with engine_shell.open(engine_path + os.sep + filename, "r") as file:
-                if filename == "retro.ini":
-                    lines = file.readlines()
-                    manufacturers = _retro_manufacturers(lines)
-                    config.read_string("".join(lines))
-                else:
-                    config.read_file(file)
+                lines = file.readlines()
+                manufacturers = _engine_manufacturers(lines)
+                config.read_string("".join(lines))
     except FileNotFoundError:
         pass
 
@@ -115,7 +112,6 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
             "name": confsect["name"],
             "elo": confsect["elo"],
         }
-        if filename == "retro.ini":
-            engine["manufacturer"] = manufacturers.get(section, "")
+        engine["manufacturer"] = manufacturers.get(section, "")
         library.append(engine)
     return library

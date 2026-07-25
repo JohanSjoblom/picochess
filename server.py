@@ -368,20 +368,23 @@ def _engine_menu_payload() -> dict:
             "manufacturer": manufacturer,
         }
 
-    engines.extend(_entry(engine, "modern") for engine in EngineProvider.modern_engines)
-    retro_groups = EngineProvider.get_retro_groups()
-    if retro_groups:
-        for group in retro_groups:
-            engines.extend(
-                _entry(EngineProvider.retro_engines[index], "retro", group["manufacturer"])
-                for index in group["engine_indexes"]
-            )
-    else:
+    def _extend_category(catalog, category):
+        groups = EngineProvider.get_engine_groups(catalog)
+        if groups:
+            for group in groups:
+                engines.extend(
+                    _entry(catalog[index], category, group["manufacturer"])
+                    for index in group["engine_indexes"]
+                )
+            return
         engines.extend(
-            _entry(EngineProvider.retro_engines[index], "retro")
-            for index in EngineProvider.get_flat_retro_engine_indexes()
+            _entry(catalog[index], category)
+            for index in EngineProvider.get_flat_engine_indexes(catalog)
         )
-    engines.extend(_entry(engine, "favorites") for engine in EngineProvider.favorite_engines)
+
+    _extend_category(EngineProvider.modern_engines, "modern")
+    _extend_category(EngineProvider.retro_engines, "retro")
+    _extend_category(EngineProvider.favorite_engines, "favorites")
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 

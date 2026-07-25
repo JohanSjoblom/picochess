@@ -126,6 +126,7 @@ class MenuState(object):
     ENGINE = 550000
 
     ENG_MODERN = 600000
+    ENG_MODERN_MANUFACTURER = 600500
     ENG_MODERN_NAME = 610000
     ENG_MODERN_NAME_LEVEL = 611000
 
@@ -135,6 +136,7 @@ class MenuState(object):
     ENG_RETRO_NAME_LEVEL = 631100
 
     ENG_FAV = 650000
+    ENG_FAV_MANUFACTURER = 650500
     ENG_FAV_NAME = 651000
     ENG_FAV_NAME_LEVEL = 651100
 
@@ -347,12 +349,16 @@ class DgtMenu(object):
         self.menu_engine_level = 0
         self.menu_modern_engine_index = 0  # index of the currently selected engine within installed modern engines
         self.menu_modern_engine_level = 0
+        self.menu_modern_manufacturer_index = 0
+        self.menu_modern_group_engine_index = 0
         self.menu_retro_engine_index = 0  # index of the currently selected engine within installed retro engines
         self.menu_retro_engine_level = 0
         self.menu_retro_manufacturer_index = 0
         self.menu_retro_group_engine_index = 0
         self.menu_fav_engine_index = 0  # index of the currently selected engine within installed fav engines
         self.menu_fav_engine_level = 0
+        self.menu_fav_manufacturer_index = 0
+        self.menu_fav_group_engine_index = 0
         self.menu_engine = EngineTop.MODERN_ENGINE
 
         self.menu_book = 0
@@ -692,15 +698,20 @@ class DgtMenu(object):
         is_retro_engine = False
         for index, eng in enumerate(EngineProvider.modern_engines):
             if current_engine["file"] == eng["file"]:
-                self.state = MenuState.ENG_MODERN_NAME
                 self.menu_modern_engine_index = index
+                self._sync_engine_group_selection("modern")
+                self.state = (
+                    MenuState.ENG_MODERN_MANUFACTURER
+                    if EngineProvider.get_engine_groups(EngineProvider.modern_engines)
+                    else MenuState.ENG_MODERN_NAME
+                )
                 self.menu_engine = EngineTop.MODERN_ENGINE
                 is_modern_engine = True
                 break
         for index, eng in enumerate(EngineProvider.retro_engines):
             if current_engine["file"] == eng["file"]:
                 self.menu_retro_engine_index = index
-                self._sync_retro_group_selection()
+                self._sync_engine_group_selection("retro")
                 self.state = (
                     MenuState.ENG_RETRO_MANUFACTURER
                     if EngineProvider.get_retro_groups()
@@ -713,57 +724,108 @@ class DgtMenu(object):
             if current_engine["file"] == eng["file"]:
                 self.menu_fav_engine_index = index
                 if not is_modern_engine and not is_retro_engine:
-                    self.state = MenuState.ENG_FAV_NAME
+                    self._sync_engine_group_selection("fav")
+                    self.state = (
+                        MenuState.ENG_FAV_MANUFACTURER
+                        if EngineProvider.get_engine_groups(EngineProvider.favorite_engines)
+                        else MenuState.ENG_FAV_NAME
+                    )
                     self.menu_engine = EngineTop.FAV_ENGINE
                 break
         self.menu_top = Top.ENGINE
 
     def set_engine_menu_sort(self, sort_order: str) -> str:
-        """Apply a live presentation-order change while retaining the retro engine index."""
+        """Apply a live presentation-order change while retaining each engine index."""
         selected_sort = EngineProvider.set_engine_menu_sort(sort_order)
-        self._sync_retro_group_selection()
+        for category in ("modern", "retro", "fav"):
+            self._sync_engine_group_selection(category)
         return selected_sort
 
-    def _sync_retro_group_selection(self):
-        groups = EngineProvider.get_retro_groups()
+    @staticmethod
+    def _engine_catalog(category: str):
+        return {
+            "modern": EngineProvider.modern_engines,
+            "retro": EngineProvider.retro_engines,
+            "fav": EngineProvider.favorite_engines,
+        }[category]
+
+    @staticmethod
+    def _engine_menu_attributes(category: str):
+        return (
+            f"menu_{category}_engine_index",
+            f"menu_{category}_manufacturer_index",
+            f"menu_{category}_group_engine_index",
+        )
+
+    def _sync_engine_group_selection(self, category: str):
+        catalog = self._engine_catalog(category)
+        engine_attr, manufacturer_attr, group_engine_attr = self._engine_menu_attributes(category)
+        groups = EngineProvider.get_engine_groups(catalog)
         if not groups:
-            self.menu_retro_manufacturer_index = 0
-            self.menu_retro_group_engine_index = 0
+            setattr(self, manufacturer_attr, 0)
+            setattr(self, group_engine_attr, 0)
             return
+        selected_engine = getattr(self, engine_attr)
         for group_index, group in enumerate(groups):
             try:
-                engine_index = group["engine_indexes"].index(self.menu_retro_engine_index)
+                engine_index = group["engine_indexes"].index(selected_engine)
             except ValueError:
                 continue
-            self.menu_retro_manufacturer_index = group_index
-            self.menu_retro_group_engine_index = engine_index
+            setattr(self, manufacturer_attr, group_index)
+            setattr(self, group_engine_attr, engine_index)
             return
-        self.menu_retro_manufacturer_index = 0
-        self.menu_retro_group_engine_index = 0
-        self.menu_retro_engine_index = groups[0]["engine_indexes"][0]
+        setattr(self, manufacturer_attr, 0)
+        setattr(self, group_engine_attr, 0)
+        setattr(self, engine_attr, groups[0]["engine_indexes"][0])
 
-    def _select_first_engine_in_retro_group(self):
-        groups = EngineProvider.get_retro_groups()
+    def _select_first_engine_in_group(self, category: str):
+        catalog = self._engine_catalog(category)
+        engine_attr, manufacturer_attr, group_engine_attr = self._engine_menu_attributes(category)
+        groups = EngineProvider.get_engine_groups(catalog)
         if not groups:
             return
-        self.menu_retro_manufacturer_index %= len(groups)
-        self.menu_retro_group_engine_index = 0
-        self.menu_retro_engine_index = groups[self.menu_retro_manufacturer_index]["engine_indexes"][0]
+        manufacturer_index = getattr(self, manufacturer_attr) % len(groups)
+        setattr(self, manufacturer_attr, manufacturer_index)
+        setattr(self, group_engine_attr, 0)
+        setattr(self, engine_attr, groups[manufacturer_index]["engine_indexes"][0])
 
-    def _step_retro_engine_in_group(self, step: int):
-        groups = EngineProvider.get_retro_groups()
+    def _step_engine_in_group(self, category: str, step: int):
+        catalog = self._engine_catalog(category)
+        engine_attr, manufacturer_attr, group_engine_attr = self._engine_menu_attributes(category)
+        groups = EngineProvider.get_engine_groups(catalog)
         if not groups:
-            indexes = EngineProvider.get_flat_retro_engine_indexes()
+            indexes = EngineProvider.get_flat_engine_indexes(catalog)
+            selected_engine = getattr(self, engine_attr)
             try:
-                current_position = indexes.index(self.menu_retro_engine_index)
+                current_position = indexes.index(selected_engine)
             except ValueError:
                 current_position = 0
-            self.menu_retro_engine_index = indexes[(current_position + step) % len(indexes)]
+            setattr(self, engine_attr, indexes[(current_position + step) % len(indexes)])
             return
-        group = groups[self.menu_retro_manufacturer_index]
+        group = groups[getattr(self, manufacturer_attr)]
         indexes = group["engine_indexes"]
-        self.menu_retro_group_engine_index = (self.menu_retro_group_engine_index + step) % len(indexes)
-        self.menu_retro_engine_index = indexes[self.menu_retro_group_engine_index]
+        group_engine_index = (getattr(self, group_engine_attr) + step) % len(indexes)
+        setattr(self, group_engine_attr, group_engine_index)
+        setattr(self, engine_attr, indexes[group_engine_index])
+
+    def _step_engine_manufacturer(self, category: str, step: int):
+        catalog = self._engine_catalog(category)
+        _, manufacturer_attr, _ = self._engine_menu_attributes(category)
+        groups = EngineProvider.get_engine_groups(catalog)
+        setattr(self, manufacturer_attr, (getattr(self, manufacturer_attr) + step) % len(groups))
+        self._select_first_engine_in_group(category)
+
+    def _sync_retro_group_selection(self):
+        """Backward-compatible wrapper for existing Retro callers and tests."""
+        self._sync_engine_group_selection("retro")
+
+    def _select_first_engine_in_retro_group(self):
+        """Backward-compatible wrapper for existing Retro callers and tests."""
+        self._select_first_engine_in_group("retro")
+
+    def _step_retro_engine_in_group(self, step: int):
+        """Backward-compatible wrapper for existing Retro callers and tests."""
+        self._step_engine_in_group("retro", step)
 
     def inside_updt_menu(self):
         """Inside update menu."""
@@ -1536,9 +1598,11 @@ class DgtMenu(object):
         text = self.dgttranslate.text(EngineTop.RETRO_ENGINE.value)
         return text
 
-    def _get_current_retro_manufacturer_name(self):
-        groups = EngineProvider.get_retro_groups()
-        manufacturer = groups[self.menu_retro_manufacturer_index]["manufacturer"]
+    def _get_current_engine_manufacturer_name(self, category: str):
+        catalog = self._engine_catalog(category)
+        _, manufacturer_attr, _ = self._engine_menu_attributes(category)
+        groups = EngineProvider.get_engine_groups(catalog)
+        manufacturer = groups[getattr(self, manufacturer_attr)]["manufacturer"]
         return Dgt.DISPLAY_TEXT(
             web_text=manufacturer,
             large_text=manufacturer[:11],
@@ -1550,11 +1614,27 @@ class DgtMenu(object):
             devs={"ser", "i2c", "web"},
         )
 
+    def enter_eng_modern_manufacturer_menu(self):
+        """Enter the optional manufacturer level of the Modern menu."""
+        self.state = MenuState.ENG_MODERN_MANUFACTURER
+        self._sync_engine_group_selection("modern")
+        return self._get_current_engine_manufacturer_name("modern")
+
+    def _get_current_retro_manufacturer_name(self):
+        """Backward-compatible Retro manufacturer text helper."""
+        return self._get_current_engine_manufacturer_name("retro")
+
     def enter_eng_retro_manufacturer_menu(self):
         """Enter the optional manufacturer level of the Retro menu."""
         self.state = MenuState.ENG_RETRO_MANUFACTURER
-        self._sync_retro_group_selection()
-        return self._get_current_retro_manufacturer_name()
+        self._sync_engine_group_selection("retro")
+        return self._get_current_engine_manufacturer_name("retro")
+
+    def enter_eng_fav_manufacturer_menu(self):
+        """Enter the optional manufacturer level of the Special menu."""
+        self.state = MenuState.ENG_FAV_MANUFACTURER
+        self._sync_engine_group_selection("fav")
+        return self._get_current_engine_manufacturer_name("fav")
 
     def enter_fav_eng_menu(self):
         """Set the menu state."""
@@ -1563,7 +1643,7 @@ class DgtMenu(object):
         return text
 
     def _get_current_modern_engine_name(self):
-        text = EngineProvider.installed_engines[self.menu_modern_engine_index]["text"]
+        text = EngineProvider.modern_engines[self.menu_modern_engine_index]["text"]
         text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
         return text
 
@@ -2124,8 +2204,14 @@ class DgtMenu(object):
         elif self.state == MenuState.ENG_MODERN:
             text = self.enter_engine_menu()
 
-        elif self.state == MenuState.ENG_MODERN_NAME:
+        elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
             text = self.enter_modern_eng_menu()
+
+        elif self.state == MenuState.ENG_MODERN_NAME:
+            if EngineProvider.get_engine_groups(EngineProvider.modern_engines):
+                text = self.enter_eng_modern_manufacturer_menu()
+            else:
+                text = self.enter_modern_eng_menu()
 
         elif self.state == MenuState.ENG_MODERN_NAME_LEVEL:
             text = self.enter_eng_modern_name_menu()
@@ -2148,8 +2234,14 @@ class DgtMenu(object):
         elif self.state == MenuState.ENG_FAV:
             text = self.enter_engine_menu()
 
-        elif self.state == MenuState.ENG_FAV_NAME:
+        elif self.state == MenuState.ENG_FAV_MANUFACTURER:
             text = self.enter_fav_eng_menu()
+
+        elif self.state == MenuState.ENG_FAV_NAME:
+            if EngineProvider.get_engine_groups(EngineProvider.favorite_engines):
+                text = self.enter_eng_fav_manufacturer_menu()
+            else:
+                text = self.enter_fav_eng_menu()
 
         elif self.state == MenuState.ENG_FAV_NAME_LEVEL:
             text = self.enter_eng_fav_name_menu()
@@ -2889,6 +2981,13 @@ class DgtMenu(object):
             text = await self._fire_event(event)
 
         elif self.state == MenuState.ENG_MODERN:
+            if EngineProvider.get_engine_groups(EngineProvider.modern_engines):
+                text = self.enter_eng_modern_manufacturer_menu()
+            else:
+                text = self.enter_eng_modern_name_menu()
+
+        elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
+            self._select_first_engine_in_group("modern")
             text = self.enter_eng_modern_name_menu()
 
         elif self.state == MenuState.ENG_MODERN_NAME:
@@ -2966,6 +3065,13 @@ class DgtMenu(object):
             self.res_engine_level = self.menu_retro_engine_level
 
         elif self.state == MenuState.ENG_FAV:
+            if EngineProvider.get_engine_groups(EngineProvider.favorite_engines):
+                text = self.enter_eng_fav_manufacturer_menu()
+            else:
+                text = self.enter_eng_fav_name_menu()
+
+        elif self.state == MenuState.ENG_FAV_MANUFACTURER:
+            self._select_first_engine_in_group("fav")
             text = self.enter_eng_fav_name_menu()
 
         elif self.state == MenuState.ENG_FAV_NAME:
@@ -3841,8 +3947,12 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.prev(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
+            self._step_engine_manufacturer("modern", -1)
+            text = self._get_current_engine_manufacturer_name("modern")
+
         elif self.state == MenuState.ENG_MODERN_NAME:
-            self.menu_modern_engine_index = (self.menu_modern_engine_index - 1) % len(EngineProvider.modern_engines)
+            self._step_engine_in_group("modern", -1)
             text = self._get_current_modern_engine_name()
 
         elif self.state == MenuState.ENG_MODERN_NAME_LEVEL:
@@ -3857,10 +3967,8 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_engine.value)
 
         elif self.state == MenuState.ENG_RETRO_MANUFACTURER:
-            groups = EngineProvider.get_retro_groups()
-            self.menu_retro_manufacturer_index = (self.menu_retro_manufacturer_index - 1) % len(groups)
-            self._select_first_engine_in_retro_group()
-            text = self._get_current_retro_manufacturer_name()
+            self._step_engine_manufacturer("retro", -1)
+            text = self._get_current_engine_manufacturer_name("retro")
 
         elif self.state == MenuState.ENG_RETRO_NAME:
             self._step_retro_engine_in_group(-1)
@@ -3877,8 +3985,12 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.prev(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_FAV_MANUFACTURER:
+            self._step_engine_manufacturer("fav", -1)
+            text = self._get_current_engine_manufacturer_name("fav")
+
         elif self.state == MenuState.ENG_FAV_NAME:
-            self.menu_fav_engine_index = (self.menu_fav_engine_index - 1) % len(EngineProvider.favorite_engines)
+            self._step_engine_in_group("fav", -1)
             text = self._get_current_fav_engine_name()
 
         elif self.state == MenuState.ENG_FAV_NAME_LEVEL:
@@ -4533,8 +4645,12 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.next(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
+            self._step_engine_manufacturer("modern", 1)
+            text = self._get_current_engine_manufacturer_name("modern")
+
         elif self.state == MenuState.ENG_MODERN_NAME:
-            self.menu_modern_engine_index = (self.menu_modern_engine_index + 1) % len(EngineProvider.modern_engines)
+            self._step_engine_in_group("modern", 1)
             text = self._get_current_modern_engine_name()
 
         elif self.state == MenuState.ENG_MODERN_NAME_LEVEL:
@@ -4549,10 +4665,8 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_engine.value)
 
         elif self.state == MenuState.ENG_RETRO_MANUFACTURER:
-            groups = EngineProvider.get_retro_groups()
-            self.menu_retro_manufacturer_index = (self.menu_retro_manufacturer_index + 1) % len(groups)
-            self._select_first_engine_in_retro_group()
-            text = self._get_current_retro_manufacturer_name()
+            self._step_engine_manufacturer("retro", 1)
+            text = self._get_current_engine_manufacturer_name("retro")
 
         elif self.state == MenuState.ENG_RETRO_NAME:
             self._step_retro_engine_in_group(1)
@@ -4569,8 +4683,12 @@ class DgtMenu(object):
             self.menu_engine = EngineTopLoop.next(self.menu_engine)
             text = self.dgttranslate.text(self.menu_engine.value)
 
+        elif self.state == MenuState.ENG_FAV_MANUFACTURER:
+            self._step_engine_manufacturer("fav", 1)
+            text = self._get_current_engine_manufacturer_name("fav")
+
         elif self.state == MenuState.ENG_FAV_NAME:
-            self.menu_fav_engine_index = (self.menu_fav_engine_index + 1) % len(EngineProvider.favorite_engines)
+            self._step_engine_in_group("fav", 1)
             text = self._get_current_fav_engine_name()
 
         elif self.state == MenuState.ENG_FAV_NAME_LEVEL:

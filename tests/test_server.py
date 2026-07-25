@@ -137,6 +137,25 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual(["retro-1", "retro-0"], [entry["file"] for entry in retro])
         self.assertEqual("", retro[0]["manufacturer"])
 
+    def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
+        EngineProvider.modern_engines = [
+            {"name": "Zulu", "file": "modern-0", "level_dict": {}, "manufacturer": ""},
+            {"name": "Alpha", "file": "modern-1", "level_dict": {}, "manufacturer": "Maker"},
+        ]
+        EngineProvider.retro_engines = []
+        EngineProvider.favorite_engines = [
+            {"name": "Beta", "file": "fav-0", "level_dict": {}, "manufacturer": "Studio"},
+        ]
+        EngineProvider.set_engine_menu_sort("manufacturer")
+
+        payload = _engine_menu_payload()
+        modern = [entry for entry in payload["engines"] if entry["category"] == "modern"]
+        favorites = [entry for entry in payload["engines"] if entry["category"] == "favorites"]
+
+        self.assertEqual(["modern-1", "modern-0"], [entry["file"] for entry in modern])
+        self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
+        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
+
     @patch("server.write_picochess_ini")
     def test_apply_sort_updates_live_dgt_menu_and_persists(self, write_ini):
         class FakeDgtMenu:

@@ -1180,10 +1180,6 @@ function applyPgnVariationVisibility() {
     if (pgnNode) {
         pgnNode.classList.toggle('pgn-variations-hidden', !pgnVariationsVisible);
     }
-    var btn = document.getElementById('pgnVariationsToggleBtn');
-    if (btn) {
-        btn.textContent = pgnVariationsVisible ? 'HIDE' : 'SHOW';
-    }
 }
 
 function togglePgnVariations() {
@@ -3728,7 +3724,6 @@ $(function () {
         }
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
-    $('#pgnVariationsToggleBtn').on('click', togglePgnVariations);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
     applyPgnVariationVisibility();
     updateWebExploreButton();

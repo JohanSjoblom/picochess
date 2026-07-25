@@ -139,8 +139,9 @@ explicitly requires it.
 - The new Tutor menu should send only the changed setting.
 - Tutor state is controlled from the overlay Tutor menu. Do not reintroduce the
   old quick combined Tutor toggle in the `ANALYSES` tab; that toolbar should
-  stay focused on analysis visibility, variation visibility, Web Stockfish, and
-  Explore controls.
+  stay focused on Pico backend analysis, Web Stockfish, and Explore controls.
+- PGN variation-line visibility belongs in the modern Display menu rather than
+  the `ANALYSES` toolbar.
 - Coach is one mutually exclusive setting: `off`, `on`, `lift`, `brain`, or
   `hand`. Do not model Brain and Hand as independent toggles.
 - Brain/Hand are tutor coach modes for normal play, not web-only modes.

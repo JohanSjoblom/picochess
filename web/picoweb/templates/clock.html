@@ -729,10 +729,6 @@
                                                         <button id="engineToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
                                                     </span>
                                                     <span class="analysis-control-set">
-                                                        <span class="analysis-control-label">Lines</span>
-                                                        <button id="pgnVariationsToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn">SHOW</button>
-                                                    </span>
-                                                    <span class="analysis-control-set">
                                                         <span class="analysis-control-label">Web</span>
                                                         <span class="btn-group btn-group-xs" id="sf18PmGroup" style="display:none">
                                                             <button id="analyzeMinus" class="btn btn-sm btn-primary book-switch-btn" aria-label="Fewer lines">
@@ -2119,7 +2115,8 @@
                     { icon:'🎨', label:'Board',  key:'board'  },
                     { icon:'♟️', label:'Pieces', key:'pieces' },
                     { icon:'🌓', label:'Theme',  key:'theme'  },
-                    { icon:'🕰️', label:'Clock Only', key:'clock' }
+                    { icon:'🕰️', label:'Clock Only', key:'clock' },
+                    { icon:'↳', label:'PGN Lines', key:'pgn-lines' }
                 ];
                 var grid = document.createElement('div');
                 grid.className = 'pico-sub-tile-grid';
@@ -2134,6 +2131,21 @@
                         clockBtn.appendChild(clockLabel); clockBtn.appendChild(clockSub);
                         clockBtn.addEventListener('click', function() { window.location.assign('/clock'); });
                         grid.appendChild(clockBtn);
+                        return;
+                    }
+                    if (cat.key === 'pgn-lines') {
+                        var linesBtn = document.createElement('button');
+                        linesBtn.className = 'pico-sub-tile';
+                        var linesLabel = document.createElement('span'); linesLabel.className = 'pico-sub-tile-label';
+                        linesLabel.textContent = cat.icon + ' ' + cat.label;
+                        var linesSub = document.createElement('span'); linesSub.className = 'pico-sub-tile-sub';
+                        linesSub.textContent = pgnVariationsVisible ? 'Shown' : 'Hidden';
+                        linesBtn.appendChild(linesLabel); linesBtn.appendChild(linesSub);
+                        linesBtn.addEventListener('click', function() {
+                            togglePgnVariations();
+                            renderDisplayTiles();
+                        });
+                        grid.appendChild(linesBtn);
                         return;
                     }
                     var dc = DISPLAY_CATS[cat.key];
@@ -2154,7 +2166,7 @@
                     btn.addEventListener('click', function() { navigateTo(function() { showDisplayCat(cat.key); }); });
                     grid.appendChild(btn);
                 });
-                for (var _di = 0; _di < 5; _di++) {
+                for (var _di = 0; _di < Math.max(0, 9 - cats.length); _di++) {
                     var _de = document.createElement('button'); _de.className = 'pico-sub-tile pico-empty-tile';
                     _de.setAttribute('aria-hidden','true'); _de.tabIndex = -1; grid.appendChild(_de);
                 }

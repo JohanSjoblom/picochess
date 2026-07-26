@@ -226,9 +226,9 @@ Retro engines emulate older chess computers or older playing styles. Some retro
 engines have special speed, sound, display, and artwork settings in the System
 menu.
 
-### Favourites
+### Special
 
-Favourites contains engines marked as preferred in the PicoChess engine
+Special contains engines marked as preferred in the PicoChess engine
 configuration.
 
 ### Engine Levels

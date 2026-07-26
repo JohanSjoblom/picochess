@@ -123,16 +123,16 @@ On a physical e-board, you can select these modes from the normal starting
 position by placing an extra white queen on the fifth rank. PicoChess confirms
 the selected mode; then return the board to the normal starting position.
 
-| Extra white queen | Mode |
-| --- | --- |
-| a5 | Play |
-| b5 | PGN Replay |
-| c5 | Enter Moves · Hints |
-| d5 | Enter Moves · Score |
-| e5 | Two-Player Game |
-| f5 | Analysis |
-| g5 | Practice |
-| h5 | Two-Player Remote |
+Place the extra white queen on:
+
+- **a5** for Play
+- **b5** for PGN Replay
+- **c5** for Enter Moves · Hints
+- **d5** for Enter Moves · Score
+- **e5** for Two-Player Game
+- **f5** for Analysis
+- **g5** for Practice
+- **h5** for Two-Player Remote
 
 Hand & Brain is selected from the web Mode menu and does not have an
 extra-queen shortcut.

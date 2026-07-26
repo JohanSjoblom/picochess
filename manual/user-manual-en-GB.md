@@ -178,6 +178,32 @@ current position without playing moves for either side.
 Use this for studying a position, checking a PGN position, or analysing both
 sides without starting a normal game.
 
+#### Temporary Exploration During A Game
+
+There are two ways to investigate a position without committing the trial moves
+to the current game.
+
+**Explore** is the web-client-only option. In the Analysis area, switch
+**Explore** to **On**, then make legal trial moves on the web board. The board
+status begins with `Explore:` while this temporary variation is active. The
+physical board, backend game, and saved PGN are unchanged. Switch **Explore**
+back to **Off** to return the web board to the live game position.
+
+Use **Mode > Analysis** when you want PicoChess itself to analyse a temporary
+position, particularly when using a physical e-board. Entering Analysis saves a
+checkpoint of the current game. You can move pieces, enter moves, change the
+side to move, or set up a position for analysis without replacing that saved
+game.
+
+To return, open the Mode menu and use its contextual **Return to** command.
+PicoChess restores the saved game first. With a physical e-board, set the pieces
+back to the restored position and wait for the position confirmation before
+play resumes in the previous mode. Without a physical e-board, the return is
+immediate.
+
+Choosing another mode instead of the Return command accepts the current
+Analysis position as the new live position.
+
 ### PGN Replay
 
 PGN Replay is for stepping through or replaying a loaded PGN game. It is

@@ -331,6 +331,10 @@ calculate from the start.
 This setting is for the playing engine's book. It is separate from any web tab
 that only displays opening information to the user.
 
+The **Books** tab changes only the opening-book moves and statistics shown in
+the web client. Selecting a book there does **not** change the opening book used
+by the engine. To change the engine's book, use **Menu > Engine Book**.
+
 ## 9. Tutor Menu
 
 The Tutor menu controls PicoTutor features. PicoTutor can watch games, evaluate

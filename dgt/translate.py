@@ -3884,6 +3884,33 @@ class DgtTranslate(object):
                 medium_text="Ajustes",
                 small_text="ajust ",
             )
+        if text_id == "engine_menu_sort":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Sort Order",
+                large_text="Sort Order",
+                medium_text="Sort",
+                small_text="sort",
+            )
+            detxt = entxt
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Ordine",
+                large_text="Ordine",
+                medium_text="Ordine",
+                small_text="ordin",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Sorteervolgorde",
+                large_text="Sorteerord",
+                medium_text="Sorteer",
+                small_text="sort",
+            )
+            frtxt = entxt
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Orden",
+                large_text="Orden",
+                medium_text="Orden",
+                small_text="orden",
+            )
         if text_id == "engine_menu_retrowindow":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="Toggle Fullscreen/Window",

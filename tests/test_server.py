@@ -26,6 +26,7 @@ from server import (
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
+    _engine_menu_labels,
     _engine_menu_payload,
     _apply_engine_menu_sort,
     _mode_text,
@@ -155,6 +156,14 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual(["modern-1", "modern-0"], [entry["file"] for entry in modern])
         self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
         self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
+
+    def test_engine_menu_labels_use_dgt_translations(self):
+        labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
+
+        self.assertEqual("Modern", labels["categories"]["modern"])
+        self.assertEqual("Retro", labels["categories"]["retro"])
+        self.assertEqual("Special", labels["categories"]["favorites"])
+        self.assertEqual("Sort Order", labels["categories"]["sort"])
 
     @patch("server.write_picochess_ini")
     def test_apply_sort_updates_live_dgt_menu_and_persists(self, write_ini):

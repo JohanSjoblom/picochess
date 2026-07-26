@@ -66,6 +66,7 @@ from dgt.util import (
     PicoComment,
     TimeMode,
     Beep,
+    EngineTop,
     flip_board_fen,
     Voice,
 )
@@ -386,6 +387,39 @@ def _engine_menu_payload() -> dict:
     _extend_category(EngineProvider.retro_engines, "retro")
     _extend_category(EngineProvider.favorite_engines, "favorites")
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
+
+
+def _engine_menu_labels(dgttranslate) -> dict:
+    """Return translated labels for the web engine-menu overlay."""
+    def _clock_menu_label(text_obj) -> str:
+        for attr in ("medium_text", "large_text", "web_text"):
+            val = getattr(text_obj, attr, None)
+            if val and str(val).strip():
+                return str(val).strip()
+        return _text_to_label(text_obj)
+
+    labels = {
+        "categories": {
+            "modern": _clock_menu_label(
+                _translated_display_text(dgttranslate, EngineTop.MODERN_ENGINE.value, "Modern")
+            ),
+            "retro": _clock_menu_label(
+                _translated_display_text(dgttranslate, EngineTop.RETRO_ENGINE.value, "Retro")
+            ),
+            "favorites": _clock_menu_label(
+                _translated_display_text(dgttranslate, EngineTop.FAV_ENGINE.value, "Special")
+            ),
+            "sort": _text_to_label(
+                _translated_display_text(dgttranslate, "B00_engine_menu_sort", "Sort Order")
+            ),
+        },
+        "sort_options": {
+            "file": "File order",
+            "engine": "Engine name",
+            "manufacturer": "Manufacturer",
+        },
+    }
+    return labels
 
 
 def _apply_engine_menu_sort(shared: dict, sort_order: str):
@@ -1626,7 +1660,9 @@ class InfoHandler(ServerRequestHandler):
             self.write({"active": _clock_menu_active(self.shared)})
         if action == "get_engines":
             self.set_header("Content-Type", "application/json")
-            self.write(json.dumps(_engine_menu_payload()))
+            payload = _engine_menu_payload()
+            payload["engine_menu_labels"] = _engine_menu_labels(self.shared.get("dgttranslate"))
+            self.write(json.dumps(payload))
         if action == "get_voices":
             # Return available speakers for the current language.
             # Speakers are sub-directories of talker/voices/{lang}/.
@@ -1675,6 +1711,7 @@ class InfoHandler(ServerRequestHandler):
                 from uci.engine_provider import EngineProvider
 
                 settings["engine_menu_sort"] = EngineProvider.engine_menu_sort
+                settings["engine_menu_labels"] = _engine_menu_labels(dgttranslate)
                 # Retro speed (stored as float 0.0–10.0; UI shows as % strings)
                 try:
                     rspeed_f = float(config.get("rspeed", 1.0))

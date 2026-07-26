@@ -11,6 +11,15 @@ PicoChess lets you play chess against a chess engine, analyse positions, replay
 games, use a physical electronic chess board, and control the game from a web
 browser.
 
+A defining PicoChess feature is its wide choice of engines. The Modern menu
+contains current engines, while the Retro menu includes classic chess-computer
+engines, including MAME-based emulations. This lets you play and analyse with
+many different engine personalities and historical playing styles.
+
+You can also extend the engine list with your own modern or retro engines by
+adding an engine executable and its configuration. See the README section
+**How to add more engines?** for the installation details.
+
 The web client is useful on a Raspberry Pi touch screen, a tablet, a phone, or a
 computer on the same network. Some functions are mainly for physical e-boards,
 and some are mainly for web-only use. The menu descriptions below mention these

@@ -1239,15 +1239,15 @@
             }
             function showScan()   { showSubpanel('overlay-scan'); }
             var _modeDefs = [
-                { icon:'♟️',  label:'Normal',      action:'mode-normal',    key:'normal'    },
-                { icon:'🎓',  label:'Training',    action:'mode-training',  key:'training'  },
-                { icon:'🔬',  label:'Move Hint',   action:'mode-analysis',  key:'analysis'  },
-                { icon:'💬',  label:'Eval.Score',  action:'mode-kibitz',    key:'kibitz'    },
+                { icon:'♟️',  label:'Play',        action:'mode-normal',    key:'normal'    },
+                { icon:'🎓',  label:'Practice',    action:'mode-training',  key:'training'  },
+                { icon:'🔬',  label:'Enter Moves · Hints', action:'mode-analysis', key:'analysis' },
+                { icon:'💬',  label:'Enter Moves · Score', action:'mode-kibitz', key:'kibitz' },
                 { icon:'⏳',  label:'Analysis',    action:'mode-ponder',    key:'ponder'    },
                 { icon:'📖',  label:'PGN Replay',  action:'mode-pgnreplay', key:'pgnreplay' },
                 { icon:'🧠',  label:'Hand & Brain',action:'mode-handbrain', key:'handbrain' },
-                { icon:'👁️', label:'Observe',     action:'mode-observe',   key:'observe'   },
-                { icon:'🌐',  label:'Remote',      action:'mode-remote',    key:'remote'    }
+                { icon:'👁️', label:'Two-Player Game', action:'mode-observe', key:'observe'   },
+                { icon:'🌐',  label:'Two-Player Remote', action:'mode-remote', key:'remote'   }
             ];
 
             function renderModeTiles() {
@@ -3301,17 +3301,17 @@
             /* ── subpanel state updaters ─────────────── */
             function modeLabel(mode) {
                 var labels = {
-                    normal: 'Normal',
+                    normal: 'Play',
                     brain: 'Ponder On',
-                    analysis: 'Move Hint',
-                    kibitz: 'Eval.Score',
-                    observe: 'Observe',
+                    analysis: 'Enter Moves · Hints',
+                    kibitz: 'Enter Moves · Score',
+                    observe: 'Two-Player Game',
                     ponder: 'Analysis',
-                    training: 'Training',
-                    remote: 'Remote',
+                    training: 'Practice',
+                    remote: 'Two-Player Remote',
                     pgnreplay: 'PGN Replay'
                 };
-                return labels[String(mode || '').toLowerCase()] || 'Normal';
+                return labels[String(mode || '').toLowerCase()] || 'Play';
             }
 
             function updateTileStates() {
@@ -3556,7 +3556,7 @@
                         tutorSettings.tutor_coach = nextCoach;
                         setTutorSettingsOptimistic(tutorSettings);
                         var modeSub = document.getElementById('ovl-mode-sub');
-                        if (modeSub) modeSub.textContent = 'Normal';
+                        if (modeSub) modeSub.textContent = 'Play';
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         window._picoSystemInfo.interaction_mode = 'normal';
                         post('action=set_mode&mode=normal').finally(function() {
@@ -4051,7 +4051,7 @@
             <div class="pico-tile-grid" id="overlay-tiles">
                 <button class="pico-tile" id="ovl-mode">
                     <span class="pico-tile-label">Mode</span>
-                    <span class="pico-tile-sub" id="ovl-mode-sub">Normal</span>
+                    <span class="pico-tile-sub" id="ovl-mode-sub">Play</span>
                 </button>
                 <button class="pico-tile" id="ovl-engine">
                     <span class="pico-tile-label">Engine</span>

@@ -521,9 +521,9 @@ class DgtDisplay(DisplayMsg):
 
         mode_map = {
             "rnbqkbnr/pppppppp/8/Q7/8/8/PPPPPPPP/RNBQKBNR": Mode.NORMAL,
-            "rnbqkbnr/pppppppp/8/1Q6/8/8/PPPPPPPP/RNBQKBNR": Mode.BRAIN,
+            "rnbqkbnr/pppppppp/8/1Q6/8/8/PPPPPPPP/RNBQKBNR": Mode.PGNREPLAY,
             "rnbqkbnr/pppppppp/8/2Q5/8/8/PPPPPPPP/RNBQKBNR": Mode.ANALYSIS,
-            "rnbqkbnr/pppppppp/8/3Q4/8/8/PPPPPPPP/RNBQKBNR": Mode.PGNREPLAY,
+            "rnbqkbnr/pppppppp/8/3Q4/8/8/PPPPPPPP/RNBQKBNR": Mode.KIBITZ,
             "rnbqkbnr/pppppppp/8/4Q3/8/8/PPPPPPPP/RNBQKBNR": Mode.OBSERVE,
             "rnbqkbnr/pppppppp/8/5Q2/8/8/PPPPPPPP/RNBQKBNR": Mode.PONDER,
             "rnbqkbnr/pppppppp/8/6Q1/8/8/PPPPPPPP/RNBQKBNR": Mode.TRAINING,

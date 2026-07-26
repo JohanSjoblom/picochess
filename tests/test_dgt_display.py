@@ -18,7 +18,7 @@ from uci.read import read_engine_ini
 
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-PGNREPLAY_MODE_FEN = "rnbqkbnr/pppppppp/8/3Q4/8/8/PPPPPPPP/RNBQKBNR"
+PGNREPLAY_MODE_FEN = "rnbqkbnr/pppppppp/8/1Q6/8/8/PPPPPPPP/RNBQKBNR"
 
 
 class DummyTranslate:

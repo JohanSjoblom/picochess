@@ -117,34 +117,56 @@ state.
 
 The Mode menu decides what PicoChess is doing with the current position.
 
-### Normal
+### Selecting Modes On A Physical E-Board
 
-Normal is the usual play-against-the-engine mode. You play one side and the
+On a physical e-board, you can select these modes from the normal starting
+position by placing an extra white queen on the fifth rank. PicoChess confirms
+the selected mode; then return the board to the normal starting position.
+
+| Extra white queen | Mode |
+| --- | --- |
+| a5 | Play |
+| b5 | PGN Replay |
+| c5 | Enter Moves · Hints |
+| d5 | Enter Moves · Score |
+| e5 | Two-Player Game |
+| f5 | Analysis |
+| g5 | Practice |
+| h5 | Two-Player Remote |
+
+Hand & Brain is selected from the web Mode menu and does not have an
+extra-queen shortcut.
+
+### Play
+
+Play is the usual play-against-the-engine mode. You play one side and the
 engine plays the other side. The clock and move flow behave like a normal game.
 
 Use this when you want a standard game against the selected engine.
 
-### Training
+### Practice
 
-Training is a playing mode intended for guided practice. It is still a
+Practice is a playing mode intended for guided practice. It is still a
 user-versus-engine mode, but PicoChess may apply training behaviour depending on
 the selected engine and tutor settings.
 
 Use this when you want to practise rather than only play a rated-style game.
 
-### Move Hint
+### Enter Moves · Hints
 
-Move Hint is a non-playing mode where PicoChess watches the position and can
-show suggested moves. The engine does not play automatically as your opponent.
+Enter Moves · Hints lets you enter moves for both sides while PicoChess shows
+suggested moves. The engine does not play automatically as your opponent, and
+the moves are recorded in the game score.
 
 Use this when you want help finding moves while you remain in control of both
 sides.
 
-### Eval.Score
+### Enter Moves · Score
 
-Eval.Score shows the engine's evaluation of the current position. The score is
-normally shown from White's point of view: a positive score favours White and a
-negative score favours Black.
+Enter Moves · Score lets you enter moves for both sides while PicoChess shows
+the engine's evaluation and search depth. The score is normally shown from
+White's point of view: a positive score favours White and a negative score
+favours Black. The moves are recorded in the game score.
 
 Use this when you mainly want to know who is better and by how much.
 
@@ -175,17 +197,18 @@ Hand & Brain opens a choice between Brain and Hand coach modes.
 These modes are connected to PicoTutor coach behaviour and are mainly useful for
 training.
 
-### Observe
+### Two-Player Game
 
-Observe lets PicoChess watch a game without playing either side. The clock can
-still be used and the engine can think silently in the background.
+Two-Player Game lets two people play on the physical board while PicoChess
+watches without playing either side. The clock can still be used and the engine
+can think silently in the background.
 
 Use this for human-versus-human games where PicoChess should observe.
 
-### Remote
+### Two-Player Remote
 
-Remote is for remote-player use through the web client. One side may play via
-the web interface while the other uses the board.
+Two-Player Remote is for a game where one player uses the web client and the
+other uses the physical board.
 
 Use this only when you intend to play with a remote web player.
 

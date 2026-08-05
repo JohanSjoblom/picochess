@@ -1501,6 +1501,7 @@ class DgtTranslate(object):
                 l_move_i = l_move_i.replace("Q", "D")
                 l_move_i = l_move_i.replace("R", "T")
                 l_move_i = l_move_i.replace("B", "A")
+                l_move_i = l_move_i.replace("K", "R")
                 l_move_i = l_move_i.replace("P", "P")
                 l_msg_g = "Tipp: " + l_move_g
                 l_msg_g = l_msg_g.ljust(11, " ")
@@ -1517,6 +1518,7 @@ class DgtTranslate(object):
                 m_move_i = l_move_i.replace("Q", "D")
                 m_move_i = l_move_i.replace("R", "T")
                 m_move_i = l_move_i.replace("B", "A")
+                m_move_i = l_move_i.replace("K", "R")
                 m_move_i = l_move_i.replace("P", "P")
                 l_move_nl = msg[4:]
                 l_move_nl = l_move_nl.replace("N", "P")
@@ -1600,6 +1602,7 @@ class DgtTranslate(object):
                 l_move_i = l_move_i.replace("Q", "D")
                 l_move_i = l_move_i.replace("R", "T")
                 l_move_i = l_move_i.replace("B", "A")
+                l_move_i = l_move_i.replace("K", "R")
                 l_move_i = l_move_i.replace("P", "P")
                 m_move_g = msg[6:]
                 m_move_i = msg[6:]
@@ -1612,6 +1615,7 @@ class DgtTranslate(object):
                 m_move_i = m_move_i.replace("Q", "D")
                 m_move_i = m_move_i.replace("R", "T")
                 m_move_i = m_move_i.replace("B", "A")
+                m_move_i = m_move_i.replace("K", "R")
                 m_move_i = m_move_i.replace("P", "P")
                 l_move_nl = msg[6:]
                 l_move_nl = l_move_nl.replace("N", "P")
@@ -1691,6 +1695,7 @@ class DgtTranslate(object):
                 l_move_i = l_move_i.replace("Q", "D")
                 l_move_i = l_move_i.replace("R", "T")
                 l_move_i = l_move_i.replace("B", "A")
+                l_move_i = l_move_i.replace("K", "R")
                 l_move_i = l_move_i.replace("P", "P")
                 w_msg_g = "Tipp: " + l_move_g
                 l_msg_g = "Tipp " + l_move_g
@@ -1709,6 +1714,7 @@ class DgtTranslate(object):
                 m_move_i = m_move_i.replace("Q", "D")
                 m_move_i = m_move_i.replace("R", "T")
                 m_move_i = m_move_i.replace("B", "A")
+                m_move_i = m_move_i.replace("K", "R")
                 m_move_i = m_move_i.replace("P", "P")
                 l_move_nl = msg[4:]
                 l_move_nl = l_move_nl.replace("N", "P")

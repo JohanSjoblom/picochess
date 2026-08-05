@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -134,6 +136,40 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(eng.should_skip_engine_analyser())
         self.assertNotIn("Analysis", eng.options)
         eng.playing.set_allow_info_loop.assert_called_once_with(False)
+
+    async def test_default_name_overrides_uci_engine_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            engine_file = str(Path(directory) / "some_engine")
+            Path(engine_file + ".uci").write_text(
+                "[DEFAULT]\nName = My Friendly Engine\nHash = 64\n\n[Level@1]\nThreads = 1\n",
+                encoding="utf-8",
+            )
+            eng = UciEngine(engine_file, UciShell(), "", self.loop)
+            eng.engine = MockEngine()
+            eng.engine.id = {"name": "Engine Reported Name"}
+            eng.engine.options = {"Hash": None, "Threads": None}
+            eng.engine.configure = AsyncMock()
+            eng._set_engine_name()
+
+            startup_ok = await eng.startup({})
+
+            self.assertTrue(startup_ok)
+            self.assertEqual("My Friendly Engine", eng.get_name())
+            self.assertNotIn("Name", eng.get_pgn_options())
+            eng.engine.configure.assert_awaited_once_with({"Hash": "64", "Threads": "1"})
+
+    async def test_name_override_survives_engine_process_restart(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.id = {"name": "First Reported Name"}
+        eng._set_engine_name()
+        self.assertEqual("First Reported Name", eng.get_name())
+
+        await eng.startup({"Name": "Configured Name"})
+        eng.engine.id = {"name": "New Reported Name"}
+        eng._set_engine_name()
+
+        self.assertEqual("Configured Name", eng.get_name())
 
     async def test_engine_uses_eval_for_rating(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

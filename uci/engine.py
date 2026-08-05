@@ -1042,6 +1042,7 @@ class UciEngine(object):
         self.transport = None  # find out correct type
         self.engine: UciProtocol | None = None
         self.engine_name = "NN"
+        self.engine_name_override: str | None = None
         self.options: dict = {}
         self.res: PlayResult = None
         self.level_support = False
@@ -1188,10 +1189,19 @@ class UciEngine(object):
         if self.engine:
             self._analysis_allowed = False
             self._shutting_down = False
-            if "name" in self.engine.id:
-                self.engine_name = self.engine.id["name"]
+            self._set_engine_name()
         else:
             logger.error("engine executable %s not found", self.file)
+
+    def _set_engine_name(self) -> bool:
+        """Apply the configured name override, or the name reported over UCI."""
+        if self.engine_name_override is not None:
+            self.engine_name = self.engine_name_override
+            return True
+        if self.engine and "name" in self.engine.id:
+            self.engine_name = self.engine.id["name"]
+            return True
+        return False
 
     async def open_engine(self):
         """Open engine. Call after __init__"""
@@ -1233,12 +1243,11 @@ class UciEngine(object):
             else:
                 await self._after_engine_started()
 
-            if self.engine and "name" in self.engine.id:
-                self.engine_name = self.engine.id["name"]
+            if self.engine and self._set_engine_name():
                 self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
                 await self.send()
                 self._analysis_allowed = True
-                return True  # engine responded with its name
+                return True
         except Exception:
             logger.exception("failed to reopen engine %s", self.file)
             self.transport = None
@@ -1265,8 +1274,7 @@ class UciEngine(object):
                 else:
                     await self._after_engine_started()
 
-                if self.engine and "name" in self.engine.id:
-                    self.engine_name = self.engine.id["name"]
+                if self.engine and self._set_engine_name():
                     self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
                     should_send_options = True
             except Exception:
@@ -1869,6 +1877,7 @@ class UciEngine(object):
         """Startup engine. Returns True on success, False on invalid config."""
         self._analysis_allowed = False
         parser = configparser.ConfigParser()
+        parser.optionxform = str  # type: ignore
 
         if not options:
             if self.shell is None:
@@ -1891,6 +1900,15 @@ class UciEngine(object):
         self.level_support = bool(options)
 
         self.options = options.copy()
+
+        # Name is a PicoChess display-name override, not an option for the UCI
+        # engine. In .uci files it normally comes from the DEFAULT section and
+        # is inherited by each level section.
+        if "Name" in self.options:
+            configured_name = str(self.options.pop("Name")).strip()
+            if configured_name:
+                self.engine_name_override = configured_name
+                self.engine_name = configured_name
 
         # Extract PicoChess-specific Variant option (not sent to engine via configure())
         # This allows .uci files to specify a chess variant like "3check"

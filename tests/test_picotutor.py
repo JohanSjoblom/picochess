@@ -119,20 +119,7 @@ class TestPicotutor(unittest.TestCase):
 
         self.assertEqual(tutor.get_user_move_eval(), ("", 0))
         self.assertEqual(tutor.get_eval_moves(), {})
-        self.assertEqual(
-            tutor.get_eval_mistakes(),
-            [
-                {
-                    "halfmove": 1,
-                    "move_no": "1.",
-                    "user_move": "e4",
-                    "reason": "insufficient_depth",
-                    "quality_reason": "insufficient_depth",
-                    "depth": 13,
-                    "required_depth": 15,
-                }
-            ],
-        )
+        self.assertEqual(tutor.get_eval_mistakes(), [])
 
     def test_get_user_move_eval_reports_missing_analysis_as_unrated(self):
         tutor = PicoTutor.__new__(PicoTutor)
@@ -145,8 +132,7 @@ class TestPicotutor(unittest.TestCase):
         tutor.best_info = {chess.WHITE: [], chess.BLACK: None}
 
         self.assertEqual(tutor.get_user_move_eval(), ("", 0))
-        self.assertEqual(tutor.get_eval_mistakes()[0]["quality_reason"], "missing_deep_analysis")
-        self.assertEqual(tutor.get_eval_mistakes()[0]["depth"], 0)
+        self.assertEqual(tutor.get_eval_mistakes(), [])
 
     def test_get_user_move_eval_ignores_depth_of_unrelated_multipv_line(self):
         tutor = PicoTutor.__new__(PicoTutor)

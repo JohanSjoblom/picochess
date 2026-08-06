@@ -1389,24 +1389,10 @@ class PicoTutor:
         }
 
     def get_eval_mistakes(self) -> list[dict]:
-        """Return rated mistakes and unrated analysis attempts for the WATCHER UI."""
+        """Return authoritative mistakes with CPL for the WATCHER UI."""
         mistakes: list[dict] = []
         for (halfmove_nr, _user_move, known_turn), value in self.evaluated_moves.items():
             if value.get("quality") == "insufficient_depth":
-                user_move = value.get("user_move")
-                if not user_move:
-                    continue
-                mistakes.append(
-                    {
-                        "halfmove": halfmove_nr,
-                        "move_no": PicoTutor.printable_move_filler(halfmove_nr, known_turn).strip(),
-                        "user_move": user_move,
-                        "reason": "insufficient_depth",
-                        "quality_reason": value.get("quality_reason"),
-                        "depth": value.get("depth", 0),
-                        "required_depth": value.get("required_depth", c.MIN_WATCHER_EVAL_DEPTH),
-                    }
-                )
                 continue
             cpl = value.get("CPL")
             if cpl is None:

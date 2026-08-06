@@ -2587,18 +2587,11 @@ function updateTutorMistakes(mistakes) {
         var figUser = figurinizeMove(item.user_move) || (item.user_move || '');
         var figBest = figurinizeMove(item.best_move) || (item.best_move || '');
         var moveText = (item.move_no ? item.move_no + ' ' : '') + figUser + nag;
-        if (item.reason === 'insufficient_depth') {
-            var depth = parseInt(item.depth, 10);
-            var requiredDepth = parseInt(item.required_depth, 10);
-            var depthText = Number.isNaN(depth) ? '?' : depth;
-            var minimumText = Number.isNaN(requiredDepth) ? '' : '; minimum ' + requiredDepth;
-            entry.classList.add('text-muted');
-            entry.textContent = moveText + ' \u2014 not rated (depth ' + depthText + minimumText + ')';
-        } else if (item.reason === 'variation') {
+        if (item.reason === 'variation') {
             entry.innerHTML = moveText + ' \u2014 has sideline';
         } else {
             var evalDepth = parseInt(item.depth, 10);
-            var evalDepthText = Number.isNaN(evalDepth) ? '' : ', depth ' + evalDepth;
+            var evalDepthText = Number.isNaN(evalDepth) ? '' : ', d' + evalDepth;
             entry.innerHTML = moveText + ' \u2014 ' + formatTutorMistakeImpact(item) + ', best: ' + figBest + evalDepthText;
         }
         if (item.halfmove) {

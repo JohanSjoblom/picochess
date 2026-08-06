@@ -770,9 +770,6 @@ class PicoTutor:
             logger.debug("did not find user move %s in best moves", user_move.uci())
             pv_key = None  # so that we know its not found
             score = mate = 0
-            if self.best_moves[self.board.turn]:
-                # user move is <= lowest score seen, last on list
-                pv_extra_key, extra_move, score, mate = self.best_moves[self.board.turn][-1]
             self.best_history[self.board.turn].append((pv_key, user_move, score, mate, 0))
             self.pv_user_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
             self.pv_best_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
@@ -785,9 +782,6 @@ class PicoTutor:
             logger.debug("did not find user move %s in obvious moves", user_move.uci())
             pv_key = None  # so that we know its not found
             score = mate = 0
-            if self.obvious_moves[self.board.turn]:
-                # user move is <= lowest score seen, last on list
-                pv_extra_key, extra_move, score, mate = self.obvious_moves[self.board.turn][-1]
             self.obvious_history[self.board.turn].append((pv_key, user_move, score, mate))
 
     @staticmethod
@@ -1112,22 +1106,18 @@ class PicoTutor:
                 before_move.uci(),
             )
 
-        # optimisations in Picochess 4 - 200 wide multipv searches reduced to to 50 ish
-        # approximation_in_use is True when user misses either obvious or best history
-        # user move might be missing in obvious history - can happen!
-        #  --> low_score is lowest seen score, known by low_pv is None
-        # user move might also be missing in best history
-        #  --> current_score is lowest seen score, known by current_pv is None
+        # The deep user line is guaranteed by the quality gate above. The shallow
+        # MultiPV can still omit it; in that case only exact deep-CPL ?/??
+        # classifications are allowed.
         logger.debug("Score: %d", current_score)
         best_deep_diff = best_score - current_score
         deep_low_diff = current_score - low_score
-        approximations_in_use = current_pv is None or low_pv is None
+        shallow_move_missing = low_pv is None
         c_move_str = PicoTutor.printable_move_filler(self.board.ply(), self.board.turn)
         c_move_str += current_move.uci()
-        if approximations_in_use:
-            logger.debug("approximations in use - only evaluating ? and ??")
-            logger.debug("current_pv=%s low_pv=%s", current_pv, low_pv)
-            logger.debug("approximated minimum CPL: %d for move %s", best_deep_diff, c_move_str)
+        if shallow_move_missing:
+            logger.debug("shallow user line missing - only evaluating ? and ??")
+            logger.debug("CPL: %d for move %s", best_deep_diff, c_move_str)
         else:
             logger.debug("CPL: %d for move %s", best_deep_diff, c_move_str)
             logger.debug("deep_low_diff = %d", deep_low_diff)
@@ -1167,9 +1157,9 @@ class PicoTutor:
             eval_string = "?"
 
         # Dubious
-        # Dont score if approximations in use
+        # Do not use the shallow/deep comparison when the shallow move is missing.
         elif (
-            not approximations_in_use
+            not shallow_move_missing
             and history_in_use
             and best_deep_diff > c.DUBIOUS_TH
             and (abs(deep_low_diff) > c.UNCLEAR_DIFF)
@@ -1182,7 +1172,7 @@ class PicoTutor:
         ##############################################################
         eval_string2 = ""
 
-        if not approximations_in_use:
+        if not shallow_move_missing:
             # very good moves
             if best_deep_diff <= c.VERY_GOOD_MOVE_TH and (deep_low_diff > c.VERY_GOOD_IMPROVE_TH):
                 if (best_score == 99999 and (best_mate == current_mate)) and legal_no <= 2:
@@ -1228,26 +1218,20 @@ class PicoTutor:
         if e_value["nag"] == chess.pgn.NAG_NULL:
             # no NAG to store, due to takeback make sure this e_key eval is empty
             self.evaluated_moves.pop(e_key, None)  # None prevents KeyError
-            # special case, if inaccurate move store DS, also when approximated
+            # Special case: store an inaccuracy even when it has no NAG.
             if best_deep_diff > c.INACCURACY_TH:
                 e_value["CPL"] = best_deep_diff  # lost centipawns
-                if current_pv is not None:
-                    e_value["score"] = current_score
-                self.evaluated_moves[e_key] = e_value  # ok with current_pv None (approx)
-        elif current_pv is not None:
-            # user move identified, not approximated, ok to log to PGN file
+                e_value["score"] = current_score
+                self.evaluated_moves[e_key] = e_value
+        else:
             e_value["CPL"] = best_deep_diff  # lost centipawns
             if current_mate != 0:
                 e_value["mate"] = current_mate
             e_value["score"] = current_score  # eval score
-            if low_pv is not None:  # low also identified, needs both current_pv AND low
+            if not shallow_move_missing:
                 e_value["deep_low_diff"] = deep_low_diff  # Cambridge delta S
-            if before_score is not None:  # not approximated, need both current_pv AND history
+            if history_in_use:
                 e_value["score_hist_diff"] = score_hist_diff
-            self.evaluated_moves[e_key] = e_value
-        elif eval_string:
-            # approximated move: still store minimum CPL for the UI list
-            e_value["CPL"] = best_deep_diff
             self.evaluated_moves[e_key] = e_value
 
         self.log_sync_info()  # debug only

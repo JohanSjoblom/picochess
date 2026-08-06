@@ -167,7 +167,7 @@ class TestPicotutor(unittest.TestCase):
         self.assertEqual(value["depth"], 15)
         self.assertNotEqual(value.get("quality"), "insufficient_depth")
 
-    def test_get_user_move_eval_rejects_approximation_without_user_line(self):
+    def test_get_user_move_eval_rejects_missing_deep_user_line(self):
         tutor = PicoTutor.__new__(PicoTutor)
         e4 = chess.Move.from_uci("e2e4")
         nf3 = chess.Move.from_uci("g1f3")
@@ -191,6 +191,43 @@ class TestPicotutor(unittest.TestCase):
         value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
         self.assertEqual(value["quality_reason"], "missing_user_line")
         self.assertEqual(tutor.get_eval_moves(), {})
+
+    def test_missing_shallow_line_allows_only_exact_deep_bad_move_evaluation(self):
+        e4 = chess.Move.from_uci("e2e4")
+        nf3 = chess.Move.from_uci("g1f3")
+
+        def build_tutor(best_score, current_score):
+            tutor = PicoTutor.__new__(PicoTutor)
+            tutor.board = chess.Board()
+            tutor.board.push(e4)
+            tutor.coach_on = True
+            tutor.watcher_on = False
+            tutor.evaluated_moves = {}
+            tutor.op = []
+            tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
+            tutor.best_history = {chess.WHITE: [], chess.BLACK: [(1, e4, current_score, 0, 12)]}
+            tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(None, e4, 0, 0)]}
+            tutor.best_moves = {
+                chess.WHITE: [],
+                chess.BLACK: [(0, nf3, best_score, 0), (1, e4, current_score, 0)],
+            }
+            tutor.best_info = {
+                chess.WHITE: [],
+                chess.BLACK: [
+                    {"pv": [nf3], "depth": 12},
+                    {"pv": [e4], "depth": 12},
+                ],
+            }
+            return tutor
+
+        bad_move_tutor = build_tutor(best_score=200, current_score=0)
+        self.assertEqual(bad_move_tutor.get_user_move_eval()[0], "?")
+        stored = bad_move_tutor.evaluated_moves[(1, e4, chess.BLACK)]
+        self.assertEqual(stored["CPL"], 200)
+        self.assertNotIn("deep_low_diff", stored)
+
+        surprising_move_tutor = build_tutor(best_score=400, current_score=400)
+        self.assertEqual(surprising_move_tutor.get_user_move_eval()[0], "")
 
     def test_history_annotations_require_previous_depth_threshold(self):
         e4 = chess.Move.from_uci("e2e4")
@@ -236,8 +273,12 @@ class TestPicotutor(unittest.TestCase):
             }
             return tutor
 
-        self.assertEqual(build_tutor(12).get_user_move_eval()[0], "?!")
-        self.assertEqual(build_tutor(11).get_user_move_eval()[0], "")
+        valid_history_tutor = build_tutor(12)
+        self.assertEqual(valid_history_tutor.get_user_move_eval()[0], "?!")
+        self.assertEqual(valid_history_tutor.evaluated_moves[(3, nf3, chess.BLACK)]["score_hist_diff"], 60)
+        shallow_history_tutor = build_tutor(11)
+        self.assertEqual(shallow_history_tutor.get_user_move_eval()[0], "")
+        self.assertNotIn("score_hist_diff", shallow_history_tutor.evaluated_moves[(3, nf3, chess.BLACK)])
         self.assertEqual(build_tutor(12, previous_pv=None).get_user_move_eval()[0], "")
         self.assertEqual(
             build_tutor(12, best_score=10, current_score=0, low_score=80, before_score=60).get_user_move_eval()[0],

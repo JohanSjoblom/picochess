@@ -988,6 +988,24 @@ class PicoTutor:
         best_score = 0
         best_move = chess.Move.null()
         if not (self.coach_on or self.watcher_on):
+            logger.debug("tutor move evaluation skipped reason=tutor_inactive")
+            return eval_string, 0
+
+        deep_info = self.best_info.get(self.board.turn, []) or []
+        deep_depths = []
+        for info in deep_info:
+            try:
+                deep_depths.append(int(info.get("depth", 0)))
+            except (AttributeError, TypeError, ValueError):
+                deep_depths.append(0)
+        if not deep_info:
+            self._store_unrated_move("missing_deep_analysis", 0)
+            logger.debug(
+                "tutor move evaluation skipped move=%s reason=missing_deep_analysis required_depth=%d fen=%s",
+                self.board.peek().uci() if self.board.move_stack else "none",
+                c.MIN_WATCHER_EVAL_DEPTH,
+                self.board.fen(),
+            )
             return eval_string, 0
 
         # all history list have tuples: (pv,move,score,mate)
@@ -1000,16 +1018,63 @@ class PicoTutor:
             or len(self.obvious_history[self.board.turn]) < 1
             or len(self.best_moves[self.board.turn]) < 2
         ):
+            observed_depth = max(deep_depths, default=0)
+            self._store_unrated_move("incomplete_history", observed_depth)
+            logger.debug(
+                "tutor move evaluation skipped reason=incomplete_history best_history=%d obvious_history=%d "
+                "best_moves=%d observed_depth=%d multipv_depths=%s",
+                len(self.best_history[self.board.turn]),
+                len(self.obvious_history[self.board.turn]),
+                len(self.best_moves[self.board.turn]),
+                observed_depth,
+                deep_depths,
+            )
             return eval_string, 0
 
         #  best score/move is the first in the list - needed to proceed
         best_pv, best_move, best_score, best_mate = self.best_moves[self.board.turn][0]
         if best_pv is None:
-            logger.debug("cannot evaluate move as best move data is missing")
+            self._store_unrated_move("missing_best_line", 0)
+            logger.debug(
+                "tutor move evaluation skipped reason=missing_best_line multipv_depths=%s", deep_depths
+            )
             return eval_string, 0
 
         # best/deep/max-ply engine analysis
         current_pv, current_move, current_score, current_mate = self.best_history[self.board.turn][-1]
+
+        def pv_depth(pv_key) -> int:
+            try:
+                return int(deep_info[pv_key].get("depth", 0))
+            except (IndexError, KeyError, AttributeError, TypeError, ValueError):
+                return 0
+
+        best_line_depth = pv_depth(best_pv)
+        user_line_depth = pv_depth(current_pv) if current_pv is not None else 0
+        effective_depth = min(best_line_depth, user_line_depth)
+        if current_pv is None:
+            reason = "missing_user_line"
+        elif effective_depth < c.MIN_WATCHER_EVAL_DEPTH:
+            reason = "insufficient_depth"
+        else:
+            reason = ""
+        if reason:
+            self._store_unrated_move(reason, effective_depth)
+            logger.debug(
+                "tutor move evaluation skipped move=%s reason=%s depth=%d required_depth=%d "
+                "best_line_depth=%d user_line_depth=%d best_pv=%s user_pv=%s multipv_depths=%s fen=%s",
+                current_move.uci(),
+                reason,
+                effective_depth,
+                c.MIN_WATCHER_EVAL_DEPTH,
+                best_line_depth,
+                user_line_depth,
+                best_pv,
+                current_pv,
+                deep_depths,
+                self.board.fen(),
+            )
+            return eval_string, 0
 
         # obvious/shallow/min-ply engine analysis
         low_pv, low_move, low_score, low_mate = self.obvious_history[self.board.turn][-1]
@@ -1126,6 +1191,7 @@ class PicoTutor:
         e_key = (self.board.ply(), current_move, self.board.turn)  # ply, turn is AFTER current_move
         e_value = {}  # collect eval values for the move here
         e_value["nag"] = PicoTutor.symbol_to_nag(eval_string)
+        e_value["depth"] = effective_depth
         try:
             # board_before_usermove is where we have popped the user move above
             e_value["best_move"] = board_before_usermove.san(best_move)
@@ -1170,6 +1236,29 @@ class PicoTutor:
 
         logger.debug("evaluation %s", eval_string)
         return eval_string, current_mate
+
+    def _store_unrated_move(self, reason: str, depth: int) -> None:
+        """Remember a non-authoritative move attempt for the web WATCHER only."""
+        if not self.board.move_stack:
+            logger.debug("tutor unrated move not stored reason=no_move_on_board")
+            return
+        current_move = self.board.peek()
+        board_before_usermove = self.board.copy()
+        try:
+            board_before_usermove.pop()
+            user_move = board_before_usermove.san(current_move)
+        except (IndexError, ValueError, AssertionError):
+            logger.debug("tutor unrated move not stored reason=invalid_last_move move=%s", current_move)
+            return
+        e_key = (self.board.ply(), current_move, self.board.turn)
+        self.evaluated_moves[e_key] = {
+            "nag": chess.pgn.NAG_NULL,
+            "user_move": user_move,
+            "quality": "insufficient_depth",
+            "quality_reason": reason,
+            "depth": depth,
+            "required_depth": c.MIN_WATCHER_EVAL_DEPTH,
+        }
 
     @staticmethod
     def symbol_to_nag(eval_string: str) -> int:
@@ -1292,13 +1381,33 @@ class PicoTutor:
         return halfmove_nr
 
     def get_eval_moves(self) -> dict:
-        """return a dict of all evaluated moves"""
-        return self.evaluated_moves
+        """Return authoritative evaluations for PGN generation and related consumers."""
+        return {
+            key: value
+            for key, value in self.evaluated_moves.items()
+            if value.get("quality") != "insufficient_depth"
+        }
 
     def get_eval_mistakes(self) -> list[dict]:
-        """return a list of mistakes with CPL in move order for UI display"""
+        """Return rated mistakes and unrated analysis attempts for the WATCHER UI."""
         mistakes: list[dict] = []
         for (halfmove_nr, _user_move, known_turn), value in self.evaluated_moves.items():
+            if value.get("quality") == "insufficient_depth":
+                user_move = value.get("user_move")
+                if not user_move:
+                    continue
+                mistakes.append(
+                    {
+                        "halfmove": halfmove_nr,
+                        "move_no": PicoTutor.printable_move_filler(halfmove_nr, known_turn).strip(),
+                        "user_move": user_move,
+                        "reason": "insufficient_depth",
+                        "quality_reason": value.get("quality_reason"),
+                        "depth": value.get("depth", 0),
+                        "required_depth": value.get("required_depth", c.MIN_WATCHER_EVAL_DEPTH),
+                    }
+                )
+                continue
             cpl = value.get("CPL")
             if cpl is None:
                 continue
@@ -1322,6 +1431,8 @@ class PicoTutor:
                 "centipawn_loss": rounded_cpl,
                 "nag": PicoTutor.nag_to_symbol(value.get("nag")),
             }
+            if "depth" in value:
+                mistake["depth"] = value.get("depth")
             if "score" in value:
                 mistake["score"] = value.get("score")
             if "mate" in value:

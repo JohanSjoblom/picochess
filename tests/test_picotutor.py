@@ -47,6 +47,7 @@ class TestPicotutor(unittest.TestCase):
                 "user_move": "e4",
                 "best_move": "Nf3",
                 "nag": chess.pgn.NAG_MISTAKE,
+                "depth": 16,
             }
         }
 
@@ -63,6 +64,7 @@ class TestPicotutor(unittest.TestCase):
                     "nag": "?",
                     "score": -84,
                     "mate": -3,
+                    "depth": 16,
                 }
             ],
         )
@@ -84,15 +86,125 @@ class TestPicotutor(unittest.TestCase):
         tutor.best_info = {
             chess.WHITE: [],
             chess.BLACK: [
-                {"pv": [e4, chess.Move.from_uci("e7e5")]},
-                {"pv": [nf3, chess.Move.from_uci("d7d5")]},
+                {"pv": [e4, chess.Move.from_uci("e7e5")], "depth": 15},
+                {"pv": [nf3, chess.Move.from_uci("d7d5")], "depth": 15},
             ],
         }
 
         tutor.get_user_move_eval()
 
         value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
+        self.assertEqual(value["depth"], 15)
         self.assertEqual(value["variations"], [{"moves": ["g1f3", "d7d5"], "score": 1000, "mate": 0}])
+
+    def test_get_user_move_eval_keeps_low_depth_as_unrated_web_entry(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        e4 = chess.Move.from_uci("e2e4")
+        nf3 = chess.Move.from_uci("g1f3")
+        tutor.board = chess.Board()
+        tutor.board.push(e4)
+        tutor.coach_on = True
+        tutor.watcher_on = False
+        tutor.evaluated_moves = {}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(1, nf3, 200, 0), (0, e4, 0, 0)]}
+        tutor.best_info = {
+            chess.WHITE: [],
+            chess.BLACK: [
+                {"pv": [e4], "depth": 14},
+                {"pv": [nf3], "depth": 13},
+            ],
+        }
+
+        self.assertEqual(tutor.get_user_move_eval(), ("", 0))
+        self.assertEqual(tutor.get_eval_moves(), {})
+        self.assertEqual(
+            tutor.get_eval_mistakes(),
+            [
+                {
+                    "halfmove": 1,
+                    "move_no": "1.",
+                    "user_move": "e4",
+                    "reason": "insufficient_depth",
+                    "quality_reason": "insufficient_depth",
+                    "depth": 13,
+                    "required_depth": 15,
+                }
+            ],
+        )
+
+    def test_get_user_move_eval_reports_missing_analysis_as_unrated(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        e4 = chess.Move.from_uci("e2e4")
+        tutor.board = chess.Board()
+        tutor.board.push(e4)
+        tutor.coach_on = False
+        tutor.watcher_on = True
+        tutor.evaluated_moves = {}
+        tutor.best_info = {chess.WHITE: [], chess.BLACK: None}
+
+        self.assertEqual(tutor.get_user_move_eval(), ("", 0))
+        self.assertEqual(tutor.get_eval_mistakes()[0]["quality_reason"], "missing_deep_analysis")
+        self.assertEqual(tutor.get_eval_mistakes()[0]["depth"], 0)
+
+    def test_get_user_move_eval_ignores_depth_of_unrelated_multipv_line(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        e4 = chess.Move.from_uci("e2e4")
+        nf3 = chess.Move.from_uci("g1f3")
+        d4 = chess.Move.from_uci("d2d4")
+        tutor.board = chess.Board()
+        tutor.board.push(e4)
+        tutor.coach_on = True
+        tutor.watcher_on = False
+        tutor.evaluated_moves = {}
+        tutor.op = []
+        tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_moves = {
+            chess.WHITE: [],
+            chess.BLACK: [(1, nf3, 200, 0), (0, e4, 0, 0), (2, d4, -50, 0)],
+        }
+        tutor.best_info = {
+            chess.WHITE: [],
+            chess.BLACK: [
+                {"pv": [e4], "depth": 15},
+                {"pv": [nf3], "depth": 16},
+                {"pv": [d4], "depth": 8},
+            ],
+        }
+
+        tutor.get_user_move_eval()
+
+        value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
+        self.assertEqual(value["depth"], 15)
+        self.assertNotEqual(value.get("quality"), "insufficient_depth")
+
+    def test_get_user_move_eval_rejects_approximation_without_user_line(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        e4 = chess.Move.from_uci("e2e4")
+        nf3 = chess.Move.from_uci("g1f3")
+        tutor.board = chess.Board()
+        tutor.board.push(e4)
+        tutor.coach_on = True
+        tutor.watcher_on = False
+        tutor.evaluated_moves = {}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(None, e4, 0, 0)]}
+        tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(0, nf3, 200, 0), (1, nf3, 100, 0)]}
+        tutor.best_info = {
+            chess.WHITE: [],
+            chess.BLACK: [
+                {"pv": [nf3], "depth": 17},
+                {"pv": [nf3], "depth": 17},
+            ],
+        }
+
+        self.assertEqual(tutor.get_user_move_eval(), ("", 0))
+        value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
+        self.assertEqual(value["quality_reason"], "missing_user_line")
+        self.assertEqual(tutor.get_eval_moves(), {})
 
     def test_get_better_pv_variations_returns_only_higher_ranked_lines(self):
         tutor = PicoTutor.__new__(PicoTutor)

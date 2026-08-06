@@ -2488,7 +2488,7 @@ function formatTutorMistakeImpact(item) {
         } else {
             lossClass += 'tutor-loss-bad';
         }
-        parts.push('loss: <span class="' + lossClass + '" title="Centipawns lost by the chosen move">' + lossValue + ' cp</span>');
+        parts.push('CPL: <span class="' + lossClass + '" title="Centipawn loss">' + lossValue + ' cp</span>');
     }
 
     var scoreText = null;
@@ -2511,12 +2511,12 @@ function formatTutorMistakeImpact(item) {
         } else if (parseFloat(scoreText) < 0) {
             scoreClass += ' score-negative';
         }
-        parts.push('after: <span class="' + scoreClass + '" title="Score after the mistake move">' + scoreText + '</span>');
+        parts.push('eval: <span class="' + scoreClass + '" title="Evaluation after the move">' + scoreText + '</span>');
     }
     if (parts.length > 0) {
         return parts.join(', ');
     }
-    return 'impact: ?';
+    return 'CPL: ?';
 }
 
 function hasDefinitiveGameResult() {
@@ -2591,7 +2591,7 @@ function updateTutorMistakes(mistakes) {
             entry.innerHTML = moveText + ' \u2014 has sideline';
         } else {
             var evalDepth = parseInt(item.depth, 10);
-            var evalDepthText = Number.isNaN(evalDepth) ? '' : ', d' + evalDepth;
+            var evalDepthText = Number.isNaN(evalDepth) ? '' : ', <span class="depth-display">d' + evalDepth + '</span>';
             entry.innerHTML = moveText + ' \u2014 ' + formatTutorMistakeImpact(item) + ', best: ' + figBest + evalDepthText;
         }
         if (item.halfmove) {

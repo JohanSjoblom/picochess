@@ -86,18 +86,18 @@ class TestPicotutor(unittest.TestCase):
         tutor.best_info = {
             chess.WHITE: [],
             chess.BLACK: [
-                {"pv": [e4, chess.Move.from_uci("e7e5")], "depth": 15},
-                {"pv": [nf3, chess.Move.from_uci("d7d5")], "depth": 15},
+                {"pv": [e4, chess.Move.from_uci("e7e5")], "depth": 12},
+                {"pv": [nf3, chess.Move.from_uci("d7d5")], "depth": 12},
             ],
         }
 
         tutor.get_user_move_eval()
 
         value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
-        self.assertEqual(value["depth"], 15)
+        self.assertEqual(value["depth"], 12)
         self.assertEqual(value["variations"], [{"moves": ["g1f3", "d7d5"], "score": 1000, "mate": 0}])
 
-    def test_get_user_move_eval_keeps_low_depth_as_unrated_web_entry(self):
+    def test_get_user_move_eval_keeps_low_depth_as_internal_unrated_attempt(self):
         tutor = PicoTutor.__new__(PicoTutor)
         e4 = chess.Move.from_uci("e2e4")
         nf3 = chess.Move.from_uci("g1f3")
@@ -112,8 +112,8 @@ class TestPicotutor(unittest.TestCase):
         tutor.best_info = {
             chess.WHITE: [],
             chess.BLACK: [
-                {"pv": [e4], "depth": 14},
-                {"pv": [nf3], "depth": 13},
+                {"pv": [e4], "depth": 11},
+                {"pv": [nf3], "depth": 10},
             ],
         }
 

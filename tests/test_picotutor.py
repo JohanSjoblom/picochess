@@ -80,7 +80,7 @@ class TestPicotutor(unittest.TestCase):
         tutor.evaluated_moves = {}
         tutor.op = []
         tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
-        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0, 12)]}
         tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
         tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(1, nf3, 1000, 0), (0, e4, 0, 0)]}
         tutor.best_info = {
@@ -106,7 +106,7 @@ class TestPicotutor(unittest.TestCase):
         tutor.coach_on = True
         tutor.watcher_on = False
         tutor.evaluated_moves = {}
-        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0, 10)]}
         tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
         tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(1, nf3, 200, 0), (0, e4, 0, 0)]}
         tutor.best_info = {
@@ -146,7 +146,7 @@ class TestPicotutor(unittest.TestCase):
         tutor.evaluated_moves = {}
         tutor.op = []
         tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
-        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0, 15)]}
         tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
         tutor.best_moves = {
             chess.WHITE: [],
@@ -176,7 +176,7 @@ class TestPicotutor(unittest.TestCase):
         tutor.coach_on = True
         tutor.watcher_on = False
         tutor.evaluated_moves = {}
-        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(None, e4, 0, 0)]}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(None, e4, 0, 0, 0)]}
         tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
         tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(0, nf3, 200, 0), (1, nf3, 100, 0)]}
         tutor.best_info = {
@@ -191,6 +191,62 @@ class TestPicotutor(unittest.TestCase):
         value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
         self.assertEqual(value["quality_reason"], "missing_user_line")
         self.assertEqual(tutor.get_eval_moves(), {})
+
+    def test_history_annotations_require_previous_depth_threshold(self):
+        e4 = chess.Move.from_uci("e2e4")
+        e5 = chess.Move.from_uci("e7e5")
+        nf3 = chess.Move.from_uci("g1f3")
+        d4 = chess.Move.from_uci("d2d4")
+
+        def build_tutor(
+            previous_depth,
+            best_score=100,
+            current_score=60,
+            low_score=-20,
+            before_score=0,
+            previous_pv=0,
+        ):
+            tutor = PicoTutor.__new__(PicoTutor)
+            tutor.board = chess.Board()
+            for move in (e4, e5, nf3):
+                tutor.board.push(move)
+            tutor.coach_on = True
+            tutor.watcher_on = False
+            tutor.evaluated_moves = {}
+            tutor.op = []
+            tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
+            tutor.best_history = {
+                chess.WHITE: [],
+                chess.BLACK: [
+                    (previous_pv, e4, before_score, 0, previous_depth),
+                    (1, nf3, current_score, 0, 12),
+                ],
+            }
+            tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, nf3, low_score, 0)]}
+            tutor.best_moves = {
+                chess.WHITE: [],
+                chess.BLACK: [(0, d4, best_score, 0), (1, nf3, current_score, 0)],
+            }
+            tutor.best_info = {
+                chess.WHITE: [],
+                chess.BLACK: [
+                    {"pv": [d4], "depth": 12},
+                    {"pv": [nf3], "depth": 12},
+                ],
+            }
+            return tutor
+
+        self.assertEqual(build_tutor(12).get_user_move_eval()[0], "?!")
+        self.assertEqual(build_tutor(11).get_user_move_eval()[0], "")
+        self.assertEqual(build_tutor(12, previous_pv=None).get_user_move_eval()[0], "")
+        self.assertEqual(
+            build_tutor(12, best_score=10, current_score=0, low_score=80, before_score=60).get_user_move_eval()[0],
+            "!?",
+        )
+        self.assertEqual(
+            build_tutor(11, best_score=10, current_score=0, low_score=80, before_score=60).get_user_move_eval()[0],
+            "",
+        )
 
     def test_get_better_pv_variations_returns_only_higher_ranked_lines(self):
         tutor = PicoTutor.__new__(PicoTutor)

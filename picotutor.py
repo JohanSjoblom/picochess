@@ -68,7 +68,8 @@ class PicoTutor:
         self.best_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
         self.obvious_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
         # history list of user move selected from best_moves and obvious_moves above
-        # tuple(pv_key, move, score, mate) copy for selected user move
+        # best_history tuple(pv_key, move, score, mate, effective_depth)
+        # obvious_history tuple(pv_key, move, score, mate)
         # pv_key is the index to the snapshot best_info and obvious_info
         # index = None indicates was not found in InfoDict results
         # index not None has no value in history as its an index to a snapshot above
@@ -468,7 +469,8 @@ class PicoTutor:
         self.best_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
         self.obvious_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
         # history list of user move selected from best_moves and obvious_moves above
-        # tuple(pv_key, move, score, mate) copy for selected user move
+        # best_history tuple(pv_key, move, score, mate, effective_depth)
+        # obvious_history tuple(pv_key, move, score, mate)
         # pv_key is the index to the snapshot best_info and obvious_info
         # index = None indicates was not found in InfoDict results
         # index not None has no value in history as its an index to a snapshot above
@@ -557,7 +559,7 @@ class PicoTutor:
         else:
             turn = chess.WHITE
         try:
-            pv_key, move, score, mate = self.best_history[turn][-1]
+            pv_key, move, score, mate, depth = self.best_history[turn][-1]
             if move == poped_move:
                 self.best_history[turn].pop()
             else:
@@ -704,7 +706,7 @@ class PicoTutor:
         for turn in (chess.BLACK, chess.WHITE):
             hist_moves = []
             if self.best_history[turn]:
-                for pv_key, move, score, mate in self.best_history[turn]:
+                for pv_key, move, score, mate, depth in self.best_history[turn]:
                     hist_moves.append(move.uci())
             logger.debug("picotutor history moves %s", hist_moves)
         self.log_eval_moves()
@@ -742,11 +744,9 @@ class PicoTutor:
         # same as when user move not found in best move list in eval_user_move
         pv_key = None  # so that we know its not found and score is wrong
         score = mate = 0
-        # t tuple(pv_key, move, score, mate)
-        t = (pv_key, eng_move, score, mate)
-        # when a move is poped, its poped from best and obvious
-        self.best_history[self.board.turn].append(t)
-        self.obvious_history[self.board.turn].append(t)
+        # Engine moves have no Tutor user-line analysis depth.
+        self.best_history[self.board.turn].append((pv_key, eng_move, score, mate, 0))
+        self.obvious_history[self.board.turn].append((pv_key, eng_move, score, mate))
         # not sure following is needed but follow same logic as eval_user_move
         self.pv_user_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
         self.pv_best_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
@@ -762,7 +762,8 @@ class PicoTutor:
         # add score to history list
         if t:
             pv_key = t[0]
-            self.best_history[self.board.turn].append(t)
+            effective_depth = self._effective_deep_depth(self.board.turn, pv_key)
+            self.best_history[self.board.turn].append((*t, effective_depth))
             self.pv_best_move = self.best_info[self.board.turn][0]["pv"]
             self.pv_user_move[self.board.turn] = self.best_info[self.board.turn][pv_key]["pv"]
         else:
@@ -772,7 +773,7 @@ class PicoTutor:
             if self.best_moves[self.board.turn]:
                 # user move is <= lowest score seen, last on list
                 pv_extra_key, extra_move, score, mate = self.best_moves[self.board.turn][-1]
-            self.best_history[self.board.turn].append((pv_key, user_move, score, mate))
+            self.best_history[self.board.turn].append((pv_key, user_move, score, mate, 0))
             self.pv_user_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
             self.pv_best_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
         t = self.in_obvious_moves(user_move)
@@ -788,6 +789,21 @@ class PicoTutor:
                 # user move is <= lowest score seen, last on list
                 pv_extra_key, extra_move, score, mate = self.obvious_moves[self.board.turn][-1]
             self.obvious_history[self.board.turn].append((pv_key, user_move, score, mate))
+
+    @staticmethod
+    def _pv_depth(info_list: list[InfoDict], pv_key) -> int:
+        try:
+            return int(info_list[pv_key].get("depth", 0))
+        except (IndexError, KeyError, AttributeError, TypeError, ValueError):
+            return 0
+
+    def _effective_deep_depth(self, turn: chess.Color, user_pv) -> int:
+        """Return the lower depth of the best and selected-user MultiPV lines."""
+        if user_pv is None or not self.best_moves[turn]:
+            return 0
+        best_pv = self.best_moves[turn][0][0]
+        info_list = self.best_info[turn] or []
+        return min(self._pv_depth(info_list, best_pv), self._pv_depth(info_list, user_pv))
 
     def in_best_moves(self, user_move: chess.Move) -> tuple:
         """find move in obvious moves
@@ -1008,7 +1024,8 @@ class PicoTutor:
             )
             return eval_string, 0
 
-        # all history list have tuples: (pv,move,score,mate)
+        # best history entries have tuples: (pv, move, score, mate, effective_depth)
+        # obvious history entries have tuples: (pv, move, score, mate)
         # where pv can be None if score and mate are not available
         # move is always valid, even for fake history tuples
 
@@ -1041,17 +1058,12 @@ class PicoTutor:
             return eval_string, 0
 
         # best/deep/max-ply engine analysis
-        current_pv, current_move, current_score, current_mate = self.best_history[self.board.turn][-1]
+        current_pv, current_move, current_score, current_mate, effective_depth = self.best_history[
+            self.board.turn
+        ][-1]
 
-        def pv_depth(pv_key) -> int:
-            try:
-                return int(deep_info[pv_key].get("depth", 0))
-            except (IndexError, KeyError, AttributeError, TypeError, ValueError):
-                return 0
-
-        best_line_depth = pv_depth(best_pv)
-        user_line_depth = pv_depth(current_pv) if current_pv is not None else 0
-        effective_depth = min(best_line_depth, user_line_depth)
+        best_line_depth = self._pv_depth(deep_info, best_pv)
+        user_line_depth = self._pv_depth(deep_info, current_pv) if current_pv is not None else 0
         if current_pv is None:
             reason = "missing_user_line"
         elif effective_depth < c.MIN_WATCHER_EVAL_DEPTH:
@@ -1080,12 +1092,25 @@ class PicoTutor:
         low_pv, low_move, low_score, low_mate = self.obvious_history[self.board.turn][-1]
 
         # dig into best/deep/max-ply history for before_score for previous user move
+        before_pv = None
+        before_score = None
+        before_depth = 0
         if len(self.best_history[self.board.turn]) > 1:
-            before_pv, before_move, before_score, before_mate = self.best_history[self.board.turn][-2]
-            if before_pv is None:  # pv_key index - move not analysed
-                before_score = None  # history not usable, fake-move or missed
-        else:
-            before_score = None
+            before_pv, before_move, before_score, before_mate, before_depth = self.best_history[
+                self.board.turn
+            ][-2]
+        history_in_use = (
+            before_score is not None
+            and before_pv is not None
+            and before_depth >= c.MIN_WATCHER_EVAL_DEPTH
+        )
+        if before_score is not None and before_pv is not None and not history_in_use:
+            logger.debug(
+                "history before move rejected reason=insufficient_depth depth=%d required_depth=%d move=%s",
+                before_depth,
+                c.MIN_WATCHER_EVAL_DEPTH,
+                before_move.uci(),
+            )
 
         # optimisations in Picochess 4 - 200 wide multipv searches reduced to to 50 ish
         # approximation_in_use is True when user misses either obvious or best history
@@ -1106,13 +1131,11 @@ class PicoTutor:
         else:
             logger.debug("CPL: %d for move %s", best_deep_diff, c_move_str)
             logger.debug("deep_low_diff = %d", deep_low_diff)
-        if before_score is not None:
+        if history_in_use:
             score_hist_diff = current_score - before_score
-            history_in_use = True
             logger.debug("score_hist_diff = %d", score_hist_diff)
         else:
             score_hist_diff = 0  # missing history before score
-            history_in_use = False
             logger.debug("history before move not available - not evaluating !? and ?!")
 
         # count legal moves in current position (for this we have to undo the user move)

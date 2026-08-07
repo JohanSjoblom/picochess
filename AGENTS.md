@@ -332,6 +332,12 @@ Tutor move evaluations are persisted in `PicoTutor`, not recomputed during PGN
 save. `get_user_move_eval()` both produces live feedback and records
 PGN-facing evaluation data in `evaluated_moves`.
 
+- `MIN_WATCHER_EVAL_DEPTH` is the inclusive quality gate for authoritative
+  Tutor move evaluations. Its current value is 10, twice the obvious Tutor
+  depth of 5: depth 10 is accepted and depths 0-9 are insufficient. Keep
+  insufficient-depth results out of WATCHER, saved PGN NAGs/comments, and the
+  up to three Tutor PV sidelines added to PGN nodes. Authoritative marked moves
+  such as `!` and `!!` remain visible in WATCHER even when their CPL is zero.
 - Preserve the retro/MAME exception to the minimum WATCHER evaluation depth.
   An exact deep-line `??` below `MIN_WATCHER_EVAL_DEPTH` must still be returned
   while playing a retro engine because the pre-send automatic-takeback path

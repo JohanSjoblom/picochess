@@ -616,13 +616,24 @@ class EBoard(MyEnum):
     CERTABO = "B00_eboard_certabo_menu"
     CHESSLINK = "B00_eboard_chesslink_menu"
     CHESSNUT = "B00_eboard_chessnut_menu"
+    CITRINE = "B00_eboard_citrine_menu"
     DGT = "B00_eboard_dgt_menu"
     ICHESSONE = "B00_eboard_ichessone_menu"
+    OSA = "B00_eboard_osa_menu"
     NOEBOARD = "B00_eboard_noeboard_menu"
 
     @classmethod
     def items(cls):
-        return [EBoard.CERTABO, EBoard.CHESSLINK, EBoard.CHESSNUT, EBoard.DGT, EBoard.ICHESSONE, EBoard.NOEBOARD]
+        return [
+            EBoard.CERTABO,
+            EBoard.CHESSLINK,
+            EBoard.CHESSNUT,
+            EBoard.DGT,
+            EBoard.ICHESSONE,
+            EBoard.CITRINE,
+            EBoard.OSA,
+            EBoard.NOEBOARD,
+        ]
 
 
 class EBoardLoop(object):

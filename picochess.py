@@ -3545,7 +3545,9 @@ async def main() -> None:
                     # get evalutaion result and give user feedback
                     if self.state.dgtmenu.get_picowatcher() and regenerate_pgn_replay_tutor:
                         if valid:
-                            eval_str, l_mate = self.state.picotutor.get_user_move_eval()
+                            eval_str, l_mate = self.state.picotutor.get_user_move_eval(
+                                allow_low_depth_blunder=self.emulation_mode()
+                            )
                         else:
                             # invalid move from tutor side!? Something went wrong
                             eval_str = "ER"

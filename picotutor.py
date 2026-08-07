@@ -990,9 +990,13 @@ class PicoTutor:
                 result = await self.best_engine.get_analysis(self.board)
         return result
 
-    def get_user_move_eval(self) -> tuple:
-        """for main program to get the evaluation of the previous move
-        return (str int) which is (eval sts, moves to mate"""
+    def get_user_move_eval(self, allow_low_depth_blunder: bool = False) -> tuple:
+        """Return the previous move evaluation and moves to mate.
+
+        ``allow_low_depth_blunder`` preserves the pre-send retro-engine safety
+        path: an exact deep-line ``??`` may be returned below the WATCHER depth
+        gate, while remaining non-authoritative for WATCHER and PGN output.
+        """
         eval_string = ""
         best_mate = 0
         best_score = 0
@@ -1058,9 +1062,15 @@ class PicoTutor:
 
         best_line_depth = self._pv_depth(deep_info, best_pv)
         user_line_depth = self._pv_depth(deep_info, current_pv) if current_pv is not None else 0
+        low_depth_blunder = (
+            allow_low_depth_blunder
+            and current_pv is not None
+            and effective_depth < c.MIN_WATCHER_EVAL_DEPTH
+            and best_score - current_score > c.VERY_BAD_MOVE_TH
+        )
         if current_pv is None:
             reason = "missing_user_line"
-        elif effective_depth < c.MIN_WATCHER_EVAL_DEPTH:
+        elif effective_depth < c.MIN_WATCHER_EVAL_DEPTH and not low_depth_blunder:
             reason = "insufficient_depth"
         else:
             reason = ""
@@ -1081,6 +1091,14 @@ class PicoTutor:
                 self.board.fen(),
             )
             return eval_string, 0
+        if low_depth_blunder:
+            logger.debug(
+                "tutor low-depth blunder allowed for retro takeback move=%s depth=%d required_depth=%d cpl=%d",
+                current_move.uci(),
+                effective_depth,
+                c.MIN_WATCHER_EVAL_DEPTH,
+                best_score - current_score,
+            )
 
         # obvious/shallow/min-ply engine analysis
         low_pv, low_move, low_score, low_mate = self.obvious_history[self.board.turn][-1]
@@ -1205,6 +1223,10 @@ class PicoTutor:
         e_value = {}  # collect eval values for the move here
         e_value["nag"] = PicoTutor.symbol_to_nag(eval_string)
         e_value["depth"] = effective_depth
+        if low_depth_blunder:
+            e_value["quality"] = "insufficient_depth"
+            e_value["quality_reason"] = "retro_blunder_below_minimum_depth"
+            e_value["required_depth"] = c.MIN_WATCHER_EVAL_DEPTH
         try:
             # board_before_usermove is where we have popped the user move above
             e_value["best_move"] = board_before_usermove.san(best_move)

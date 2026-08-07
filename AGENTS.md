@@ -332,6 +332,13 @@ Tutor move evaluations are persisted in `PicoTutor`, not recomputed during PGN
 save. `get_user_move_eval()` both produces live feedback and records
 PGN-facing evaluation data in `evaluated_moves`.
 
+- Preserve the retro/MAME exception to the minimum WATCHER evaluation depth.
+  An exact deep-line `??` below `MIN_WATCHER_EVAL_DEPTH` must still be returned
+  while playing a retro engine because the pre-send automatic-takeback path
+  depends on that verdict. Mark it as insufficient-depth so it is not treated
+  as an authoritative WATCHER row or saved PGN annotation. Do not extend this
+  exception to non-retro engines or to other low-depth evaluation symbols.
+
 Preserve this data flow:
 
 - `evaluated_moves` is reset only for a new game and then accumulates evaluated

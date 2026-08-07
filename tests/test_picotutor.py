@@ -121,6 +121,36 @@ class TestPicotutor(unittest.TestCase):
         self.assertEqual(tutor.get_eval_moves(), {})
         self.assertEqual(tutor.get_eval_mistakes(), [])
 
+    def test_get_user_move_eval_allows_low_depth_blunder_for_retro_takeback(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        e4 = chess.Move.from_uci("e2e4")
+        nf3 = chess.Move.from_uci("g1f3")
+        tutor.board = chess.Board()
+        tutor.board.push(e4)
+        tutor.coach_on = True
+        tutor.watcher_on = False
+        tutor.evaluated_moves = {}
+        tutor.op = []
+        tutor.hint_move = {chess.WHITE: chess.Move.null(), chess.BLACK: chess.Move.null()}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0, 8)]}
+        tutor.obvious_history = {chess.WHITE: [], chess.BLACK: [(0, e4, 0, 0)]}
+        tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(1, nf3, 300, 0), (0, e4, 0, 0)]}
+        tutor.best_info = {
+            chess.WHITE: [],
+            chess.BLACK: [
+                {"pv": [e4], "depth": 8},
+                {"pv": [nf3], "depth": 9},
+            ],
+        }
+
+        self.assertEqual(tutor.get_user_move_eval(), ("", 0))
+        self.assertEqual(tutor.get_user_move_eval(allow_low_depth_blunder=True), ("??", 0))
+        value = tutor.evaluated_moves[(1, e4, chess.BLACK)]
+        self.assertEqual(value["quality_reason"], "retro_blunder_below_minimum_depth")
+        self.assertEqual(value["CPL"], 300)
+        self.assertEqual(tutor.get_eval_moves(), {})
+        self.assertEqual(tutor.get_eval_mistakes(), [])
+
     def test_get_user_move_eval_reports_missing_analysis_as_unrated(self):
         tutor = PicoTutor.__new__(PicoTutor)
         e4 = chess.Move.from_uci("e2e4")

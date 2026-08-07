@@ -175,9 +175,10 @@ classification formulas.
 The optimization is not intended to apply uniformly to every playing engine.
 Retro/MAME emulation retains deep MultiPV 30 because its automatic-takeback
 feature requires an immediate `??` before the move is sent to the engine. Other
-engines may use the narrower deep search. When a non-retro engine cannot
-provide compatible analysis, a user move outside the deep list may simply have
-no delayed WATCHER or PGN blunder evaluation. See
+engines may use an experimentally selected narrower deep search. MultiPV 3 is
+an initial candidate, not a predetermined final value. When a non-retro engine
+cannot provide compatible analysis, a user move outside the deep list may
+simply have no delayed WATCHER or PGN blunder evaluation. See
 [`picotutor_delayed_move_evaluation.md`](picotutor_delayed_move_evaluation.md)
 for the capability policy and implementation order.
 
@@ -204,8 +205,8 @@ small:
   potentially prove a minimum ΔS without pretending that the exact shallow
   score is known.
 
-For example, when the selected deep move is absent from a complete shallow
-top-ten list:
+For example, when testing shallow MultiPV 10 and the selected deep move is
+absent from the complete shallow list:
 
 ```text
 actual shallow score <= score of shallow line 10
@@ -216,6 +217,13 @@ minimum ΔS = selected deep score - score of shallow line 10
 If this minimum already exceeds the `!` or `!!` threshold, the improvement
 condition is safely satisfied. This boundary-based method is not yet part of
 the current V4 implementation.
+
+The final deep and shallow widths should be selected from measurements rather
+than assumed. Useful deep candidates include 3, 5, 10, 15, and the current 30.
+The shallow search can initially remain at 10 while deep widths are compared,
+then wider shallow values can be tested because depth 5 is relatively quick.
+Selection should consider depth-12/depth-17 attainment, user-move coverage,
+annotation agreement, WATCHER coverage, and analysis time on target hardware.
 
 ## Conclusion
 

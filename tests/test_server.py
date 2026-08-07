@@ -10,6 +10,7 @@ from dgt.translate import DgtTranslate
 from dgt.util import EBoard as EBoardType
 from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
+    EventHandler,
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
     OBOOKSRV_BOOK_LABEL,
@@ -41,6 +42,35 @@ from server import (
 )
 from uci.engine_provider import EngineProvider
 from utilities import version as pico_version
+
+
+class TestServerEventHandler(unittest.TestCase):
+    class Client:
+        def __init__(self, shared):
+            self.shared = shared
+            self.messages = []
+            self.request = type("Request", (), {"remote_ip": "127.0.0.1"})()
+
+        def real_ip(self):
+            return self.request.remote_ip
+
+        def write_message(self, message):
+            self.messages.append(message)
+
+    def test_open_sends_current_headers_after_cached_board_state(self):
+        cached = {
+            "event": "Game",
+            "pgn": '[White "User"]\n[Black "Old Engine"]',
+            "fen": chess.STARTING_FEN,
+        }
+        headers = {"White": "User", "Black": "New Engine", "Result": "*"}
+        client = self.Client({"last_dgt_move_msg": cached, "headers": headers})
+
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+
+        self.assertEqual(cached, client.messages[0])
+        self.assertEqual({"event": "Header", "headers": headers}, client.messages[1])
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):

@@ -1575,6 +1575,14 @@ class EventHandler(WebSocketHandler):
                 self.write_message(self.shared["last_dgt_move_msg"])
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
+        # The cached board message may contain PGN headers from before an engine
+        # change.  Send the authoritative current headers afterwards so a client
+        # that connected after the change cannot restore the stale engine name.
+        if self.shared and "headers" in self.shared:
+            try:
+                self.write_message({"event": "Header", "headers": dict(self.shared["headers"])})
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync headers to client: %s", exc)
         # If the engine has suggested a move not yet confirmed on the board, send the
         # arrow so this new client shows the same hint as already-connected clients.
         if self.shared and "pending_computer_move" in self.shared:

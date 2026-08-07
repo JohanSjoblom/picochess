@@ -173,10 +173,11 @@ classification formulas.
 ## Relevance to reducing MultiPV
 
 The optimization is not intended to apply uniformly to every playing engine.
-Retro/MAME engines, engines configured with `Analysis=false`, and other engines
-for which Picochess skips continuous analysis retain deep MultiPV 30 and the
-existing immediate evaluation path. Analysis-capable engines may use the
-narrower deep search together with delayed position-pair evaluation. See
+Retro/MAME emulation retains deep MultiPV 30 because its automatic-takeback
+feature requires an immediate `??` before the move is sent to the engine. Other
+engines may use the narrower deep search. When a non-retro engine cannot
+provide compatible analysis, a user move outside the deep list may simply have
+no delayed WATCHER or PGN blunder evaluation. See
 [`picotutor_delayed_move_evaluation.md`](picotutor_delayed_move_evaluation.md)
 for the capability policy and implementation order.
 

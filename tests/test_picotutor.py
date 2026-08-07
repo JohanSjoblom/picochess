@@ -69,6 +69,35 @@ class TestPicotutor(unittest.TestCase):
             ],
         )
 
+    def test_get_eval_mistakes_includes_zero_cpl_marked_move(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        move = chess.Move.from_uci("e2e4")
+        tutor.evaluated_moves = {
+            (1, move, chess.BLACK): {
+                "CPL": 0,
+                "user_move": "e4",
+                "best_move": "e4",
+                "nag": chess.pgn.NAG_GOOD_MOVE,
+                "depth": 10,
+            }
+        }
+
+        self.assertEqual(
+            tutor.get_eval_mistakes(),
+            [
+                {
+                    "halfmove": 1,
+                    "move_no": "1.",
+                    "user_move": "e4",
+                    "best_move": "e4",
+                    "cpl": 0,
+                    "centipawn_loss": 0,
+                    "nag": "!",
+                    "depth": 10,
+                }
+            ],
+        )
+
     def test_get_user_move_eval_stores_better_pv_variations(self):
         tutor = PicoTutor.__new__(PicoTutor)
         e4 = chess.Move.from_uci("e2e4")

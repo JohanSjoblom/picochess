@@ -1418,7 +1418,7 @@ class PicoTutor:
         }
 
     def get_eval_mistakes(self) -> list[dict]:
-        """Return authoritative mistakes with CPL for the WATCHER UI."""
+        """Return authoritative marked moves and inaccuracies for WATCHER."""
         mistakes: list[dict] = []
         for (halfmove_nr, _user_move, known_turn), value in self.evaluated_moves.items():
             if value.get("quality") == "insufficient_depth":
@@ -1430,7 +1430,8 @@ class PicoTutor:
                 cpl_value = float(cpl)
             except (TypeError, ValueError):
                 continue
-            if cpl_value <= 0:
+            nag_symbol = PicoTutor.nag_to_symbol(value.get("nag"))
+            if cpl_value <= 0 and not nag_symbol:
                 continue
             user_move = value.get("user_move")
             best_move = value.get("best_move")
@@ -1444,7 +1445,7 @@ class PicoTutor:
                 "best_move": best_move,
                 "cpl": rounded_cpl,
                 "centipawn_loss": rounded_cpl,
-                "nag": PicoTutor.nag_to_symbol(value.get("nag")),
+                "nag": nag_symbol,
             }
             if "depth" in value:
                 mistake["depth"] = value.get("depth")

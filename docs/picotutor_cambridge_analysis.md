@@ -172,6 +172,14 @@ classification formulas.
 
 ## Relevance to reducing MultiPV
 
+The optimization is not intended to apply uniformly to every playing engine.
+Retro/MAME engines, engines configured with `Analysis=false`, and other engines
+for which Picochess skips continuous analysis retain deep MultiPV 30 and the
+existing immediate evaluation path. Analysis-capable engines may use the
+narrower deep search together with delayed position-pair evaluation. See
+[`picotutor_delayed_move_evaluation.md`](picotutor_delayed_move_evaluation.md)
+for the capability policy and implementation order.
+
 Reducing the deep MultiPV has different effects on the annotations:
 
 - `!!` should normally remain available because the move must be the best deep

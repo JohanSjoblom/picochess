@@ -11,8 +11,13 @@ more quickly.
 Reducing the deep list creates a separate problem for `?` and `??`. A bad user
 move will commonly be outside the deep top three, so its score and exact
 centipawn loss will not be available when the move is played. This document
-describes a future position-pair evaluation mechanism and, in particular, the
-special handling required for engines that do not provide analysis.
+describes a future position-pair evaluation mechanism and the retained-wide-
+search policy for engines that cannot support delayed evaluation safely.
+
+The accepted scope deliberately excludes synchronous post-move Tutor analysis
+for retro engines. Retro/MAME engines, engines configured with
+`Analysis=false`, and other engines for which Picochess skips continuous
+analysis retain the current wide deep Tutor search and immediate evaluation.
 
 This design complements
 [`picotutor_cambridge_analysis.md`](picotutor_cambridge_analysis.md).
@@ -92,11 +97,12 @@ after-position score.
 | --- | --- | --- |
 | Analysis-capable UCI engine | Playing-engine `MultiPV == 1` analysis | Reuse it when a compatible before-position score exists from the same engine |
 | LC0 or an engine with incomplete PV sequences | A top-line score and depth may still be available | A complete PV is unnecessary; score, depth, source, and correct FEN are sufficient |
-| Engine configured with `Analysis=false` | Final play information may contain a score, but continuous analysis is unavailable | Use it only when a compatible same-source before score exists; otherwise use a Tutor fallback |
-| Retro/MAME engine | Usually no dependable score and no safe engine takeback | Resolve a possible `??` before sending the move to the engine |
+| Engine configured with `Analysis=false` | Continuous analysis is deliberately unavailable | Retain deep Tutor MultiPV 30 and immediate evaluation |
+| Retro/MAME engine | Usually no dependable score and no safe engine takeback | Retain deep Tutor MultiPV 30 and immediate pre-send `??` evaluation |
+| Script or other engine for which Picochess skips its analyser | A compatible before-position score is not assured | Retain deep Tutor MultiPV 30 and immediate evaluation |
 
-Selection must be based on actual engine capabilities and available data, not
-only on engine names.
+Selection must be based on existing engine capability policy and available
+data, not only on engine names.
 
 ## The retro-engine timing constraint
 
@@ -110,93 +116,65 @@ late for this protection. It could still be written to WATCHER or the PGN, but
 it could not safely trigger the existing automatic-takeback path.
 
 Therefore, retro engines require a pre-send decision. When the deep top-three
-Tutor search does not contain the selected move, Picochess must either obtain a
-valid fallback evaluation before starting the retro engine or leave the move
-unrated and allow play to continue. It must not send the move and later attempt
-the retro automatic takeback.
+Tutor search would often omit the selected move. The chosen policy avoids that
+problem by not applying the narrow deep search to retro play. Retro engines
+retain deep MultiPV 30, so their existing immediate evaluation and automatic-
+takeback control flow remain unchanged.
 
-## Proposed retro-safe Tutor fallback
+## Retained-wide-search policy
 
-The fallback should run when all of the following are true:
+The optimization applies only when the selected playing engine can support the
+analysis data needed for delayed position-pair evaluation. Picochess, rather
+than PicoTutor, owns that engine capability decision.
 
-- Tutor/WATCHER evaluation is enabled.
-- The selected user move is absent from the deep Tutor list, so immediate exact
-  CPL is unavailable.
-- The stored Tutor score for the position before the move reached the minimum
-  depth.
-- The playing engine cannot provide a compatible after-position score.
-- Retro pre-send protection is required.
+Conceptually, the runtime policy is:
 
-The proposed sequence is:
+```python
+use_wide_tutor = (
+    emulation_mode
+    or engine.should_skip_engine_analyser()
+)
 
-1. Preserve the before-position Tutor score, depth, FEN, and source as an
-   immutable snapshot.
-2. Push the user move on the Picochess and Tutor boards.
-3. Do not start the retro engine yet.
-4. Reuse the existing deep Tutor engine to analyse the resulting position with
-   `MultiPV = 1`.
-5. Do not start the shallow/obvious Tutor engine for this fallback.
-6. Stop when the configured minimum depth is reached or a bounded timeout
-   expires.
-7. Compare the before and after position scores.
-8. If the result is `??`, enter the existing automatic-takeback path without
-   ever sending the move to the retro engine.
-9. Otherwise stop the fallback analysis and start the retro engine normally.
+if use_wide_tutor:
+    deep_root_moves = 30
+else:
+    deep_root_moves = 3
 
-The fallback should reuse `picotutor.best_engine`; it should not create another
-engine process. The operation must be explicit and bounded rather than achieved
-by weakening the normal PicoTutor lifecycle rules.
-
-## CPU and clock rules
-
-Picochess is designed around one deep analyser at a time. The deep Tutor must
-not run concurrently with a playing engine merely to obtain a delayed score.
-
-For retro play, the Tutor fallback and engine search must be sequential:
-
-```text
-user move
-    -> optional Tutor MultiPV-1 validation
-    -> retro engine search, if the move is accepted
+shallow_root_moves = 10
 ```
 
-The validation period should not consume the retro engine's clock time. A
-temporary user-facing indication such as "checking move" may be considered if
-the delay is noticeable.
+`should_skip_engine_analyser()` currently includes MAME engines, script
+wrappers, and engines whose configuration specifies `Analysis=false`. The
+explicit emulation check also preserves the existing broader MAME/MESS
+detection used by Picochess.
 
-Because MultiPV 1 to the minimum depth should be much faster than MultiPV 30 to
-the same depth, this may still reduce total CPU consumption. It trades a short
-post-move delay for a substantially narrower analysis while the user is
-thinking. Timing must be measured on the target Raspberry Pi hardware.
+Keeping script engines on the wide policy is conservative. Picochess already
+avoids using their continuous analyser, so a compatible same-source before
+score is not assured even if their playing search later emits information.
 
-The fallback requires:
+The shallow MultiPV may still be reduced to 10 for both policies. Immediate
+`?` and `??` use the exact deep user-line CPL, not the shallow score. The
+shallow-boundary design separately preserves `!` and `!!` when the selected
+deep move is outside the shallow top ten.
 
-- A bounded wall-clock timeout.
-- Cancellation on takeback, new game, position reset, mode change, engine
-  change, Tutor disable, and shutdown.
-- FEN, ply, move, and generation checks before accepting the result.
-- Logging of elapsed time, reached depth, source, and completion or rejection
-  reason.
-- Safe continuation without a rating if the minimum depth is not reached.
+This policy intentionally does not attempt to optimize engines that cannot
+support delayed evaluation. They retain current coverage and behaviour at the
+cost of the existing wider Tutor workload.
 
-## Non-retro engines without analysis
+## Out-of-scope retro fallback
 
-Ordinary engines configured with `Analysis=false` do not have the same pre-send
-takeback constraint. Their move can be started while the Tutor evaluation is
-still unavailable, provided the one-deep-analyser rule is preserved.
+A synchronous post-move Tutor MultiPV-1 check could theoretically preserve
+retro automatic takeback while using a narrow pre-move search. It would,
+however, add a new pre-engine control phase, clock and timeout policy,
+asynchronous cancellation, and engine/Tutor lifecycle transitions.
 
-Possible sequential fallback points include:
+That fallback is explicitly out of scope. This feature must not:
 
-- After the playing engine finishes searching but before its move is
-  announced.
-- At another safe idle point, using the stored position after the user move.
-
-The result may then be added to WATCHER and the stored PGN evaluation later.
-It must not attempt the retro automatic-takeback action.
-
-If the playing engine returns a valid top-line score, it is useful only when a
-compatible before score from the same source exists. A score merely being
-present is not sufficient reason to compare it with a Tutor score.
+- Delay a retro engine while running new post-move deep Tutor analysis.
+- Start Tutor deep analysis concurrently with the playing engine.
+- Send a move to a retro engine and later attempt automatic takeback because a
+  delayed `??` arrived.
+- Change the existing retro engine move-submission or clock sequence.
 
 ## Mate transitions
 
@@ -218,17 +196,17 @@ mixed into the ordinary CPL threshold calculation.
 The intended high-level routing is:
 
 ```text
-compatible before/after scores available
-    -> derive the move evaluation from existing analysis
+engine is retro/MAME or Picochess skips its analyser
+    -> retain deep MultiPV 30 and immediate evaluation
 
-missing after score and retro pre-send protection required
-    -> run a synchronous Tutor MultiPV-1 check before engine think()
+engine supports compatible before/after analysis scores
+    -> use deep MultiPV 3 and derive delayed move evaluation when needed
 
-missing after score but delayed feedback is safe
-    -> schedule a sequential Tutor fallback at a safe idle point
+compatible position pair reaches the minimum depth
+    -> update WATCHER and stored PGN evaluation
 
-no reliable pair before timeout
-    -> leave the move unrated
+no reliable compatible pair
+    -> leave the delayed move unrated
 ```
 
 ## Testing and implementation order
@@ -246,12 +224,14 @@ Recommended order:
 3. Compare the proposed CPL and NAG with the current result, including cases
    around the `?` and `??` thresholds.
 4. Implement and test mate-transition handling.
-5. Enable delayed position-pair evaluation as a fallback while deep MultiPV is
-   still 30.
-6. Test the retro pre-send Tutor fallback and confirm that a `??` move is never
-   sent to the retro engine.
-7. Reduce the deep Tutor MultiPV to 3 only after WATCHER, PGN persistence,
-   takebacks, and retro protection have been validated.
+5. Enable delayed position-pair evaluation for analysis-capable engines while
+   deep MultiPV is still 30.
+6. Add the runtime wide-versus-optimized policy and verify that retro/MAME,
+   `Analysis=false`, and analyser-skipped script engines remain on deep
+   MultiPV 30.
+7. Reduce the deep Tutor MultiPV to 3 only for analysis-capable engines after
+   WATCHER, PGN persistence, takebacks, stale-result rejection, and source
+   matching have been validated.
 
 Shadow-mode logging should include:
 
@@ -261,16 +241,17 @@ Shadow-mode logging should include:
 - Before, after, and effective depths.
 - Source identities and score types.
 - Time taken to produce the after-position score.
-- Rejection and timeout reasons.
+- Rejection reasons.
 
-Two retro strategies should be compared during testing:
+Regression testing for the retained-wide policy must confirm:
 
-- Deep MultiPV 3 with an occasional post-move MultiPV-1 validation.
-- Retaining a wider deep MultiPV specifically for retro games.
-
-The first strategy should save more analysis work but may introduce a short
-response delay. The second avoids the validation delay but may retain the depth
-and CPU problems that motivated the optimization.
+- A retro `??` is still known before the move would be sent to the engine.
+- Retro automatic takeback is unchanged.
+- `Analysis=false` and analyser-skipped script engines still receive immediate
+  wide-list evaluation.
+- No delayed result can trigger retro automatic takeback.
+- Switching between optimized and retained-wide engines updates the Tutor
+  policy before analysis starts for the new engine.
 
 ## Conclusion
 
@@ -278,8 +259,9 @@ Position-pair evaluation can restore `?` and `??` coverage after reducing the
 deep Tutor MultiPV, without separately analysing every possible root move. The
 central requirement is source-consistent before and after scores.
 
-Engines without usable analysis require a Tutor fallback. Retro/MAME engines
-are the strictest case because `??` must be known before the user move is sent
-to the engine. Their fallback must therefore be synchronous, bounded, and
-sequential with engine thinking. Other engines may use delayed WATCHER and PGN
-updates when immediate takeback protection is unnecessary.
+The optimization is limited to engines that can provide the compatible analysis
+needed for delayed evaluation. Retro/MAME, `Analysis=false`, and other
+analyser-skipped engines retain deep MultiPV 30 and the existing immediate
+evaluation path. No synchronous retro fallback is planned. This keeps delayed
+evaluation in the annotation path and prevents the optimization from changing
+retro engine control flow.

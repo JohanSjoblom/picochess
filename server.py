@@ -75,6 +75,7 @@ from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
 from pgn import ModeInfo, add_picotutor_variations_to_game
+import picotutor_constants as picotutor_c
 
 # This needs to be reworked to be session based (probably by token)
 # Otherwise multiple clients behind a NAT can all play as the 'player'
@@ -160,6 +161,19 @@ def _bounded_tutor_prob(value) -> int:
         return 50
 
 
+def _bounded_tutor_choice(value, choices: tuple[int, ...]) -> int | None:
+    """Accept only an explicitly offered experimental Tutor value."""
+    if isinstance(value, bool):
+        return None
+    value_text = str(value).strip()
+    allowed = {str(choice): choice for choice in choices}
+    return allowed.get(value_text)
+
+
+def _bounded_tutor_threads(value) -> int | None:
+    return _bounded_tutor_choice(value, (1, 2))
+
+
 def _tutor_settings_from_shared(shared: dict | None) -> dict:
     shared = shared or {}
     watcher = bool(shared.get("tutor_watch_watcher", False))
@@ -169,12 +183,38 @@ def _tutor_settings_from_shared(shared: dict | None) -> dict:
         coach = _coach_setting(shared.get("tutor_watch_coach_pref", PicoCoach.COACH_ON))
     else:
         coach = "off"
+    tutor_threads = picotutor_c.NUM_THREADS
+    tutor_multipv = picotutor_c.VALID_ROOT_MOVES
+    tutor_depth = picotutor_c.DEEP_DEPTH
+    picotutor = shared.get("picotutor")
+    if picotutor:
+        try:
+            requested_threads = picotutor.get_requested_deep_threads()
+            if requested_threads in (1, 2):
+                tutor_threads = requested_threads
+        except (AttributeError, TypeError, ValueError):
+            pass
+        try:
+            requested_multipv = picotutor.get_requested_deep_multipv()
+            if requested_multipv in picotutor_c.DEEP_MULTIPV_CHOICES:
+                tutor_multipv = requested_multipv
+        except (AttributeError, TypeError, ValueError):
+            pass
+        try:
+            requested_depth = picotutor.get_requested_deep_depth()
+            if requested_depth in picotutor_c.DEEP_DEPTH_CHOICES:
+                tutor_depth = requested_depth
+        except (AttributeError, TypeError, ValueError):
+            pass
     settings = {
         "tutor_watcher": watcher,
         "tutor_coach": coach,
         "tutor_explorer": bool(shared.get("tutor_explorer", False)),
         "tutor_comment": _comment_setting(shared.get("tutor_comment", "off")),
         "tutor_prob": _bounded_tutor_prob(shared.get("tutor_prob", 50)),
+        "tutor_threads": tutor_threads,
+        "tutor_multipv": tutor_multipv,
+        "tutor_depth": tutor_depth,
     }
     settings["tutor_active"] = bool(settings["tutor_watcher"] or settings["tutor_coach"] != "off")
     return settings
@@ -1260,6 +1300,30 @@ class ChannelHandler(ServerRequestHandler):
                 prob = _bounded_tutor_prob(val)
                 if current["tutor_prob"] != prob:
                     await Observable.fire(Event.PICOCOMMENT(picocomment=f"comment-factor:{prob}"))
+            elif tutor in ("threads", "multipv", "depth"):
+                setting_specs = {
+                    "threads": ((1, 2), "request_deep_threads"),
+                    "multipv": (picotutor_c.DEEP_MULTIPV_CHOICES, "request_deep_multipv"),
+                    "depth": (picotutor_c.DEEP_DEPTH_CHOICES, "request_deep_depth"),
+                }
+                choices, request_method_name = setting_specs[tutor]
+                requested_value = _bounded_tutor_choice(val, choices)
+                picotutor = self.shared.get("picotutor")
+                if requested_value is None:
+                    self.set_status(400)
+                    self.write({"success": False, "error": f"Invalid Tutor {tutor} value"})
+                    return
+                if not picotutor:
+                    self.set_status(409)
+                    self.write({"success": False, "error": "PicoTutor is unavailable"})
+                    return
+                if not getattr(picotutor, request_method_name)(requested_value):
+                    self.set_status(400)
+                    self.write({"success": False, "error": f"Tutor {tutor} request rejected"})
+                    return
+                settings = _tutor_settings_from_shared(self.shared)
+                EventHandler.write_to_clients({"event": "TutorSettings", "settings": settings})
+                self.write({"success": True, f"tutor_{tutor}": settings[f"tutor_{tutor}"]})
             else:
                 logger.warning("web picotutor: unknown tutor=%r", tutor)
         elif action == "set_mode":

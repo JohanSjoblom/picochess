@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import chess
 import chess.pgn
 
+import picotutor_constants as c
 from picotutor import PicoTutor
 from uci.engine import UciShell
 
@@ -442,3 +443,78 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(tutor.can_use_coach_analyser())
         tutor.best_engine.stop.assert_awaited_once()
         tutor.obvious_engine.stop.assert_awaited_once()
+
+    async def test_default_deep_settings_do_no_engine_work(self):
+        tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+        tutor.best_engine = Mock()
+        tutor.best_engine.loaded_ok.return_value = True
+        tutor.best_engine.send = AsyncMock()
+
+        self.assertEqual(c.NUM_THREADS, tutor.get_requested_deep_threads())
+        self.assertEqual(c.VALID_ROOT_MOVES, tutor.get_requested_deep_multipv())
+        self.assertEqual(c.DEEP_DEPTH, tutor.get_requested_deep_depth())
+        self.assertEqual(c.DEEP_DEPTH, tutor.get_applied_deep_depth())
+
+        await tutor._apply_requested_deep_settings()
+
+        tutor.best_engine.loaded_ok.assert_not_called()
+        tutor.best_engine.option.assert_not_called()
+        tutor.best_engine.send.assert_not_awaited()
+
+    async def test_deep_setting_requests_wait_for_idle_analyser(self):
+        tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+        tutor.best_engine = Mock()
+        tutor.best_engine.loaded_ok.return_value = True
+        tutor.best_engine.is_analyser_running.return_value = True
+        tutor.best_engine.get_options.return_value = {"Threads": Mock()}
+        tutor.best_engine.send = AsyncMock()
+
+        self.assertTrue(tutor.request_deep_threads(2))
+        self.assertTrue(tutor.request_deep_multipv(5))
+        self.assertTrue(tutor.request_deep_depth(17))
+        await tutor._apply_requested_deep_settings()
+
+        tutor.best_engine.option.assert_not_called()
+        tutor.best_engine.send.assert_not_awaited()
+        self.assertEqual(c.VALID_ROOT_MOVES, tutor.deep_multipv_applied)
+        self.assertEqual(c.DEEP_DEPTH, tutor.deep_depth_applied)
+
+        tutor.best_engine.is_analyser_running.return_value = False
+        await tutor._apply_requested_deep_settings()
+
+        tutor.best_engine.option.assert_called_once_with("Threads", 2)
+        tutor.best_engine.send.assert_awaited_once()
+        self.assertEqual(2, tutor.deep_threads_applied)
+        self.assertEqual(5, tutor.deep_multipv_applied)
+        self.assertEqual(17, tutor.deep_depth_applied)
+        self.assertEqual(17, tutor.get_applied_deep_depth())
+
+    async def test_next_start_uses_requested_multipv_and_depth_without_uci_reconfiguration(self):
+        tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+        tutor.watcher_on = True
+        tutor.best_engine = Mock()
+        tutor.best_engine.loaded_ok.return_value = True
+        tutor.best_engine.is_analyser_running.return_value = False
+        tutor.best_engine.start_analysis = AsyncMock()
+        tutor.best_engine.send = AsyncMock()
+
+        self.assertTrue(tutor.request_deep_multipv(5))
+        self.assertTrue(tutor.request_deep_depth(17))
+
+        await tutor.start()
+
+        tutor.best_engine.option.assert_not_called()
+        tutor.best_engine.send.assert_not_awaited()
+        call = tutor.best_engine.start_analysis.await_args
+        self.assertEqual(5, call.kwargs["multipv"])
+        self.assertEqual(17, call.kwargs["limit"].depth)
+
+    async def test_invalid_deep_setting_requests_are_ignored(self):
+        tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+
+        self.assertFalse(tutor.request_deep_threads(3))
+        self.assertFalse(tutor.request_deep_multipv(6))
+        self.assertFalse(tutor.request_deep_depth(18))
+        self.assertEqual(c.NUM_THREADS, tutor.get_requested_deep_threads())
+        self.assertEqual(c.VALID_ROOT_MOVES, tutor.get_requested_deep_multipv())
+        self.assertEqual(c.DEEP_DEPTH, tutor.get_requested_deep_depth())

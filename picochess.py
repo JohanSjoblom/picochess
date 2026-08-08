@@ -104,7 +104,6 @@ from eboard.chessnut.board import ChessnutBoard
 from eboard.ichessone.board import IChessOneBoard
 from eboard.certabo.board import CertaboBoard
 from picotutor import PicoTutor
-from picotutor_constants import DEEP_DEPTH
 import pairing_ipc
 
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
@@ -4339,7 +4338,7 @@ async def main() -> None:
                 elif wait_for_replay_tutor:
                     if analysed_fen == self.state.get_fen():
                         latest_depth = await self.state.picotutor.get_latest_seen_depth()
-                        min_depth = max(DEEP_DEPTH - 2, 1)
+                        min_depth = max(self.state.picotutor.get_applied_deep_depth() - 2, 1)
                         if latest_depth >= min_depth:
                             await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # tutor ready
                 else:

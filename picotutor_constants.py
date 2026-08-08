@@ -11,6 +11,10 @@ NUM_THREADS = 1  # threads for deep - 1 to save CPU, 2 to have faster analysis
 VALID_ROOT_MOVES = 30  # number of multipv best moves
 LOW_ROOT_MOVES = 30  # number of obvious multipv root moves
 
+# Session-only experimental choices exposed by the modern web client.
+DEEP_MULTIPV_CHOICES = (5, 10, 15, 20, 30, 50)
+DEEP_DEPTH_CHOICES = (17, 20, 23, 28, 30, 40)
+
 VERY_BAD_MOVE_TH = 250  # difference user to best move ??
 BAD_MOVE_TH = 150  # difference user to best move ?
 DUBIOUS_TH = 30  # difference user to best move ?!

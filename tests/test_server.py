@@ -1,10 +1,11 @@
 import json
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import chess
 
+import picotutor_constants as picotutor_c
 from dgt.api import DgtApi, EventApi, Message
 from dgt.translate import DgtTranslate
 from dgt.util import EBoard as EBoardType
@@ -22,6 +23,9 @@ from server import (
     _clock_menu_active,
     _coach_event_value,
     _coach_setting,
+    _bounded_tutor_choice,
+    _bounded_tutor_threads,
+    _tutor_settings_from_shared,
     _board_from_web_pgn_prefix,
     _configured_engine_book_file,
     _display_text_from_label,
@@ -253,6 +257,33 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
             with self.subTest(setting=setting):
                 self.assertEqual(setting, _coach_setting(enum_value))
                 self.assertEqual(enum_value, _coach_event_value(setting))
+
+    def test_tutor_threads_accept_only_session_choices(self):
+        self.assertEqual(1, _bounded_tutor_threads("1"))
+        self.assertEqual(2, _bounded_tutor_threads("2"))
+        self.assertIsNone(_bounded_tutor_threads("3"))
+        self.assertIsNone(_bounded_tutor_threads("1.5"))
+        self.assertIsNone(_bounded_tutor_threads(True))
+
+    def test_tutor_analysis_settings_accept_only_offered_choices(self):
+        for value in picotutor_c.DEEP_MULTIPV_CHOICES:
+            self.assertEqual(value, _bounded_tutor_choice(str(value), picotutor_c.DEEP_MULTIPV_CHOICES))
+        for value in picotutor_c.DEEP_DEPTH_CHOICES:
+            self.assertEqual(value, _bounded_tutor_choice(str(value), picotutor_c.DEEP_DEPTH_CHOICES))
+        self.assertIsNone(_bounded_tutor_choice("6", picotutor_c.DEEP_MULTIPV_CHOICES))
+        self.assertIsNone(_bounded_tutor_choice("18", picotutor_c.DEEP_DEPTH_CHOICES))
+
+    def test_tutor_settings_report_live_requested_threads(self):
+        tutor = Mock()
+        tutor.get_requested_deep_threads.return_value = 2
+        tutor.get_requested_deep_multipv.return_value = 15
+        tutor.get_requested_deep_depth.return_value = 28
+
+        settings = _tutor_settings_from_shared({"picotutor": tutor})
+
+        self.assertEqual(2, settings["tutor_threads"])
+        self.assertEqual(15, settings["tutor_multipv"])
+        self.assertEqual(28, settings["tutor_depth"])
 
 
 class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):

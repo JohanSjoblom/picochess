@@ -101,6 +101,14 @@ class PicoTutor:
         self.ucishell = i_ucishell
         self.loop = loop  # main loop everywhere
         self.deep_limit_depth = None  # override picotutor value in set_mode
+        # Session-only deep Tutor settings. Requested changes are applied before
+        # a later analysis start, never by interrupting a running search.
+        self.deep_threads_requested = c.NUM_THREADS
+        self.deep_threads_applied = c.NUM_THREADS
+        self.deep_multipv_requested = c.VALID_ROOT_MOVES
+        self.deep_multipv_applied = c.VALID_ROOT_MOVES
+        self.deep_depth_requested = c.DEEP_DEPTH
+        self.deep_depth_applied = c.DEEP_DEPTH
         # evaluated moves keeps a memory of all non zero evaluation strings
         # it can then be used to print comments in the PGN file
         self.evaluated_moves = {}  # key=(fullmove_number, turn, move) value={}
@@ -178,10 +186,12 @@ class PicoTutor:
         # not yet been changed to async --> causes changes in main
         # set_status might later be changed that require this engine
         if not self.best_engine:
-            options = {"Contempt": 0, "Threads": c.NUM_THREADS}
+            options = {"Contempt": 0, "Threads": self.deep_threads_requested}
             self.best_engine = await self._load_engine(options, "best picotutor")
             if self.best_engine is None:
                 logger.debug("best engine loading failed in Picotutor")
+            else:
+                self.deep_threads_applied = self.deep_threads_requested
         if not self.obvious_engine:
             options = {"Contempt": 0, "Threads": c.LOW_NUM_THREADS}
             self.obvious_engine = await self._load_engine(options, "obvious picotutor")
@@ -217,7 +227,7 @@ class PicoTutor:
 
     async def set_mode(self, analyse_both_sides: bool, deep_limit_depth: int = None):
         """normally analyse_both_sides is False but if True both sides will be analysed
-        deep_limit_depth defaults to DEEP_DEPTH 17 if not set"""
+        deep_limit_depth defaults to the configured DEEP_DEPTH if not set"""
         self.deep_limit_depth = deep_limit_depth  # None also ok = back to default
         if self.analyse_both_sides != analyse_both_sides:
             self.analyse_both_sides = analyse_both_sides
@@ -236,6 +246,114 @@ class PicoTutor:
             if self.best_engine.loaded_ok():
                 result = await self.best_engine.get_latest_seen_depth()
         return result
+
+    def request_deep_threads(self, threads: int) -> bool:
+        """Request 1 or 2 deep Tutor threads for a later analysis start.
+
+        This is deliberately session-only and does not disturb a search that is
+        already running. The requested value is applied when the deep analyser
+        is next idle and about to start.
+        """
+        if isinstance(threads, bool) or threads not in (1, 2):
+            logger.warning("invalid PicoTutor deep thread request: %s", threads)
+            return False
+        if threads != self.deep_threads_requested:
+            logger.info(
+                "PicoTutor deep threads requested %d->%d; applies to next analysis",
+                self.deep_threads_requested,
+                threads,
+            )
+            self.deep_threads_requested = threads
+        return True
+
+    def get_requested_deep_threads(self) -> int:
+        """Return the session-only deep Tutor thread request."""
+        return self.deep_threads_requested
+
+    def request_deep_multipv(self, multipv: int) -> bool:
+        """Request an experimental MultiPV width for a later deep analysis."""
+        if isinstance(multipv, bool) or multipv not in c.DEEP_MULTIPV_CHOICES:
+            logger.warning("invalid PicoTutor deep MultiPV request: %s", multipv)
+            return False
+        if multipv != self.deep_multipv_requested:
+            logger.info(
+                "PicoTutor deep MultiPV requested %d->%d; applies to next analysis",
+                self.deep_multipv_requested,
+                multipv,
+            )
+            self.deep_multipv_requested = multipv
+        return True
+
+    def get_requested_deep_multipv(self) -> int:
+        """Return the session-only deep Tutor MultiPV request."""
+        return self.deep_multipv_requested
+
+    def request_deep_depth(self, depth: int) -> bool:
+        """Request an experimental target depth for a later deep analysis."""
+        if isinstance(depth, bool) or depth not in c.DEEP_DEPTH_CHOICES:
+            logger.warning("invalid PicoTutor deep depth request: %s", depth)
+            return False
+        if depth != self.deep_depth_requested:
+            logger.info(
+                "PicoTutor deep depth requested %d->%d; applies to next analysis",
+                self.deep_depth_requested,
+                depth,
+            )
+            self.deep_depth_requested = depth
+        return True
+
+    def get_requested_deep_depth(self) -> int:
+        """Return the session-only deep Tutor target-depth request."""
+        return self.deep_depth_requested
+
+    def get_applied_deep_depth(self) -> int:
+        """Return the target depth used for the current or next deep analysis."""
+        return self.deep_depth_applied
+
+    async def _apply_requested_deep_settings(self) -> None:
+        """Apply pending deep settings while the analyser is idle."""
+        settings_unchanged = (
+            self.deep_threads_requested == self.deep_threads_applied
+            and self.deep_multipv_requested == self.deep_multipv_applied
+            and self.deep_depth_requested == self.deep_depth_applied
+        )
+        if settings_unchanged:
+            return
+        if not self.best_engine or not self.best_engine.loaded_ok():
+            return
+        if self.best_engine.is_analyser_running():
+            logger.debug("PicoTutor deep setting change deferred until analyser is idle")
+            return
+
+        if self.deep_threads_requested != self.deep_threads_applied:
+            if "Threads" not in self.best_engine.get_options():
+                logger.warning("PicoTutor engine has no Threads option; keeping %d", self.deep_threads_applied)
+                self.deep_threads_requested = self.deep_threads_applied
+            else:
+                requested_threads = self.deep_threads_requested
+                self.best_engine.option("Threads", requested_threads)
+                await self.best_engine.send()
+                logger.info(
+                    "PicoTutor deep engine threads changed %d->%d",
+                    self.deep_threads_applied,
+                    requested_threads,
+                )
+                self.deep_threads_applied = requested_threads
+
+        if self.deep_multipv_requested != self.deep_multipv_applied:
+            logger.info(
+                "PicoTutor deep MultiPV changed %d->%d",
+                self.deep_multipv_applied,
+                self.deep_multipv_requested,
+            )
+            self.deep_multipv_applied = self.deep_multipv_requested
+        if self.deep_depth_requested != self.deep_depth_applied:
+            logger.info(
+                "PicoTutor deep depth changed %d->%d",
+                self.deep_depth_applied,
+                self.deep_depth_requested,
+            )
+            self.deep_depth_applied = self.deep_depth_requested
 
     def can_use_coach_analyser(self) -> bool:
         """is the tutor active and analysing with either coach or watcher on
@@ -636,13 +754,14 @@ class PicoTutor:
         if self.best_engine:
             if self.best_engine.loaded_ok():
                 if self.coach_on or self.watcher_on:
+                    await self._apply_requested_deep_settings()
                     if self.deep_limit_depth:
                         # override for main program when using coach as analyser
                         # used for analysis when tutor engine is same as playing engine
                         limit = Limit(depth=self.deep_limit_depth)
                     else:
-                        limit = Limit(depth=c.DEEP_DEPTH)  # default value
-                    multipv = c.VALID_ROOT_MOVES
+                        limit = Limit(depth=self.deep_depth_applied)
+                    multipv = self.deep_multipv_applied
                     await self.best_engine.start_analysis(self.board, limit=limit, multipv=multipv)
             else:
                 logger.error("best engine has terminated in picotutor?")

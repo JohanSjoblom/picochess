@@ -331,8 +331,11 @@ class PicoTutor:
         if not self.best_engine or not self.best_engine.loaded_ok():
             return
         if self.best_engine.is_analyser_running():
-            logger.debug("PicoTutor deep setting change deferred until analyser is idle")
-            return
+            if self.best_engine.is_analyser_running_for(self.board):
+                logger.debug("PicoTutor deep setting change deferred until next position")
+                return
+            logger.debug("PicoTutor applying pending deep settings at new-position boundary")
+            await self.best_engine.stop_analysis()
 
         if self.deep_threads_requested != self.deep_threads_applied:
             if "Threads" not in self.best_engine.get_options():

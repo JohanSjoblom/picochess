@@ -491,6 +491,8 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
         tutor.best_engine = Mock()
         tutor.best_engine.loaded_ok.return_value = True
         tutor.best_engine.is_analyser_running.return_value = True
+        tutor.best_engine.is_analyser_running_for.return_value = True
+        tutor.best_engine.stop_analysis = AsyncMock()
         tutor.best_engine.get_options.return_value = {"Threads": Mock()}
         tutor.best_engine.send = AsyncMock()
 
@@ -501,6 +503,7 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
 
         tutor.best_engine.option.assert_not_called()
         tutor.best_engine.send.assert_not_awaited()
+        tutor.best_engine.stop_analysis.assert_not_awaited()
         self.assertEqual(c.VALID_ROOT_MOVES, tutor.deep_multipv_applied)
         self.assertEqual(c.DEEP_DEPTH, tutor.deep_depth_applied)
 
@@ -513,6 +516,31 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(5, tutor.deep_multipv_applied)
         self.assertEqual(17, tutor.deep_depth_applied)
         self.assertEqual(17, tutor.get_applied_deep_depth())
+
+    async def test_next_position_restarts_running_analyser_with_requested_settings(self):
+        tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+        tutor.watcher_on = True
+        tutor.best_engine = Mock()
+        tutor.best_engine.loaded_ok.return_value = True
+        tutor.best_engine.is_analyser_running.return_value = True
+        tutor.best_engine.is_analyser_running_for.return_value = False
+        tutor.best_engine.stop_analysis = AsyncMock()
+        tutor.best_engine.start_analysis = AsyncMock()
+        tutor.best_engine.get_options.return_value = {"Threads": Mock()}
+        tutor.best_engine.send = AsyncMock()
+
+        self.assertTrue(tutor.request_deep_threads(2))
+        self.assertTrue(tutor.request_deep_multipv(5))
+        self.assertTrue(tutor.request_deep_depth(40))
+
+        await tutor.start()
+
+        tutor.best_engine.stop_analysis.assert_awaited_once()
+        tutor.best_engine.option.assert_called_once_with("Threads", 2)
+        tutor.best_engine.send.assert_awaited_once()
+        call = tutor.best_engine.start_analysis.await_args
+        self.assertEqual(5, call.kwargs["multipv"])
+        self.assertEqual(40, call.kwargs["limit"].depth)
 
     async def test_next_start_uses_requested_multipv_and_depth_without_uci_reconfiguration(self):
         tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")

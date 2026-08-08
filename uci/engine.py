@@ -1755,6 +1755,15 @@ class UciEngine(object):
         """check if analyser is running"""
         return self.analyser and self.analyser.is_running()
 
+    def is_analyser_running_for(self, game: chess.Board) -> bool:
+        """Return whether ContinuousAnalysis is running for this exact position."""
+        if not self.analyser or not self.analyser.is_running():
+            return False
+        try:
+            return self.analyser.get_fen() == game.fen()
+        except AttributeError:
+            return False
+
     async def get_thinking_analysis(self, game: chess.Board) -> dict:
         """get analysis info from playing engine - returns dict with info and fen"""
         # failed answer is empty lists

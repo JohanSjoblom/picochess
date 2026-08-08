@@ -433,6 +433,18 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"info": [], "fen": ""}, result)
         eng.analyser.get_analysis.assert_not_called()
 
+    async def test_is_analyser_running_for_checks_the_current_position(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+        game = chess.Board()
+        eng.analyser.get_fen.return_value = game.fen()
+
+        self.assertTrue(eng.is_analyser_running_for(game))
+
+        game.push_uci("e2e4")
+        self.assertFalse(eng.is_analyser_running_for(game))
+
     @patch("uci.engine.asyncio.sleep", new_callable=AsyncMock)
     async def test_quit_awaits_stop_analysis_before_shutdown(self, _):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

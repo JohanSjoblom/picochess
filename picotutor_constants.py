@@ -2,7 +2,7 @@
 
 LOW_DEPTH = 5  # for 'obvious moves' calculation
 LOW_TIME = 0.2  # time limit for 'obvious moves' and first analysis
-DEEP_DEPTH = 17  # limit picotutor deep analysis (also used as analysis engine)
+DEEP_DEPTH = 20  # limit picotutor deep analysis (also used as analysis engine)
 MIN_WATCHER_EVAL_DEPTH = 10  # twice LOW_DEPTH for authoritative WATCHER move evaluations
 LOW_NUM_THREADS = 1  # parallel threads for low
 NUM_THREADS = 1  # threads for deep - 1 to save CPU, 2 to have faster analysis

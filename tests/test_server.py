@@ -259,9 +259,15 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
                 self.assertEqual(enum_value, _coach_event_value(setting))
 
     def test_tutor_threads_accept_only_session_choices(self):
-        self.assertEqual(1, _bounded_tutor_threads("1"))
-        self.assertEqual(2, _bounded_tutor_threads("2"))
-        self.assertIsNone(_bounded_tutor_threads("3"))
+        with patch("server.platform.machine", return_value="x86_64"):
+            self.assertEqual(1, _bounded_tutor_threads("1"))
+            self.assertEqual(4, _bounded_tutor_threads("4"))
+            self.assertIsNone(_bounded_tutor_threads("5"))
+        with patch("server.platform.machine", return_value="aarch64"):
+            self.assertEqual(2, _bounded_tutor_threads("2"))
+            self.assertIsNone(_bounded_tutor_threads("3"))
+        with patch("server.platform.machine", return_value="arm64"):
+            self.assertEqual(4, _bounded_tutor_threads("4"))
         self.assertIsNone(_bounded_tutor_threads("1.5"))
         self.assertIsNone(_bounded_tutor_threads(True))
 
@@ -275,6 +281,7 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
 
     def test_tutor_settings_report_live_requested_threads(self):
         tutor = Mock()
+        tutor.get_deep_thread_choices.return_value = (1, 2, 3, 4)
         tutor.get_requested_deep_threads.return_value = 2
         tutor.get_requested_deep_multipv.return_value = 15
         tutor.get_requested_deep_depth.return_value = 28
@@ -282,6 +289,7 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
         settings = _tutor_settings_from_shared({"picotutor": tutor})
 
         self.assertEqual(2, settings["tutor_threads"])
+        self.assertEqual([1, 2, 3, 4], settings["tutor_thread_choices"])
         self.assertEqual(15, settings["tutor_multipv"])
         self.assertEqual(28, settings["tutor_depth"])
 

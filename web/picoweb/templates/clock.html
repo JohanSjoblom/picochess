@@ -1453,12 +1453,8 @@
                     close();
                 }));
                 // 7. Session-only deep Tutor CPU setting
-                gridEl.appendChild(_tTile('⚡', 'Tutor CPU', s.tutor_threads === 2 ? 'Turbo · 2×' : 'Normal · 1×', s.tutor_threads === 2, function() {
-                    var ts = normalizeTutorSettings(window._picoTutorSettings);
-                    ts.tutor_threads = ts.tutor_threads === 2 ? 1 : 2;
-                    setTutorSettingsOptimistic(ts);
-                    post('action=picotutor&tutor=threads&val=' + ts.tutor_threads);
-                    renderTutorTiles();
+                gridEl.appendChild(_tTile('⚡', 'Tutor CPU', s.tutor_threads === 1 ? 'Normal · 1×' : 'Turbo · ' + s.tutor_threads + '×', s.tutor_threads > 1, function() {
+                    navigateTo(function() { showTutorSubGrid('threads'); });
                 }));
                 // 8. Session-only deep Tutor MultiPV setting
                 gridEl.appendChild(_tTile('↔️', 'MultiPV', String(s.tutor_multipv) + ' lines', false, function() {
@@ -1526,17 +1522,18 @@
                         var _me = document.createElement('button'); _me.className = 'pico-sub-tile pico-empty-tile';
                         _me.setAttribute('aria-hidden','true'); _me.tabIndex = -1; grid.appendChild(_me);
                     }
-                } else if (type === 'multipv' || type === 'depth') {
+                } else if (type === 'threads' || type === 'multipv' || type === 'depth') {
+                    var isThreads = type === 'threads';
                     var isMultipv = type === 'multipv';
-                    var settingName = isMultipv ? 'tutor_multipv' : 'tutor_depth';
-                    var values = isMultipv ? [5, 10, 15, 20, 30, 50] : [17, 20, 23, 28, 30, 40];
-                    setOverlayPath(isMultipv ? 'Tutor > MultiPV' : 'Tutor > Target depth');
-                    subLabel.textContent = isMultipv ? 'Deep MultiPV' : 'Target depth';
+                    var settingName = isThreads ? 'tutor_threads' : (isMultipv ? 'tutor_multipv' : 'tutor_depth');
+                    var values = isThreads ? s.tutor_thread_choices : (isMultipv ? [5, 10, 15, 20, 30, 50] : [17, 20, 23, 28, 30, 40]);
+                    setOverlayPath(isThreads ? 'Tutor > CPU' : (isMultipv ? 'Tutor > MultiPV' : 'Tutor > Target depth'));
+                    subLabel.textContent = isThreads ? 'Deep Tutor threads' : (isMultipv ? 'Deep MultiPV' : 'Target depth');
                     values.forEach(function(value) {
                         var btn = document.createElement('button');
                         btn.className = 'pico-sub-tile' + (s[settingName] === value ? ' selected' : '');
                         var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
-                        lEl.textContent = isMultipv ? String(value) : 'd' + value;
+                        lEl.textContent = isThreads ? value + '×' : (isMultipv ? String(value) : 'd' + value);
                         btn.appendChild(lEl);
                         btn.addEventListener('click', function() {
                             var ts = normalizeTutorSettings(window._picoTutorSettings);
@@ -1547,7 +1544,7 @@
                         });
                         grid.appendChild(btn);
                     });
-                    for (var _ei = 0; _ei < 3; _ei++) {
+                    for (var _ei = 0; _ei < 9 - values.length; _ei++) {
                         var _ee = document.createElement('button'); _ee.className = 'pico-sub-tile pico-empty-tile';
                         _ee.setAttribute('aria-hidden','true'); _ee.tabIndex = -1; grid.appendChild(_ee);
                     }
@@ -3455,7 +3452,13 @@
                 if (isNaN(prob)) prob = 50;
                 prob = Math.max(0, Math.min(100, prob));
                 var threads = parseInt(settings.tutor_threads, 10);
-                if (threads !== 2) threads = 1;
+                var threadChoices = Array.isArray(settings.tutor_thread_choices) ? settings.tutor_thread_choices.map(function(value) {
+                    return parseInt(value, 10);
+                }).filter(function(value, index, values) {
+                    return value >= 1 && value <= 4 && values.indexOf(value) === index;
+                }) : [1, 2];
+                if (threadChoices.length === 0) threadChoices = [1, 2];
+                if (threadChoices.indexOf(threads) === -1) threads = threadChoices[0];
                 var multipv = parseInt(settings.tutor_multipv, 10);
                 if ([5, 10, 15, 20, 30, 50].indexOf(multipv) === -1) multipv = 30;
                 var depth = parseInt(settings.tutor_depth, 10);
@@ -3467,6 +3470,7 @@
                     tutor_comment: comment,
                     tutor_prob: prob,
                     tutor_threads: threads,
+                    tutor_thread_choices: threadChoices,
                     tutor_multipv: multipv,
                     tutor_depth: depth
                 };

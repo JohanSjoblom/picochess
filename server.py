@@ -171,7 +171,9 @@ def _bounded_tutor_choice(value, choices: tuple[int, ...]) -> int | None:
 
 
 def _bounded_tutor_threads(value) -> int | None:
-    return _bounded_tutor_choice(value, (1, 2))
+    raspberry_pi_arch = platform.machine().lower() in ("aarch64", "armv7l")
+    choices = picotutor_c.DEEP_THREAD_CHOICES if raspberry_pi_arch else picotutor_c.DESKTOP_DEEP_THREAD_CHOICES
+    return _bounded_tutor_choice(value, choices)
 
 
 def _tutor_settings_from_shared(shared: dict | None) -> dict:
@@ -184,13 +186,18 @@ def _tutor_settings_from_shared(shared: dict | None) -> dict:
     else:
         coach = "off"
     tutor_threads = picotutor_c.NUM_THREADS
+    raspberry_pi_arch = platform.machine().lower() in ("aarch64", "armv7l")
+    tutor_thread_choices = (
+        picotutor_c.DEEP_THREAD_CHOICES if raspberry_pi_arch else picotutor_c.DESKTOP_DEEP_THREAD_CHOICES
+    )
     tutor_multipv = picotutor_c.VALID_ROOT_MOVES
     tutor_depth = picotutor_c.DEEP_DEPTH
     picotutor = shared.get("picotutor")
     if picotutor:
         try:
+            tutor_thread_choices = picotutor.get_deep_thread_choices()
             requested_threads = picotutor.get_requested_deep_threads()
-            if requested_threads in (1, 2):
+            if requested_threads in tutor_thread_choices:
                 tutor_threads = requested_threads
         except (AttributeError, TypeError, ValueError):
             pass
@@ -213,6 +220,7 @@ def _tutor_settings_from_shared(shared: dict | None) -> dict:
         "tutor_comment": _comment_setting(shared.get("tutor_comment", "off")),
         "tutor_prob": _bounded_tutor_prob(shared.get("tutor_prob", 50)),
         "tutor_threads": tutor_threads,
+        "tutor_thread_choices": list(tutor_thread_choices),
         "tutor_multipv": tutor_multipv,
         "tutor_depth": tutor_depth,
     }
@@ -1301,21 +1309,21 @@ class ChannelHandler(ServerRequestHandler):
                 if current["tutor_prob"] != prob:
                     await Observable.fire(Event.PICOCOMMENT(picocomment=f"comment-factor:{prob}"))
             elif tutor in ("threads", "multipv", "depth"):
+                picotutor = self.shared.get("picotutor")
+                if not picotutor:
+                    self.set_status(409)
+                    self.write({"success": False, "error": "PicoTutor is unavailable"})
+                    return
                 setting_specs = {
-                    "threads": ((1, 2), "request_deep_threads"),
+                    "threads": (picotutor.get_deep_thread_choices(), "request_deep_threads"),
                     "multipv": (picotutor_c.DEEP_MULTIPV_CHOICES, "request_deep_multipv"),
                     "depth": (picotutor_c.DEEP_DEPTH_CHOICES, "request_deep_depth"),
                 }
                 choices, request_method_name = setting_specs[tutor]
                 requested_value = _bounded_tutor_choice(val, choices)
-                picotutor = self.shared.get("picotutor")
                 if requested_value is None:
                     self.set_status(400)
                     self.write({"success": False, "error": f"Invalid Tutor {tutor} value"})
-                    return
-                if not picotutor:
-                    self.set_status(409)
-                    self.write({"success": False, "error": "PicoTutor is unavailable"})
                     return
                 if not getattr(picotutor, request_method_name)(requested_value):
                     self.set_status(400)

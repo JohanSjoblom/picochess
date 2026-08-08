@@ -55,6 +55,11 @@ class PicoTutor:
         self.user_color: chess.Color = i_player_color
         self.engine_path: str = i_engine_path
         self.remote_binary_override = remote_binary_override
+        raspberry_pi_arch = platform.machine().lower() in ("aarch64", "armv7l")
+        allow_high_thread_choices = remote_binary_override is not None or not raspberry_pi_arch
+        self.deep_thread_choices = (
+            c.DESKTOP_DEEP_THREAD_CHOICES if allow_high_thread_choices else c.DEEP_THREAD_CHOICES
+        )
 
         self.best_engine: UciEngine | None = None  # best - max
         self.obvious_engine: UciEngine | None = None  # obvious - min
@@ -254,7 +259,7 @@ class PicoTutor:
         already running. The requested value is applied when the deep analyser
         is next idle and about to start.
         """
-        if isinstance(threads, bool) or threads not in (1, 2):
+        if isinstance(threads, bool) or threads not in self.deep_thread_choices:
             logger.warning("invalid PicoTutor deep thread request: %s", threads)
             return False
         if threads != self.deep_threads_requested:
@@ -269,6 +274,10 @@ class PicoTutor:
     def get_requested_deep_threads(self) -> int:
         """Return the session-only deep Tutor thread request."""
         return self.deep_threads_requested
+
+    def get_deep_thread_choices(self) -> tuple[int, ...]:
+        """Return the allowed session choices for this Tutor instance."""
+        return self.deep_thread_choices
 
     def request_deep_multipv(self, multipv: int) -> bool:
         """Request an experimental MultiPV width for a later deep analysis."""

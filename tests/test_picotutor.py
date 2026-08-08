@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 import chess.pgn
@@ -427,6 +427,31 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.uci_shell = UciShell(hostname="", username="", key_file="", password="")
 
+    def test_deep_thread_choices_follow_local_architecture(self):
+        with patch("picotutor.platform.machine", return_value="x86_64"):
+            x86_tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
+        with patch("picotutor.platform.machine", return_value="aarch64"):
+            arm_tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/aarch64/a-stockf")
+        with patch("picotutor.platform.machine", return_value="arm64"):
+            mac_arm_tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/aarch64/a-stockf")
+        with patch("picotutor.platform.machine", return_value="x86_64"):
+            remote_tutor = PicoTutor(
+                i_ucishell=self.uci_shell,
+                i_engine_path="engines/aarch64/a-stockf",
+                remote_binary_override="/remote/a-stockf",
+            )
+
+        self.assertEqual((1, 2, 3, 4), x86_tutor.get_deep_thread_choices())
+        self.assertTrue(x86_tutor.request_deep_threads(4))
+        self.assertEqual((1, 2), arm_tutor.get_deep_thread_choices())
+        self.assertFalse(arm_tutor.request_deep_threads(3))
+        self.assertEqual(c.NUM_THREADS, arm_tutor.get_requested_deep_threads())
+        self.assertEqual((1, 2, 3, 4), mac_arm_tutor.get_deep_thread_choices())
+        self.assertEqual((1, 2, 3, 4), remote_tutor.get_deep_thread_choices())
+        self.assertTrue(remote_tutor.request_deep_threads(4))
+        self.assertEqual(4, remote_tutor.get_requested_deep_threads())
+        self.assertEqual(c.NUM_THREADS, arm_tutor.get_requested_deep_threads())
+
     async def test_set_analysis_enabled_false_disables_running_tutor_analysis(self):
         tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
         tutor.watcher_on = True
@@ -512,7 +537,7 @@ class TestPicotutorAnalysisControl(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_deep_setting_requests_are_ignored(self):
         tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")
 
-        self.assertFalse(tutor.request_deep_threads(3))
+        self.assertFalse(tutor.request_deep_threads(5))
         self.assertFalse(tutor.request_deep_multipv(6))
         self.assertFalse(tutor.request_deep_depth(18))
         self.assertEqual(c.NUM_THREADS, tutor.get_requested_deep_threads())

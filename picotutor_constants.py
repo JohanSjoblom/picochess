@@ -12,6 +12,8 @@ VALID_ROOT_MOVES = 30  # number of multipv best moves
 LOW_ROOT_MOVES = 30  # number of obvious multipv root moves
 
 # Session-only experimental choices exposed by the modern web client.
+DEEP_THREAD_CHOICES = (1, 2)
+DESKTOP_DEEP_THREAD_CHOICES = (1, 2, 3, 4)
 DEEP_MULTIPV_CHOICES = (5, 10, 15, 20, 30, 50)
 DEEP_DEPTH_CHOICES = (17, 20, 23, 28, 30, 40)
 

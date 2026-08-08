@@ -2843,19 +2843,21 @@ function updateBackendAnalysisLine(analysis) {
     var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
     var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
 
-    // Update score+depth in #engineMeta
+    // Keep the header compact (Pico + source + depth) and place the score with
+    // its PV, matching the Web analysis row and allowing future MultiPV lines
+    // to carry their own evaluations.
     var metaEl = document.getElementById('engineMeta');
     if (metaEl) {
-        var metaHtml = '<span class="' + scoreClass + '">' + scoreText + '</span>';
+        var metaHtml = '';
         if (typeof analysis.depth === 'number') {
-            metaHtml += '<span class="depth-display">d' + analysis.depth + '</span>';
+            metaHtml = '<span class="depth-display">d' + analysis.depth + '</span>';
         }
         metaEl.innerHTML = metaHtml;
     }
-    // Update PV moves in #enginePvBody
+    // Update score + PV moves in #enginePvBody
     var bodyEl = document.getElementById('enginePvBody');
     if (bodyEl) {
-        var bodyHtml = '';
+        var bodyHtml = '<span class="' + scoreClass + '">' + scoreText + '</span>';
         if (pvFormatted) {
             bodyHtml += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
             if (pvFormatted.continuation) {

@@ -1,6 +1,7 @@
 import json
 import asyncio
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import chess
@@ -46,6 +47,14 @@ from server import (
 )
 from uci.engine_provider import EngineProvider
 from utilities import version as pico_version
+
+
+class TestSettingsTemplate(unittest.TestCase):
+    def test_beep_config_uses_valid_ini_values(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/settings.html").read_text(encoding="utf-8")
+
+        self.assertIn('return ["none", "some", "all", "sample"];', template)
+        self.assertNotIn('return ["none", "Never", "Sometimes", "Always", "Sample"];', template)
 
 
 class TestServerEventHandler(unittest.TestCase):

@@ -268,8 +268,27 @@ Keep this boundary intact when changing analysis behavior:
 - In the normal user-turn path, `analyse()` may read tutor output for the web
   Tutor line and engine `ContinuousAnalysis` for the web Engine line. Clock/DGT
   output must still follow the CPU-saving routing rules above.
-- `best_sent_depth` suppresses repeated or worse clock/DGT updates. Web output
-  can still be sent separately with the correct source tag.
+- `best_sent_depth` is a clock/DGT display optimization, not an analysis or CPU
+  control. It remembers the depth, half-move number, and continuation move from
+  the latest accepted clock analysis. When analysis restarts after a move, it
+  prevents the new shallow results from immediately overwriting the deeper,
+  still-useful continuation already shown on the clock. If no usable
+  continuation is cached, new analysis is accepted immediately. As subsequent
+  half-moves are entered, the comparison reduces the cached depth threshold by
+  one per half-move so that fresh analysis can progressively replace it.
+- Keep `best_sent_depth` limited to clock/DGT output. Web analysis is an
+  independent, ungated stream intended to show the current Tutor or selected
+  engine search growing in real time, with the correct source tag.
+- In `Mode.KIBITZ` and `Mode.ANALYSIS`, an entered move may match a move in the
+  analysis calculated for the preceding position. Picochess then reuses that
+  deeper continuation for the clock/DGT display, including its reply, score,
+  and depth, while the Tutor or selected engine restarts analysis for the new
+  position. The web ANALYSIS `T` or `E` line shows that fresh search growing
+  from a lower depth, so it may temporarily report a lower depth than the
+  physical clock. This difference is intentional; do not reset
+  `best_sent_depth` merely to make the two displays agree. A deviation from the
+  analysed lines and the existing position/lifecycle reset paths still clear
+  the optimization.
 - PGN replay autoplay currently piggybacks on this once-per-second analysis
   cycle. Analysis refresh calls that are only for engine switching must pass
   `allow_autoplay=False`.

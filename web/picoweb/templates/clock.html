@@ -2679,7 +2679,7 @@
                 if (value === 'takeback')      { post('action=take_back'); close(); return; }
                 if (value === 'altmove')       { post('action=altmove'); close(); return; }
                 if (value === 'contlast')      { post('action=contlast'); close(); return; }
-                if (value === 'switchsides')   { post('action=clockbutton&button=64'); boardFlip(); close(); return; }
+                if (value === 'switchsides')   { post('action=clockbutton&button=64'); close(); return; }
                 if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
                 if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
                 if (value === 'download-pgn')  { if (typeof download === 'function') download(); close(); return; }

@@ -1774,7 +1774,6 @@ function clockButtonPower() {
 
 function clockSwitchSides() {
     $.post('/channel', { action: 'clockbutton', button: 0x40 }, function (data) { });
-    boardFlip();
 }
 
 function clockPauseResume() {

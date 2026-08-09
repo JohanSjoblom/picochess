@@ -687,8 +687,6 @@ def _orient_scanned_board_fen(
     eboard_type: EBoardType,
     raw_board_fen: bool,
 ) -> str:
-    if eboard_type == EBoardType.DGT and raw_board_fen:
-        return flip_board_fen(board_fen) if not board_reversed else board_fen
     return flip_board_fen(board_fen) if board_reversed else board_fen
 
 

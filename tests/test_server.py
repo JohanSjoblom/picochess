@@ -563,8 +563,8 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
                 uci960_enabled=False,
             )
 
-    def test_raw_dgt_scan_white_bottom_flips_to_chess_coordinates(self):
-        raw_spanish = "R2KQBNR/PPP1PPPP/2N5/3P4/3p2B1/5n2/ppp1pppp/rnbkqb1r"
+    def test_raw_dgt_scan_white_bottom_keeps_raw_coordinates(self):
+        raw_spanish = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R"
 
         oriented = _orient_scanned_board_fen(
             raw_spanish,
@@ -573,10 +573,10 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
             raw_board_fen=True,
         )
 
-        self.assertEqual("r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R", oriented)
+        self.assertEqual(raw_spanish, oriented)
 
-    def test_raw_dgt_scan_black_bottom_keeps_raw_coordinates(self):
-        raw_spanish = "R2KQBNR/PPP1PPPP/2N5/3P4/3p2B1/5n2/ppp1pppp/rnbkqb1r"
+    def test_raw_dgt_scan_black_bottom_flips_coordinates(self):
+        raw_spanish = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R"
 
         oriented = _orient_scanned_board_fen(
             raw_spanish,
@@ -585,7 +585,7 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
             raw_board_fen=True,
         )
 
-        self.assertEqual(raw_spanish, oriented)
+        self.assertEqual("R2KQBNR/PPP1PPPP/2N5/3P4/3p2B1/5n2/ppp1pppp/rnbkqb1r", oriented)
 
     def test_non_dgt_scan_keeps_existing_orientation_rule(self):
         board_fen = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R"

@@ -57,11 +57,12 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn('return ["none", "some", "all", "sample"];', template)
         self.assertNotIn('return ["none", "Never", "Sometimes", "Always", "Sample"];', template)
 
-    def test_clock_template_preserves_auto_theme_preference(self):
+    def test_clock_template_exposes_clock_dependent_theme_preferences(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
 
         self.assertIn("var currentThemeSetting = {% raw theme_setting_json %};", template)
-        self.assertIn("if (val === 'auto')", template)
+        self.assertIn("['🕘 Time',  'time']", template)
+        self.assertIn("if (val === 'auto' || val === 'time')", template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

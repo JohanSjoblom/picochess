@@ -2070,7 +2070,7 @@ class ChessBoardHandler(ServerRequestHandler):
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
         theme_setting = self.shared.get("theme", self.theme) if self.shared else self.theme
         theme = await _resolve_web_theme(theme_setting, self.theme, self.theme_resolver)
-        theme_menu_setting = theme_setting if theme_setting in ("auto", "dark", "light") else theme
+        theme_menu_setting = theme_setting if theme_setting in ("auto", "dark", "light", "time") else theme
         from pgn import ModeInfo
         import dgt.util as _dgt_util
 

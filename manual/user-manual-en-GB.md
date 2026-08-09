@@ -678,6 +678,7 @@ Selects the web user-interface theme:
 
 - Dark
 - Light
+- Time
 - Auto
 
 ## 14. Common Workflows

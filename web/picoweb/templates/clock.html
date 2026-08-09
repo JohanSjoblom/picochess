@@ -2103,6 +2103,7 @@
                     items: [
                         ['🌙 Dark',  'dark'],
                         ['☀️ Light', 'light'],
+                        ['🕘 Time',  'time'],
                         ['⚙️ Auto',  'auto']
                     ],
                     getCurrent: function() {
@@ -2110,9 +2111,9 @@
                     },
                     apply: function(val) {
                         currentThemeSetting = val;
-                        if (val === 'auto') {
-                            // Resolve Auto from Picochess's clock and cached
-                            // location in the next one-shot page request.
+                        if (val === 'auto' || val === 'time') {
+                            // Resolve the clock-dependent modes in the next
+                            // one-shot page request. Auto may use cached location.
                             fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
                                 body: JSON.stringify({entries:[{key:'theme',value:val,enabled:true}]})})
                                 .then(function(response) {

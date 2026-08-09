@@ -2025,6 +2025,8 @@
             }
 
             /* ── display picker (board / pieces / theme) ─ */
+            var currentThemeSetting = {% raw theme_setting_json %};
+
             var DISPLAY_CATS = {
                 board: {
                     label: 'Board Color',
@@ -2104,13 +2106,28 @@
                         ['⚙️ Auto',  'auto']
                     ],
                     getCurrent: function() {
-                        var dark = document.querySelector('link[href*="mdb.dark"]');
-                        var light = document.querySelector('link[href*="mdb.min"]');
-                        if (dark) return 'dark';
-                        if (light) return 'light';
-                        return 'auto';
+                        return currentThemeSetting;
                     },
                     apply: function(val) {
+                        currentThemeSetting = val;
+                        if (val === 'auto') {
+                            // Resolve Auto from Picochess's clock and cached
+                            // location in the next one-shot page request.
+                            fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({entries:[{key:'theme',value:val,enabled:true}]})})
+                                .then(function(response) {
+                                    if (response.ok) window.location.reload();
+                                }).catch(function(){});
+                            return;
+                        }
+
+                        var currentTheme = document.documentElement.getAttribute('data-theme');
+                        if (currentTheme === val) {
+                            fetch('/settings/save', {method:'POST', headers:{'Content-Type':'application/json'},
+                                body: JSON.stringify({entries:[{key:'theme',value:val,enabled:true}]})}).catch(function(){});
+                            return;
+                        }
+
                         // Swap MDB stylesheet client-side
                         ['link[href*="mdb.dark"]','link[href*="mdb.min"]'].forEach(function(sel) {
                             var el = document.querySelector(sel);

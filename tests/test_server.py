@@ -38,6 +38,7 @@ from server import (
     _mode_text,
     _orient_scanned_board_fen,
     _retag_setup_position_side,
+    _resolve_web_theme,
     _select_engine_book,
     _select_web_book,
     _time_control_text,
@@ -55,6 +56,23 @@ class TestSettingsTemplate(unittest.TestCase):
 
         self.assertIn('return ["none", "some", "all", "sample"];', template)
         self.assertNotIn('return ["none", "Never", "Sometimes", "Always", "Sample"];', template)
+
+    def test_clock_template_preserves_auto_theme_preference(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("var currentThemeSetting = {% raw theme_setting_json %};", template)
+        self.assertIn("if (val === 'auto')", template)
+
+
+class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
+    async def test_auto_theme_is_recalculated_for_each_page_load(self):
+        resolver = Mock()
+        resolver.needs_location_lookup.return_value = False
+        resolver.resolve.side_effect = ["light", "dark"]
+
+        self.assertEqual("light", await _resolve_web_theme("auto", "dark", resolver))
+        self.assertEqual("dark", await _resolve_web_theme("auto", "dark", resolver))
+        self.assertEqual(2, resolver.resolve.call_count)
 
 
 class TestServerEventHandler(unittest.TestCase):

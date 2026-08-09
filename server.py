@@ -2031,14 +2031,27 @@ class BookHandler(ServerRequestHandler):
         await self.get(*args, **kwargs)
 
 
+async def _resolve_web_theme(theme_setting, fallback_theme, theme_resolver):
+    if theme_resolver is None:
+        return fallback_theme
+    if theme_resolver.needs_location_lookup(theme_setting):
+        # Location discovery can use blocking network APIs. Keep the first Auto
+        # lookup off the main loop; later page loads are local calculations.
+        return await asyncio.to_thread(theme_resolver.resolve, theme_setting)
+    return theme_resolver.resolve(theme_setting)
+
+
 class ChessBoardHandler(ServerRequestHandler):
-    def initialize(self, theme="dark", pieces="merida", board="natural_wood", shared=None):
+    def initialize(
+        self, theme="dark", pieces="merida", board="natural_wood", shared=None, theme_resolver=None
+    ):
         self.theme = theme
         self.pieces = pieces
         self.board = board
         self.shared = shared
+        self.theme_resolver = theme_resolver
 
-    def get(self):
+    async def get(self):
         self.set_header("Cache-Control", "no-store")
         web_speech = True
         web_speech_fallback = True
@@ -2055,6 +2068,9 @@ class ChessBoardHandler(ServerRequestHandler):
         tutor_settings_json = json.dumps(_tutor_settings_from_shared(self.shared))
         pieces = self.shared.get("pieces", self.pieces) if self.shared else self.pieces
         board = self.shared.get("web-board-theme", self.board) if self.shared else self.board
+        theme_setting = self.shared.get("theme", self.theme) if self.shared else self.theme
+        theme = await _resolve_web_theme(theme_setting, self.theme, self.theme_resolver)
+        theme_menu_setting = theme_setting if theme_setting in ("auto", "dark", "light") else theme
         from pgn import ModeInfo
         import dgt.util as _dgt_util
 
@@ -2070,7 +2086,8 @@ class ChessBoardHandler(ServerRequestHandler):
         variant = self.shared.get("variant", "chess") if self.shared else "chess"
         self.render(
             "web/picoweb/templates/clock.html",
-            theme=self.theme,
+            theme=theme,
+            theme_setting_json=json.dumps(theme_menu_setting),
             pieces=pieces,
             board=board,
             web_speech=web_speech,
@@ -2554,12 +2571,24 @@ class WebServer:
     def __init__(self):
         pass
 
-    def make_app(self, theme: str, pieces: str, board: str, shared: dict) -> tornado.web.Application:
+    def make_app(
+        self, theme: str, pieces: str, board: str, shared: dict, theme_resolver=None
+    ) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
         return tornado.web.Application(
             [
-                (r"/", ChessBoardHandler, dict(theme=theme, pieces=pieces, board=board, shared=shared)),
+                (
+                    r"/",
+                    ChessBoardHandler,
+                    dict(
+                        theme=theme,
+                        pieces=pieces,
+                        board=board,
+                        shared=shared,
+                        theme_resolver=theme_resolver,
+                    ),
+                ),
                 (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
                 (r"/event", EventHandler, dict(shared=shared)),
                 (r"/dgt", DGTHandler, dict(shared=shared)),

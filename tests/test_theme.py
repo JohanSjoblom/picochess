@@ -67,3 +67,25 @@ class TestTheme(unittest.TestCase):
     def test_calc_theme_pass_through(self, _):
         self.assertEqual("light", theme.calc_theme("light", "auto"))
         self.assertEqual("dark", theme.calc_theme("dark", "auto"))
+
+    def test_resolver_rechecks_time_without_repeating_location_lookup(self, mocked_get_location):
+        mocked_get_location.return_value = ("?", None, None)
+        resolver = theme.ThemeResolver("auto")
+
+        with patch("theme._location_info_from_location", return_value=None):
+            with freeze_time("2022-12-21 10:00:00"):
+                self.assertEqual("light", resolver.resolve("auto"))
+            with freeze_time("2022-12-21 18:00:00"):
+                self.assertEqual("dark", resolver.resolve("auto"))
+
+        mocked_get_location.assert_called_once_with()
+        self.assertFalse(resolver.needs_location_lookup("auto"))
+
+    def test_resolver_does_not_look_up_location_for_explicit_theme(self, mocked_get_location):
+        resolver = theme.ThemeResolver("auto")
+
+        self.assertEqual("light", resolver.resolve("light"))
+        self.assertEqual("dark", resolver.resolve("dark"))
+
+        mocked_get_location.assert_not_called()
+        self.assertTrue(resolver.needs_location_lookup("auto"))

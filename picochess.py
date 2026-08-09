@@ -52,7 +52,7 @@ from uci.engine_provider import EngineProvider
 from uci.rating import Rating, determine_result
 
 from timecontrol import TimeControl
-from theme import calc_theme
+from theme import ThemeResolver
 from utilities import (
     get_location,
     update_pico_v4,
@@ -1446,11 +1446,18 @@ async def main() -> None:
         non_main_tasks.add(asyncio.create_task(my_web_vr.dgt_consumer()))
         logger.info("message queues ready - starting web server")
         dgtdispatcher.register("web")
-        theme: str = calc_theme(args.theme, state.set_location)
+        theme_resolver = ThemeResolver(state.set_location)
+        if theme_resolver.needs_location_lookup(args.theme):
+            theme: str = await asyncio.to_thread(theme_resolver.resolve, args.theme)
+        else:
+            theme = theme_resolver.resolve(args.theme)
+        shared["theme"] = args.theme
         shared["pieces"] = args.pieces
         shared["web-board-theme"] = args.web_board_theme
         shared["dgttranslate"] = state.dgttranslate
-        web_app = my_web_server.make_app(theme, args.pieces, args.web_board_theme, shared)
+        web_app = my_web_server.make_app(
+            theme, args.pieces, args.web_board_theme, shared, theme_resolver=theme_resolver
+        )
         try:
             active_web_server_port = _listen_web_app(web_app, args.web_server_port)
         except WebServerListenError as exc:

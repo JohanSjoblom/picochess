@@ -12,6 +12,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import threading
 from geopy.geocoders import Nominatim  # type: ignore
 from geopy.exc import GeopyError  # type: ignore
 from astral import LocationInfo  # type: ignore
@@ -21,24 +22,50 @@ import astral.geocoder  # type: ignore
 import utilities
 
 
+class ThemeResolver:
+    """Resolve a theme while performing location discovery at most once."""
+
+    def __init__(self, location_setting: str):
+        self.location_setting = location_setting
+        self._location_info = None
+        self._location_checked = False
+        self._location_lock = threading.Lock()
+
+    def resolve(self, theme_in: str) -> str:
+        if theme_in == "auto":
+            location_info = self._get_location_info()
+            if location_info is not None:
+                try:
+                    return _theme_from_location_info(location_info)
+                except (KeyError, ValueError):
+                    pass
+            return _theme_according_to_current_time()
+        if theme_in == "time":
+            return _theme_according_to_current_time()
+        return theme_in
+
+    def needs_location_lookup(self, theme_in: str) -> bool:
+        """Return whether resolving this preference may perform blocking I/O."""
+        return theme_in == "auto" and not self._location_checked
+
+    def _get_location_info(self):
+        if self._location_checked:
+            return self._location_info
+        with self._location_lock:
+            if not self._location_checked:
+                location = (
+                    utilities.get_location()[0] if self.location_setting == "auto" else self.location_setting
+                )
+                try:
+                    self._location_info = astral.geocoder.lookup(location, astral.geocoder.database())
+                except KeyError:
+                    self._location_info = _location_info_from_location(location)
+                self._location_checked = True
+        return self._location_info
+
+
 def calc_theme(theme_in: str, location_setting: str) -> str:
-    theme_out = theme_in
-    if theme_in == "auto":
-        location = utilities.get_location()[0] if location_setting == "auto" else location_setting
-        try:
-            location_info = astral.geocoder.lookup(location, astral.geocoder.database())
-        except KeyError:
-            location_info = _location_info_from_location(location)
-        if location_info is not None:
-            try:
-                theme_out = _theme_from_location_info(location_info)
-            except (KeyError, ValueError):
-                theme_out = _theme_according_to_current_time()
-        else:
-            theme_out = _theme_according_to_current_time()
-    elif theme_in == "time":
-        theme_out = _theme_according_to_current_time()
-    return theme_out
+    return ThemeResolver(location_setting).resolve(theme_in)
 
 
 def _theme_according_to_current_time() -> str:

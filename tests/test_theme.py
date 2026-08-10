@@ -53,6 +53,20 @@ class TestTheme(unittest.TestCase):
         with freeze_time("2022-12-21 13:00:00"):
             self.assertEqual("light", theme.calc_theme("auto", "auto"))
 
+    @patch("theme._local_time")
+    def test_auto_uses_pi_local_date_for_western_location(self, mocked_local_time, _):
+        local_timezone = datetime.timezone(datetime.timedelta(hours=-4))
+        mocked_local_time.return_value = datetime.datetime(2026, 8, 10, 12, 0, tzinfo=local_timezone)
+        location_info = theme.LocationInfo(
+            "New York",
+            "US",
+            "UTC",
+            40.7128,
+            -74.0060,
+        )
+
+        self.assertEqual("light", theme._theme_from_location_info(location_info))
+
     def test_calc_theme_according_to_current_time(self, mocked_get_location):
         mocked_get_location.return_value = ("?", None, None)
         with freeze_time("2022-12-21 16:59:00"):

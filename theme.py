@@ -79,10 +79,15 @@ def _theme_according_to_current_time() -> str:
     return _theme_for_time(now, sunrise, sunset)
 
 
+def _local_time() -> datetime.datetime:
+    """Return the Pi's current local time with its UTC offset."""
+    return datetime.datetime.now().astimezone()
+
+
 def _theme_from_location_info(location_info) -> str:
-    local_timezone = location_info.tzinfo
-    local_time = datetime.datetime.now(local_timezone)
-    sun_info = sun(location_info.observer, tzinfo=local_timezone)
+    local_time = _local_time()
+    local_timezone = local_time.tzinfo
+    sun_info = sun(location_info.observer, date=local_time.date(), tzinfo=local_timezone)
     return _theme_for_time(local_time, sun_info["sunrise"], sun_info["sunset"])
 
 
@@ -105,7 +110,9 @@ def _location_info_from_location(location: str):
         location_info = LocationInfo(
             location,
             "",
-            datetime.datetime.now().astimezone(datetime.timezone.utc).tzname(),
+            # Theme calculation uses the Pi's live local tzinfo. This value is
+            # only a valid placeholder required by Astral's LocationInfo.
+            "UTC",
             loc.latitude,
             loc.longitude,
         )

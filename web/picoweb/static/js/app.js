@@ -1941,7 +1941,7 @@ function formatEngineOutput(line) {
             if (analysis_game.turn() === 'b') {
                 rawScore *= -1;
             }
-            score = rawScore.toFixed(2);
+            score = (rawScore > 0 ? '+' : '') + rawScore.toFixed(2);
             if (token === 'lowerbound') {
                 score = '>' + score;
             }

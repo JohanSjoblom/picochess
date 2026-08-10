@@ -41,7 +41,12 @@ class DgtDisplay(DisplayMsg):
     ANALYSIS_MESSAGE_TYPES = (Message.NEW_DEPTH, Message.NEW_PV, Message.NEW_SCORE)
 
     def __init__(
-        self, dgttranslate: DgtTranslate, dgtmenu: DgtMenu, time_control: TimeControl, loop: asyncio.AbstractEventLoop
+        self,
+        dgttranslate: DgtTranslate,
+        dgtmenu: DgtMenu,
+        time_control: TimeControl,
+        loop: asyncio.AbstractEventLoop,
+        board_connected=None,
     ):
         super(DgtDisplay, self).__init__(loop)
         self.dgttranslate = dgttranslate
@@ -70,6 +75,8 @@ class DgtDisplay(DisplayMsg):
         self.c_time_counter = 0
         self._brain_hint_text = None
         self._brain_hint_until = 0.0
+        self._board_connected = board_connected
+        self._startup_engine_name_text = None
         self._task = None  # task for message consumer
         self.timer = AsyncRepeatingTimer(1, self._process_once_per_second, loop=self.loop)
 
@@ -79,6 +86,16 @@ class DgtDisplay(DisplayMsg):
         marker = getattr(text, "small_text", "")
         web_text = getattr(text, "web_text", "")
         return marker in {"/", "-", "\\", "|"} and "e-Board" in web_text
+
+    def _is_board_connected(self):
+        """Return the current physical-board state without owning its lifecycle."""
+        if not callable(self._board_connected):
+            return False
+        try:
+            return bool(self._board_connected())
+        except Exception:
+            logger.exception("failed to read e-board connection state")
+            return False
 
     def start_once_per_second_timer(self):
         """start the once per second timer for rolling display"""
@@ -1574,9 +1591,20 @@ class DgtDisplay(DisplayMsg):
             else:
                 await DispatchDgt.fire(message.text)
                 await self._exit_display(devs={"i2c", "web"})  # ser is done, when clock found
+                if not self.have_seen_a_fen and self._startup_engine_name_text is not None:
+                    # Bluetooth startup may finish after the initial engine-name
+                    # display. Restore it after the connection notification rather
+                    # than leaving the last no-eBoard spinner on the web clock.
+                    engine_text = copy.deepcopy(self._startup_engine_name_text)
+                    engine_text.devs = {"i2c", "web"}
+                    engine_text.wait = True
+                    await DispatchDgt.fire(engine_text)
+                    self._startup_engine_name_text = None
 
         elif isinstance(message, Message.DGT_NO_EBOARD_ERROR):
-            if (
+            if self._is_board_connected():
+                logger.debug("discarding stale no-eBoard message after connection")
+            elif (
                 self.dgtmenu.inside_updt_menu()
                 or self.dgtmenu.inside_main_menu()
                 or self.dgtmenu.is_no_eboard_spinner_suppressed()
@@ -1638,7 +1666,10 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text("C10_restoregame"))
 
         elif isinstance(message, Message.ENGINE_NAME):
-            await DispatchDgt.fire(self.dgttranslate.text("K20_enginename", message.engine_name))
+            engine_text = self.dgttranslate.text("K20_enginename", message.engine_name)
+            if not self.have_seen_a_fen:
+                self._startup_engine_name_text = copy.deepcopy(engine_text)
+            await DispatchDgt.fire(engine_text)
             await asyncio.sleep(1.5)
 
         elif isinstance(message, Message.SHOW_TEXT):

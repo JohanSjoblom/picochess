@@ -1332,7 +1332,13 @@ async def main() -> None:
     non_main_tasks: Set[asyncio.Task] = set()
 
     # The class dgtDisplay fires Event (Observable) & DispatchDgt (Dispatcher)
-    my_dgt_display = DgtDisplay(state.dgttranslate, state.dgtmenu, state.time_control, main_loop)
+    my_dgt_display = DgtDisplay(
+        state.dgttranslate,
+        state.dgtmenu,
+        state.time_control,
+        main_loop,
+        board_connected=getattr(dgtboard, "is_connected", None),
+    )
     non_main_tasks.add(asyncio.create_task(my_dgt_display.message_consumer()))
     my_dgt_display.start_once_per_second_timer()
     # @todo optimise to start this timer only when playmode is needing it?

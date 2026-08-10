@@ -137,7 +137,7 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
 
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
-    def create_display(self) -> DgtDisplay:
+    def create_display(self, board_connected=None) -> DgtDisplay:
         with patch("platform.machine", return_value=".." + os.sep + "tests"), patch("subprocess.run"):
             EngineProvider.modern_engines = read_engine_ini(filename="engines.ini")
             EngineProvider.retro_engines = read_engine_ini(filename="retro.ini")
@@ -178,7 +178,101 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
                 dgttranslate=trans,
             )
 
-        return DgtDisplay(trans, menu, TimeControl(), asyncio.get_running_loop())
+        return DgtDisplay(
+            trans,
+            menu,
+            TimeControl(),
+            asyncio.get_running_loop(),
+            board_connected=board_connected,
+        )
+
+    @staticmethod
+    def no_eboard_message():
+        text = SimpleNamespace(
+            web_text="no DGT e-Board/",
+            large_text="DGT eBoard/",
+            medium_text="DGT/",
+            small_text="/",
+            wait=True,
+            beep=False,
+            maxtime=0.1,
+            devs={"i2c", "web"},
+        )
+        return Message.DGT_NO_EBOARD_ERROR(text=text)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_stale_no_eboard_spinner_is_discarded_after_connection(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+
+        await display._process_message(self.no_eboard_message())
+
+        dispatch_fire.assert_not_awaited()
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_no_eboard_spinner_is_displayed_while_disconnected(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: False)
+        message = self.no_eboard_message()
+
+        await display._process_message(message)
+
+        dispatch_fire.assert_awaited_once_with(message.text)
+
+    @patch("dgt.display.asyncio.sleep", new_callable=AsyncMock)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_board_connection_restores_cached_startup_engine_name(self, dispatch_fire, _sleep):
+        display = self.create_display(board_connected=lambda: True)
+        engine_name = SimpleNamespace(
+            web_text="Stockfish",
+            large_text="Stockfish",
+            medium_text="Stockfsh",
+            small_text="Stockf",
+        )
+
+        await display._process_message(Message.ENGINE_NAME(engine_name=engine_name))
+        dispatch_fire.reset_mock()
+        connection_text = SimpleNamespace(
+            web_text="BT e-Board",
+            large_text="BT e-Board",
+            medium_text="BT board",
+            small_text="ok bt",
+            wait=True,
+            beep=False,
+            maxtime=1.1,
+            devs={"i2c", "web"},
+        )
+
+        await display._process_message(Message.DGT_EBOARD_VERSION(text=connection_text, channel="BT"))
+
+        self.assertEqual(3, dispatch_fire.await_count)
+        self.assertIs(connection_text, dispatch_fire.await_args_list[0].args[0])
+        self.assertEqual("DGT_DISPLAY_TIME", repr(dispatch_fire.await_args_list[1].args[0]))
+        restored = dispatch_fire.await_args_list[2].args[0]
+        self.assertEqual("Stockfish", restored.web_text)
+        self.assertEqual({"i2c", "web"}, restored.devs)
+        self.assertTrue(restored.wait)
+        self.assertIsNone(display._startup_engine_name_text)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_midgame_reconnection_does_not_replay_startup_engine_name(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+        display.have_seen_a_fen = True
+        display._startup_engine_name_text = SimpleNamespace(web_text="Stockfish")
+        connection_text = SimpleNamespace(
+            web_text="BT e-Board",
+            large_text="BT e-Board",
+            medium_text="BT board",
+            small_text="ok bt",
+            wait=True,
+            beep=False,
+            maxtime=1.1,
+            devs={"i2c", "web"},
+        )
+
+        await display._process_message(Message.DGT_EBOARD_VERSION(text=connection_text, channel="BT"))
+
+        self.assertEqual(2, dispatch_fire.await_count)
+        self.assertIs(connection_text, dispatch_fire.await_args_list[0].args[0])
+        self.assertEqual("DGT_DISPLAY_TIME", repr(dispatch_fire.await_args_list[1].args[0]))
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)

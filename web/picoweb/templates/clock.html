@@ -2661,10 +2661,14 @@
             function renderGameTiles() {
                 var gridEl = document.getElementById('ovl-game-tile-grid');
                 if (!gridEl) return;
+                var currentSettings = window._picoCurrentSettings || {};
                 var items = _gameItemDefs.map(function(def) {
                     var disabled = (def.needsGame && !gameActive) ||
                                    (def.needsEngTurn && !(gameActive && engineTurn));
+                    var settingKey = def.value === 'contlast' ? 'continue_game'
+                                   : (def.value === 'altmove' ? 'alt_move' : '');
                     return { label: def.icon + ' ' + def.label, value: def.value,
+                             sub: settingKey ? (currentSettings[settingKey] === 'on' ? 'On' : 'Off') : '',
                              disabled: disabled };
                 });
                 renderSubTileGrid(gridEl, items, 0, undefined, function(item) {
@@ -2677,8 +2681,15 @@
                 if (value === 'new-game')     { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
                 if (value === 'hint')          { post('action=clockbutton&button=3'); close(); return; }
                 if (value === 'takeback')      { post('action=take_back'); close(); return; }
-                if (value === 'altmove')       { post('action=altmove'); close(); return; }
-                if (value === 'contlast')      { post('action=contlast'); close(); return; }
+                if (value === 'altmove' || value === 'contlast') {
+                    var settingKey = value === 'altmove' ? 'alt_move' : 'continue_game';
+                    var currentSettings = window._picoCurrentSettings = window._picoCurrentSettings || {};
+                    var enabled = currentSettings[settingKey] !== 'on';
+                    currentSettings[settingKey] = enabled ? 'on' : 'off';
+                    post('action=' + value + '&enabled=' + (enabled ? 'true' : 'false'));
+                    close();
+                    return;
+                }
                 if (value === 'switchsides')   { post('action=clockbutton&button=64'); close(); return; }
                 if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
                 if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
@@ -3282,7 +3293,13 @@
                         ['Notation',     'notation',    [['Short', 'display&notation=short'],['Long', 'display&notation=long']]],
                         ['Confirm',      'confirm',     [['On',    'display&confirm=on'],   ['Off',  'display&confirm=off']]],
                         ['Capital',      'capital',     [['On',    'display&capital=on'],   ['Off',  'display&capital=off']]],
-                        ['Engine Name',  'show_engine', [['On',    'display&enginename=on'],['Off',  'display&enginename=off']]]
+                        ['Engine Name',  'show_engine', [['On',    'display&enginename=on'],['Off',  'display&enginename=off']]],
+                        ['Ponder Sec',   'ponder_interval', [
+                            ['1', 'display&ponder=1'], ['2', 'display&ponder=2'],
+                            ['3', 'display&ponder=3'], ['4', 'display&ponder=4'],
+                            ['5', 'display&ponder=5'], ['6', 'display&ponder=6'],
+                            ['7', 'display&ponder=7'], ['8', 'display&ponder=8']
+                        ]]
                     ];
                     var _prefGrid = document.createElement('div');
                     _prefGrid.className = 'pico-sub-tile-grid';

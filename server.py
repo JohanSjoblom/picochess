@@ -66,6 +66,8 @@ from dgt.util import (
     PicoComment,
     TimeMode,
     Beep,
+    Language,
+    Theme,
     EngineTop,
     flip_board_fen,
     Voice,
@@ -934,6 +936,7 @@ class ChannelHandler(ServerRequestHandler):
         action = self.get_argument("action")
         logger.info(f"POST recibido con action: {action}")
         dgttranslate = self.shared.get("dgttranslate") if self.shared else None
+        dgtmenu = self.shared.get("dgtmenu") if self.shared else None
         if _channel_action_requires_remote_auth(action):
             if not _require_auth_if_remote(self, "Control"):
                 return
@@ -1268,6 +1271,8 @@ class ChannelHandler(ServerRequestHandler):
                 }
 
             time_text = _time_control_text(tc_init, dgttranslate)
+            if dgtmenu:
+                dgtmenu.set_time_control(tc_init)
             logger.info("web new_time: mode_id=%d tc_init=%s", mode_id, tc_init)
             await Observable.fire(Event.SET_TIME_CONTROL(tc_init=tc_init, time_text=time_text, show_ok=True))
         elif action == "picotutor":
@@ -1277,6 +1282,8 @@ class ChannelHandler(ServerRequestHandler):
             if tutor == "watcher":
                 active = val not in ("0", "false", "off")
                 if current["tutor_watcher"] != active:
+                    if dgtmenu:
+                        dgtmenu.set_picowatcher(active)
                     await Observable.fire(Event.PICOWATCHER(picowatcher=active))
             elif tutor == "coach":
                 _coach_map = {
@@ -1288,10 +1295,14 @@ class ChannelHandler(ServerRequestHandler):
                 }
                 coach_val = _coach_map.get(val.lower(), PicoCoach.COACH_OFF)
                 if current["tutor_coach"] != _coach_setting(coach_val):
+                    if dgtmenu:
+                        dgtmenu.set_picocoach(coach_val)
                     await Observable.fire(Event.PICOCOACH(picocoach=coach_val))
             elif tutor == "explorer":
                 active = val not in ("0", "false", "off")
                 if current["tutor_explorer"] != active:
+                    if dgtmenu:
+                        dgtmenu.set_picoexplorer(active)
                     await Observable.fire(Event.PICOEXPLORER(picoexplorer=active))
             elif tutor == "comment":
                 _comment_map = {
@@ -1301,10 +1312,14 @@ class ChannelHandler(ServerRequestHandler):
                 }
                 comment_val = _comment_map.get(val.lower(), PicoComment.COM_OFF)
                 if current["tutor_comment"] != _comment_setting(comment_val):
+                    if dgtmenu:
+                        dgtmenu.set_picocomment(comment_val)
                     await Observable.fire(Event.PICOCOMMENT(picocomment=comment_val))
             elif tutor == "prob":
                 prob = _bounded_tutor_prob(val)
                 if current["tutor_prob"] != prob:
+                    if dgtmenu:
+                        dgtmenu.set_comment_factor(prob)
                     await Observable.fire(Event.PICOCOMMENT(picocomment=f"comment-factor:{prob}"))
             elif tutor in ("threads", "multipv", "depth"):
                 picotutor = self.shared.get("picotutor")
@@ -1364,7 +1379,10 @@ class ChannelHandler(ServerRequestHandler):
             else:
                 dgttranslate = self.shared.get("dgttranslate")
                 if dgttranslate:
-                    dgttranslate.set_language(lang_code)
+                    if dgtmenu:
+                        dgtmenu.set_language(Language[lang_code.upper()])
+                    else:
+                        dgttranslate.set_language(lang_code)
                     write_picochess_ini("language", lang_code)
                     self.shared.setdefault("system_info", {})["language"] = lang_code
                     EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"language": lang_code}})
@@ -1385,8 +1403,12 @@ class ChannelHandler(ServerRequestHandler):
             else:
                 dgttranslate = self.shared.get("dgttranslate")
                 if dgttranslate:
-                    dgttranslate.set_beep(beep_val)
-                    write_picochess_ini("beep-config", dgttranslate.beep_to_config(beep_val))
+                    beep_config = dgttranslate.beep_to_config(beep_val)
+                    if dgtmenu:
+                        dgtmenu.set_beep(beep_val)
+                    else:
+                        dgttranslate.set_beep(beep_val)
+                    write_picochess_ini("beep-config", beep_config)
                     logger.info("web beep: beep set to %r", beep_val_str)
                 else:
                     logger.warning("web beep: dgttranslate not available in shared")
@@ -1400,6 +1422,10 @@ class ChannelHandler(ServerRequestHandler):
                 config = _get_picochess_config()
                 speed_factor = _bounded_voice_speed(config.get("speed-voice", "2"))
                 voice_str = None if speaker == "mute" else lang + ":" + speaker
+                if dgtmenu:
+                    voice_language = None if speaker == "mute" else lang
+                    voice_speaker = None if speaker == "mute" else speaker
+                    dgtmenu.set_voice(voice_type, voice_language, voice_speaker)
                 write_picochess_ini(ini_key, voice_str)
                 await Observable.fire(Event.SET_VOICE(type=voice_type, lang=lang, speaker=speaker, speed=speed_factor))
                 logger.info("web set_voice: type=%r lang=%r speaker=%r", voice_type_name, lang, speaker)
@@ -1450,9 +1476,23 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "take_back":
             await Observable.fire(Event.TAKE_BACK(take_back="TAKEBACK"))
         elif action == "altmove":
-            await Observable.fire(Event.ALTERNATIVE_MOVE())
+            enabled_arg = self.get_argument("enabled", "").lower()
+            enabled = enabled_arg in ("1", "true", "yes", "on") if enabled_arg else not (
+                dgtmenu.get_game_altmove() if dgtmenu else False
+            )
+            if dgtmenu:
+                dgtmenu.set_alt_move(enabled)
+            write_picochess_ini("alt-move", enabled)
+            await Observable.fire(Event.ALTMOVES(altmoves=enabled))
         elif action == "contlast":
-            await Observable.fire(Event.CONTLAST(contlast=True))
+            enabled_arg = self.get_argument("enabled", "").lower()
+            enabled = enabled_arg in ("1", "true", "yes", "on") if enabled_arg else not (
+                dgtmenu.get_game_contlast() if dgtmenu else False
+            )
+            if dgtmenu:
+                dgtmenu.set_continue_game(enabled)
+            write_picochess_ini("continue-game", enabled)
+            await Observable.fire(Event.CONTLAST(contlast=enabled))
         elif action == "sys_shutdown":
             await Observable.fire(Event.SHUTDOWN(dev="web"))
         elif action == "sys_reboot":
@@ -1475,35 +1515,58 @@ class ChannelHandler(ServerRequestHandler):
             capital = self.get_argument("capital", "")
             enginename = self.get_argument("enginename", "")
             if side in ("left", "right"):
+                if dgtmenu:
+                    dgtmenu.set_clockside(side)
                 ModeInfo.set_clock_side(side)
                 write_picochess_ini("clockside", side)
             if notation == "short":
+                if dgtmenu:
+                    dgtmenu.set_short_notation_disabled(False)
                 write_picochess_ini("disable-short-notation", False)
             elif notation == "long":
+                if dgtmenu:
+                    dgtmenu.set_short_notation_disabled(True)
                 write_picochess_ini("disable-short-notation", True)
-            if ponder == "on":
-                write_picochess_ini("ponder-interval", 1)
-            # ponder == "off": do not write ponder-interval=0; 0 is not a valid choice (range 1-8)
+            if ponder:
+                try:
+                    ponder_interval = max(1, min(8, int(ponder)))
+                except (TypeError, ValueError):
+                    ponder_interval = 1
+                if dgtmenu:
+                    dgtmenu.set_ponder_interval(ponder_interval)
+                write_picochess_ini("ponder-interval", ponder_interval)
             if confirm == "on":
                 # "disable-confirm-message=False" means confirm messages ARE shown
+                if dgtmenu:
+                    dgtmenu.set_confirm_disabled(False)
                 write_picochess_ini("disable-confirm-message", False)
                 logger.info("web display: confirm messages enabled")
             elif confirm == "off":
+                if dgtmenu:
+                    dgtmenu.set_confirm_disabled(True)
                 write_picochess_ini("disable-confirm-message", True)
                 logger.info("web display: confirm messages disabled")
             if capital == "on":
+                if dgtmenu:
+                    dgtmenu.set_capital_letters(True)
                 write_picochess_ini("enable-capital-letters", True)
                 await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
                 logger.info("web display: capital letters enabled")
             elif capital == "off":
+                if dgtmenu:
+                    dgtmenu.set_capital_letters(False)
                 write_picochess_ini("enable-capital-letters", False)
                 await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
                 logger.info("web display: capital letters disabled")
             if enginename == "on":
+                if dgtmenu:
+                    dgtmenu.set_enginename(True)
                 write_picochess_ini("show-engine", True)
                 await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=True))
                 logger.info("web display: engine name shown")
             elif enginename == "off":
+                if dgtmenu:
+                    dgtmenu.set_enginename(False)
                 write_picochess_ini("show-engine", False)
                 await Observable.fire(Event.SHOW_ENGINENAME(show_enginename=False))
                 logger.info("web display: engine name hidden")
@@ -1514,6 +1577,8 @@ class ChannelHandler(ServerRequestHandler):
                 # "none" means no board; write "noeboard" so EBoard['NOEBOARD'] resolves correctly
                 # on next startup (EBoard has no 'NONE' member).
                 ini_value = "noeboard" if eboard_type == "none" else eboard_type
+                if dgtmenu:
+                    dgtmenu.set_board_type(EBoardType[ini_value.upper()])
                 write_picochess_ini("board-type", ini_value)
                 # Only reboot when the board type actually changes (mirrors DGT menu behaviour).
                 current = ModeInfo.get_eboard_type()
@@ -1550,6 +1615,8 @@ class ChannelHandler(ServerRequestHandler):
             speed_factor = _bounded_voice_speed(self.get_argument("val", "2"))
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
+            if dgtmenu:
+                dgtmenu.set_voice_speed(speed_factor)
             write_picochess_ini("speed-voice", speed_factor)
             await Observable.fire(Event.SET_VOICE(type=Voice.SPEED, lang=lang, speaker="mute", speed=speed_factor))
             logger.info("web voice_speed: factor=%d", speed_factor)
@@ -1557,6 +1624,8 @@ class ChannelHandler(ServerRequestHandler):
             vol_factor = _bounded_voice_volume(self.get_argument("val", "14"))
             config = _get_picochess_config()
             speed_factor = _bounded_voice_speed(config.get("speed-voice", "2"))
+            if dgtmenu:
+                dgtmenu.set_voice_volume(vol_factor)
             write_picochess_ini("volume-voice", str(vol_factor))
             # Set system volume: each factor unit = 5 % (same as _set_volume_voice in menu.py)
             pct = str(vol_factor * 5)
@@ -1579,35 +1648,30 @@ class ChannelHandler(ServerRequestHandler):
                 rspeed_factor = 0.0 if val_str == "max" else round(float(val_str) / 100, 2)
             except (TypeError, ValueError):
                 rspeed_factor = 1.0
+            if dgtmenu:
+                dgtmenu.set_retro_speed(rspeed_factor)
             write_picochess_ini("rspeed", rspeed_factor)
             await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
             logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
         elif action == "rsound":
             val_str = self.get_argument("val", "off").strip().lower()
             rsound = val_str in ("on", "true", "1")
-            dgtmenu = self.shared.get("dgtmenu")
             if dgtmenu:
-                dgtmenu.engine_retrosound = rsound
-                dgtmenu.res_engine_retrosound = rsound
-                dgtmenu.engine_retrosound_onoff = rsound
+                dgtmenu.set_retro_sound(rsound)
             write_picochess_ini("rsound", rsound)
             logger.info("web rsound setting saved: %s", rsound)
         elif action == "rdisplay":
             val_str = self.get_argument("val", "off").strip().lower()
             rdisplay = val_str in ("on", "true", "1")
-            dgtmenu = self.shared.get("dgtmenu")
             if dgtmenu:
-                dgtmenu.engine_retrodisplay = rdisplay
-                dgtmenu.res_engine_retrodisplay = rdisplay
-                dgtmenu.engine_retrodisplay_onoff = rdisplay
+                dgtmenu.set_retro_display(rdisplay)
             write_picochess_ini("rdisplay", rdisplay)
             logger.info("web rdisplay setting saved: %s", rdisplay)
         elif action == "rwindow":
             val_str = self.get_argument("val", "on").strip().lower()
             rwindow = val_str in ("on", "true", "1")
-            dgtmenu = self.shared.get("dgtmenu")
             if dgtmenu:
-                dgtmenu.res_engine_rwindow = rwindow
+                dgtmenu.set_retro_window(rwindow)
             write_picochess_ini("rwindow", rwindow)
             logger.info("web rwindow setting saved: %s", rwindow)
 
@@ -1779,7 +1843,10 @@ class InfoHandler(ServerRequestHandler):
                 dsn = config.get("disable-short-notation")
                 settings["notation"] = "long" if dsn in (True, "True", "true") else "short"
                 pi = config.get("ponder-interval", "1")
-                settings["ponder"] = "off" if str(pi) == "0" else "on"
+                try:
+                    settings["ponder_interval"] = str(max(1, min(8, int(pi))))
+                except (TypeError, ValueError):
+                    settings["ponder_interval"] = "1"
                 dcm = config.get("disable-confirm-message")
                 settings["confirm"] = "off" if dcm in (True, "True", "true") else "on"
                 ecl = config.get("enable-capital-letters")
@@ -1833,6 +1900,17 @@ class InfoHandler(ServerRequestHandler):
                 settings["comp_voice_lang"] = comp_voice_lang
                 settings["user_voice"] = user_voice
                 settings["user_voice_lang"] = user_voice_lang
+                dgtmenu = self.shared.get("dgtmenu")
+                settings["continue_game"] = "on" if (
+                    dgtmenu.get_game_contlast()
+                    if dgtmenu
+                    else str(config.get("continue-game", False)).lower() == "true"
+                ) else "off"
+                settings["alt_move"] = "on" if (
+                    dgtmenu.get_game_altmove()
+                    if dgtmenu
+                    else str(config.get("alt-move", False)).lower() == "true"
+                ) else "off"
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
             # Engine name and level come from shared (live state, not ini)
@@ -2433,6 +2511,13 @@ class SettingsSaveHandler(ServerRequestHandler):
             theme_entry = entries_by_key.get("theme")
             if theme_entry and theme_entry["enabled"]:
                 self.shared["theme"] = theme_entry["value"]
+                dgtmenu = self.shared.get("dgtmenu")
+                try:
+                    theme = Theme[theme_entry["value"].upper()]
+                except KeyError:
+                    theme = None
+                if dgtmenu and theme:
+                    dgtmenu.set_theme(theme)
 
             phone_speaker_entry = entries_by_key.get("web-audio-backend-remote")
             if phone_speaker_entry:

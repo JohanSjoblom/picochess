@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
-from dgt.util import PicoComment, EBoard, PicoCoach
+from dgt.util import Beep, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
 from uci.read import read_engine_ini
 from uci.engine_provider import EngineProvider
 
@@ -74,6 +74,82 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
     async def test_retro_display_config_does_not_require_display_env(self, machine_mock):
         menu = self.create_menu(machine_mock, rdisplay=True)
         self.assertTrue(menu.get_engine_rdisplay())
+
+    @patch("platform.machine")
+    async def test_persistent_web_settings_update_live_menu_state(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+
+        menu.set_language(Language.DE)
+        menu.set_beep(Beep.ON)
+        menu.set_voice(Voice.USER, "en", "al")
+        menu.set_voice(Voice.COMP, None, None)
+        menu.set_voice_speed(4)
+        menu.set_voice_volume(12)
+        menu.set_ponder_interval(7)
+        menu.set_capital_letters(True)
+        menu.set_confirm_disabled(True)
+        menu.set_short_notation_disabled(True)
+        menu.set_enginename(True)
+        menu.set_continue_game(True)
+        menu.set_alt_move(True)
+        menu.set_picocomment(PicoComment.COM_ON_ENG)
+        menu.set_comment_factor(70)
+        menu.set_picoexplorer(True)
+        menu.set_picowatcher(True)
+        menu.set_picocoach(PicoCoach.COACH_BRAIN)
+        menu.set_board_type(EBoard.CHESSNUT)
+        menu.set_clockside("right")
+        menu.set_theme(Theme.LIGHT)
+        menu.set_retro_display(True)
+        menu.set_retro_window(True)
+        menu.set_retro_speed(4.0)
+        menu.set_retro_sound(False)
+
+        self.assertEqual(Language.DE, menu.menu_system_language)
+        self.assertEqual(Beep.ON, menu.menu_system_sound)
+        self.assertTrue(menu.menu_system_voice_user_active)
+        self.assertFalse(menu.menu_system_voice_comp_active)
+        self.assertEqual(4, menu.menu_system_voice_speedfactor)
+        self.assertEqual(12, menu.menu_system_voice_volumefactor)
+        self.assertEqual(7, menu.get_ponderinterval())
+        self.assertTrue(menu.dgttranslate.capital)
+        self.assertTrue(menu.get_confirm())
+        self.assertTrue(menu.dgttranslate.notation)
+        self.assertTrue(menu.get_enginename())
+        self.assertTrue(menu.get_game_contlast())
+        self.assertTrue(menu.get_game_altmove())
+        self.assertEqual(PicoComment.COM_ON_ENG, menu.get_picocomment())
+        self.assertEqual(70, menu.get_comment_factor())
+        self.assertTrue(menu.get_picoexplorer())
+        self.assertTrue(menu.get_picowatcher())
+        self.assertEqual(PicoCoach.COACH_BRAIN, menu.get_picocoach())
+        self.assertEqual(EBoard.CHESSNUT, menu.menu_system_eboard_type)
+        self.assertEqual("right", menu.menu_system_display_clockside)
+        self.assertEqual(Theme.LIGHT, menu.menu_system_theme_type)
+        self.assertTrue(menu.get_engine_rdisplay())
+        self.assertTrue(menu.get_engine_rwindow())
+        self.assertEqual(4.0, menu.get_engine_rspeed())
+        self.assertFalse(menu.get_engine_rsound())
+
+    @patch("platform.machine")
+    async def test_web_time_control_updates_dgt_menu_selection(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        tc_init = {
+            "mode": TimeMode.FIXED,
+            "fixed": 0,
+            "blitz": 0,
+            "fischer": 0,
+            "moves_to_go": 0,
+            "blitz2": 0,
+            "depth": 15,
+            "node": 0,
+            "internal_time": None,
+        }
+
+        menu.set_time_control(tc_init)
+
+        self.assertEqual(TimeMode.DEPTH, menu.get_time_mode())
+        self.assertEqual(menu.tc_depth_list.index("15"), menu.get_time_depth())
 
     @patch("platform.machine")
     async def test_engine_menu_traversal(self, machine_mock):

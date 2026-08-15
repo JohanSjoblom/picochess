@@ -7254,6 +7254,7 @@ async def main() -> None:
                 self.state.stop_fen_timer()
 
             elif isinstance(event, Event.SHOW_ENGINENAME):
+                self.state.dgtmenu.set_enginename(event.show_enginename)
                 await DisplayMsg.show(Message.SHOW_ENGINENAME(show_enginename=event.show_enginename))
 
             elif isinstance(event, Event.SAVE_GAME):
@@ -7279,14 +7280,15 @@ async def main() -> None:
                     await self._start_or_stop_analysis_as_needed()
 
             elif isinstance(event, Event.CONTLAST):
+                self.state.dgtmenu.set_continue_game(event.contlast)
                 await DisplayMsg.show(Message.CONTLAST(contlast=event.contlast))
 
             elif isinstance(event, Event.ALTMOVES):
+                self.state.dgtmenu.set_alt_move(event.altmoves)
                 await DisplayMsg.show(Message.ALTMOVES(altmoves=event.altmoves))
 
             elif isinstance(event, Event.PICOWATCHER):
-                self.state.dgtmenu.menu_picotutor_picowatcher = event.picowatcher
-                self.state.dgtmenu.res_picotutor_picowatcher = event.picowatcher
+                self.state.dgtmenu.set_picowatcher(event.picowatcher)
                 write_picochess_ini("tutor-watcher", event.picowatcher)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
@@ -7325,34 +7327,27 @@ async def main() -> None:
                 ):
                     self.state.coach_triggered_piece_type = None
                     if coach_request == PicoCoach.COACH_OFF:
-                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
-                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
+                        self.state.dgtmenu.set_picocoach(PicoCoach.COACH_OFF)
                         write_picochess_ini("tutor-coach", "off")
                         self.cancel_brain_hint_timer()
                     elif coach_request == PicoCoach.COACH_ON:
-                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
-                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
+                        self.state.dgtmenu.set_picocoach(PicoCoach.COACH_ON)
                         write_picochess_ini("tutor-coach", "on")
                     elif coach_request == PicoCoach.COACH_LIFT:
-                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_LIFT
-                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_LIFT
+                        self.state.dgtmenu.set_picocoach(PicoCoach.COACH_LIFT)
                         write_picochess_ini("tutor-coach", "lift")
                     elif coach_request == PicoCoach.COACH_BRAIN:
-                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_BRAIN
-                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_BRAIN
+                        self.state.dgtmenu.set_picocoach(PicoCoach.COACH_BRAIN)
                         write_picochess_ini("tutor-coach", "brain")
                     else:
-                        self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_HAND
-                        self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_HAND
+                        self.state.dgtmenu.set_picocoach(PicoCoach.COACH_HAND)
                         write_picochess_ini("tutor-coach", "hand")
                 elif coach_request == 0:
-                    self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_OFF
-                    self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_OFF
+                    self.state.dgtmenu.set_picocoach(PicoCoach.COACH_OFF)
                     write_picochess_ini("tutor-coach", "off")
                     self.cancel_brain_hint_timer()
                 elif coach_request == 1 and self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_OFF:
-                    self.state.dgtmenu.menu_picotutor_picocoach = PicoCoach.COACH_ON
-                    self.state.dgtmenu.res_picotutor_picocoach = PicoCoach.COACH_ON
+                    self.state.dgtmenu.set_picocoach(PicoCoach.COACH_ON)
                     write_picochess_ini("tutor-coach", "on")
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
@@ -7418,8 +7413,7 @@ async def main() -> None:
                         await self.call_pico_coach()
 
             elif isinstance(event, Event.PICOEXPLORER):
-                self.state.dgtmenu.menu_picotutor_picoexplorer = event.picoexplorer
-                self.state.dgtmenu.res_picotutor_picoexplorer = event.picoexplorer
+                self.state.dgtmenu.set_picoexplorer(event.picoexplorer)
                 write_picochess_ini("tutor-explorer", event.picoexplorer)
                 self.state.best_sent_depth.reset()
                 await self.state.picotutor.set_status(
@@ -7443,6 +7437,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.PICOEXPLORER(picoexplorer=event.picoexplorer))
 
             elif isinstance(event, Event.RSPEED):
+                self.state.dgtmenu.set_retro_speed(event.rspeed)
                 if self.emulation_mode():
                     # restart engine with new retro speed
                     self.state.artwork_in_use = False
@@ -7536,8 +7531,7 @@ async def main() -> None:
                             comment_factor = max(0, min(100, int(event.picocomment.split(":", 1)[1])))
                         except (TypeError, ValueError):
                             comment_factor = self.state.dgtmenu.get_comment_factor()
-                        self.state.dgtmenu.menu_picotutor_picocomment_prob_list = str(comment_factor)
-                        self.state.dgtmenu.res_picotutor_picocomment_prob = comment_factor
+                        self.state.dgtmenu.set_comment_factor(comment_factor)
                         write_picochess_ini("comment-factor", str(comment_factor))
                     else:
                         comment_factor = self.state.dgtmenu.get_comment_factor()
@@ -7550,14 +7544,14 @@ async def main() -> None:
                         PicoComment.COM_ON_ALL: "all",
                     }
                     if event.picocomment in _comment_ini:
-                        self.state.dgtmenu.menu_picotutor_picocomment = event.picocomment
-                        self.state.dgtmenu.res_picotutor_picocomment = event.picocomment
+                        self.state.dgtmenu.set_picocomment(event.picocomment)
                         write_picochess_ini("tutor-comment", _comment_ini[event.picocomment])
                     await DisplayMsg.show(Message.PICOCOMMENT(picocomment=event.picocomment))
 
             elif isinstance(event, Event.SET_TIME_CONTROL):
                 self.state.time_control.stop_internal(log=False)
                 tc_init = event.tc_init
+                self.state.dgtmenu.set_time_control(tc_init)
 
                 self.state.time_control = TimeControl(**tc_init)
 

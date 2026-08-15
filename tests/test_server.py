@@ -64,6 +64,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("['🕘 Time',  'time']", template)
         self.assertIn("if (val === 'auto' || val === 'time')", template)
 
+    def test_game_settings_are_persistent_toggles(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("'continue_game'", template)
+        self.assertIn("'alt_move'", template)
+        self.assertIn("'display&ponder=8'", template)
+        self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
+
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
     async def test_auto_theme_is_recalculated_for_each_page_load(self):

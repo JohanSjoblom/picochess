@@ -741,6 +741,138 @@ class DgtMenu(object):
             self._sync_engine_group_selection(category)
         return selected_sort
 
+    def set_language(self, language: Language) -> None:
+        self.menu_system_language = language
+        self.dgttranslate.set_language(language.name.lower())
+
+    def set_beep(self, beep: dgt.util.Beep) -> None:
+        self.menu_system_sound = beep
+        self.dgttranslate.set_beep(beep)
+
+    def set_voice(self, voice: Voice, language: str | None, speaker: str | None) -> None:
+        is_user = voice == Voice.USER
+        active_attr = "menu_system_voice_user_active" if is_user else "menu_system_voice_comp_active"
+        lang_attr = "menu_system_voice_user_lang" if is_user else "menu_system_voice_comp_lang"
+        speaker_attr = "menu_system_voice_user_speak" if is_user else "menu_system_voice_comp_speak"
+        setattr(self, active_attr, bool(language and speaker))
+        if language and speaker:
+            try:
+                setattr(self, lang_attr, self.voices_conf.keys().index(language))
+                setattr(self, speaker_attr, self.voices_conf[language].keys().index(speaker))
+            except (KeyError, ValueError):
+                logger.warning("voice %s:%s is not available in the DGT menu", language, speaker)
+
+    def set_voice_speed(self, factor: int) -> None:
+        self.menu_system_voice_speedfactor = factor
+
+    def set_voice_volume(self, factor: int) -> None:
+        self.menu_system_voice_volumefactor = factor
+
+    def set_ponder_interval(self, interval: int) -> None:
+        self.menu_system_display_ponderinterval = self.res_system_display_ponderinterval = interval
+
+    def set_capital_letters(self, enabled: bool) -> None:
+        self.menu_system_display_capital = enabled
+        self.dgttranslate.set_capital(enabled)
+
+    def set_confirm_disabled(self, disabled: bool) -> None:
+        self.menu_system_display_confirm = self.res_system_display_confirm = disabled
+
+    def set_short_notation_disabled(self, disabled: bool) -> None:
+        self.menu_system_display_notation = disabled
+        self.dgttranslate.set_notation(disabled)
+
+    def set_continue_game(self, enabled: bool) -> None:
+        self.menu_game_contlast = self.res_game_contlast = enabled
+
+    def set_alt_move(self, enabled: bool) -> None:
+        self.menu_game_altmove = self.res_game_altmove = enabled
+
+    def set_picocomment(self, comment: PicoComment) -> None:
+        self.menu_picotutor_picocomment = self.res_picotutor_picocomment = comment
+
+    def set_comment_factor(self, factor: int) -> None:
+        self.menu_picotutor_picocomment_prob_list = str(factor)
+        self.res_picotutor_picocomment_prob = factor
+        if str(factor) in self.com_prob_list:
+            self.menu_picocomment_prob_idx = self.com_prob_list.index(str(factor))
+
+    def set_picoexplorer(self, enabled: bool) -> None:
+        self.menu_picotutor_picoexplorer = self.res_picotutor_picoexplorer = enabled
+
+    def set_picowatcher(self, enabled: bool) -> None:
+        self.menu_picotutor_picowatcher = self.res_picotutor_picowatcher = enabled
+
+    def set_picocoach(self, coach: PicoCoach) -> None:
+        self.menu_picotutor_picocoach = self.res_picotutor_picocoach = coach
+
+    def set_board_type(self, board_type: EBoard) -> None:
+        self.menu_system_eboard_type = board_type
+
+    def set_clockside(self, clockside: str) -> None:
+        self.menu_system_display_clockside = clockside
+
+    def set_theme(self, theme: Theme) -> None:
+        self.theme_type = theme.name.lower()
+        self.menu_system_theme_type = theme
+
+    def set_retro_display(self, enabled: bool) -> None:
+        self.engine_retrodisplay = self.res_engine_retrodisplay = self.engine_retrodisplay_onoff = enabled
+
+    def set_retro_window(self, windowed: bool) -> None:
+        self.res_engine_rwindow = windowed
+
+    def set_retro_speed(self, factor: float) -> None:
+        speed = "max." if factor < 0.1 else str(int(factor * 100))
+        self.retrospeed_factor = self.res_engine_retrospeed = factor
+        if speed in self.retrospeed_list:
+            index = self.retrospeed_list.index(speed)
+            self.menu_engine_retrospeed_idx = self.res_engine_retrospeed_idx = index
+
+    def set_retro_sound(self, enabled: bool) -> None:
+        self.engine_retrosound = self.res_engine_retrosound = self.engine_retrosound_onoff = enabled
+
+    def set_time_control(self, tc_init: dict) -> None:
+        """Make a web-selected time control the current DGT menu selection."""
+        timectrl = TimeControl(**tc_init)
+        if timectrl.moves_to_go_orig > 0:
+            mode, choices, setter = TimeMode.TOURN, self.tc_tournaments, self.set_time_tourn
+            matches = lambda choice: choice == timectrl
+        elif timectrl.depth > 0:
+            mode, choices, setter = TimeMode.DEPTH, self.tc_depths, self.set_time_depth
+            matches = lambda choice: choice.depth == timectrl.depth
+        elif timectrl.node > 0:
+            mode, choices, setter = TimeMode.NODE, self.tc_nodes, self.set_time_node
+            matches = lambda choice: choice.node == timectrl.node
+        else:
+            maps = {
+                TimeMode.FIXED: (self.tc_fixed_map, self.tc_fixed_list, self.set_time_fixed),
+                TimeMode.BLITZ: (self.tc_blitz_map, self.tc_blitz_list, self.set_time_blitz),
+                TimeMode.FISCHER: (self.tc_fisch_map, self.tc_fisch_list, self.set_time_fisch),
+            }
+            mode = timectrl.mode
+            mapping, labels, setter = maps[mode]
+            choices = list(mapping.values())
+            matches = lambda choice: choice == timectrl
+        self.set_time_mode(mode)
+        for index, choice in enumerate(choices):
+            if matches(choice):
+                setter(index)
+                return
+        if mode == TimeMode.TOURN:
+            self.tc_tournaments.append(timectrl)
+            self.tc_tourn_list.append(timectrl.get_list_text())
+        elif mode == TimeMode.DEPTH:
+            self.tc_depths.append(timectrl)
+            self.tc_depth_list.append(timectrl.get_list_text())
+        elif mode == TimeMode.NODE:
+            self.tc_nodes.append(timectrl)
+            self.tc_node_list.append(timectrl.get_list_text())
+        else:
+            mapping.update({"": timectrl})
+            labels.append(timectrl.get_list_text())
+        setter(len(choices))
+
     @staticmethod
     def _engine_catalog(category: str):
         return {
@@ -988,7 +1120,7 @@ class DgtMenu(object):
 
     def set_enginename(self, showname: bool):
         """Set the flag."""
-        self.res_system_display_enginename = showname
+        self.menu_system_display_enginename = self.res_system_display_enginename = showname
 
     def get_enginename(self):
         """Get the flag."""

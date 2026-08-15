@@ -48,6 +48,19 @@ explicitly requires it.
   `picochess.ini` for persistence, the live runtime value read by backend
   logic, and the DGT menu's cached/current selection fields used for clock menu
   display.
+- `DgtMenu` uses `menu_*` fields as the clock menu's working/displayed
+  selections and `res_*` fields as committed values returned to backend
+  callers. A setting changed outside the clock menu must synchronize both
+  where both exist.
+- Use typed `DgtMenu` setters for external setting changes instead of assigning
+  `menu_*` and `res_*` independently. Core event handlers should use the same
+  setters when applying committed values.
+- Do not add another generic catalogue of valid setting values to `DgtMenu`.
+  Reuse the existing enums, menu lists, and conversion helpers, and pass
+  canonical typed values to the setters.
+- Keep persistence and runtime events in their existing owners for now. The
+  typed setters synchronize live DGT state; they are not a new shared settings
+  service.
 
 ## Playing Mode Naming
 

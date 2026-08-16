@@ -290,11 +290,11 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         # level of a retro engine
         level = await menu.main_down()
         self.assertEqual(MenuState.ENG_RETRO_NAME_LEVEL, menu.state)
-        self.assertEqual("Level 00 - speed", level.large_text)
+        self.assertEqual("L00 speed", level.large_text)
         level = menu.main_right()
-        self.assertEqual("Level 01 - 5s move", level.large_text)
+        self.assertEqual("L01 5s move", level.large_text)
         level = menu.main_left()
-        self.assertEqual("Level 00 - speed", level.large_text)
+        self.assertEqual("L00 speed", level.large_text)
 
         menu.main_up()
         self.assertEqual(MenuState.ENG_RETRO_NAME, menu.state)
@@ -458,7 +458,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = menu.main_left()
         self.assertEqual("Mep.Academy", text.large_text)
         text = await menu.main_down()
-        self.assertEqual("Level 00 - speed", text.large_text)
+        self.assertEqual("L00 speed", text.large_text)
         text = await menu.main_down()
         self.assertFalse(text)
         self.assertEqual("Mep.Academy", menu.get_current_engine_name().large_text)
@@ -470,7 +470,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = await menu.main_down()
         self.assertEqual("Mep.Academy", text.large_text)  # previously selected engine
         text = await menu.main_down()
-        self.assertEqual("Level 00 - speed", text.large_text)  # previously selected engine level
+        self.assertEqual("L00 speed", text.large_text)  # previously selected engine level
 
     @patch("platform.machine")
     async def test_modern_engine_after_retro(self, machine_mock):

@@ -1743,11 +1743,31 @@ function clockButton0() {
 }
 
 function setClockMenuActive(active) {
-    var button = document.getElementById('clockMenuBackBtn');
+    var backButton = document.getElementById('clockMenuBackBtn');
+    var evaluationButton = document.getElementById('clockEvalBtn');
+    var hintButton = document.getElementById('clockHintBtn');
     var row = document.querySelector('.clock-control-row');
     active = Boolean(active);
-    if (button) button.hidden = !active;
+    if (backButton) backButton.hidden = !active;
     if (row) row.classList.toggle('dgt-clock-menu-active', active);
+    if (evaluationButton) {
+        var evaluationIcon = evaluationButton.querySelector('.fa');
+        if (evaluationIcon) {
+            evaluationIcon.classList.toggle('fa-bar-chart-o', !active);
+            evaluationIcon.classList.toggle('fa-minus', active);
+        }
+        evaluationButton.title = active ? 'DGT clock menu previous' : 'Show evaluation';
+        evaluationButton.setAttribute('aria-label', evaluationButton.title);
+    }
+    if (hintButton) {
+        var hintIcon = hintButton.querySelector('.fa');
+        if (hintIcon) {
+            hintIcon.classList.toggle('fa-lightbulb-o', !active);
+            hintIcon.classList.toggle('fa-plus', active);
+        }
+        hintButton.title = active ? 'DGT clock menu next' : 'Show hint';
+        hintButton.setAttribute('aria-label', hintButton.title);
+    }
 }
 
 function clockButton1() {

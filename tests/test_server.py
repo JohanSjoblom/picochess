@@ -86,6 +86,10 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
+        self.assertIn("evaluationIcon.classList.toggle('fa-minus', active)", script)
+        self.assertIn("hintIcon.classList.toggle('fa-plus', active)", script)
+        self.assertIn("$('#clockEvalBtn').on('click', clockShowEvaluation);", script)
+        self.assertIn("$('#clockHintBtn').on('click', clockShowHint);", script)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

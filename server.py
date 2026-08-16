@@ -1679,9 +1679,12 @@ class ChannelHandler(ServerRequestHandler):
         elif action == "rwindow":
             val_str = self.get_argument("val", "on").strip().lower()
             rwindow = val_str in ("on", "true", "1")
+            rwindow_changed = bool(dgtmenu and dgtmenu.get_engine_rwindow() != rwindow)
             if dgtmenu:
                 dgtmenu.set_retro_window(rwindow)
             write_picochess_ini("rwindow", rwindow)
+            if rwindow_changed:
+                await Observable.fire(Event.SET_RETRO_WINDOW(windowed=rwindow))
             await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rwindow setting saved: %s", rwindow)
 

@@ -76,6 +76,7 @@ class EventApi:
     PICOEXPLORER = "EVT_PICOEXPLORER"  # picoexplorer on/off
     PICOCOMMENT = "EVT_PICOCOMMENT"  # pico written game comments on/off/all
     RSPEED = "EVT_RSPEED"
+    SET_RETRO_WINDOW = "EVT_SET_RETRO_WINDOW"
     TAKE_BACK = "EVT_TAKE_BACK"
     READ_GAME = "EVT_READ_GAME"
     SAVE_GAME = "EVT_SAVE_GAME"
@@ -369,6 +370,7 @@ class Event:
     PICOCOMMENT = ClassFactory(EventApi.PICOCOMMENT, ["picocomment"])
     TAKE_BACK = ClassFactory(EventApi.TAKE_BACK, ["take_back"])
     RSPEED = ClassFactory(EventApi.RSPEED, ["rspeed"])
+    SET_RETRO_WINDOW = ClassFactory(EventApi.SET_RETRO_WINDOW, ["windowed"])
     READ_GAME = ClassFactory(EventApi.READ_GAME, ["pgn_filename", "show_headers"])
     SAVE_GAME = ClassFactory(EventApi.SAVE_GAME, ["pgn_filename"])
     CONTLAST = ClassFactory(EventApi.CONTLAST, ["contlast"])

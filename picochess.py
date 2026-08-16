@@ -7436,6 +7436,24 @@ async def main() -> None:
                     await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
                 await DisplayMsg.show(Message.PICOEXPLORER(picoexplorer=event.picoexplorer))
 
+            elif isinstance(event, Event.SET_RETRO_WINDOW):
+                self.state.dgtmenu.set_retro_window(event.windowed)
+                if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay():
+                    cmd = get_window_command("switch_window_toggle_fullscreen")
+                    if cmd:
+                        process = await asyncio.create_subprocess_shell(
+                            cmd,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                        _, stderr = await process.communicate()
+                        if process.returncode != 0:
+                            logger.error(
+                                "Retro window command failed with return code %s: %s",
+                                process.returncode,
+                                stderr.decode(),
+                            )
+
             elif isinstance(event, Event.RSPEED):
                 self.state.dgtmenu.set_retro_speed(event.rspeed)
                 if self.emulation_mode():

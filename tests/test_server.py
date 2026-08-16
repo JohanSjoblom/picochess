@@ -81,6 +81,7 @@ class TestSettingsTemplate(unittest.TestCase):
     def test_normal_web_clock_exposes_contextual_menu_back_button(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        stylesheet = (Path(__file__).parents[1] / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
 
         self.assertIn('id="clockMenuBackBtn"', template)
         self.assertLess(template.index('id="clockSwitchSidesBtn"'), template.index('id="clockMenuBackBtn"'))
@@ -98,6 +99,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("forwardIcon.classList.toggle('fa-chevron-right', active)", script)
         self.assertIn("$('#clockEvalBtn').on('click', clockShowEvaluation);", script)
         self.assertIn("$('#clockHintBtn').on('click', clockShowHint);", script)
+        self.assertIn("(min-width: 769px) and (max-width: 1100px) and (orientation: landscape)", stylesheet)
+        self.assertIn("grid-template-columns: 0.75rem minmax(0, 1fr) auto", stylesheet)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

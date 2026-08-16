@@ -1278,6 +1278,16 @@ piece {
     }
 }
 
+@media (min-width: 769px) and (max-width: 1100px) and (orientation: landscape) {
+    .clock-control-row {
+        grid-template-columns: 0.75rem minmax(0, 1fr) auto;
+    }
+
+    .clock-control-spacer {
+        width: 0.75rem;
+    }
+}
+
 @media (max-width: 768px) and (orientation: portrait) {
     html.is-remote-web-client .clock-control-row {
         grid-template-columns: minmax(0, 1fr) auto;

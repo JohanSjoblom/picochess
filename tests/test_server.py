@@ -21,7 +21,6 @@ from server import (
     _cached_setup_position_fen,
     _channel_action_requires_remote_auth,
     _clock_event,
-    _exit_clock_menu,
     _clock_menu_active,
     _coach_event_value,
     _coach_setting,
@@ -73,10 +72,11 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("'display&ponder=8'", template)
         self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
 
-    def test_retro_clock_exits_clock_menu_before_returning(self):
+    def test_retro_clock_preserves_clock_menu_when_returning(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
 
-        self.assertIn("channel('clock_menu_exit').finally(() => window.location.assign('/'))", template)
+        self.assertIn("backButton.addEventListener('click', () => window.location.assign('/'))", template)
+        self.assertNotIn("clock_menu_exit", template)
 
     def test_normal_web_clock_exposes_contextual_menu_back_button(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
@@ -86,32 +86,6 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
-
-
-class TestClockMenuHelpers(unittest.TestCase):
-    def test_exit_clock_menu_leaves_main_menu(self):
-        menu = Mock()
-        menu.inside_updt_menu.return_value = False
-        menu.inside_main_menu.return_value = True
-
-        self.assertTrue(_exit_clock_menu({"dgtmenu": menu}))
-        menu.exit_menu.assert_called_once_with()
-
-    def test_exit_clock_menu_leaves_update_menu(self):
-        menu = Mock()
-        menu.inside_updt_menu.return_value = True
-
-        self.assertTrue(_exit_clock_menu({"dgtmenu": menu}))
-        menu.updt_up.assert_called_once_with("web")
-        menu.exit_menu.assert_not_called()
-
-    def test_exit_clock_menu_is_idle_outside_menu(self):
-        menu = Mock()
-        menu.inside_updt_menu.return_value = False
-        menu.inside_main_menu.return_value = False
-
-        self.assertFalse(_exit_clock_menu({"dgtmenu": menu}))
-        menu.exit_menu.assert_not_called()
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

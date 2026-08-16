@@ -1212,6 +1212,9 @@ piece {
 .clock-control-spacer {
     width: 2.7rem;
     height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
 }
 
 .clock-control-main {
@@ -1288,6 +1291,22 @@ piece {
         justify-content: flex-start;
         min-width: 0;
     }
+
+    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active {
+        grid-template-columns: 2.35rem minmax(0, 1fr) auto;
+    }
+
+    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-spacer {
+        display: inline-flex;
+    }
+
+    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-main {
+        gap: 0.25rem;
+    }
+
+    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-main .pico-clock-action {
+        width: 2.35rem;
+    }
 }
 
 .pico-clock-action:hover,
@@ -1298,6 +1317,15 @@ piece {
 
 .pico-clock-action:active {
     transform: translateY(1px);
+}
+
+.pico-clock-menu-back-btn {
+    border-color: rgba(231, 164, 45, 0.7);
+    background: rgba(231, 164, 45, 0.14);
+}
+
+.pico-clock-menu-back-btn[hidden] {
+    display: none;
 }
 
 .pico-clock-switch-btn {

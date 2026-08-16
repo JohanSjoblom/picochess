@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css?v=2" />
+    <link rel="stylesheet" href="/static/css/base.css?v=3" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -621,7 +621,11 @@
                         <div class="row g-0" id="row-clock">
                             <div class="pico-clock-header">
                                 <div class="clock-control-row" aria-label="Clock controls">
-                                    <span class="clock-control-spacer" aria-hidden="true"></span>
+                                    <span class="clock-control-spacer">
+                                        <button type="button" id="clockMenuBackBtn" class="pico-clock-action pico-clock-menu-back-btn" aria-label="DGT clock menu back or exit" title="DGT clock menu back or exit" hidden>
+                                            <i class="fa fa-chevron-left" aria-hidden="true"></i>
+                                        </button>
+                                    </span>
                                     <span class="clock-control-main">
                                         <button type="button" id="clockSwitchSidesBtn" class="pico-clock-action pico-clock-switch-btn pico-clock-action-separated" aria-label="Switch sides" title="Switch sides">
                                             <i class="fa fa-arrows-v" aria-hidden="true"></i>
@@ -851,7 +855,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=5"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=6"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos

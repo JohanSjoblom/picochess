@@ -78,6 +78,15 @@ class TestSettingsTemplate(unittest.TestCase):
 
         self.assertIn("channel('clock_menu_exit').finally(() => window.location.assign('/'))", template)
 
+    def test_normal_web_clock_exposes_contextual_menu_back_button(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="clockMenuBackBtn"', template)
+        self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
+        self.assertIn("action: 'get_clock_menu_state'", script)
+        self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
+
 
 class TestClockMenuHelpers(unittest.TestCase):
     def test_exit_clock_menu_leaves_main_menu(self):
@@ -560,9 +569,20 @@ class TestServerClockState(unittest.TestCase):
 
         event = _clock_event(shared, "<span>1:00</span>", running=True)
 
-        self.assertEqual({"event": "Clock", "msg": "<span>1:00</span>", "running": True}, event)
+        self.assertEqual(
+            {"event": "Clock", "msg": "<span>1:00</span>", "running": True, "menu_active": False}, event
+        )
         self.assertEqual("<span>1:00</span>", shared["clock_text"])
         self.assertTrue(shared["clock_running"])
+
+    def test_clock_event_reports_shared_menu_state(self):
+        menu = Mock()
+        menu.inside_main_menu.return_value = True
+        menu.inside_updt_menu.return_value = False
+
+        event = _clock_event({"dgtmenu": menu}, "Mode", running=False)
+
+        self.assertTrue(event["menu_active"])
 
 
 class TestServerChannelAuth(unittest.TestCase):

@@ -101,6 +101,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockHintBtn').on('click', clockShowHint);", script)
         self.assertIn("(min-width: 769px) and (max-width: 1100px) and (orientation: landscape)", stylesheet)
         self.assertIn("grid-template-columns: 0.75rem minmax(0, 1fr) auto", stylesheet)
+        self.assertIn("(max-height: 520px) and (orientation: landscape)", stylesheet)
+        self.assertIn("transform: translateX(-1.5rem)", stylesheet)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

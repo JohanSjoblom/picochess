@@ -1288,6 +1288,12 @@ piece {
     }
 }
 
+@media (max-height: 520px) and (orientation: landscape) {
+    html.is-remote-web-client .clock-control-main {
+        transform: translateX(-1.5rem);
+    }
+}
+
 @media (max-width: 768px) and (orientation: portrait) {
     html.is-remote-web-client .clock-control-row {
         grid-template-columns: minmax(0, 1fr) auto;

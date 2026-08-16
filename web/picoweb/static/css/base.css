@@ -1319,7 +1319,7 @@ piece {
     background: rgba(231, 164, 45, 0.14);
 }
 
-.pico-clock-menu-back-btn[hidden] {
+.clock-control-main .pico-clock-action[hidden] {
     display: none;
 }
 

@@ -1743,12 +1743,14 @@ function clockButton0() {
 }
 
 function setClockMenuActive(active) {
+    var switchSidesButton = document.getElementById('clockSwitchSidesBtn');
     var backButton = document.getElementById('clockMenuBackBtn');
     var evaluationButton = document.getElementById('clockEvalBtn');
     var hintButton = document.getElementById('clockHintBtn');
     var forwardButton = document.getElementById('clockMenuForwardBtn');
     var row = document.querySelector('.clock-control-row');
     active = Boolean(active);
+    if (switchSidesButton) switchSidesButton.hidden = active;
     if (backButton) backButton.hidden = !active;
     if (row) row.classList.toggle('dgt-clock-menu-active', active);
     if (evaluationButton) {

@@ -90,6 +90,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockMenuForwardBtn').on('click', clockButton4);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
+        self.assertIn("switchSidesButton.hidden = active", script)
+        self.assertIn("backButton.hidden = !active", script)
         self.assertIn("evaluationIcon.classList.toggle('fa-minus', active)", script)
         self.assertIn("hintIcon.classList.toggle('fa-plus', active)", script)
         self.assertIn("forwardIcon.classList.toggle('fa-bars', !active)", script)

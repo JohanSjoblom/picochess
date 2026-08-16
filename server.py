@@ -1652,20 +1652,29 @@ class ChannelHandler(ServerRequestHandler):
                 dgtmenu.set_retro_speed(rspeed_factor)
             write_picochess_ini("rspeed", rspeed_factor)
             await Observable.fire(Event.RSPEED(rspeed=rspeed_factor))
+            await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rspeed: factor=%s (%s%%)", rspeed_factor, val_str)
         elif action == "rsound":
             val_str = self.get_argument("val", "off").strip().lower()
             rsound = val_str in ("on", "true", "1")
+            rsound_changed = bool(dgtmenu and dgtmenu.get_engine_rsound() != rsound)
             if dgtmenu:
                 dgtmenu.set_retro_sound(rsound)
             write_picochess_ini("rsound", rsound)
+            if rsound_changed:
+                await Observable.fire(Event.RSPEED(rspeed=dgtmenu.get_engine_rspeed()))
+            await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rsound setting saved: %s", rsound)
         elif action == "rdisplay":
             val_str = self.get_argument("val", "off").strip().lower()
             rdisplay = val_str in ("on", "true", "1")
+            rdisplay_changed = bool(dgtmenu and dgtmenu.get_engine_rdisplay() != rdisplay)
             if dgtmenu:
                 dgtmenu.set_retro_display(rdisplay)
             write_picochess_ini("rdisplay", rdisplay)
+            if rdisplay_changed:
+                await Observable.fire(Event.RSPEED(rspeed=dgtmenu.get_engine_rspeed()))
+            await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rdisplay setting saved: %s", rdisplay)
         elif action == "rwindow":
             val_str = self.get_argument("val", "on").strip().lower()
@@ -1673,6 +1682,7 @@ class ChannelHandler(ServerRequestHandler):
             if dgtmenu:
                 dgtmenu.set_retro_window(rwindow)
             write_picochess_ini("rwindow", rwindow)
+            await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rwindow setting saved: %s", rwindow)
 
 

@@ -626,7 +626,12 @@ def _clock_event(shared: dict, text, running: bool = False):
     """Cache clock display state and build the websocket payload."""
     shared["clock_text"] = text
     shared["clock_running"] = bool(running)
-    return {"event": "Clock", "msg": text, "running": shared["clock_running"]}
+    return {
+        "event": "Clock",
+        "msg": text,
+        "running": shared["clock_running"],
+        "menu_active": _clock_menu_active(shared),
+    }
 
 
 def _clock_menu_active(shared: dict) -> bool:

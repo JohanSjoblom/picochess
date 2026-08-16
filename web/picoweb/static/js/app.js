@@ -1742,6 +1742,14 @@ function clockButton0() {
     $.post('/channel', { action: 'clockbutton', button: 0 }, function (data) { });
 }
 
+function setClockMenuActive(active) {
+    var button = document.getElementById('clockMenuBackBtn');
+    var row = document.querySelector('.clock-control-row');
+    active = Boolean(active);
+    if (button) button.hidden = !active;
+    if (row) row.classList.toggle('dgt-clock-menu-active', active);
+}
+
 function clockButton1() {
     $.post('/channel', { action: 'clockbutton', button: 1 }, function (data) { });
 }
@@ -3243,6 +3251,9 @@ function getAllInfo() {
         console.warn(textStatus);
         dgtClockStatusEl.html(textStatus);
     });
+    $.get('/info', { action: 'get_clock_menu_state' }, function (state) {
+        setClockMenuActive(Boolean(state && state.active));
+    }).fail(function () { });
 }
 
 var boardThemes = ['blue', 'green', 'metal', 'natural-wood', 'newspaper', 'soft', 'wood'];
@@ -3340,6 +3351,7 @@ $(window).on('load', function () {
 });
 
 $('#ClockBtn0').on('click', clockButton0);
+$('#clockMenuBackBtn').on('click', clockButton0);
 $('#ClockBtn1').on('click', clockButton1);
 $('#ClockBtn2').on('click', clockButton2);
 $('#ClockBtn3').on('click', clockButton3);
@@ -3522,6 +3534,9 @@ $(function () {
                     case 'Clock':
                         if (!isAnalysisClockMode()) {
                             dgtClockTextEl.html(data.msg);
+                        }
+                        if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
+                            setClockMenuActive(Boolean(data.menu_active));
                         }
                         if (window.syncClockControls) {
                             if (Object.prototype.hasOwnProperty.call(data, 'running')) {

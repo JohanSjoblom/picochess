@@ -253,7 +253,12 @@
                 socket.onopen = () => { connection.textContent = ''; };
                 socket.onmessage = (event) => {
                     const data = JSON.parse(event.data);
-                    if (data.event === 'Clock') updateClock(data.msg, data.running);
+                    if (data.event === 'Clock') {
+                        updateClock(data.msg, data.running);
+                        if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
+                            setMenuMode(Boolean(data.menu_active));
+                        }
+                    }
                 };
                 socket.onclose = () => {
                     connection.textContent = 'Reconnecting…';

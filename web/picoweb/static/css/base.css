@@ -1292,11 +1292,14 @@ piece {
         min-width: 0;
     }
 
-    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-main {
+}
+
+@media (max-width: 400px) and (orientation: portrait) {
+    html.is-remote-web-client .clock-control-main {
         gap: 0.25rem;
     }
 
-    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-main .pico-clock-action {
+    html.is-remote-web-client .clock-control-main .pico-clock-action {
         width: 2.35rem;
     }
 }

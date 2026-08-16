@@ -4186,13 +4186,13 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system.value)
 
         elif self.state == MenuState.SYS_POWER_SHUT_DOWN:
-            self.state = MenuState.SYS_POWER_UPDT_ENGINES
+            self.state = MenuState.SYS_POWER_UPDATE
             self.menu_system_power = PowerLoop.prev(self.menu_system_power)
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
             self.state = MenuState.SYS_POWER_UPDATE
-            self.menu_system_power = PowerLoop.prev(self.menu_system_power)
+            self.menu_system_power = Power.UPDATE
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_UPDATE:
@@ -4894,13 +4894,13 @@ class DgtMenu(object):
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_UPDATE:
-            self.state = MenuState.SYS_POWER_UPDT_ENGINES
+            self.state = MenuState.SYS_POWER_SHUT_DOWN
             self.menu_system_power = PowerLoop.next(self.menu_system_power)
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_UPDT_ENGINES:
             self.state = MenuState.SYS_POWER_SHUT_DOWN
-            self.menu_system_power = PowerLoop.next(self.menu_system_power)
+            self.menu_system_power = Power.SHUT_DOWN
             text = self.dgttranslate.text(self.menu_system_power.value)
 
         elif self.state == MenuState.SYS_POWER_EXIT:

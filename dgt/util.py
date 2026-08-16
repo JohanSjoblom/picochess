@@ -596,7 +596,10 @@ class Power(MyEnum):
 
     @classmethod
     def items(cls):
-        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART, Power.UPDATE, Power.UPDT_ENGINES]
+        # Engine packs are user-managed. Keep UPDT_ENGINES and its backend
+        # handling available for custom builds, but do not advertise the
+        # potentially destructive legacy updater in the clock menu.
+        return [Power.SHUT_DOWN, Power.EXIT, Power.RESTART, Power.UPDATE]
 
 
 class PowerLoop(object):

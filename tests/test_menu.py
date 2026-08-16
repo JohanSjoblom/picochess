@@ -627,8 +627,14 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Shut down", text.large_text.strip())
         text = menu.main_right()
         self.assertEqual("Exit Pico", text.large_text.strip())
-        text = menu.main_left()
+        text = menu.main_right()
+        self.assertEqual("Restart", text.large_text.strip())
+        text = menu.main_right()
+        self.assertEqual("Update Pico", text.large_text.strip())
+        text = menu.main_right()
         self.assertEqual("Shut down", text.large_text.strip())
+        text = menu.main_left()
+        self.assertEqual("Update Pico", text.large_text.strip())
 
     @patch("platform.machine")
     async def test_sys_info_ip_refreshes_live_internal_ip(self, machine_mock):

@@ -541,7 +541,6 @@ Contains system actions:
 - Reboot
 - Exit PicoChess
 - Update PicoChess
-- Update Engines
 
 Use these carefully. Shutdown and reboot affect the Raspberry Pi or host
 system.

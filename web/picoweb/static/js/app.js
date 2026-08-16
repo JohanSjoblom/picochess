@@ -1746,6 +1746,7 @@ function setClockMenuActive(active) {
     var backButton = document.getElementById('clockMenuBackBtn');
     var evaluationButton = document.getElementById('clockEvalBtn');
     var hintButton = document.getElementById('clockHintBtn');
+    var forwardButton = document.getElementById('clockMenuForwardBtn');
     var row = document.querySelector('.clock-control-row');
     active = Boolean(active);
     if (backButton) backButton.hidden = !active;
@@ -1767,6 +1768,15 @@ function setClockMenuActive(active) {
         }
         hintButton.title = active ? 'DGT clock menu next' : 'Show hint';
         hintButton.setAttribute('aria-label', hintButton.title);
+    }
+    if (forwardButton) {
+        var forwardIcon = forwardButton.querySelector('.fa');
+        if (forwardIcon) {
+            forwardIcon.classList.toggle('fa-bars', !active);
+            forwardIcon.classList.toggle('fa-chevron-right', active);
+        }
+        forwardButton.title = active ? 'DGT clock menu enter or down' : 'Open DGT clock menu';
+        forwardButton.setAttribute('aria-label', forwardButton.title);
     }
 }
 
@@ -3376,6 +3386,7 @@ $('#ClockBtn1').on('click', clockButton1);
 $('#ClockBtn2').on('click', clockButton2);
 $('#ClockBtn3').on('click', clockButton3);
 $('#ClockBtn4').on('click', clockButton4);
+$('#clockMenuForwardBtn').on('click', clockButton4);
 $('#ClockLeverBtn').on('click', toggleLeverButton);
 $('#clockSwitchSidesBtn').on('click', clockSwitchSides);
 $('#clockPauseResumeBtn').on('click', clockPauseResume);

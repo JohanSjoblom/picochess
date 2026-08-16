@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css?v=4" />
+    <link rel="stylesheet" href="/static/css/base.css?v=5" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -638,6 +638,9 @@
                                         <button type="button" id="clockHintBtn" class="pico-clock-action" aria-label="Show hint" title="Show hint">
                                             <i class="fa fa-lightbulb-o" aria-hidden="true"></i>
                                         </button>
+                                        <button type="button" id="clockMenuForwardBtn" class="pico-clock-action pico-clock-dgt-menu-btn" aria-label="Open DGT clock menu" title="Open DGT clock menu">
+                                            <i class="fa fa-bars" aria-hidden="true"></i>
+                                        </button>
                                     </span>
                                     <span class="clock-control-right">
                                         <span id="clockPgnActions" class="pico-clock-pgn-actions" role="group" aria-label="PGN controls">
@@ -854,7 +857,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=7"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=8"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos

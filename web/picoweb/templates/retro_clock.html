@@ -230,7 +230,9 @@
                 leverButton.classList.toggle('lever-right', leverRight);
                 channel('clockbutton', { button: leverRight ? '64' : '-64' });
             });
-            backButton.addEventListener('click', () => window.location.assign('/'));
+            backButton.addEventListener('click', () => {
+                channel('clock_menu_exit').finally(() => window.location.assign('/'));
+            });
             document.getElementById('left').addEventListener('click', () => channel('clockbutton', { button: '0' }));
             document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));
             document.getElementById('center').addEventListener('click', () => channel('clockbutton', { button: '2' }));

@@ -21,6 +21,7 @@ from server import (
     _cached_setup_position_fen,
     _channel_action_requires_remote_auth,
     _clock_event,
+    _exit_clock_menu,
     _clock_menu_active,
     _coach_event_value,
     _coach_setting,
@@ -71,6 +72,37 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("'alt_move'", template)
         self.assertIn("'display&ponder=8'", template)
         self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
+
+    def test_retro_clock_exits_clock_menu_before_returning(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("channel('clock_menu_exit').finally(() => window.location.assign('/'))", template)
+
+
+class TestClockMenuHelpers(unittest.TestCase):
+    def test_exit_clock_menu_leaves_main_menu(self):
+        menu = Mock()
+        menu.inside_updt_menu.return_value = False
+        menu.inside_main_menu.return_value = True
+
+        self.assertTrue(_exit_clock_menu({"dgtmenu": menu}))
+        menu.exit_menu.assert_called_once_with()
+
+    def test_exit_clock_menu_leaves_update_menu(self):
+        menu = Mock()
+        menu.inside_updt_menu.return_value = True
+
+        self.assertTrue(_exit_clock_menu({"dgtmenu": menu}))
+        menu.updt_up.assert_called_once_with("web")
+        menu.exit_menu.assert_not_called()
+
+    def test_exit_clock_menu_is_idle_outside_menu(self):
+        menu = Mock()
+        menu.inside_updt_menu.return_value = False
+        menu.inside_main_menu.return_value = False
+
+        self.assertFalse(_exit_clock_menu({"dgtmenu": menu}))
+        menu.exit_menu.assert_not_called()
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

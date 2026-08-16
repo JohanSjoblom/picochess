@@ -259,13 +259,22 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
         self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
 
-    def test_engine_menu_labels_use_dgt_translations(self):
+    def test_engine_menu_labels_default_to_english_web_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
 
         self.assertEqual("Modern", labels["categories"]["modern"])
         self.assertEqual("Retro", labels["categories"]["retro"])
         self.assertEqual("Special", labels["categories"]["favorites"])
         self.assertEqual("Sort Order", labels["categories"]["sort"])
+
+    def test_engine_menu_labels_use_web_menu_translations(self):
+        labels = _engine_menu_labels(DgtTranslate("none", 0, "es", "version"))
+
+        self.assertEqual("Moderno", labels["categories"]["modern"])
+        self.assertEqual("Retro", labels["categories"]["retro"])
+        self.assertEqual("Especial", labels["categories"]["favorites"])
+        self.assertEqual("Orden", labels["categories"]["sort"])
+        self.assertEqual("Nombre del motor", labels["sort_options"]["engine"])
 
     @patch("server.write_picochess_ini")
     def test_apply_sort_updates_live_dgt_menu_and_persists(self, write_ini):

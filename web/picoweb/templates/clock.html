@@ -1133,6 +1133,71 @@
             var tilesEl  = document.getElementById('overlay-tiles');
             var menuBtn  = document.getElementById('picoMenuBtn');
             var manualBtn = document.getElementById('picoOverlayManual');
+            var menuTextMap = {};
+            var menuCatalog = {};
+
+            function menuText(source, values) {
+                var text = menuTextMap[source] || source;
+                if (text === source) {
+                    var iconMatch = String(source).match(/^(\S+\s+)(.+)$/);
+                    if (iconMatch && menuTextMap[iconMatch[2]]) {
+                        text = iconMatch[1] + menuTextMap[iconMatch[2]];
+                    }
+                }
+                Object.keys(values || {}).forEach(function(key) {
+                    text = text.split('{' + key + '}').join(String(values[key]));
+                });
+                return text;
+            }
+
+            function menuPath(path) {
+                return String(path || '').split(' > ').map(function(part) {
+                    return menuText(part);
+                }).join(' > ');
+            }
+
+            function menuKey(key, values) {
+                var text = menuCatalog[key] || key;
+                Object.keys(values || {}).forEach(function(name) {
+                    text = text.split('{' + name + '}').join(String(values[name]));
+                });
+                return text;
+            }
+
+            function translateStaticMenu() {
+                var walker = document.createTreeWalker(overlay, NodeFilter.SHOW_TEXT);
+                var node;
+                while ((node = walker.nextNode())) {
+                    if (!node._picoMenuSource || node.nodeValue !== node._picoMenuTranslated) {
+                        node._picoMenuSource = node.nodeValue;
+                    }
+                    var source = node._picoMenuSource;
+                    var trimmed = source.trim();
+                    if (!trimmed || !menuTextMap[trimmed]) continue;
+                    var translated = source.replace(trimmed, menuText(trimmed));
+                    node._picoMenuTranslated = translated;
+                    if (node.nodeValue !== translated) node.nodeValue = translated;
+                }
+                overlay.querySelectorAll('[title], [aria-label]').forEach(function(el) {
+                    ['title', 'aria-label'].forEach(function(attr) {
+                        if (!el.hasAttribute(attr)) return;
+                        var dataName = attr === 'title' ? 'menuSourceTitle' : 'menuSourceAriaLabel';
+                        if (!el.dataset[dataName]) el.dataset[dataName] = el.getAttribute(attr);
+                        el.setAttribute(attr, menuText(el.dataset[dataName]));
+                    });
+                });
+            }
+
+            function applyMenuText(settings) {
+                if (!settings || !settings.menu_text) return;
+                menuTextMap = settings.menu_text;
+                menuCatalog = settings.menu_catalog || {};
+                translateStaticMenu();
+            }
+
+            new MutationObserver(function() {
+                if (Object.keys(menuTextMap).length) translateStaticMenu();
+            }).observe(overlay, {childList: true, subtree: true, characterData: true});
 
             var gameActive = false;
             var engineTurn = false;
@@ -1154,7 +1219,7 @@
 
             /* ── helpers ─────────────────────────────── */
             function setOverlayPath(path) {
-                if (pathEl) pathEl.textContent = path || 'PicoChess Menu';
+                if (pathEl) pathEl.textContent = menuPath(path || 'PicoChess Menu');
             }
             function post(body) {
                 return fetch('/channel', { method: 'POST',
@@ -1281,7 +1346,7 @@
                         && current === 'ponder'
                         && checkpointAvailable;
                     lEl.textContent = isAnalysisReturn
-                        ? '↩ Return to ' + checkpointReturnLabel
+                        ? '↩ ' + menuKey('mode.return_to', {mode: checkpointReturnLabel})
                         : def.icon + ' ' + def.label;
                     btn.appendChild(lEl);
                     btn.addEventListener('click', function() {
@@ -1390,6 +1455,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) {
                         window._picoCurrentSettings = d;
+                        applyMenuText(d);
                         if (window.setTutorSettings) window.setTutorSettings(d);
                     })
                     .catch(function() {
@@ -1459,15 +1525,17 @@
                     close();
                 }));
                 // 7. Session-only deep Tutor CPU setting
-                gridEl.appendChild(_tTile('⚡', 'Tutor CPU', s.tutor_threads === 1 ? 'Normal · 1×' : 'Turbo · ' + s.tutor_threads + '×', s.tutor_threads > 1, function() {
+                gridEl.appendChild(_tTile('⚡', 'Tutor CPU', s.tutor_threads === 1
+                    ? menuKey('tutor.normal_threads')
+                    : menuKey('tutor.turbo_threads', {threads: s.tutor_threads}), s.tutor_threads > 1, function() {
                     navigateTo(function() { showTutorSubGrid('threads'); });
                 }));
                 // 8. Session-only deep Tutor MultiPV setting
-                gridEl.appendChild(_tTile('↔️', 'MultiPV', String(s.tutor_multipv) + ' lines', false, function() {
+                gridEl.appendChild(_tTile('↔️', 'MultiPV', menuKey('tutor.lines', {count: s.tutor_multipv}), false, function() {
                     navigateTo(function() { showTutorSubGrid('multipv'); });
                 }));
                 // 9. Session-only deep Tutor target depth
-                gridEl.appendChild(_tTile('🎯', 'Target depth', 'd' + s.tutor_depth, false, function() {
+                gridEl.appendChild(_tTile('🎯', 'Target depth', menuKey('tutor.depth', {depth: s.tutor_depth}), false, function() {
                     navigateTo(function() { showTutorSubGrid('depth'); });
                 }));
             }
@@ -1632,6 +1700,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) {
                         window._picoCurrentSettings = d;
+                        applyMenuText(d);
                         if (Object.prototype.hasOwnProperty.call(d, 'web_audio_backend_remote')) {
                             window._picoSystemInfo = window._picoSystemInfo || {};
                             window._picoSystemInfo.web_audio_backend_remote = Boolean(d.web_audio_backend_remote);
@@ -1685,7 +1754,8 @@
             };
 
             function _positionSubLabel() {
-                var side = _positionSettings.sideToMove === 'white' ? 'White' : 'Black';
+                var side = _positionSettings.sideToMove === 'white'
+                    ? menuKey('common.white') : menuKey('common.black');
                 var mode = _positionSettings.uci960 ? 'Chess960' : 'Std';
                 return side + ' · ' + mode;
             }
@@ -1731,7 +1801,7 @@
                     if (d.success && d.fen) {
                         _positionSettings.scannedFen = d.fen;
                         var posSub = document.getElementById('ovl-position-sub');
-                        if (posSub) posSub.textContent = _positionSubLabel() + ' · Set';
+                        if (posSub) posSub.textContent = _positionSubLabel() + ' · ' + menuKey('common.set');
                     }
                 })
                 .catch(function() {});
@@ -1956,7 +2026,7 @@
                     if (d.success) {
                         if (d.fen) _positionSettings.scannedFen = d.fen;
                         var sub = document.getElementById('ovl-position-sub');
-                        if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+                        if (sub) sub.textContent = _positionSubLabel() + ' · ' + menuKey('common.set');
                         close();
                     } else {
                         if (tileEl) {
@@ -2003,7 +2073,7 @@
 	                window.setPicoPositionFromCurrentPgn()
 	                    .done(function() {
 	                        var sub = document.getElementById('ovl-position-sub');
-	                        if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+	                        if (sub) sub.textContent = _positionSubLabel() + ' · ' + menuKey('common.set');
 	                        close();
 	                    })
 	                    .fail(function(jqXHR, textStatus, errorThrown) {
@@ -2205,7 +2275,10 @@
                     if (dc) {
                         var cur = dc.getCurrent();
                         for (var i = 0; i < dc.items.length; i++) {
-                            if (dc.items[i][1] === cur) { curLabel = dc.items[i][0]; break; }
+                            if (dc.items[i][1] === cur) {
+                                curLabel = displayOptionText(cat.key, dc.items[i]);
+                                break;
+                            }
                         }
                     }
                     var btn = document.createElement('button');
@@ -2225,6 +2298,21 @@
                 gridEl.appendChild(grid);
             }
 
+            function displayOptionText(category, pair) {
+                var keys = {
+                    board: {
+                        blue:'display.blue', green:'display.green', metal:'display.metal',
+                        'natural-wood':'display.natural_wood', newspaper:'display.newspaper',
+                        soft:'display.soft', wood:'display.wood'
+                    },
+                    theme: {
+                        dark:'display.dark', light:'display.light', time:'display.time', auto:'display.auto'
+                    }
+                };
+                var key = keys[category] && keys[category][pair[1]];
+                return key ? menuKey(key) : menuText(pair[0]);
+            }
+
             function showDisplayCat(cat) {
                 var dc = DISPLAY_CATS[cat];
                 if (!dc) return;
@@ -2238,7 +2326,9 @@
                 lbl.textContent = dc.label;
                 listEl.innerHTML = '';
                 var current = dc.getCurrent();
-                var dcItems = dc.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
+                var dcItems = dc.items.map(function(pair) {
+                    return {label: displayOptionText(cat, pair), value: pair[1]};
+                });
                 renderSubTileGrid(listEl, dcItems, 0, current, function(item, btn, grid) {
                     grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
                     btn.classList.add('selected');
@@ -2366,7 +2456,7 @@
                 _engAllData = [];
                 fetch('/info?action=get_current_settings')
                     .then(function(r) { return r.json(); })
-                    .then(function(d) { window._picoCurrentSettings = d; })
+                    .then(function(d) { window._picoCurrentSettings = d; applyMenuText(d); })
                     .catch(function() {});
                 fetch('/info?action=get_engines')
                     .then(function(r) { return r.json(); })
@@ -2398,6 +2488,7 @@
                     .then(function(r) { return r.json(); })
                     .then(function(d) {
                         window._picoCurrentSettings = d;
+                        applyMenuText(d);
                         renderEngineCatTiles();
                     })
                     .catch(function() {});
@@ -2684,7 +2775,7 @@
             }
 
             function handleGameTileAction(value) {
-                if (value === 'new-game')     { if (!confirm('Start a new game?')) return; post('action=new_game'); close(); return; }
+                if (value === 'new-game')     { if (!confirm(menuKey('game.start_confirm'))) return; post('action=new_game'); close(); return; }
                 if (value === 'hint')          { post('action=clockbutton&button=3'); close(); return; }
                 if (value === 'takeback')      { post('action=take_back'); close(); return; }
                 if (value === 'altmove' || value === 'contlast') {
@@ -2697,7 +2788,7 @@
                     return;
                 }
                 if (value === 'switchsides')   { post('action=clockbutton&button=64'); close(); return; }
-                if (value === 'resign')        { if (!gameActive) return; if (!confirm('Resign the current game?')) return; post('action=resign_game'); close(); return; }
+                if (value === 'resign')        { if (!gameActive) return; if (!confirm(menuKey('game.resign_confirm'))) return; post('action=resign_game'); close(); return; }
                 if (value === 'move-now')      { if (!(gameActive && engineTurn)) return; post('action=pause_resume'); close(); return; }
                 if (value === 'download-pgn')  { if (typeof download === 'function') download(); close(); return; }
                 if (value === 'upload-pgn')    { window.location.href = 'upload'; return; }
@@ -2735,7 +2826,7 @@
                     var nSub = document.createElement('span'); nSub.className = 'pico-sub-tile-sub'; nSub.textContent = curName || '—';
                     nameBtn.appendChild(nLbl); nameBtn.appendChild(nSub);
                     nameBtn.addEventListener('click', function() {
-                        var val = prompt('Player name:', curName);
+                        var val = prompt(menuKey('game.player_name_prompt'), curName);
                         if (val === null) return;
                         val = val.trim().slice(0, 20);
                         if (!val) return;
@@ -2750,7 +2841,7 @@
                     var eSub = document.createElement('span'); eSub.className = 'pico-sub-tile-sub'; eSub.textContent = curElo || '—';
                     eloBtn.appendChild(eLbl); eloBtn.appendChild(eSub);
                     eloBtn.addEventListener('click', function() {
-                        var val = prompt('ELO rating (0–3000):', curElo || '1500');
+                        var val = prompt(menuKey('game.elo_prompt'), curElo || '1500');
                         if (val === null) return;
                         var n = parseInt(val, 10);
                         if (isNaN(n) || n < 0 || n > 3000) return;
@@ -2773,7 +2864,7 @@
                 setOverlayPath('Game > ' + go.label);
                 subLabel.textContent = go.label;
                 subContent.innerHTML = '';
-                var goItems = go.items.map(function(pair) { return { label: pair[0], value: pair[1] }; });
+                var goItems = go.items.map(function(pair) { return { label: gameOptionText(pair[0]), value: pair[1] }; });
                 renderSubTileGrid(subContent, goItems, 0, undefined, function(item, btn, grid) {
                     grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
                     btn.classList.add('selected');
@@ -2787,6 +2878,10 @@
                 'read':    { label: 'Load from Slot', items: [['Last Game','load_game&slot=0'],['Last Replay','load_game&slot=4'],['Slot 1','load_game&slot=1'],['Slot 2','load_game&slot=2'],['Slot 3','load_game&slot=3']] },
                 'end':     { label: 'Set Result', items: [['White wins','game_end&result=white'],['Black wins','game_end&result=black'],['Draw','game_end&result=draw']] }
             };
+            function gameOptionText(label) {
+                var slot = /^Slot (\d+)$/.exec(label);
+                return slot ? menuKey('game.slot', {slot: slot[1]}) : menuText(label);
+            }
             function showGameOpts(action) {
                 var go = GAME_OPT[action];
                 if (!go) return;
@@ -2798,7 +2893,7 @@
                 go.items.forEach(function(pair) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item';
-                    btn.innerHTML = '<strong>' + pair[0] + '</strong>';
+                    btn.innerHTML = '<strong>' + gameOptionText(pair[0]) + '</strong>';
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
@@ -2833,13 +2928,13 @@
                     var b = document.createElement('button');
                     b.className = 'pico-sub-tile ' + cls;
                     if (cls.indexOf('empty') !== -1) { b.setAttribute('aria-hidden','true'); b.tabIndex = -1; }
-                    if (text)    b.textContent = text;
+                    if (text)    b.textContent = menuText(text);
                     if (onClick) b.addEventListener('click', onClick);
                     return b;
                 }
 
                 if (hasPrev) {
-                    grid.appendChild(makeTile('pico-nav-tile', '◄ Prev', function() {
+                    grid.appendChild(makeTile('pico-nav-tile', '◄ ' + menuKey('game.previous'), function() {
                         renderSubTileGrid(container, items, page - 1, selectedVal, onSelect);
                     }));
                     tileIdx = 1;
@@ -2853,12 +2948,12 @@
                     if (selectedVal !== undefined && item.value === selectedVal) btn.classList.add('selected');
                     var lbl = document.createElement('span');
                     lbl.className = 'pico-sub-tile-label';
-                    lbl.textContent = item.label;
+                    lbl.textContent = menuText(item.label);
                     btn.appendChild(lbl);
                     if (item.sub) {
                         var sub = document.createElement('span');
                         sub.className = 'pico-sub-tile-sub';
-                        sub.textContent = item.sub;
+                        sub.textContent = menuText(item.sub);
                         btn.appendChild(sub);
                     }
                     (function(it, b) {
@@ -2877,7 +2972,7 @@
                 // Slot 8: Next or filler, but only if a slot remains.
                 if (tileIdx < 9) {
                     grid.appendChild(hasNext
-                        ? makeTile('pico-nav-tile', 'Next ►', function() {
+                        ? makeTile('pico-nav-tile', menuKey('game.next') + ' ►', function() {
                               renderSubTileGrid(container, items, page + 1, selectedVal, onSelect);
                           })
                         : makeTile('pico-empty-tile', '', null)
@@ -2903,7 +2998,7 @@
                 nameBtn.className = 'pico-picker-item';
                 nameBtn.innerHTML = '<strong>Name</strong><span class="picker-sub">' + (curName || '—') + '</span>';
                 nameBtn.addEventListener('click', function() {
-                    var val = prompt('Player name:', curName);
+                    var val = prompt(menuKey('game.player_name_prompt'), curName);
                     if (val === null) return;
                     val = val.trim().slice(0, 20);
                     if (!val) return;
@@ -2919,7 +3014,7 @@
                 eloBtn.className = 'pico-picker-item';
                 eloBtn.innerHTML = '<strong>ELO</strong><span class="picker-sub">' + (curElo || '—') + '</span>';
                 eloBtn.addEventListener('click', function() {
-                    var val = prompt('ELO rating (0–3000):', curElo || '1500');
+                    var val = prompt(menuKey('game.elo_prompt'), curElo || '1500');
                     if (val === null) return;
                     var n = parseInt(val, 10);
                     if (isNaN(n) || n < 0 || n > 3000) return;
@@ -3041,12 +3136,12 @@
                             .replace(/'/g, '&#39;');
                     };
                     var html = '<div class="pico-system-info-list">' +
-                        '<div>Version: ' + infoText(si.version) + '</div>' +
-                        '<div>Git: ' + infoText(si.git_status) + '</div>' +
-                        '<div>IP (local): ' + infoText(si.ip) + '</div>' +
-                        '<div>IP (external): ' + infoText(si.ext_ip) + '</div>' +
-                        '<div>Location: ' + infoText(si.location) + '</div>' +
-                        '<div>Battery: ' + infoText(si.battery) + '</div>' +
+                        '<div>' + infoText(menuKey('system.version')) + ': ' + infoText(si.version) + '</div>' +
+                        '<div>' + infoText(menuKey('system.git_status')) + ': ' + infoText(si.git_status) + '</div>' +
+                        '<div>' + infoText(menuKey('system.local_ip')) + ': ' + infoText(si.ip) + '</div>' +
+                        '<div>' + infoText(menuKey('system.external_ip')) + ': ' + infoText(si.ext_ip) + '</div>' +
+                        '<div>' + infoText(menuKey('system.location')) + ': ' + infoText(si.location) + '</div>' +
+                        '<div>' + infoText(menuKey('system.battery')) + ': ' + infoText(si.battery) + '</div>' +
                         '</div>';
                     listEl.innerHTML = html;
                     return;
@@ -3062,7 +3157,8 @@
                             listEl.innerHTML = '';
                             var speakers = (data && data.speakers) || [];
                             if (!speakers.length) {
-                                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No voices found for language ' + (data.lang || '') + '</div>';
+                                listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">' +
+                                    menuKey('system.no_voices_language', {language: data.lang || ''}) + '</div>';
                                 return;
                             }
                             var _cs = window._picoCurrentSettings || {};
@@ -3077,7 +3173,7 @@
                                     ? sp === _curVoice
                                     : sp === _curVoice && _curVoiceLang === _listLang;
                                 if (isSelected) btn.classList.add('selected');
-                                btn.innerHTML = '<strong>' + sp + '</strong>';
+                                btn.innerHTML = '<strong>' + (sp === 'mute' ? menuKey('system.mute') : sp) + '</strong>';
                                 btn.addEventListener('click', function() {
                                     listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                                     btn.classList.add('selected');
@@ -3146,7 +3242,7 @@
                     _volReadout.textContent = (_vol * 5) + '%';
                     var _volSub = document.createElement('div');
                     _volSub.className = 'pico-slider-sub';
-                    _volSub.textContent = 'Step ' + _vol + ' of 20';
+                    _volSub.textContent = menuKey('system.step_of', {step: _vol});
                     var _volSlider  = document.createElement('input');
                     _volSlider.type  = 'range';
                     _volSlider.className = 'pico-slider-track';
@@ -3160,7 +3256,7 @@
                     _volSlider.addEventListener('input', function() {
                         var n = parseInt(this.value, 10);
                         _volReadout.textContent = (n * 5) + '%';
-                        _volSub.textContent = 'Step ' + n + ' of 20';
+                        _volSub.textContent = menuKey('system.step_of', {step: n});
                     });
                     _volSlider.addEventListener('change', function() {
                         setCurrentSetting('volume_voice', this.value);
@@ -3232,7 +3328,7 @@
                     infoWrap.style.fontSize = '0.85rem';
                     infoWrap.style.lineHeight = '1.6';
                     infoWrap.style.padding = '0.4rem 0.55rem';
-                    infoWrap.appendChild(document.createTextNode('Engine features: '));
+                    infoWrap.appendChild(document.createTextNode(menuKey('system.engine_features', {features: ''})));
                     var featuresEl = document.createElement('strong');
                     featuresEl.textContent = features;
                     infoWrap.appendChild(featuresEl);
@@ -3356,14 +3452,18 @@
                 lbl.textContent = so.label;
                 listEl.innerHTML = '';
                 var _activeActions = _activeSettingsActions(window._picoCurrentSettings);
-                var _soItems = so.items.map(function(pair) { return {label: pair[0], value: pair[1]}; });
+                var _soItems = so.items.map(function(pair) {
+                    var label = cat === 'eboard' && pair[1] === 'eboard&type=none'
+                        ? menuKey('system.no_eboard') : menuText(pair[0]);
+                    return {label: label, value: pair[1]};
+                });
                 var _selectedAction = so.items
                     .filter(function(pair) { return _activeActions[pair[1]]; })
                     .map(function(pair)    { return pair[1]; })[0];
                 renderSubTileGrid(listEl, _soItems, 0, _selectedAction, function(item) {
                     var action = item.value;
-                    if (action === 'sys_shutdown' && !confirm('Shut down the system?')) return;
-                    if (action === 'sys_reboot'   && !confirm('Reboot the system?'))    return;
+                    if (action === 'sys_shutdown' && !confirm(menuKey('system.shutdown_confirm'))) return;
+                    if (action === 'sys_reboot'   && !confirm(menuKey('system.reboot_confirm'))) return;
                     setCurrentSettingFromAction(action);
                     post('action=' + action);
                     setTimeout(close, 180);
@@ -3383,7 +3483,7 @@
                     remote: 'Two-Player Remote',
                     pgnreplay: 'PGN Replay'
                 };
-                return labels[String(mode || '').toLowerCase()] || 'Play';
+                return menuText(labels[String(mode || '').toLowerCase()] || 'Play');
             }
 
             function updateTileStates() {
@@ -3395,7 +3495,9 @@
                 }
                 refreshEngineTurnFromPosition();
                 var el;
-                if ((el = document.getElementById('ovl-game-sub')))   el.textContent = gameActive ? 'In progress' : 'No active game';
+                if ((el = document.getElementById('ovl-game-sub'))) {
+                    el.textContent = gameActive ? menuKey('state.game_in_progress') : menuKey('state.no_active_game');
+                }
                 if ((el = document.getElementById('ovl-system-sub'))) el.textContent = audioState.tileText;
                 if ((el = document.getElementById('ovl-mode-sub')))   el.textContent = modeLabel(sysInfo.interaction_mode);
                 if ((el = document.getElementById('ovl-engine-sub'))) el.textContent = sysInfo.engine_name || '—';
@@ -3404,7 +3506,8 @@
                 if ((el = document.getElementById('ovl-position-sub'))) {
                     el.textContent = _positionSubLabel();
                 }
-                stateEl.textContent = gameActive ? '● Game in progress' : '○ No active game';
+                stateEl.textContent = gameActive
+                    ? menuKey('state.game_in_progress_marked') : menuKey('state.no_active_game_marked');
                 stateEl.style.color = gameActive ? '#4caf50' : '#888';
             }
 
@@ -3587,11 +3690,11 @@
                 switch (action) {
                     // GAME
                     case 'new-game':
-                        if (!confirm('Start a new game?')) return;
+                        if (!confirm(menuKey('game.start_confirm'))) return;
                         post('action=new_game'); close(); break;
                     case 'resign':
                         if (!gameActive) return;
-                        if (!confirm('Resign the current game?')) return;
+                        if (!confirm(menuKey('game.resign_confirm'))) return;
                         post('action=resign_game'); close(); break;
                     case 'takeback':
                         if (!gameActive) return;
@@ -3716,6 +3819,7 @@
             /* ── open / close ────────────────────────── */
             function open() {
                 applyCachedTutorSettings();
+                refreshTutorSettings();
                 navStack = [];
                 showTiles();
                 currentView = showTiles;
@@ -3849,7 +3953,7 @@
                         if (d.success) {
                             if (d.fen) _positionSettings.scannedFen = d.fen;
                             var sub = document.getElementById('ovl-position-sub');
-                            if (sub) sub.textContent = _positionSubLabel() + ' · Set';
+                            if (sub) sub.textContent = _positionSubLabel() + ' · ' + menuKey('common.set');
                             close();
                         } else {
                             if (scanBtn) scanBtn.innerHTML = '<strong>⚠ Invalid position</strong><span class="picker-sub">Check board &amp; retry</span>';

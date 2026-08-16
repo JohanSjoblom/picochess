@@ -55,6 +55,7 @@ from utilities import (
 )
 from upload_pgn import UploadHandler
 from web.picoweb import picoweb as pw
+from web.menu_translate import get_menu_catalog, get_menu_source_map, get_menu_text
 
 from dgt.api import Dgt, DgtApi, Event, Message
 from dgt.util import (
@@ -68,7 +69,6 @@ from dgt.util import (
     Beep,
     Language,
     Theme,
-    EngineTop,
     flip_board_fen,
     Voice,
 )
@@ -441,32 +441,19 @@ def _engine_menu_payload() -> dict:
 
 def _engine_menu_labels(dgttranslate) -> dict:
     """Return translated labels for the web engine-menu overlay."""
-    def _clock_menu_label(text_obj) -> str:
-        for attr in ("medium_text", "large_text", "web_text"):
-            val = getattr(text_obj, attr, None)
-            if val and str(val).strip():
-                return str(val).strip()
-        return _text_to_label(text_obj)
+    language = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
 
     labels = {
         "categories": {
-            "modern": _clock_menu_label(
-                _translated_display_text(dgttranslate, EngineTop.MODERN_ENGINE.value, "Modern")
-            ),
-            "retro": _clock_menu_label(
-                _translated_display_text(dgttranslate, EngineTop.RETRO_ENGINE.value, "Retro")
-            ),
-            "favorites": _clock_menu_label(
-                _translated_display_text(dgttranslate, EngineTop.FAV_ENGINE.value, "Special")
-            ),
-            "sort": _text_to_label(
-                _translated_display_text(dgttranslate, "B00_engine_menu_sort", "Sort Order")
-            ),
+            "modern": get_menu_text(language, "engine.modern"),
+            "retro": get_menu_text(language, "engine.retro"),
+            "favorites": get_menu_text(language, "engine.special"),
+            "sort": get_menu_text(language, "engine.sort_order"),
         },
         "sort_options": {
-            "file": "File order",
-            "engine": "Engine name",
-            "manufacturer": "Manufacturer",
+            "file": get_menu_text(language, "engine.file_order"),
+            "engine": get_menu_text(language, "engine.engine_name"),
+            "manufacturer": get_menu_text(language, "engine.manufacturer"),
         },
     }
     return labels
@@ -1821,7 +1808,11 @@ class InfoHandler(ServerRequestHandler):
         if action == "get_engines":
             self.set_header("Content-Type", "application/json")
             payload = _engine_menu_payload()
-            payload["engine_menu_labels"] = _engine_menu_labels(self.shared.get("dgttranslate"))
+            dgttranslate = self.shared.get("dgttranslate")
+            payload["engine_menu_labels"] = _engine_menu_labels(dgttranslate)
+            language = getattr(dgttranslate, "language", "en")
+            payload["menu_catalog"] = get_menu_catalog(language)
+            payload["menu_text"] = get_menu_source_map(language)
             self.write(json.dumps(payload))
         if action == "get_voices":
             # Return available speakers for the current language.
@@ -1850,6 +1841,8 @@ class InfoHandler(ServerRequestHandler):
                 settings["language"] = (
                     getattr(dgttranslate, "language", None) or str(config.get("language", "en")).lower()
                 )
+                settings["menu_text"] = get_menu_source_map(settings["language"])
+                settings["menu_catalog"] = get_menu_catalog(settings["language"])
                 # Beep (live from dgttranslate)
                 beep = getattr(dgttranslate, "beep", None)
                 _bmap = {Beep.OFF: "off", Beep.SOME: "some", Beep.ON: "on", Beep.SAMPLE: "sample"}

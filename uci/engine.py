@@ -48,16 +48,17 @@ _SAFE_OPERATORS = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
     ast.Mult: lambda a, b: a * b,
+    ast.Div: lambda a, b: a / b,
     ast.FloorDiv: lambda a, b: a // b,
     ast.USub: lambda a: -a,
 }
-_SAFE_FUNCTIONS = {"max": max, "min": min, "abs": abs}
+_SAFE_FUNCTIONS = {"max": max, "min": min, "abs": abs, "int": int}
 
 
 def safe_eval_elo(expr: str) -> int:
     """Evaluate a simple math expression safely (no arbitrary code execution).
 
-    Supports: integers, +, -, *, //, max(), min(), abs().
+    Supports: numbers, +, -, *, /, //, max(), min(), abs(), int().
     Raises ValueError on anything else.
     """
     try:
@@ -83,11 +84,21 @@ def safe_eval_elo(expr: str) -> int:
         if isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name) or node.func.id not in _SAFE_FUNCTIONS:
                 raise ValueError(f"unsupported function call: {ast.dump(node.func)}")
+            if node.keywords:
+                raise ValueError("keyword arguments are not supported")
             args = [_eval(a) for a in node.args]
-            return _SAFE_FUNCTIONS[node.func.id](*args)
+            try:
+                return _SAFE_FUNCTIONS[node.func.id](*args)
+            except (ArithmeticError, TypeError, ValueError) as e:
+                raise ValueError(f"invalid {node.func.id}() arguments") from e
         raise ValueError(f"unsupported expression node: {type(node).__name__}")
 
-    return int(_eval(tree))
+    try:
+        return int(_eval(tree))
+    except ValueError:
+        raise
+    except (ArithmeticError, TypeError) as e:
+        raise ValueError("invalid arithmetic expression") from e
 
 # Seconds to wait for an engine to exit before escalating.
 ENGINE_QUIT_TIMEOUT = 3.0  # waiting seconds for a normal engine to quit
@@ -2008,7 +2019,13 @@ class UciEngine(object):
         new_rating = rating.rate(Rating(self.engine_rating, 0), result)
         if self.uci_elo_eval_fn is not None:
             # evaluation function instead of auto?
-            self.engine_rating = safe_eval_elo(self.uci_elo_eval_fn.replace("auto", str(int(new_rating.rating))))
+            uci_elo_with_rating = self.uci_elo_eval_fn.replace("auto", str(int(new_rating.rating)))
+            try:
+                self.engine_rating = safe_eval_elo(uci_elo_with_rating)
+            except (ValueError, ArithmeticError) as e:
+                logger.error("invalid UCI_Elo update expression=%s, exception=%s", uci_elo_with_rating, e)
+                self.uci_elo_eval_fn = None
+                self.engine_rating = self._round_engine_rating(int(new_rating.rating))
         else:
             self.engine_rating = self._round_engine_rating(int(new_rating.rating))
         self._save_rating(new_rating)

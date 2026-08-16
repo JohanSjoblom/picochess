@@ -59,11 +59,18 @@ class TestRating(unittest.TestCase):
         rating = rating.rate(Rating(995, 0), Result.WIN)
         self.assertTrue(rating.is_similar_to(Rating(1065.206549, 155.6053732)))
 
-    def test_rate_with_zero_rating_deviation(self):
+    def test_rate_with_zero_rating_deviation_recovers_to_minimum(self):
         rating = Rating(1200, 0)
         rating = rating.rate(Rating(1200, 0), Result.LOSS)
-        print(rating.rating_deviation)
-        self.assertTrue(rating.is_similar_to(Rating(1200.0, 0.0)))
+        self.assertTrue(rating.is_similar_to(Rating(1197.428762, Rating.MIN_RATING_DEVIATION)))
+
+    def test_rating_deviation_does_not_fall_below_minimum(self):
+        rating = Rating(1200, Rating.MIN_RATING_DEVIATION)
+
+        for _ in range(10):
+            rating = rating.rate(Rating(1200, 0), Result.DRAW)
+
+        self.assertEqual(Rating.MIN_RATING_DEVIATION, rating.rating_deviation)
 
 
 class TestDetermineResult(unittest.TestCase):

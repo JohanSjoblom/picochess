@@ -27,6 +27,7 @@ class Result(Enum):
 class Rating(object):
     THRESHOLD = 0.00001
     Q = math.log(10) / 400
+    MIN_RATING_DEVIATION = 30.0
 
     def __init__(self, rating: float, rating_deviation: float):
         self.rating = rating
@@ -39,9 +40,11 @@ class Rating(object):
         expected_outcome = self._expected_outcome(other)
         g = self._g(other.rating_deviation)
         d_squared = math.pow((math.pow(Rating.Q, 2)) * (math.pow(g, 2)) * expected_outcome * (1 - expected_outcome), -1)
-        denominator = math.pow(max(self.rating_deviation, 0.000001), -2) + 1 / d_squared
+        effective_deviation = max(self.rating_deviation, Rating.MIN_RATING_DEVIATION)
+        denominator = math.pow(effective_deviation, -2) + 1 / d_squared
         new_rating = self.rating + Rating.Q / denominator * g * (result.value - expected_outcome)
-        return Rating(new_rating, math.sqrt(1.0 / denominator))
+        new_deviation = max(Rating.MIN_RATING_DEVIATION, math.sqrt(1.0 / denominator))
+        return Rating(new_rating, new_deviation)
 
     def _expected_outcome(self, other: "Rating"):
         return 1.0 / (1 + math.pow(10, -self._g(other.rating_deviation) * (self.rating - other.rating) / 400.0))

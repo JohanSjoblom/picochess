@@ -189,6 +189,36 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         await eng.startup({UCI_ELO: "auto + 100"}, Rating(850.5, 123.0))
         self.assertEqual(950, eng.engine_rating)
 
+    async def test_eval_supports_reported_division_expression(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        await eng.startup({UCI_ELO: "((auto / 50 + 1) * 50)"}, Rating(1566, 123.0))
+        self.assertEqual(1616, eng.engine_rating)
+        self.assertTrue(eng.is_adaptive)
+
+    async def test_eval_supports_int_function(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        await eng.startup({UCI_ELO: "max(1320, int(auto / 50 + 1) * 50)"}, Rating(1566, 123.0))
+        self.assertEqual(1600, eng.engine_rating)
+        self.assertTrue(eng.is_adaptive)
+
+    async def test_eval_function_argument_error_does_not_crash_startup(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        with self.assertLogs("uci.engine", level="ERROR"):
+            await eng.startup({UCI_ELO: "max(auto)"}, Rating(1566, 123.0))
+        self.assertEqual(-1, eng.engine_rating)
+        self.assertNotIn(UCI_ELO, eng.options)
+
+    async def test_eval_arithmetic_error_does_not_crash_startup(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        with self.assertLogs("uci.engine", level="ERROR"):
+            await eng.startup({UCI_ELO: "auto / 0"}, Rating(1566, 123.0))
+        self.assertEqual(-1, eng.engine_rating)
+        self.assertNotIn(UCI_ELO, eng.options)
+
     async def test_fancy_eval_rejects_code_injection(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()
@@ -231,6 +261,20 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         new_rating = await eng.update_rating(Rating(850.5, 123.0), Result.WIN)
         self.assertEqual(890, int(new_rating.rating))
         self.assertEqual(901, eng.engine_rating)
+
+    @patch("uci.engine.write_picochess_ini")
+    async def test_update_rating_expression_error_falls_back_without_crashing(self, _):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        await eng.startup({UCI_ELO: "auto + 11"}, Rating(850.5, 123.0))
+        eng.uci_elo_eval_fn = "100 / (auto - auto)"
+
+        with self.assertLogs("uci.engine", level="ERROR"):
+            new_rating = await eng.update_rating(Rating(850.5, 123.0), Result.WIN)
+
+        self.assertEqual(890, int(new_rating.rating))
+        self.assertEqual(900, eng.engine_rating)
+        self.assertIsNone(eng.uci_elo_eval_fn)
 
     async def test_continuous_analysis_recovers_after_protocol_failure(self):
         recover = AsyncMock(return_value=True)

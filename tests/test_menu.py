@@ -3,6 +3,7 @@ import os
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from dgt.api import EventApi
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
 from dgt.util import Beep, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
@@ -130,6 +131,26 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(menu.get_engine_rwindow())
         self.assertEqual(4.0, menu.get_engine_rspeed())
         self.assertFalse(menu.get_engine_rsound())
+
+    @patch("platform.machine")
+    async def test_retro_window_change_fires_shared_runtime_event(self, machine_mock):
+        menu = self.create_menu(machine_mock, rdisplay=True)
+        menu.state = MenuState.RETROSETTINGS_RETROWINDOW
+
+        with patch("dgt.menu.ModeInfo.get_emulation_mode", return_value=True), patch(
+            "dgt.menu.write_picochess_ini"
+        ) as write_ini, patch("dgt.menu.Observable.fire", new_callable=AsyncMock) as event_fire, patch(
+            "dgt.menu.DispatchDgt.fire", new_callable=AsyncMock
+        ):
+            await menu.main_down()
+
+        self.assertTrue(menu.get_engine_rwindow())
+        write_ini.assert_called_once_with("rwindow", True)
+        window_events = [
+            call.args[0] for call in event_fire.await_args_list if repr(call.args[0]) == EventApi.SET_RETRO_WINDOW
+        ]
+        self.assertEqual(1, len(window_events))
+        self.assertTrue(window_events[0].windowed)
 
     @patch("platform.machine")
     async def test_web_time_control_updates_dgt_menu_selection(self, machine_mock):

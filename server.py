@@ -640,20 +640,6 @@ def _clock_menu_active(shared: dict) -> bool:
     return bool(dgtmenu and (dgtmenu.inside_main_menu() or dgtmenu.inside_updt_menu()))
 
 
-def _exit_clock_menu(shared: dict, dev: str = "web") -> bool:
-    """Leave any physical-clock menu before changing web display modes."""
-    dgtmenu = shared.get("dgtmenu")
-    if not dgtmenu:
-        return False
-    if dgtmenu.inside_updt_menu():
-        dgtmenu.updt_up(dev)
-        return True
-    if dgtmenu.inside_main_menu():
-        dgtmenu.exit_menu()
-        return True
-    return False
-
-
 def _truthy_web_arg(value: str) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
@@ -999,9 +985,6 @@ class ChannelHandler(ServerRequestHandler):
                 return
         elif action == "clockbutton":
             await Observable.fire(Event.KEYBOARD_BUTTON(button=self.get_argument("button"), dev="web"))
-        elif action == "clock_menu_exit":
-            if _exit_clock_menu(self.shared):
-                await Observable.fire(Event.EXIT_MENU())
         elif action == "room":
             inside = self.get_argument("room") == "inside"
             await Observable.fire(Event.REMOTE_ROOM(inside=inside))

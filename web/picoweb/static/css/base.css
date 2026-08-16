@@ -1292,14 +1292,6 @@ piece {
         min-width: 0;
     }
 
-    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active {
-        grid-template-columns: 2.35rem minmax(0, 1fr) auto;
-    }
-
-    html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-spacer {
-        display: inline-flex;
-    }
-
     html.is-remote-web-client .clock-control-row.dgt-clock-menu-active .clock-control-main {
         gap: 0.25rem;
     }

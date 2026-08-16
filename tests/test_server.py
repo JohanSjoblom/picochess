@@ -83,6 +83,8 @@ class TestSettingsTemplate(unittest.TestCase):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
 
         self.assertIn('id="clockMenuBackBtn"', template)
+        self.assertLess(template.index('id="clockSwitchSidesBtn"'), template.index('id="clockMenuBackBtn"'))
+        self.assertLess(template.index('id="clockMenuBackBtn"'), template.index('id="clockEvalBtn"'))
         self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)

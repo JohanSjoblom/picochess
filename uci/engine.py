@@ -1848,9 +1848,20 @@ class UciEngine(object):
         """Engine waiting."""
         return True  # should not be needed any more
 
-    async def newgame(self, game: Board, send_ucinewgame: bool = True):
+    async def newgame(
+        self,
+        game: Board,
+        send_ucinewgame: bool = True,
+        send_position_to_mame: bool = False,
+    ):
         """Engine sometimes need this to setup internal values.
-        parameter game will not change"""
+        parameter game will not change.
+
+        ``send_position_to_mame`` is a narrow compatibility path for scanned
+        setup positions. Picochess V3 sent the position to the engine as part
+        of ``newgame()``, while V4 normally leaves position transmission to
+        the next python-chess search command.
+        """
         if self.analyser and self.analyser.needs_recovery():
             recovered = await self._recover_from_failed_analyser_stop(
                 "new game requested after analyser protocol failure"
@@ -1885,6 +1896,9 @@ class UciEngine(object):
                             logger.warning("engine isready ping failed before ucinewgame: %s", exc)
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine
+                if self.is_mame and send_position_to_mame:
+                    logger.debug("sending scanned setup position to mame engine: %s", game.fen())
+                    self.engine._position(copy.deepcopy(game))
         else:
             logger.error("newgame requested but no engine loaded")
 

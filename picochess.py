@@ -5925,7 +5925,10 @@ async def main() -> None:
                     await self.engine.send()
 
                 await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION_SCAN"))
-                await self.engine.newgame(self.state.engine_board_copy())
+                await self.engine.newgame(
+                    self.state.engine_board_copy(),
+                    send_position_to_mame=True,
+                )
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()

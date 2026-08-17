@@ -433,6 +433,34 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(eng.analyser.needs_recovery())
         self.assertEqual(2, eng.game_id)
 
+    async def test_newgame_can_send_scanned_position_to_mame(self):
+        eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.send_line = Mock()
+        eng.engine._position = Mock()
+        board = chess.Board("8/8/8/8/8/8/4K3/7k w - - 0 1")
+
+        with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
+            await eng.newgame(board, send_position_to_mame=True)
+
+        eng.engine.send_line.assert_called_once_with("ucinewgame")
+        eng.engine._position.assert_called_once()
+        sent_board = eng.engine._position.call_args.args[0]
+        self.assertEqual(board.fen(), sent_board.fen())
+        self.assertIsNot(board, sent_board)
+
+    async def test_newgame_scanned_position_flag_does_not_affect_non_mame_engine(self):
+        eng = UciEngine("engines/aarch64/some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.send_line = Mock()
+        eng.engine._position = Mock()
+
+        with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
+            await eng.newgame(chess.Board(), send_position_to_mame=True)
+
+        eng.engine.send_line.assert_not_called()
+        eng.engine._position.assert_not_called()
+
     async def test_start_analysis_skips_while_engine_is_shutting_down(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

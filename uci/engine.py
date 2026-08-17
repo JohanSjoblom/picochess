@@ -1903,8 +1903,12 @@ class UciEngine(object):
                     self.engine._position(copy.deepcopy(game))
                     try:
                         logger.debug("sending isready ping after mame setup position")
-                        await asyncio.wait_for(self.engine.ping(), timeout=2.0)
-                    except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
+                        # Do not wrap this ping in wait_for(). Cancelling a
+                        # python-chess ping leaves its protocol command active;
+                        # a late readyok then corrupts the command state.
+                        # V3 also waited until the MAME adapter was ready.
+                        await self.engine.ping()
+                    except (EngineTerminatedError, OSError, AssertionError) as exc:
                         logger.warning("mame engine isready ping failed after setup position: %s", exc)
         else:
             logger.error("newgame requested but no engine loaded")

@@ -457,12 +457,12 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng.engine.ping.assert_awaited_once_with()
         self.assertEqual(["ucinewgame", "position", "isready"], command_order)
 
-    async def test_newgame_mame_setup_position_continues_when_isready_times_out(self):
+    async def test_newgame_mame_setup_position_handles_failed_isready(self):
         eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
         eng.engine = MockEngine()
         eng.engine.send_line = Mock()
         eng.engine._position = Mock()
-        eng.engine.ping = AsyncMock(side_effect=asyncio.TimeoutError)
+        eng.engine.ping = AsyncMock(side_effect=chess.engine.EngineTerminatedError("engine stopped"))
 
         with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
             with self.assertLogs("uci.engine", level="WARNING") as captured:

@@ -436,8 +436,14 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
     async def test_newgame_can_send_scanned_position_to_mame(self):
         eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
         eng.engine = MockEngine()
-        eng.engine.send_line = Mock()
-        eng.engine._position = Mock()
+        command_order = []
+        eng.engine.send_line = Mock(side_effect=lambda command: command_order.append(command))
+        eng.engine._position = Mock(side_effect=lambda _board: command_order.append("position"))
+
+        async def record_ping():
+            command_order.append("isready")
+
+        eng.engine.ping = AsyncMock(side_effect=record_ping)
         board = chess.Board("8/8/8/8/8/8/4K3/7k w - - 0 1")
 
         with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
@@ -448,18 +454,37 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         sent_board = eng.engine._position.call_args.args[0]
         self.assertEqual(board.fen(), sent_board.fen())
         self.assertIsNot(board, sent_board)
+        eng.engine.ping.assert_awaited_once_with()
+        self.assertEqual(["ucinewgame", "position", "isready"], command_order)
+
+    async def test_newgame_mame_setup_position_continues_when_isready_times_out(self):
+        eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.send_line = Mock()
+        eng.engine._position = Mock()
+        eng.engine.ping = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
+            with self.assertLogs("uci.engine", level="WARNING") as captured:
+                await eng.newgame(chess.Board(), send_position_to_mame=True)
+
+        eng.engine._position.assert_called_once()
+        eng.engine.ping.assert_awaited_once_with()
+        self.assertIn("isready ping failed after setup position", "\n".join(captured.output))
 
     async def test_newgame_scanned_position_flag_does_not_affect_non_mame_engine(self):
         eng = UciEngine("engines/aarch64/some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()
         eng.engine.send_line = Mock()
         eng.engine._position = Mock()
+        eng.engine.ping = AsyncMock()
 
         with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
             await eng.newgame(chess.Board(), send_position_to_mame=True)
 
         eng.engine.send_line.assert_not_called()
         eng.engine._position.assert_not_called()
+        eng.engine.ping.assert_not_awaited()
 
     async def test_start_analysis_skips_while_engine_is_shutting_down(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

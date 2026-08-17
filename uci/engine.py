@@ -1857,10 +1857,12 @@ class UciEngine(object):
         """Engine sometimes need this to setup internal values.
         parameter game will not change.
 
-        ``send_position_to_mame`` is a narrow compatibility path for scanned
-        setup positions. Picochess V3 sent the position to the engine as part
-        of ``newgame()``, while V4 normally leaves position transmission to
-        the next python-chess search command.
+        ``send_position_to_mame`` is a narrow compatibility path for custom
+        setup positions such as Position -> Scan and Position -> Set Pos.
+        Picochess V3 sent the position to the engine as part of ``newgame()``
+        and then waited for ``readyok``, while V4 normally leaves position
+        transmission and readiness synchronization to the next python-chess
+        search command.
         """
         if self.analyser and self.analyser.needs_recovery():
             recovered = await self._recover_from_failed_analyser_stop(
@@ -1897,8 +1899,13 @@ class UciEngine(object):
                     logger.debug("sending ucinewgame to engine")
                     self.engine.send_line("ucinewgame")  # force ucinewgame to engine
                 if self.is_mame and send_position_to_mame:
-                    logger.debug("sending scanned setup position to mame engine: %s", game.fen())
+                    logger.debug("sending setup position to mame engine: %s", game.fen())
                     self.engine._position(copy.deepcopy(game))
+                    try:
+                        logger.debug("sending isready ping after mame setup position")
+                        await asyncio.wait_for(self.engine.ping(), timeout=2.0)
+                    except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
+                        logger.warning("mame engine isready ping failed after setup position: %s", exc)
         else:
             logger.error("newgame requested but no engine loaded")
 

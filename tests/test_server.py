@@ -72,6 +72,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("'display&ponder=8'", template)
         self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
 
+    def test_position_side_is_immediate_only_in_ponder(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("function _applyPonderPositionSide()", template)
+        self.assertIn("if (currentMode !== 'ponder') return;", template)
+        self.assertEqual(2, template.count("_applyPonderPositionSide();"))
+        self.assertNotIn("_applyScannedPositionSide", template)
+
     def test_retro_clock_preserves_clock_menu_when_returning(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
 

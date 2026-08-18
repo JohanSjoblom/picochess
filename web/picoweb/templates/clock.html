@@ -1786,7 +1786,9 @@
                 if (el) el.textContent = _castlingSub();
             }
 
-            function _applyScannedPositionSide() {
+            function _applyPonderPositionSide() {
+                var currentMode = String((window._picoSystemInfo || {}).interaction_mode || '').toLowerCase();
+                if (currentMode !== 'ponder') return;
                 fetch('/channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1870,7 +1872,7 @@
                     _positionSettings.sideToMove = sideActive ? 'black' : 'white';
                     var sub = document.getElementById('ovl-position-sub');
                     if (sub) sub.textContent = _positionSubLabel();
-                    _applyScannedPositionSide();
+                    _applyPonderPositionSide();
                     renderPositionTiles();
                 }));
 
@@ -3979,7 +3981,7 @@
                     _updatePositionParamSubs();
                     var posSub = document.getElementById('ovl-position-sub');
                     if (posSub) posSub.textContent = _positionSubLabel();
-                    if (pp === 'side') _applyScannedPositionSide();
+                    if (pp === 'side') _applyPonderPositionSide();
                     return;
                 }
                 // Position: castling toggles

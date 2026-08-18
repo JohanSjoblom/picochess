@@ -30,6 +30,9 @@ UCI_ELO_NON_STANDARD = "UCI Elo"
 class MockEngine(object):
     def __init__(self, *args, **kwargs):
         self.options = {UCI_ELO: None}
+        self.first_game = True
+        self.game = None
+        self.ponderhit = False
 
     async def configure(self, options):
         pass
@@ -39,6 +42,11 @@ class MockEngine(object):
 
     def uci(self):
         pass
+
+    def _ucinewgame(self):
+        self.send_line("ucinewgame")
+        self.first_game = False
+        self.ponderhit = False
 
 
 @patch("chess.engine.UciProtocol", new=MockEngine)
@@ -455,6 +463,8 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(board.fen(), sent_board.fen())
         self.assertIsNot(board, sent_board)
         eng.engine.ping.assert_awaited_once_with()
+        self.assertFalse(eng.engine.first_game)
+        self.assertEqual(eng.game_id, eng.engine.game)
         self.assertEqual(["ucinewgame", "position", "isready"], command_order)
 
     async def test_newgame_mame_setup_position_handles_failed_isready(self):

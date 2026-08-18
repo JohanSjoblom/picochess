@@ -1897,7 +1897,15 @@ class UciEngine(object):
                         except (asyncio.TimeoutError, EngineTerminatedError, OSError, AssertionError) as exc:
                             logger.warning("engine isready ping failed before ucinewgame: %s", exc)
                     logger.debug("sending ucinewgame to engine")
-                    self.engine.send_line("ucinewgame")  # force ucinewgame to engine
+                    if self.is_mame:
+                        # Keep python-chess in sync with the ucinewgame that we
+                        # send eagerly for MAME. Otherwise the next play() sees
+                        # the incremented game id as unannounced and sends a
+                        # second ucinewgame/isready before position/go.
+                        self.engine._ucinewgame()
+                        self.engine.game = self.game_id
+                    else:
+                        self.engine.send_line("ucinewgame")  # force ucinewgame to engine
                 if self.is_mame and send_position_to_mame:
                     logger.debug("sending setup position to mame engine: %s", game.fen())
                     self.engine._position(copy.deepcopy(game))

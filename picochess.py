@@ -387,6 +387,7 @@ class PicochessState:
         self.coach_triggered_piece_type: chess.PieceType | None = None
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
+        self.set_position_ack_pending = False
         self.setpieces_switch_anchor_fen = ""
         self.setpieces_switch_armed = False
         self.reset_auto = False
@@ -2878,6 +2879,13 @@ async def main() -> None:
                 setpieces_switch_pending = bool(
                     self.state.position_mode and self.state.setpieces_switch_anchor_fen
                 )
+                if self.state.set_position_ack_pending:
+                    self.state.set_position_ack_pending = False
+                    if not (self.state.position_mode and self.state.delay_fen_error == 1):
+                        await DisplayMsg.show(
+                            Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
+                        )
+                        await asyncio.sleep(1)
                 # molli: Chess tutor
                 if (
                     self.picotutor_mode()
@@ -5901,6 +5909,7 @@ async def main() -> None:
                     self._clear_position_checkpoint()
                 uci960 = event.uci960
                 self.state.position_mode = False
+                self.state.set_position_ack_pending = False
                 self.reset_setpieces_window_switch()
 
                 if self.state.game.move_stack:
@@ -5990,9 +5999,16 @@ async def main() -> None:
                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(1)
+                physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
+                self.state.set_position_ack_pending = bool(
+                    event_game is not None
+                    and self.board_type != dgt.util.EBoard.NOEBOARD
+                    and physical_fen != self.state.get_board_fen()
+                )
 
             elif isinstance(event, Event.NEW_GAME):
                 self._clear_position_checkpoint()
+                self.state.set_position_ack_pending = False
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started

@@ -1168,6 +1168,24 @@ def boards_match_position_and_history(first: chess.Board, second: chess.Board) -
     return first.fen() == second.fen() and tuple(first.move_stack) == tuple(second.move_stack)
 
 
+def setup_position_game(
+    fen: str,
+    uci960: bool,
+    event_game: chess.Board | None,
+    is_mame_engine: bool,
+) -> chess.Board:
+    """Build the live game for a setup-position event.
+
+    The web Set Pos action normally promotes the selected PGN prefix, including
+    its move stack, into the live game. MAME adapters cannot reliably consume a
+    ``position fen ... moves ...`` command, so for MAME the selected FEN is a
+    fresh root, matching the physical eboard Scan workflow.
+    """
+    if event_game is not None and not is_mame_engine:
+        return event_game.copy(stack=True)
+    return chess.Board(fen, chess960=uci960)
+
+
 def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     """PONDER must always show analysis from the selected engine, never from tutor."""
     return interaction_mode != Mode.PONDER
@@ -5903,10 +5921,15 @@ async def main() -> None:
                 self._reset_loaded_pgn_lifecycle()
                 ModeInfo.set_game_ending(result="*")
                 event_game = getattr(event, "game", None)
-                if event_game is not None:
-                    self.state.game = event_game.copy(stack=True)
-                else:
-                    self.state.game = chess.Board(event.fen, chess960=uci960)
+                mame_set_position = event_game is not None and self.engine.is_mame_engine()
+                if mame_set_position:
+                    logger.info("MAME Set Pos: using selected FEN as a fresh game root")
+                self.state.game = setup_position_game(
+                    event.fen,
+                    uci960,
+                    event_game,
+                    is_mame_engine=mame_set_position,
+                )
                 setup_fen = self.state.game.fen()
 
                 # Reset variant boards if active (new position = new state)

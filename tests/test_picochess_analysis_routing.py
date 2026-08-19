@@ -11,12 +11,43 @@ from picochess import (
     should_reject_user_move_after_game_end,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
+    setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
 )
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_mame_set_position_rebases_selected_fen_without_history(self):
+        selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
+        selected_game.push_uci("a2a4")
+
+        live_game = setup_position_game(
+            selected_game.fen(),
+            uci960=False,
+            event_game=selected_game,
+            is_mame_engine=True,
+        )
+
+        self.assertEqual(selected_game.fen(), live_game.fen())
+        self.assertEqual([], live_game.move_stack)
+        self.assertEqual(selected_game.fen(), live_game.root().fen())
+
+    def test_non_mame_set_position_preserves_selected_pgn_prefix(self):
+        selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
+        selected_game.push_uci("a2a4")
+
+        live_game = setup_position_game(
+            selected_game.fen(),
+            uci960=False,
+            event_game=selected_game,
+            is_mame_engine=False,
+        )
+
+        self.assertEqual(selected_game.fen(), live_game.fen())
+        self.assertEqual(selected_game.move_stack, live_game.move_stack)
+        self.assertEqual(selected_game.root().fen(), live_game.root().fen())
+
     def test_user_move_opening_is_queued_before_engine_search(self):
         board = chess.Board()
         move = chess.Move.from_uci("e2e4")

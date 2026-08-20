@@ -11,6 +11,7 @@ from picochess import (
     should_reject_user_move_after_game_end,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
+    pgn_load_engine_game,
     setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
@@ -18,6 +19,26 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_mame_pgn_load_sends_resulting_fen_without_history(self):
+        loaded_game = chess.Board()
+        loaded_game.push_uci("e2e4")
+        loaded_game.push_uci("e7e5")
+
+        engine_game = pgn_load_engine_game(loaded_game, is_mame_engine=True)
+
+        self.assertEqual(loaded_game.fen(), engine_game.fen())
+        self.assertEqual([], engine_game.move_stack)
+        self.assertEqual(loaded_game.fen(), engine_game.root().fen())
+
+    def test_non_mame_pgn_load_keeps_history(self):
+        loaded_game = chess.Board()
+        loaded_game.push_uci("e2e4")
+
+        engine_game = pgn_load_engine_game(loaded_game, is_mame_engine=False)
+
+        self.assertIs(loaded_game, engine_game)
+        self.assertEqual(loaded_game.move_stack, engine_game.move_stack)
+
     def test_mame_set_position_rebases_selected_fen_without_history(self):
         selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
         selected_game.push_uci("a2a4")

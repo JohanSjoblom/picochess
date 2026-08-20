@@ -1187,6 +1187,16 @@ def setup_position_game(
     return chess.Board(fen, chess960=uci960)
 
 
+def pgn_load_engine_game(game: chess.Board, is_mame_engine: bool) -> chess.Board:
+    """Return the board that should be sent to an engine after loading a PGN.
+
+    MAME adapters are set up from the resulting FEN rather than from a move
+    history.  This matches Position -> Scan and the MAME Set Pos path, while
+    allowing Picochess itself to retain a loaded move stack where applicable.
+    """
+    return game.copy(stack=False) if is_mame_engine else game
+
+
 def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     """PONDER must always show analysis from the selected engine, never from tutor."""
     return interaction_mode != Mode.PONDER
@@ -4927,8 +4937,18 @@ async def main() -> None:
                 self.state.pop_move()
                 self._update_variant_shared()
 
-            # issue #72 - newgame sends a ucinewgame unless stopped
-            await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
+            # Normally PGN loading leaves ucinewgame and position transmission
+            # to python-chess.  MAME needs the issue #72 eager ucinewgame and
+            # the same position-only setup used by Scan and Set Pos.
+            mame_load = self.engine.is_mame_engine() and not start_replay
+            engine_game = pgn_load_engine_game(self.state.engine_board_copy(), mame_load)
+            if mame_load:
+                logger.info("MAME Read Game: sending loaded FEN as a fresh game root")
+            await self.engine.newgame(
+                engine_game,
+                send_ucinewgame=mame_load,
+                send_position_to_mame=mame_load,
+            )
             if fen_header and fen_board_valid:
                 # publish FEN-started game to displays/engine listeners
                 await DisplayMsg.show(self.state.new_game_msg(newgame=False))

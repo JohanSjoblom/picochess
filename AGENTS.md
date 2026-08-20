@@ -381,6 +381,66 @@ Preserve this data flow:
 - Keep `get_eval_mistakes()` based on the same stored data so the web UI and
   saved PGN stay consistent.
 
+## Position Setup And PGN Save/Load
+
+Position setup and persisted PGNs must preserve the distinction between the
+Picochess game model and the reduced position protocol required by MAME.
+
+- `Position -> Scan` treats the physical eboard placement as a fresh position
+  root. The placement supplies no move history.
+- Browser `Position -> Set Pos` normally promotes the selected PGN prefix,
+  including its move stack, into the live Picochess game.
+- MAME is the exception: both Scan and Set Pos must treat the selected FEN as a
+  fresh root with an empty move stack. Some MAME adapters cannot reliably
+  consume a FEN together with a moves suffix.
+- Scan and Set Pos with MAME use the eager setup sequence documented in
+  `uci/AGENTS.md`; do not defer that position setup to the first search.
+- With a physical eboard, Set Pos immediately announces `set pieces` when the
+  physical placement differs and keeps `set_position_ack_pending` until the
+  board matches. Emit one `POSOK` acknowledgement when synchronization
+  completes. Currently arm this state only for Set Pos; reuse it elsewhere
+  only for another explicit workflow that knowingly waits for a target board.
+
+Explicit user-requested PGN saving is also a position-storage operation:
+
+- Honor `Save Game` even when the move stack is empty. A custom root position
+  without moves is still useful saved state, especially after MAME Set Pos.
+- Build normal-chess saves with `chess.pgn.Game.from_board()`. It records a
+  non-standard root with `SetUp "1"` and `FEN`, whether or not moves follow.
+- An unfinished saved game retains `Result "*"` and the terminal `*` marker.
+- Preserve the shared-header merge used by PGN saving. The constructed game
+  does not independently contain all live user, engine, time-control, and
+  other Picochess headers.
+- Automatic end-of-game saving may retain its existing move-stack and mode
+  guards. The empty-stack rule above applies to the explicit user Save Game
+  action.
+
+PGN loading has separate position, history, and mode rules:
+
+- `PicoStop` absent means load all applicable mainline moves; a positive value
+  loads that many half-moves; `PicoStop "0"` deliberately loads no moves and
+  leaves the board at the PGN root.
+- A custom `FEN` must not by itself suppress moves for a modern engine. Start
+  from the FEN and apply the mainline according to `PicoStop`.
+- On a normal Read Game with MAME and a custom FEN, restore the original FEN as
+  a fresh root and do not apply its saved moves. This supports returning to an
+  original problem position after experimental play.
+- For a standard-root PGN with MAME, Picochess may retain and load the move
+  stack, but the MAME engine must receive only a stackless copy of the
+  resulting FEN.
+- Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
+  readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
+  normal python-chess-controlled command path.
+- An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
+  playing mode when possible, otherwise `Mode.NORMAL`, and must update
+  `game_started`. A valid custom FEN does not override unfinished status.
+- A completed custom-FEN PGN opens in `Mode.KIBITZ`. An explicit built-in replay
+  request takes precedence and uses `Mode.PGNREPLAY`.
+- Selecting a game or historical node only in the browser remains review-local;
+  `Position -> Set Pos` is still required to promote that browser position to
+  the backend. This is distinct from backend `Read Game`, which updates the
+  live Picochess game directly.
+
 ## PONDER Position Checkpoints
 
 Position checkpoints extend `Mode.PONDER`; they do not extend browser Explore.

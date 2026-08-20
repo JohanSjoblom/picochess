@@ -133,6 +133,32 @@ Keep these option rules intact:
 - User menu overrides can remove these pseudo-options with
   `drop_engine_uci_option()`, allowing runtime depth/node values to take over.
 
+## MAME New-Game And Position Synchronization
+
+MAME adapters are timing-sensitive and require a compatibility path that is
+deliberately narrower than normal python-chess engine handling.
+
+- Issue #72 established that MAME needs an eager `ucinewgame`. Waiting for
+  python-chess to send it with the first search is too late for these adapters.
+- Send the eager command through python-chess's protocol state and synchronize
+  its recorded game identifier. Otherwise the next `play()` or `analysis()`
+  sees an unannounced game id and sends a duplicate `ucinewgame`/`isready`.
+- Scan, MAME Set Pos, and normal Read Game with MAME must send the resulting
+  position immediately after the eager new-game command and then await
+  `ping()` / `readyok` before continuing.
+- Do not wrap the post-position MAME `ping()` in `asyncio.wait_for()`. Cancelling
+  a python-chess ping leaves its protocol command active; a late `readyok` can
+  then corrupt command state and break the following lever/switch-sides search.
+- The board passed to MAME for Scan, Set Pos, and Read Game must be a fresh,
+  stackless position. Picochess may retain history internally where policy
+  allows it, but do not expose that history to the adapter as a moves suffix.
+- Keep `send_position_to_mame` and eager `send_ucinewgame` opt-in. These
+  workarounds must not alter modern UCI engines or the built-in PGN Replay
+  workflow.
+- Preserve the command order: eager `ucinewgame`, `position`, then `isready` /
+  `readyok`. Do not start analysis or a playing search concurrently with this
+  setup sequence.
+
 ## Legacy PGN Replay Engine
 
 The `"PGN Replay"` engine is a special historical UCI engine. It is not a normal

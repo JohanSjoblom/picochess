@@ -9,6 +9,7 @@ from picochess import (
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
+    should_load_pgn_moves,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
     pgn_load_engine_game,
@@ -19,6 +20,51 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_modern_pgn_load_applies_all_moves_from_custom_fen_without_picostop(self):
+        self.assertTrue(
+            should_load_pgn_moves(
+                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
+                stop_at_halfmove=None,
+                is_mame_engine=False,
+            )
+        )
+
+    def test_modern_pgn_load_honors_positive_picostop_from_custom_fen(self):
+        self.assertTrue(
+            should_load_pgn_moves(
+                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
+                stop_at_halfmove=2,
+                is_mame_engine=False,
+            )
+        )
+
+    def test_picostop_zero_does_not_load_moves(self):
+        self.assertFalse(
+            should_load_pgn_moves(
+                fen_header="",
+                stop_at_halfmove=0,
+                is_mame_engine=False,
+            )
+        )
+
+    def test_mame_pgn_load_keeps_custom_fen_as_root(self):
+        self.assertFalse(
+            should_load_pgn_moves(
+                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
+                stop_at_halfmove=None,
+                is_mame_engine=True,
+            )
+        )
+
+    def test_mame_pgn_load_applies_moves_from_standard_root(self):
+        self.assertTrue(
+            should_load_pgn_moves(
+                fen_header="",
+                stop_at_halfmove=None,
+                is_mame_engine=True,
+            )
+        )
+
     def test_mame_pgn_load_sends_resulting_fen_without_history(self):
         loaded_game = chess.Board()
         loaded_game.push_uci("e2e4")

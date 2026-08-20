@@ -1197,6 +1197,17 @@ def pgn_load_engine_game(game: chess.Board, is_mame_engine: bool) -> chess.Board
     return game.copy(stack=False) if is_mame_engine else game
 
 
+def should_load_pgn_moves(
+    fen_header: str,
+    stop_at_halfmove: int | None,
+    is_mame_engine: bool,
+) -> bool:
+    """Return whether mainline moves should be applied while loading a PGN."""
+    if stop_at_halfmove == 0:
+        return False
+    return not (fen_header and is_mame_engine)
+
+
 def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     """PONDER must always show analysis from the selected engine, never from tutor."""
     return interaction_mode != Mode.PONDER
@@ -4921,7 +4932,13 @@ async def main() -> None:
                     else:
                         l_stop_at_halfmove = 0  # for DGT board its better with zero
 
-            if not fen_header and l_stop_at_halfmove != 0:
+            mame_engine_selected = self.engine.is_mame_engine()
+            load_pgn_moves = should_load_pgn_moves(
+                fen_header,
+                l_stop_at_halfmove,
+                mame_engine_selected,
+            )
+            if load_pgn_moves:
                 for l_move in l_game_pgn.mainline_moves():
                     self.state.push_move(l_move)
                     if l_stop_at_halfmove and len(self.state.game.move_stack) >= l_stop_at_halfmove:
@@ -4940,7 +4957,7 @@ async def main() -> None:
             # Normally PGN loading leaves ucinewgame and position transmission
             # to python-chess.  MAME needs the issue #72 eager ucinewgame and
             # the same position-only setup used by Scan and Set Pos.
-            mame_load = self.engine.is_mame_engine() and not start_replay
+            mame_load = mame_engine_selected and not start_replay
             engine_game = pgn_load_engine_game(self.state.engine_board_copy(), mame_load)
             if mame_load:
                 logger.info("MAME Read Game: sending loaded FEN as a fresh game root")

@@ -4630,7 +4630,8 @@ async def main() -> None:
                             await self._start_or_stop_analysis_as_needed()
                         else:
                             logger.info("wrong fen %s for 4 secs", self.state.error_fen)
-                            await DisplayMsg.show(Message.WRONG_FEN())
+                            if not self.state.set_position_ack_pending:
+                                await DisplayMsg.show(Message.WRONG_FEN())
 
                 else:
                     logger.info("wrong fen %s for 4 secs", self.state.error_fen)
@@ -4703,7 +4704,10 @@ async def main() -> None:
                         if external_fen != chess.STARTING_BOARD_FEN and not (
                             self.state.variant == "racingkings" and external_fen == RK_STARTING_BOARD_FEN
                         ):
-                            if should_show_setpieces_after_lift_timeout(lifted_piece_char, is_hand_mode):
+                            if (
+                                should_show_setpieces_after_lift_timeout(lifted_piece_char, is_hand_mode)
+                                and not self.state.set_position_ack_pending
+                            ):
                                 if not is_king_lift:
                                     if not self.state.setpieces_switch_anchor_fen:
                                         self.state.setpieces_switch_anchor_fen = external_fen
@@ -5995,16 +5999,19 @@ async def main() -> None:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                     self.engine.is_ready()
                 self.state.position_mode = False
-                tutor_str = "POSOK"
-                msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
-                await DisplayMsg.show(msg)
-                await asyncio.sleep(1)
                 physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
                 self.state.set_position_ack_pending = bool(
                     event_game is not None
                     and self.board_type != dgt.util.EBoard.NOEBOARD
                     and physical_fen != self.state.get_board_fen()
                 )
+                if self.state.set_position_ack_pending:
+                    await DisplayMsg.show(Message.WRONG_FEN())
+                else:
+                    tutor_str = "POSOK"
+                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
+                    await DisplayMsg.show(msg)
+                    await asyncio.sleep(1)
 
             elif isinstance(event, Event.NEW_GAME):
                 self._clear_position_checkpoint()

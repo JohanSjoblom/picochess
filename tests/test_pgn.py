@@ -7,7 +7,8 @@ import os
 import tempfile
 import unittest
 
-from dgt.util import PlayMode
+from dgt.api import Message
+from dgt.util import Mode, PlayMode
 from pgn import (
     PgnDisplay,
     add_picotutor_variations_to_game,
@@ -248,6 +249,34 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertIn("( 1. Nf3 d5 )", saved_text)
         self.assertIn('[Result "0-1"]', saved_text)
         self.assertTrue(saved_text.rstrip().endswith("0-1"))
+
+    def test_explicit_save_writes_custom_position_without_moves(self):
+        board = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 7")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saved_path = os.path.join(tmpdir, "saved.pgn")
+            message = Message.SAVE_GAME(
+                tc_init={"internal_time": {chess.WHITE: 0, chess.BLACK: 0}},
+                play_mode=PlayMode.USER_WHITE,
+                game=board,
+                pgn_filename=os.path.relpath(saved_path, "games"),
+                mode=Mode.NORMAL,
+            )
+            testee = PgnDisplay(
+                tmpdir + "/games.pgn",
+                FakeEmailer(),
+                {"headers": {}, "variant": "chess", "loaded_pgn_game": None},
+                self.loop,
+            )
+
+            self.loop.run_until_complete(testee._process_message(message))
+
+            with open(saved_path, "r") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertIn('[SetUp "1"]', saved_text)
+        self.assertIn('[FEN "4k3/8/8/8/8/8/P7/4K3 w - - 0 7"]', saved_text)
+        self.assertTrue(saved_text.rstrip().endswith("*"))
 
     def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
         user_move = chess.Move.from_uci("e2e4")

@@ -993,10 +993,9 @@ class PgnDisplay(DisplayMsg):
 
         elif isinstance(message, Message.SAVE_GAME):
             logger.debug("molli: save game message pgn dispatch")
-            if message.game.move_stack:
-                self._save_pgn(message)  # needs pgn_filename from SAVE_GAME message
-                # if we _save_and_email_pgn() here the side effect is that
-                # it stores unfinished games in games.pgn
+            self._save_pgn(message)  # needs pgn_filename from SAVE_GAME message
+            # if we _save_and_email_pgn() here the side effect is that
+            # it stores unfinished games in games.pgn
 
     async def message_consumer(self):
         """PGN message consumer"""

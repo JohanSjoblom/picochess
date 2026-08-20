@@ -1208,6 +1208,26 @@ def should_load_pgn_moves(
     return not (fen_header and is_mame_engine)
 
 
+def loaded_pgn_interaction_mode(
+    previous_mode: Mode,
+    start_replay: bool,
+    has_custom_fen: bool,
+    loaded_game_finished: bool,
+) -> Mode:
+    """Choose the mode for a successfully loaded PGN."""
+    if start_replay:
+        return Mode.PGNREPLAY
+    if not loaded_game_finished:
+        if previous_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            return previous_mode
+        return Mode.NORMAL
+    if has_custom_fen:
+        return Mode.KIBITZ
+    if previous_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+        return previous_mode
+    return Mode.NORMAL
+
+
 def tutor_analysis_allowed_in_mode(interaction_mode: Mode) -> bool:
     """PONDER must always show analysis from the selected engine, never from tutor."""
     return interaction_mode != Mode.PONDER
@@ -4936,7 +4956,7 @@ async def main() -> None:
             load_pgn_moves = should_load_pgn_moves(
                 fen_header,
                 l_stop_at_halfmove,
-                mame_engine_selected,
+                mame_engine_selected and not start_replay,
             )
             if load_pgn_moves:
                 for l_move in l_game_pgn.mainline_moves():
@@ -4950,7 +4970,7 @@ async def main() -> None:
             # @ todo Pico V3 made user + engine move here = unnecessary waiting for engine move
             # Pico V4 only makes an engine move... just to update the web screen and main states?
             # maybe there is a smarter way to do this?
-            if start_replay and not fen_header and l_move and l_stop_at_halfmove != 0:
+            if start_replay and load_pgn_moves and l_move and l_stop_at_halfmove != 0:
                 self.state.pop_move()
                 self._update_variant_shared()
 
@@ -4958,7 +4978,7 @@ async def main() -> None:
             # to python-chess.  MAME needs the issue #72 eager ucinewgame and
             # the same position-only setup used by Scan and Set Pos.
             mame_load = mame_engine_selected and not start_replay
-            engine_game = pgn_load_engine_game(self.state.engine_board_copy(), mame_load)
+            engine_game = pgn_load_engine_game(self.state.engine_board_copy(), mame_engine_selected)
             if mame_load:
                 logger.info("MAME Read Game: sending loaded FEN as a fresh game root")
             await self.engine.newgame(
@@ -4985,29 +5005,16 @@ async def main() -> None:
                 # publish current position to webserver
                 await self.user_move(l_move, sliding=True)
 
-            if fen_header and fen_board_valid:
-                # any FEN in PGN forces kibitz/analysis mode (Mode.KIBITZ)
-                self.state.interaction_mode = Mode.KIBITZ
-                self.state.dgtmenu.set_mode(Mode.KIBITZ)
-            elif fen_header:
+            if fen_header and not fen_board_valid:
                 logger.warning("FEN header found but could not apply board setup: %s", fen_header)
-            elif start_replay:
-                # else remain in PGNREPLAY mode
-                pass
-            elif not result_header or result_header in ("*", "?"):
-                # issue #54 game is not finished - switch back to playing mode
-                if old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
-                    # same as eng_plays() - preserve previous playing mode
-                    self.state.interaction_mode = old_interaction_mode
-                else:
-                    self.state.interaction_mode = Mode.NORMAL
-                self.state.dgtmenu.set_mode(self.state.interaction_mode)
-            elif old_interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
-                self.state.interaction_mode = old_interaction_mode
-                self.state.dgtmenu.set_mode(self.state.interaction_mode)
             else:
-                self.state.interaction_mode = Mode.NORMAL
-                self.state.dgtmenu.set_mode(Mode.NORMAL)
+                self.state.interaction_mode = loaded_pgn_interaction_mode(
+                    old_interaction_mode,
+                    start_replay,
+                    has_custom_fen=bool(fen_header),
+                    loaded_game_finished=loaded_game_finished,
+                )
+                self.state.dgtmenu.set_mode(self.state.interaction_mode)
 
             # restore picotutor flag to previous state
             self.state.flag_picotutor = old_flag_picotutor
@@ -5094,7 +5101,7 @@ async def main() -> None:
             await self.stop_search_and_clock()
 
             game_end = self.state.check_game_state()
-            if not start_replay and not fen_header:
+            if not start_replay:
                 self._set_game_started(not loaded_game_finished and not game_end)
             system_info_update = {
                 "game_started": self.state.game_started,
@@ -5159,7 +5166,7 @@ async def main() -> None:
                     await asyncio.sleep(1)
 
             self.state.take_back_locked = True  # important otherwise problems for setting up the position
-            if start_replay and not fen_header:
+            if start_replay and load_pgn_moves:
                 pgn_game_to_step = None if l_stop_at_halfmove is None else l_game_pgn
                 if pgn_game_to_step:
                     # this PGN game was not loaded to the end (above) - remember it

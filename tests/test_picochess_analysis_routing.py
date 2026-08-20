@@ -5,6 +5,7 @@ import chess
 from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
+    loaded_pgn_interaction_mode,
     remote_move_matches_current_position,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
@@ -20,6 +21,46 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_unfinished_custom_fen_load_returns_to_normal_play(self):
+        mode = loaded_pgn_interaction_mode(
+            previous_mode=Mode.KIBITZ,
+            start_replay=False,
+            has_custom_fen=True,
+            loaded_game_finished=False,
+        )
+
+        self.assertEqual(Mode.NORMAL, mode)
+
+    def test_unfinished_custom_fen_load_preserves_previous_playing_mode(self):
+        mode = loaded_pgn_interaction_mode(
+            previous_mode=Mode.BRAIN,
+            start_replay=False,
+            has_custom_fen=True,
+            loaded_game_finished=False,
+        )
+
+        self.assertEqual(Mode.BRAIN, mode)
+
+    def test_finished_custom_fen_load_uses_kibitz(self):
+        mode = loaded_pgn_interaction_mode(
+            previous_mode=Mode.NORMAL,
+            start_replay=False,
+            has_custom_fen=True,
+            loaded_game_finished=True,
+        )
+
+        self.assertEqual(Mode.KIBITZ, mode)
+
+    def test_pgn_replay_takes_precedence_over_unfinished_custom_fen(self):
+        mode = loaded_pgn_interaction_mode(
+            previous_mode=Mode.NORMAL,
+            start_replay=True,
+            has_custom_fen=True,
+            loaded_game_finished=False,
+        )
+
+        self.assertEqual(Mode.PGNREPLAY, mode)
+
     def test_modern_pgn_load_applies_all_moves_from_custom_fen_without_picostop(self):
         self.assertTrue(
             should_load_pgn_moves(

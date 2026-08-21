@@ -1173,39 +1173,21 @@ def setup_position_game(
     fen: str,
     uci960: bool,
     event_game: chess.Board | None,
-    is_mame_engine: bool,
 ) -> chess.Board:
     """Build the live game for a setup-position event.
 
-    The web Set Pos action normally promotes the selected PGN prefix, including
-    its move stack, into the live game. MAME adapters cannot reliably consume a
-    ``position fen ... moves ...`` command, so for MAME the selected FEN is a
-    fresh root, matching the physical eboard Scan workflow.
+    The web Set Pos action promotes the selected PGN prefix, including its move
+    stack, into the live game. A physical eboard Scan has no event game and
+    therefore treats the scanned FEN as a fresh root.
     """
-    if event_game is not None and not is_mame_engine:
+    if event_game is not None:
         return event_game.copy(stack=True)
     return chess.Board(fen, chess960=uci960)
 
 
-def pgn_load_engine_game(game: chess.Board, is_mame_engine: bool) -> chess.Board:
-    """Return the board that should be sent to an engine after loading a PGN.
-
-    MAME adapters are set up from the resulting FEN rather than from a move
-    history.  This matches Position -> Scan and the MAME Set Pos path, while
-    allowing Picochess itself to retain a loaded move stack where applicable.
-    """
-    return game.copy(stack=False) if is_mame_engine else game
-
-
-def should_load_pgn_moves(
-    fen_header: str,
-    stop_at_halfmove: int | None,
-    is_mame_engine: bool,
-) -> bool:
+def should_load_pgn_moves(stop_at_halfmove: int | None) -> bool:
     """Return whether mainline moves should be applied while loading a PGN."""
-    if stop_at_halfmove == 0:
-        return False
-    return not (fen_header and is_mame_engine)
+    return stop_at_halfmove != 0
 
 
 def loaded_pgn_interaction_mode(
@@ -4953,11 +4935,7 @@ async def main() -> None:
                         l_stop_at_halfmove = 0  # for DGT board its better with zero
 
             mame_engine_selected = self.engine.is_mame_engine()
-            load_pgn_moves = should_load_pgn_moves(
-                fen_header,
-                l_stop_at_halfmove,
-                mame_engine_selected and not start_replay,
-            )
+            load_pgn_moves = should_load_pgn_moves(l_stop_at_halfmove)
             if load_pgn_moves:
                 for l_move in l_game_pgn.mainline_moves():
                     self.state.push_move(l_move)
@@ -4976,13 +4954,12 @@ async def main() -> None:
 
             # Normally PGN loading leaves ucinewgame and position transmission
             # to python-chess.  MAME needs the issue #72 eager ucinewgame and
-            # the same position-only setup used by Scan and Set Pos.
+            # the same immediate position setup used by Scan and Set Pos.
             mame_load = mame_engine_selected and not start_replay
-            engine_game = pgn_load_engine_game(self.state.engine_board_copy(), mame_engine_selected)
             if mame_load:
-                logger.info("MAME Read Game: sending loaded FEN as a fresh game root")
+                logger.info("MAME Read Game: sending loaded position immediately")
             await self.engine.newgame(
-                engine_game,
+                self.state.engine_board_copy(),
                 send_ucinewgame=mame_load,
                 send_position_to_mame=mame_load,
             )
@@ -5978,14 +5955,10 @@ async def main() -> None:
                 self._reset_loaded_pgn_lifecycle()
                 ModeInfo.set_game_ending(result="*")
                 event_game = getattr(event, "game", None)
-                mame_set_position = event_game is not None and self.engine.is_mame_engine()
-                if mame_set_position:
-                    logger.info("MAME Set Pos: using selected FEN as a fresh game root")
                 self.state.game = setup_position_game(
                     event.fen,
                     uci960,
                     event_game,
-                    is_mame_engine=mame_set_position,
                 )
                 setup_fen = self.state.game.fen()
 

@@ -149,9 +149,10 @@ deliberately narrower than normal python-chess engine handling.
 - Do not wrap the post-position MAME `ping()` in `asyncio.wait_for()`. Cancelling
   a python-chess ping leaves its protocol command active; a late `readyok` can
   then corrupt command state and break the following lever/switch-sides search.
-- The board passed to MAME for Scan, Set Pos, and Read Game must be a fresh,
-  stackless position. Picochess may retain history internally where policy
-  allows it, but do not expose that history to the adapter as a moves suffix.
+- Preserve the board history passed to MAME for Set Pos and Read Game. The Lua
+  adapter accepts a custom FEN together with a moves suffix. Scan remains a
+  fresh, stackless position naturally because an eboard placement has no move
+  history.
 - Keep `send_position_to_mame` and eager `send_ucinewgame` opt-in. These
   workarounds must not alter modern UCI engines or the built-in PGN Replay
   workflow.

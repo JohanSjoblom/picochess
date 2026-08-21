@@ -13,7 +13,6 @@ from picochess import (
     should_load_pgn_moves,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
-    pgn_load_engine_game,
     setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
@@ -61,72 +60,16 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertEqual(Mode.PGNREPLAY, mode)
 
-    def test_modern_pgn_load_applies_all_moves_from_custom_fen_without_picostop(self):
-        self.assertTrue(
-            should_load_pgn_moves(
-                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
-                stop_at_halfmove=None,
-                is_mame_engine=False,
-            )
-        )
+    def test_pgn_load_applies_all_moves_without_picostop(self):
+        self.assertTrue(should_load_pgn_moves(stop_at_halfmove=None))
 
-    def test_modern_pgn_load_honors_positive_picostop_from_custom_fen(self):
-        self.assertTrue(
-            should_load_pgn_moves(
-                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
-                stop_at_halfmove=2,
-                is_mame_engine=False,
-            )
-        )
+    def test_pgn_load_honors_positive_picostop(self):
+        self.assertTrue(should_load_pgn_moves(stop_at_halfmove=2))
 
     def test_picostop_zero_does_not_load_moves(self):
-        self.assertFalse(
-            should_load_pgn_moves(
-                fen_header="",
-                stop_at_halfmove=0,
-                is_mame_engine=False,
-            )
-        )
+        self.assertFalse(should_load_pgn_moves(stop_at_halfmove=0))
 
-    def test_mame_pgn_load_keeps_custom_fen_as_root(self):
-        self.assertFalse(
-            should_load_pgn_moves(
-                fen_header="4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
-                stop_at_halfmove=None,
-                is_mame_engine=True,
-            )
-        )
-
-    def test_mame_pgn_load_applies_moves_from_standard_root(self):
-        self.assertTrue(
-            should_load_pgn_moves(
-                fen_header="",
-                stop_at_halfmove=None,
-                is_mame_engine=True,
-            )
-        )
-
-    def test_mame_pgn_load_sends_resulting_fen_without_history(self):
-        loaded_game = chess.Board()
-        loaded_game.push_uci("e2e4")
-        loaded_game.push_uci("e7e5")
-
-        engine_game = pgn_load_engine_game(loaded_game, is_mame_engine=True)
-
-        self.assertEqual(loaded_game.fen(), engine_game.fen())
-        self.assertEqual([], engine_game.move_stack)
-        self.assertEqual(loaded_game.fen(), engine_game.root().fen())
-
-    def test_non_mame_pgn_load_keeps_history(self):
-        loaded_game = chess.Board()
-        loaded_game.push_uci("e2e4")
-
-        engine_game = pgn_load_engine_game(loaded_game, is_mame_engine=False)
-
-        self.assertIs(loaded_game, engine_game)
-        self.assertEqual(loaded_game.move_stack, engine_game.move_stack)
-
-    def test_mame_set_position_rebases_selected_fen_without_history(self):
+    def test_set_position_preserves_selected_pgn_prefix(self):
         selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
         selected_game.push_uci("a2a4")
 
@@ -134,27 +77,20 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
             selected_game.fen(),
             uci960=False,
             event_game=selected_game,
-            is_mame_engine=True,
-        )
-
-        self.assertEqual(selected_game.fen(), live_game.fen())
-        self.assertEqual([], live_game.move_stack)
-        self.assertEqual(selected_game.fen(), live_game.root().fen())
-
-    def test_non_mame_set_position_preserves_selected_pgn_prefix(self):
-        selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
-        selected_game.push_uci("a2a4")
-
-        live_game = setup_position_game(
-            selected_game.fen(),
-            uci960=False,
-            event_game=selected_game,
-            is_mame_engine=False,
         )
 
         self.assertEqual(selected_game.fen(), live_game.fen())
         self.assertEqual(selected_game.move_stack, live_game.move_stack)
         self.assertEqual(selected_game.root().fen(), live_game.root().fen())
+
+    def test_scan_position_is_a_fresh_root_without_history(self):
+        fen = "4k3/8/8/8/8/8/P7/4K3 b - - 0 1"
+
+        live_game = setup_position_game(fen, uci960=False, event_game=None)
+
+        self.assertEqual(fen, live_game.fen())
+        self.assertEqual([], live_game.move_stack)
+        self.assertEqual(fen, live_game.root().fen())
 
     def test_user_move_opening_is_queued_before_engine_search(self):
         board = chess.Board()

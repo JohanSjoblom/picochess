@@ -383,16 +383,16 @@ Preserve this data flow:
 
 ## Position Setup And PGN Save/Load
 
-Position setup and persisted PGNs must preserve the distinction between the
-Picochess game model and the reduced position protocol required by MAME.
+Position setup and persisted PGNs must preserve Picochess game history while
+also honoring the timing-sensitive setup sequence required by MAME.
 
 - `Position -> Scan` treats the physical eboard placement as a fresh position
   root. The placement supplies no move history.
 - Browser `Position -> Set Pos` normally promotes the selected PGN prefix,
   including its move stack, into the live Picochess game.
-- MAME is the exception: both Scan and Set Pos must treat the selected FEN as a
-  fresh root with an empty move stack. Some MAME adapters cannot reliably
-  consume a FEN together with a moves suffix.
+- MAME Set Pos follows the normal browser behavior and preserves the selected
+  PGN prefix. The MAME Lua adapter supports a custom FEN together with a moves
+  suffix; do not discard that history in Picochess as an adapter workaround.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
 - With a physical eboard, Set Pos immediately announces `set pieces` when the
@@ -420,14 +420,11 @@ PGN loading has separate position, history, and mode rules:
 - `PicoStop` absent means load all applicable mainline moves; a positive value
   loads that many half-moves; `PicoStop "0"` deliberately loads no moves and
   leaves the board at the PGN root.
-- A custom `FEN` must not by itself suppress moves for a modern engine. Start
-  from the FEN and apply the mainline according to `PicoStop`.
-- On a normal Read Game with MAME and a custom FEN, restore the original FEN as
-  a fresh root and do not apply its saved moves. This supports returning to an
-  original problem position after experimental play.
-- For a standard-root PGN with MAME, Picochess may retain and load the move
-  stack, but the MAME engine must receive only a stackless copy of the
-  resulting FEN.
+- A custom `FEN` must not by itself suppress moves. Start from the FEN and apply
+  the mainline according to `PicoStop`, regardless of the selected engine.
+- Read Game applies the selected mainline moves for MAME as it does for modern
+  engines, including games with a custom FEN root. The MAME engine receives
+  that same root and move stack.
 - Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
   readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
   normal python-chess-controlled command path.

@@ -395,6 +395,9 @@ also honoring the timing-sensitive setup sequence required by MAME.
   suffix; do not discard that history in Picochess as an adapter workaround.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
+- MAME Scan announces `please wait` while that eager engine setup completes,
+  followed by `new position` and one `POSOK`. It does not announce `set
+  pieces`, because the scanned eboard placement is already the target.
 - With a physical eboard, Set Pos immediately arms
   `set_position_ack_pending` when the physical placement differs. Announce
   `please wait` during backend and engine setup, then announce `new position`

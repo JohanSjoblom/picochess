@@ -5979,7 +5979,11 @@ async def main() -> None:
 
                 await DisplayMsg.show(
                     Message.SHOW_TEXT(
-                        text_string="POSITION_WAIT" if event_game is not None else "NEW_POSITION_SCAN"
+                        text_string=(
+                            "POSITION_WAIT"
+                            if event_game is not None or self.engine.is_mame_engine()
+                            else "NEW_POSITION_SCAN"
+                        )
                     )
                 )
                 physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""

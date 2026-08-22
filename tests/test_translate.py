@@ -86,6 +86,12 @@ class TestDisplayTextLengths(unittest.TestCase):
         text = DgtTranslate("none", 0, "en", "0.9m").text("N00_default", "x" * 100)
         self.assertEqual(38, len(text.web_text))
 
+    def test_position_wait_text_is_not_reboot_specific(self):
+        text = DgtTranslate("none", 0, "en", "0.9m").text("Y15_positionwait")
+
+        self.assertEqual("Please wait", text.web_text)
+        self.assertNotIn("reboot", text.web_text.lower())
+
     def test_retro_speed_keeps_the_selected_value(self):
         for language in ("en", "it"):
             text = DgtTranslate("none", 0, language, "0.9m").text("B00_retrospeed", "1000%")

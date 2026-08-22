@@ -5977,16 +5977,17 @@ async def main() -> None:
                     self.engine.option("UCI_Chess960", uci960)
                     await self.engine.send()
 
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION_SCAN"))
+                await DisplayMsg.show(
+                    Message.SHOW_TEXT(
+                        text_string="POSITION_WAIT" if event_game is not None else "NEW_POSITION_SCAN"
+                    )
+                )
                 physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
                 self.state.set_position_ack_pending = bool(
                     event_game is not None
                     and self.board_type != dgt.util.EBoard.NOEBOARD
                     and physical_fen != self.state.get_board_fen()
                 )
-                if self.state.set_position_ack_pending:
-                    # Prompt before the potentially slow MAME and Tutor setup.
-                    await DisplayMsg.show(Message.WRONG_FEN())
                 await self.engine.newgame(
                     self.state.engine_board_copy(),
                     send_position_to_mame=True,
@@ -6024,8 +6025,12 @@ async def main() -> None:
                                 )
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                     self.engine.is_ready()
+                elif event_game is not None:
+                    await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                 self.state.position_mode = False
-                if not self.state.set_position_ack_pending:
+                if self.state.set_position_ack_pending:
+                    await DisplayMsg.show(Message.WRONG_FEN())
+                else:
                     tutor_str = "POSOK"
                     msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
                     await DisplayMsg.show(msg)

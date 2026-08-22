@@ -395,11 +395,14 @@ also honoring the timing-sensitive setup sequence required by MAME.
   suffix; do not discard that history in Picochess as an adapter workaround.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
-- With a physical eboard, Set Pos immediately announces `set pieces` when the
-  physical placement differs and keeps `set_position_ack_pending` until the
-  board matches. Emit one `POSOK` acknowledgement when synchronization
-  completes. Currently arm this state only for Set Pos; reuse it elsewhere
-  only for another explicit workflow that knowingly waits for a target board.
+- With a physical eboard, Set Pos immediately arms
+  `set_position_ack_pending` when the physical placement differs. Announce
+  `please wait` during backend and engine setup, then announce `new position`
+  followed by `set pieces` once setup is ready for the user. Keep the pending
+  state until the board matches and emit one `POSOK` acknowledgement when
+  synchronization completes. Currently arm this state only for Set Pos; reuse
+  it elsewhere only for another explicit workflow that knowingly waits for a
+  target board.
 
 Explicit user-requested PGN saving is also a position-storage operation:
 

@@ -1684,6 +1684,8 @@ class DgtDisplay(DisplayMsg):
                 elif message.text_string == "NEW_POSITION":
                     await DispatchDgt.fire(self.dgttranslate.text("K20_newposition"))
                     await asyncio.sleep(1.5)
+                elif message.text_string == "POSITION_WAIT":
+                    await DispatchDgt.fire(self.dgttranslate.text("Y15_positionwait"))
                 elif message.text_string == "NEW_POSITION_SCAN":
                     await asyncio.sleep(0.5)
                 else:

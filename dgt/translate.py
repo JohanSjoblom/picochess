@@ -2306,6 +2306,43 @@ class DgtTranslate(object):
                 medium_text="Riavvio ",
                 small_text="Attesa",
             )
+        if text_id == "positionwait":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Please wait",
+                large_text="please wait",
+                medium_text="pls wait",
+                small_text="wait  ",
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Bitte warten",
+                large_text="bittewarten",
+                medium_text="warten  ",
+                small_text="warten",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Even wachten",
+                large_text="wacht even ",
+                medium_text="wachten ",
+                small_text="wacht ",
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Patientez",
+                large_text="patientez  ",
+                medium_text="patience",
+                small_text="patien",
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Espere",
+                large_text="espere     ",
+                medium_text="espere  ",
+                small_text="espere",
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Attendere",
+                large_text="attendere  ",
+                medium_text="attendi ",
+                small_text="attesa",
+            )
         if text_id == "nomove":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

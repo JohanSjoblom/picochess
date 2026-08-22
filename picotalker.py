@@ -1301,7 +1301,9 @@ class PicoTalkerDisplay(DisplayMsg):
                 await self.talk(["show_enginename_off.ogg"])
 
         elif isinstance(message, Message.SHOW_TEXT):
-            if message.text_string == "NEW_POSITION_SCAN":
+            if message.text_string == "POSITION_WAIT":
+                await self.talk(["pleasewait.ogg"])
+            elif message.text_string == "NEW_POSITION_SCAN":
                 await self.talk(["position_setup.ogg"])
             elif message.text_string == "NEW_POSITION":
                 await self.talk(["set_pieces_sound.ogg"], self.BEEPER)

@@ -377,6 +377,7 @@ class PicochessState:
         self.pgn_replay_tutor_regeneration_override: bool | None = None
         self.loaded_pgn_game: Game | None = None
         self.loaded_pgn_filename = ""
+        self.mame_recovery_rebase_pending = False
         self.picotutor: PicoTutor | None = None
         self.last_hand_coach_move: chess.Move | None = None
         self.hand_coach_task: asyncio.Task | None = None
@@ -1176,7 +1177,11 @@ def should_preserve_set_position_history(
     supports_edit: bool,
 ) -> bool:
     """Return whether browser Set Pos should keep the selected PGN prefix."""
-    return event_game is not None and not (is_mame_engine and supports_position and not supports_edit)
+    return event_game is not None and not mame_requires_fresh_fen_root(
+        is_mame_engine,
+        supports_position,
+        supports_edit,
+    )
 
 
 def setup_position_game(
@@ -1203,6 +1208,15 @@ def should_load_pgn_moves(stop_at_halfmove: int | None) -> bool:
     return stop_at_halfmove != 0
 
 
+def mame_requires_fresh_fen_root(
+    is_mame_engine: bool,
+    supports_position: bool,
+    supports_edit: bool,
+) -> bool:
+    """Return whether MAME must replace history with the current FEN."""
+    return is_mame_engine and supports_position and not supports_edit
+
+
 def should_preserve_loaded_pgn_history(
     is_mame_engine: bool,
     start_replay: bool,
@@ -1210,7 +1224,11 @@ def should_preserve_loaded_pgn_history(
     supports_edit: bool,
 ) -> bool:
     """Return whether Read Game should retain the loaded move stack."""
-    return start_replay or not (is_mame_engine and supports_position and not supports_edit)
+    return start_replay or not mame_requires_fresh_fen_root(
+        is_mame_engine,
+        supports_position,
+        supports_edit,
+    )
 
 
 def pgn_with_board_as_fresh_root(source_game: Game, board: chess.Board) -> Game:
@@ -2035,6 +2053,7 @@ async def main() -> None:
             ``msg`` may be None when the caller already emitted the move and any
             related pre-search display messages.
             """
+            await self._apply_pending_mame_recovery_rebase()
             self._set_game_started(True)
             if msg is not None:
                 await DisplayMsg.show(msg)
@@ -2748,8 +2767,39 @@ async def main() -> None:
                 self.state.automatic_takeback = False
                 self.state.takeback_active = False
                 self.state.reset_auto = False
+                await self._apply_pending_mame_recovery_rebase()
 
             self.state.stop_fen_timer()
+
+        async def _apply_pending_mame_recovery_rebase(self) -> None:
+            """Make a reopened pos-only MAME recovery position a fresh root."""
+            if not self.state.mame_recovery_rebase_pending:
+                return
+
+            self.state.mame_recovery_rebase_pending = False
+            capabilities = self.engine.get_mame_capabilities()
+            if not mame_requires_fresh_fen_root(
+                self.engine.is_mame_engine(),
+                capabilities.position,
+                capabilities.edit,
+            ):
+                return
+            if not self.state.game.move_stack:
+                return
+
+            logger.info(
+                "MAME recovery: edit unsupported; using current FEN as a fresh game root"
+            )
+            self.state.game = self.state.game.copy(stack=False)
+            self._reset_loaded_pgn_lifecycle()
+            self.state.best_sent_depth.reset()
+            self.state.searchmoves.reset()
+            self.state.take_back_locked = True
+            self.state.legal_fens = compute_legal_fens(self.state.game.copy())
+            self.state.legal_fens_after_cmove = []
+            self.state.last_legal_fens = []
+            await self.set_picotutor_position(new_game=True)
+            await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
         async def takeback(self):
             await self.stop_search_and_clock()
@@ -2774,6 +2824,7 @@ async def main() -> None:
                 # it seems call to set_wait_state assumes its always user move
                 # so after engine move takeback user needs to press lever
                 await self.set_wait_state(Message.TAKE_BACK(game=self.state.game.copy()))
+                await self._apply_pending_mame_recovery_rebase()
 
                 if self.pgn_mode():  # molli pgn
                     log_pgn(self.state)
@@ -7057,8 +7108,36 @@ async def main() -> None:
                                             self.state.takeback_active = True
                                             self.state.automatic_takeback = True
                                             await self.set_wait_state(Message.TAKE_BACK(game=self.state.game.copy()))
+                                        self.state.mame_recovery_rebase_pending = False
                                         loaded_ok = await self.engine.reopen_engine()
                                         if loaded_ok:
+                                            capabilities = self.engine.get_mame_capabilities()
+                                            if self.engine.is_mame_engine() and (
+                                                capabilities.position or capabilities.edit
+                                            ):
+                                                recovery_board = self.state.engine_board_copy()
+                                                self.state.mame_recovery_rebase_pending = (
+                                                    mame_requires_fresh_fen_root(
+                                                        True,
+                                                        capabilities.position,
+                                                        capabilities.edit,
+                                                    )
+                                                    and bool(recovery_board.move_stack)
+                                                )
+                                                if self.state.mame_recovery_rebase_pending:
+                                                    recovery_board = recovery_board.copy(stack=False)
+                                                    logger.info(
+                                                        "MAME recovery: synchronizing reopened engine from current FEN"
+                                                    )
+                                                else:
+                                                    logger.info(
+                                                        "MAME recovery: synchronizing reopened engine with move history"
+                                                    )
+                                                await self.engine.newgame(
+                                                    recovery_board,
+                                                    send_ucinewgame=True,
+                                                    send_position_to_mame=True,
+                                                )
                                             level_index = self.state.dgtmenu.get_engine_level_index()
                                             await DisplayMsg.show(
                                                 Message.ENGINE_STARTUP(

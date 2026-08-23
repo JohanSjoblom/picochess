@@ -39,11 +39,22 @@ architecture-specific engine directory. This correction has currently been
 tested with the x86-64 MAME executable and Mephisto MM V. Testing on other
 architectures and with other emulated chess computers is welcome.
 
-The SHA-256 checksum of the `init.lua` version tested on 21 August 2026 is:
+The SHA-256 checksum of the `init.lua` version tested on 21 August 2026, after
+Changes 1-3 below, is:
 
 ```text
 16034358af0ef4a9a842834dd3a4c4db5181ee3a11fe9760ae0882507cc657c0
 ```
+
+The MM V waiting-for-`go` proof of concept in Change 4 produces:
+
+```text
+1d04990a894e1b94d5c105bb1ea0e34150879dfef35cce5f29a97e949ebbf10b
+```
+
+This second checksum is pending the artwork tests described below. Keep the
+first checksum as the tested rollback point while evaluating the proof of
+concept.
 
 Before replacing the installed file, keep a backup. If your `init.lua` is
 newer or substantially different, apply the changes below to your version
@@ -199,6 +210,92 @@ the identical position again immediately before asking the engine to move.
 Treating an identical command as a no-op prevents the final move from being
 entered twice in the emulated chess computer.
 
+## Change 4: keep MM V idle until UCI `go` (proof of concept)
+
+Set Pos sends the position eagerly so that the MAME engine and artwork are
+synchronized before the next user action. This sequence deliberately contains
+no `go`:
+
+```text
+ucinewgame
+position startpos moves ...
+isready
+```
+
+The original `play_moves()` assumes that replaying a move stack is immediately
+followed by `go`. It therefore calls `interface.start_play(false)` itself. For
+MM V, `start_play()` presses `ENT`, causing the emulated computer to calculate
+and display an extra move in the artwork even though Picochess has not asked it
+to move.
+
+The proof of concept adds this helper before `play_moves()`:
+
+```lua
+local function wait_for_go()
+  -- Keep the emulated computer idle after synchronizing a position.  A UCI
+  -- position command must not start a search; execute_uci_command("go") will
+  -- assign the current ply to the emulated computer when Picochess asks it to
+  -- move.
+  if ply == "W" then
+    my_color = "B"
+  else
+    my_color = "W"
+  end
+  piece_get = false
+  piece_from = nil
+  piece_to = nil
+  sel_started = false
+end
+```
+
+At the end of `play_moves()`, replace:
+
+```lua
+if interface.start_play then
+  interface.start_play(false)
+  my_color = ply
+end
+```
+
+with:
+
+```lua
+if module == "mm5" then
+  -- Proof of concept: Set Pos may replay a move stack without an immediate
+  -- go.  Do not let MM V start playing merely because replay has finished.
+  wait_for_go()
+elseif interface.start_play then
+  interface.start_play(false)
+  my_color = ply
+end
+```
+
+The identical-position branch from Change 3 must also wait instead of starting
+MM V. Replace its body with:
+
+```lua
+if module == "mm5" then
+  wait_for_go()
+else
+  my_color = ply
+  sel_started = false
+  if interface.start_play then
+    interface.start_play(not game_started)
+  end
+end
+```
+
+`ply` remains the actual side to move. Setting `my_color` to the opposite side
+does not alter the FEN, move stack, backend position, or artwork. It only keeps
+the Lua move detector idle. When Picochess later requests a move after a user
+move or Switch Sides, the existing `go` handler calls `start_play()` and sets
+`my_color = ply`.
+
+The `module == "mm5"` condition intentionally limits this first test to
+Mephisto MM V. If the test succeeds, the waiting behavior can be evaluated as
+the generic UCI rule for all interfaces: `position` synchronizes state, while
+only `go` starts calculation. `mm4.lua` is not changed.
+
 ## Successful test
 
 The corrected plugin was tested with Mephisto MM V using this sequence:
@@ -214,20 +311,44 @@ The corrected plugin was tested with Mephisto MM V using this sequence:
 The successful test contained no Lua errors, UCI protocol-state errors,
 readiness failures, or engine crashes.
 
+## MM V artwork proof-of-concept test
+
+Change 4 still needs to be verified with `rdisplay = true`:
+
+1. Play through `1.e4 c6 2.d4 d5 3.e5 Bf5 4.Nf3 e6 5.Be2 Nd7 6.O-O c5`.
+2. Use **Position -> Set Pos** at the position after `6...c5`.
+3. Wait longer than MM V normally needs to move. The artwork must remain at
+   the requested position and must not add `7.Bb5` or another move.
+4. Make a White move other than `Bb5`. MM V must then receive the real `go`,
+   reply once, and remain synchronized with the backend, web client, and
+   artwork.
+5. Repeat Set Pos and use Switch Sides. MM V must remain idle before the switch
+   and make exactly one legitimate move afterward.
+6. Repeat from a position containing an odd number of half-moves to verify both
+   sides to move.
+7. Confirm that FEN-only Scan remains idle and continues normally after a user
+   move or Switch Sides.
+
 ## Compatibility and rollback
 
-Normal play from the standard starting position is unaffected. The relevant
-case requires all of the following:
+Changes 1-3 affect MAME positions with custom FEN roots and move history.
+Change 4 is currently limited to MM V and affects a replayed move stack with
+either a standard or custom root. The relevant proof-of-concept case requires:
 
-- a MAME engine;
-- a custom starting FEN;
+- Mephisto MM V through MAME;
 - a non-empty move history; and
-- an action such as Set Pos or Read Game that sends that history.
+- an action such as Set Pos or Read Game that sends the history without an
+  immediate `go`.
+
+FEN-only Scan does not call `play_moves()` and is not changed by this proof of
+concept.
 
 Picochess will preserve and send the move stack for these operations once its
 corresponding update is installed. Therefore, image builders should distribute
 this Lua correction together with that Picochess update.
 
-If problems are found, restore the previous `init.lua` and revert the matching
-Picochess move-history commit so that MAME positions are again sent without a
-move suffix.
+If Change 4 causes problems, restore the tested Changes 1-3 `init.lua` with
+checksum `16034358af0ef4a9a842834dd3a4c4db5181ee3a11fe9760ae0882507cc657c0`.
+If the custom-FEN move-history handling itself causes problems, restore the
+original plugin and revert the matching Picochess move-history commit so that
+MAME positions are again sent without a move suffix.

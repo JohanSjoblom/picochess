@@ -390,9 +390,10 @@ also honoring the timing-sensitive setup sequence required by MAME.
   root. The placement supplies no move history.
 - Browser `Position -> Set Pos` normally promotes the selected PGN prefix,
   including its move stack, into the live Picochess game.
-- MAME Set Pos follows the normal browser behavior and preserves the selected
-  PGN prefix. The MAME Lua adapter supports a custom FEN together with a moves
-  suffix; do not discard that history in Picochess as an adapter workaround.
+- MAME Set Pos preserves the selected PGN prefix only when its Lua interface
+  reports the `edit` capability. With `pos` but without `edit`, use the selected
+  final FEN as a fresh live-game root so the adapter is not asked to
+  batch-replay history.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
 - MAME Scan announces `please wait` while that eager engine setup completes,

@@ -11,6 +11,7 @@ from picochess import (
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
     should_load_pgn_moves,
+    should_preserve_set_position_history,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
     setup_position_game,
@@ -82,6 +83,58 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertEqual(selected_game.fen(), live_game.fen())
         self.assertEqual(selected_game.move_stack, live_game.move_stack)
         self.assertEqual(selected_game.root().fen(), live_game.root().fen())
+
+    def test_set_position_can_use_selected_fen_as_fresh_root(self):
+        selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")
+        selected_game.push_uci("a2a4")
+
+        live_game = setup_position_game(
+            selected_game.fen(),
+            uci960=False,
+            event_game=selected_game,
+            preserve_history=False,
+        )
+
+        self.assertEqual(selected_game.fen(), live_game.fen())
+        self.assertEqual([], live_game.move_stack)
+        self.assertEqual(selected_game.fen(), live_game.root().fen())
+
+    def test_set_position_history_policy_is_limited_to_pos_only_mame(self):
+        selected_game = chess.Board()
+        selected_game.push_uci("e2e4")
+
+        self.assertTrue(
+            should_preserve_set_position_history(
+                selected_game,
+                is_mame_engine=False,
+                supports_position=False,
+                supports_edit=False,
+            )
+        )
+        self.assertTrue(
+            should_preserve_set_position_history(
+                selected_game,
+                is_mame_engine=True,
+                supports_position=True,
+                supports_edit=True,
+            )
+        )
+        self.assertFalse(
+            should_preserve_set_position_history(
+                selected_game,
+                is_mame_engine=True,
+                supports_position=True,
+                supports_edit=False,
+            )
+        )
+        self.assertTrue(
+            should_preserve_set_position_history(
+                selected_game,
+                is_mame_engine=True,
+                supports_position=False,
+                supports_edit=False,
+            )
+        )
 
     def test_scan_position_is_a_fresh_root_without_history(self):
         fen = "4k3/8/8/8/8/8/P7/4K3 b - - 0 1"

@@ -179,6 +179,57 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("Configured Name", eng.get_name())
 
+    async def test_mame_capabilities_are_parsed_and_engine_name_is_cleaned(self):
+        eng = UciEngine("/tmp/mame/mm5", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.id = {"name": "Mephisto MM V (pos+edit)"}
+
+        eng._set_engine_name()
+
+        self.assertEqual("Mephisto MM V", eng.get_name())
+        self.assertTrue(eng.get_mame_capabilities().position)
+        self.assertTrue(eng.get_mame_capabilities().edit)
+        self.assertFalse(eng.get_mame_capabilities().info)
+        self.assertTrue(eng.supports_mame_edit())
+        self.assertEqual(" pos + edit", eng.get_mame_capabilities().retro_info())
+
+    async def test_old_mame_capabilities_default_to_no_edit_support(self):
+        eng = UciEngine("/tmp/mame/boris", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.id = {"name": "Boris (pos)"}
+
+        eng._set_engine_name()
+
+        self.assertEqual("Boris", eng.get_name())
+        self.assertTrue(eng.get_mame_capabilities().position)
+        self.assertFalse(eng.supports_mame_edit())
+        self.assertEqual(" position", eng.get_mame_capabilities().retro_info())
+
+    async def test_mame_name_override_does_not_hide_reported_capabilities(self):
+        eng = UciEngine("/tmp/mame/mm5", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.id = {"name": "Mephisto MM V (pos+edit+info)"}
+        eng.engine_name_override = "Configured MM V"
+
+        eng._set_engine_name()
+
+        self.assertEqual("Configured MM V", eng.get_name())
+        self.assertTrue(eng.get_mame_capabilities().position)
+        self.assertTrue(eng.get_mame_capabilities().edit)
+        self.assertTrue(eng.get_mame_capabilities().info)
+        self.assertEqual(" pos + edit + info", eng.get_mame_capabilities().retro_info())
+
+    async def test_modern_engine_name_is_not_parsed_as_mame_capabilities(self):
+        eng = UciEngine("/tmp/modern", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine.id = {"name": "Modern Engine (pos+edit)"}
+
+        eng._set_engine_name()
+
+        self.assertEqual("Modern Engine (pos+edit)", eng.get_name())
+        self.assertFalse(eng.get_mame_capabilities().position)
+        self.assertFalse(eng.supports_mame_edit())
+
     async def test_engine_uses_eval_for_rating(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

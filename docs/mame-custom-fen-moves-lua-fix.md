@@ -393,10 +393,15 @@ if l_features ~= "" then
 end
 ```
 
-This first capability-reporting step does not change which position commands
-Picochess sends. With debug logging enabled, selecting a MAME engine records
-the raw result in a line such as:
+Picochess parses these markers once during engine startup and stores `pos`,
+`edit`, and `info` as structured MAME capabilities. With debug logging enabled,
+selecting a MAME engine records the parsed result in a line such as:
 
 ```text
-engine - startup: Loaded engine [Mephisto MM V (pos+edit+info)]
+engine - startup: MAME capabilities [position=True, edit=True, info=True]
 ```
+
+Set Pos preserves and sends the selected move history when `edit` is reported.
+For a MAME interface reporting `pos` without `edit`, Picochess makes the
+selected final FEN a fresh game root. This retains the requested position while
+avoiding a batch move-history replay that the interface cannot perform.

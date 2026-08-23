@@ -1169,18 +1169,31 @@ def boards_match_position_and_history(first: chess.Board, second: chess.Board) -
     return first.fen() == second.fen() and tuple(first.move_stack) == tuple(second.move_stack)
 
 
+def should_preserve_set_position_history(
+    event_game: chess.Board | None,
+    is_mame_engine: bool,
+    supports_position: bool,
+    supports_edit: bool,
+) -> bool:
+    """Return whether browser Set Pos should keep the selected PGN prefix."""
+    return event_game is not None and not (is_mame_engine and supports_position and not supports_edit)
+
+
 def setup_position_game(
     fen: str,
     uci960: bool,
     event_game: chess.Board | None,
+    preserve_history: bool = True,
 ) -> chess.Board:
     """Build the live game for a setup-position event.
 
-    The web Set Pos action promotes the selected PGN prefix, including its move
-    stack, into the live game. A physical eboard Scan has no event game and
-    therefore treats the scanned FEN as a fresh root.
+    The web Set Pos action normally promotes the selected PGN prefix, including
+    its move stack, into the live game. Interfaces without move-history editing
+    support can request the selected FEN as a fresh root. A physical eboard Scan
+    has no event game and therefore always treats the scanned FEN as a fresh
+    root.
     """
-    if event_game is not None:
+    if event_game is not None and preserve_history:
         return event_game.copy(stack=True)
     return chess.Board(fen, chess960=uci960)
 
@@ -1743,6 +1756,7 @@ async def main() -> None:
                 )
                 self.args.engine_level = None
             startup_ok = await self.engine.startup(engine_opt, self.state.rating)
+            ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
 
             # Initialize variant support from engine settings
             self._init_variant_from_engine()
@@ -1788,6 +1802,11 @@ async def main() -> None:
             sys_info = {
                 "version": version,
                 "engine_name": self.engine.get_name(),
+                "retro_info_only": (
+                    self.engine.get_mame_capabilities().info
+                    and not self.engine.get_mame_capabilities().position
+                    and not self.engine.get_mame_capabilities().edit
+                ),
                 "user_name": user_name,
                 "user_elo": self.args.pgn_elo,
                 "rspeed": round(float(args.rspeed), 2),
@@ -5683,6 +5702,8 @@ async def main() -> None:
                         await asyncio.sleep(3)
                         sys.exit(-1)
 
+                ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
+
                 if self.online_mode():
                     await self.state.stop_clock()
                     await DisplayMsg.show(Message.ONLINE_LOGIN())
@@ -5955,10 +5976,20 @@ async def main() -> None:
                 self._reset_loaded_pgn_lifecycle()
                 ModeInfo.set_game_ending(result="*")
                 event_game = getattr(event, "game", None)
+                mame_capabilities = self.engine.get_mame_capabilities()
+                preserve_history = should_preserve_set_position_history(
+                    event_game,
+                    is_mame_engine=self.engine.is_mame_engine(),
+                    supports_position=mame_capabilities.position,
+                    supports_edit=mame_capabilities.edit,
+                )
+                if not preserve_history:
+                    logger.info("MAME Set Pos: edit unsupported; using selected FEN as a fresh game root")
                 self.state.game = setup_position_game(
                     event.fen,
                     uci960,
                     event_game,
+                    preserve_history=preserve_history,
                 )
                 setup_fen = self.state.game.fen()
 
@@ -7555,6 +7586,7 @@ async def main() -> None:
                     if engine_file_to_load != self.state.engine_file:
                         await asyncio.sleep(1)  # mame artwork wait
                     await self.engine.startup(old_options, self.state.rating)
+                    ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
                     await self.stop_search_and_clock()
 
                     if (

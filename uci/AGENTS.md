@@ -149,12 +149,11 @@ deliberately narrower than normal python-chess engine handling.
 - Do not wrap the post-position MAME `ping()` in `asyncio.wait_for()`. Cancelling
   a python-chess ping leaves its protocol command active; a late `readyok` can
   then corrupt command state and break the following lever/switch-sides search.
-- Preserve Set Pos history only when the MAME Lua interface reports `edit`.
-  With `pos` but without `edit`, Set Pos uses the selected final FEN as a fresh
-  live game root so later normal moves remain incremental. Read Game still
-  preserves its existing history pending capability-aware routing for that
-  workflow. Scan remains a fresh, stackless position naturally because an
-  eboard placement has no move history.
+- Preserve Set Pos and Read Game history only when the MAME Lua interface
+  reports `edit`. With `pos` but without `edit`, calculate the requested final
+  position and use its FEN as a fresh live game root so later normal moves
+  remain incremental. Scan remains a fresh, stackless position naturally
+  because an eboard placement has no move history.
 - Keep `send_position_to_mame` and eager `send_ucinewgame` opt-in. These
   workarounds must not alter modern UCI engines or the built-in PGN Replay
   workflow.

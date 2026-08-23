@@ -1203,6 +1203,31 @@ def should_load_pgn_moves(stop_at_halfmove: int | None) -> bool:
     return stop_at_halfmove != 0
 
 
+def should_preserve_loaded_pgn_history(
+    is_mame_engine: bool,
+    start_replay: bool,
+    supports_position: bool,
+    supports_edit: bool,
+) -> bool:
+    """Return whether Read Game should retain the loaded move stack."""
+    return start_replay or not (is_mame_engine and supports_position and not supports_edit)
+
+
+def pgn_with_board_as_fresh_root(source_game: Game, board: chess.Board) -> Game:
+    """Rebase a PGN on ``board`` while retaining its descriptive headers."""
+    rebased_game = Game.from_board(board.copy(stack=False))
+    setup_headers = {
+        key: rebased_game.headers[key]
+        for key in ("SetUp", "FEN")
+        if key in rebased_game.headers
+    }
+    rebased_game.headers.update(source_game.headers)
+    rebased_game.headers.pop("SetUp", None)
+    rebased_game.headers.pop("FEN", None)
+    rebased_game.headers.update(setup_headers)
+    return rebased_game
+
+
 def loaded_pgn_interaction_mode(
     previous_mode: Mode,
     start_replay: bool,
@@ -4954,6 +4979,7 @@ async def main() -> None:
                         l_stop_at_halfmove = 0  # for DGT board its better with zero
 
             mame_engine_selected = self.engine.is_mame_engine()
+            published_pgn_game = l_game_pgn
             load_pgn_moves = should_load_pgn_moves(l_stop_at_halfmove)
             if load_pgn_moves:
                 for l_move in l_game_pgn.mainline_moves():
@@ -4970,6 +4996,20 @@ async def main() -> None:
             if start_replay and load_pgn_moves and l_move and l_stop_at_halfmove != 0:
                 self.state.pop_move()
                 self._update_variant_shared()
+
+            mame_capabilities = self.engine.get_mame_capabilities()
+            preserve_loaded_history = should_preserve_loaded_pgn_history(
+                is_mame_engine=mame_engine_selected,
+                start_replay=start_replay,
+                supports_position=mame_capabilities.position,
+                supports_edit=mame_capabilities.edit,
+            )
+            if not preserve_loaded_history and self.state.game.move_stack:
+                logger.info(
+                    "MAME Read Game: edit unsupported; using loaded final FEN as a fresh game root"
+                )
+                self.state.game = self.state.game.copy(stack=False)
+                published_pgn_game = pgn_with_board_as_fresh_root(l_game_pgn, self.state.game)
 
             # Normally PGN loading leaves ucinewgame and position transmission
             # to python-chess.  MAME needs the issue #72 eager ucinewgame and
@@ -5120,11 +5160,11 @@ async def main() -> None:
                 self.state.pgn_replay_tutor_regeneration,
             )
 
-            self.shared["headers"] = l_game_pgn.headers  # update headers from file
+            self.shared["headers"] = published_pgn_game.headers  # update headers from live game
             EventHandler.write_to_clients({"event": "Header", "headers": dict(self.shared["headers"])})
             await asyncio.sleep(0.1)  # give time to write_to_clients
             if not start_replay:
-                pgn_str = l_game_pgn.accept(
+                pgn_str = published_pgn_game.accept(
                     chess.pgn.StringExporter(headers=True, comments=True, variations=True)
                 )
                 try:

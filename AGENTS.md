@@ -429,9 +429,10 @@ PGN loading has separate position, history, and mode rules:
   leaves the board at the PGN root.
 - A custom `FEN` must not by itself suppress moves. Start from the FEN and apply
   the mainline according to `PicoStop`, regardless of the selected engine.
-- Read Game applies the selected mainline moves for MAME as it does for modern
-  engines, including games with a custom FEN root. The MAME engine receives
-  that same root and move stack.
+- Read Game applies the selected mainline moves for modern engines and MAME
+  engines that report `edit`. For MAME with `pos` but without `edit`, it first
+  calculates the requested final position and then makes that FEN a fresh live
+  root, keeping the backend, web client, Tutor, and engine stackless together.
 - Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
   readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
   normal python-chess-controlled command path.

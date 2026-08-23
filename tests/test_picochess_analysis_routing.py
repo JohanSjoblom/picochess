@@ -6,11 +6,13 @@ from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
     loaded_pgn_interaction_mode,
+    pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
     should_load_pgn_moves,
+    should_preserve_loaded_pgn_history,
     should_preserve_set_position_history,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
@@ -69,6 +71,37 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
     def test_picostop_zero_does_not_load_moves(self):
         self.assertFalse(should_load_pgn_moves(stop_at_halfmove=0))
+
+    def test_read_game_history_policy_is_limited_to_pos_only_mame(self):
+        self.assertTrue(
+            should_preserve_loaded_pgn_history(False, False, False, False)
+        )
+        self.assertTrue(
+            should_preserve_loaded_pgn_history(True, False, True, True)
+        )
+        self.assertFalse(
+            should_preserve_loaded_pgn_history(True, False, True, False)
+        )
+        self.assertTrue(
+            should_preserve_loaded_pgn_history(True, False, False, False)
+        )
+        self.assertTrue(
+            should_preserve_loaded_pgn_history(True, True, True, False)
+        )
+
+    def test_rebased_loaded_pgn_keeps_headers_but_replaces_setup(self):
+        source = chess.pgn.Game()
+        source.headers["Event"] = "Loaded game"
+        board = source.board()
+        board.push_uci("e2e4")
+        final_fen = board.fen()
+
+        rebased = pgn_with_board_as_fresh_root(source, board)
+
+        self.assertEqual("Loaded game", rebased.headers["Event"])
+        self.assertEqual("1", rebased.headers["SetUp"])
+        self.assertEqual(final_fen, rebased.headers["FEN"])
+        self.assertEqual([], list(rebased.mainline_moves()))
 
     def test_set_position_preserves_selected_pgn_prefix(self):
         selected_game = chess.Board("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")

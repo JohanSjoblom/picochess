@@ -21,8 +21,10 @@ from __future__ import annotations
 import ast
 import asyncio
 from asyncio import CancelledError
+from dataclasses import dataclass
 import os
 import platform
+import re
 import traceback
 from typing import Optional, Iterable, Awaitable, Callable
 import logging
@@ -110,6 +112,48 @@ UCI_ELO_NON_STANDARD = "UCI Elo"
 UCI_ELO_NON_STANDARD2 = "UCI_Limit"
 
 logger = logging.getLogger(__name__)
+
+
+_MAME_CAPABILITY_PATTERN = re.compile(r"\(((?:pos|edit|info)(?:\+(?:pos|edit|info))*)\)")
+
+
+@dataclass(frozen=True)
+class MameCapabilities:
+    """Capabilities reported by the selected MAME Lua interface."""
+
+    position: bool = False
+    edit: bool = False
+    info: bool = False
+
+    @classmethod
+    def from_engine_name(cls, engine_name: str) -> tuple[str, MameCapabilities]:
+        """Parse Lua capability markers and return a clean engine name."""
+        features = {
+            feature
+            for match in _MAME_CAPABILITY_PATTERN.finditer(engine_name)
+            for feature in match.group(1).split("+")
+        }
+        clean_name = _MAME_CAPABILITY_PATTERN.sub("", engine_name).strip()
+        return clean_name, cls(
+            position="pos" in features,
+            edit="edit" in features,
+            info="info" in features,
+        )
+
+    def retro_info(self) -> str:
+        """Return the compact feature text used by the Retro Info menu."""
+        features = []
+        if self.position:
+            features.append("pos")
+        if self.edit:
+            features.append("edit")
+        if self.info:
+            features.append("info")
+        if features == ["pos"]:
+            return " position"
+        if features == ["info"]:
+            return " information"
+        return " " + " + ".join(features) if features else " /"
 
 
 class TolerantUciProtocol(UciProtocol):
@@ -1054,6 +1098,7 @@ class UciEngine(object):
         self.engine: UciProtocol | None = None
         self.engine_name = "NN"
         self.engine_name_override: str | None = None
+        self.mame_capabilities = MameCapabilities()
         self.options: dict = {}
         self.res: PlayResult = None
         self.level_support = False
@@ -1206,11 +1251,16 @@ class UciEngine(object):
 
     def _set_engine_name(self) -> bool:
         """Apply the configured name override, or the name reported over UCI."""
+        reported_name = self.engine.id.get("name") if self.engine else None
+        if self.is_mame and reported_name:
+            reported_name, self.mame_capabilities = MameCapabilities.from_engine_name(reported_name)
+        else:
+            self.mame_capabilities = MameCapabilities()
         if self.engine_name_override is not None:
             self.engine_name = self.engine_name_override
             return True
-        if self.engine and "name" in self.engine.id:
-            self.engine_name = self.engine.id["name"]
+        if reported_name:
+            self.engine_name = reported_name
             return True
         return False
 
@@ -1311,6 +1361,14 @@ class UciEngine(object):
     def is_mame_engine(self) -> bool:
         """Return True if this engine runs through the MAME/MESS emulation layer."""
         return self.is_mame
+
+    def get_mame_capabilities(self) -> MameCapabilities:
+        """Return capabilities reported by the selected MAME Lua interface."""
+        return self.mame_capabilities
+
+    def supports_mame_edit(self) -> bool:
+        """Return whether the selected MAME interface can replay move history."""
+        return self.is_mame and self.mame_capabilities.edit
 
     def is_script_engine(self) -> bool:
         """Return True if this engine is provided via a script wrapper."""
@@ -1994,6 +2052,13 @@ class UciEngine(object):
         self._apply_playing_mode_policy()
 
         logger.debug("Loaded engine [%s]", self.get_name())
+        if self.is_mame:
+            logger.debug(
+                "MAME capabilities [position=%s, edit=%s, info=%s]",
+                self.mame_capabilities.position,
+                self.mame_capabilities.edit,
+                self.mame_capabilities.info,
+            )
         logger.debug("Supported options [%s]", self.get_options())
         return True
 

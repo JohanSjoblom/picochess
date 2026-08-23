@@ -6,6 +6,7 @@ from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
     loaded_pgn_interaction_mode,
+    mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
     should_block_takeback,
@@ -88,6 +89,12 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertTrue(
             should_preserve_loaded_pgn_history(True, True, True, False)
         )
+
+    def test_only_pos_without_edit_requires_fresh_mame_root(self):
+        self.assertTrue(mame_requires_fresh_fen_root(True, True, False))
+        self.assertFalse(mame_requires_fresh_fen_root(True, True, True))
+        self.assertFalse(mame_requires_fresh_fen_root(True, False, False))
+        self.assertFalse(mame_requires_fresh_fen_root(False, True, False))
 
     def test_rebased_loaded_pgn_keeps_headers_but_replaces_setup(self):
         source = chess.pgn.Game()

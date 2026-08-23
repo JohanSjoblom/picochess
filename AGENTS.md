@@ -436,6 +436,12 @@ PGN loading has separate position, history, and mode rules:
 - Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
   readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
   normal python-chess-controlled command path.
+- After a MAME process is reopened following a playing-engine failure,
+  immediately repeat that eager synchronization. Preserve history for an
+  `edit` interface. For `pos` without `edit`, synchronize the reopened process
+  from the current final FEN and rebase the live game at the automatic-takeback
+  completion or, as a fallback, immediately before the next search. This lets
+  the takeback transaction consume its expected move before history is cleared.
 - An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
   playing mode when possible, otherwise `Mode.NORMAL`, and must update
   `game_started`. A valid custom FEN does not override unfinished status.

@@ -160,6 +160,12 @@ deliberately narrower than normal python-chess engine handling.
 - Preserve the command order: eager `ucinewgame`, `position`, then `isready` /
   `readyok`. Do not start analysis or a playing search concurrently with this
   setup sequence.
+- Apply the same eager sequence after reopening a crashed MAME playing engine.
+  An `edit` interface receives the retained root and move stack. A `pos`-only
+  interface receives the current final FEN as a fresh root; Picochess defers
+  clearing its live stack until the pending automatic takeback has had an
+  opportunity to consume the expected move, and always clears it before the
+  next search.
 
 ## Legacy PGN Replay Engine
 

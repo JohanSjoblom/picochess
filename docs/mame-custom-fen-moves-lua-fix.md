@@ -352,3 +352,51 @@ checksum `16034358af0ef4a9a842834dd3a4c4db5181ee3a11fe9760ae0882507cc657c0`.
 If the custom-FEN move-history handling itself causes problems, restore the
 original plugin and revert the matching Picochess move-history commit so that
 MAME positions are again sent without a move suffix.
+
+## Change 5: advertise move-stack editing support
+
+Picochess Retro Info already derives `pos` and `info` feature markers from the
+functions provided by the selected Lua interface. Add `edit` when
+`interface.edit_game` exists so that the startup engine name reports all three
+relevant capabilities. For example, an interface providing position setup,
+move-stack editing, and engine information reports:
+
+```text
+Mephisto MM V (pos+edit+info)
+```
+
+Replace the feature-suffix construction in the UCI handler with:
+
+```lua
+local l_features = ""
+if interface.set_pos then
+  l_features = "pos"
+end
+
+if interface.edit_game then
+  if l_features ~= "" then
+    l_features = l_features .. "+"
+  end
+  l_features = l_features .. "edit"
+end
+
+if interface.show_pv_after_move or interface.show_info then
+  if l_features ~= "" then
+    l_features = l_features .. "+"
+  end
+  l_features = l_features .. "info"
+end
+
+local l_opt = ""
+if l_features ~= "" then
+  l_opt = " (" .. l_features .. ")"
+end
+```
+
+This first capability-reporting step does not change which position commands
+Picochess sends. With debug logging enabled, selecting a MAME engine records
+the raw result in a line such as:
+
+```text
+engine - startup: Loaded engine [Mephisto MM V (pos+edit+info)]
+```

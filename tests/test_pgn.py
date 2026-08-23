@@ -12,6 +12,7 @@ from dgt.util import Mode, PlayMode
 from pgn import (
     PgnDisplay,
     add_picotutor_variations_to_game,
+    parse_retro_engine_name,
     pgn_has_variations,
     pgn_variation_review_points,
     preserve_loaded_pgn_variations,
@@ -62,6 +63,21 @@ class TestPgnDisplay(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.testee = PgnDisplay("test", None, {}, self.loop)
+
+    def test_parse_retro_engine_name_preserves_existing_features(self):
+        self.assertEqual(parse_retro_engine_name("Retro (pos)"), ("Retro", " position"))
+        self.assertEqual(parse_retro_engine_name("Retro (info)"), ("Retro", " information"))
+        self.assertEqual(parse_retro_engine_name("Retro (pos+info)"), ("Retro", " pos + info"))
+
+    def test_parse_retro_engine_name_includes_edit_capability(self):
+        self.assertEqual(
+            parse_retro_engine_name("Mephisto MM V (pos+edit+info)"),
+            ("Mephisto MM V", " pos + edit + info"),
+        )
+        self.assertEqual(parse_retro_engine_name("Retro (edit)"), ("Retro", " edit"))
+
+    def test_parse_retro_engine_name_ignores_normal_parentheses(self):
+        self.assertEqual(parse_retro_engine_name("Retro (1985)"), ("Retro (1985)", " /"))
 
     def test_generate_pgn(self):
         game = chess.Board()

@@ -21,6 +21,7 @@ import logging
 import os
 import mimetypes
 import asyncio
+import re
 
 from email import encoders
 from email.mime.multipart import MIMEMultipart
@@ -45,6 +46,32 @@ from dgt.util import PlayMode, Mode, TimeMode
 from picotutor import PicoTutor
 
 logger = logging.getLogger(__name__)
+
+
+_RETRO_FEATURE_PATTERN = re.compile(r"\(((?:pos|edit|info)(?:\+(?:pos|edit|info))*)\)")
+
+
+def parse_retro_engine_name(engine_name: str) -> tuple[str, str]:
+    """Remove Lua capability markers and return their Retro Info text."""
+    features = []
+    for match in _RETRO_FEATURE_PATTERN.finditer(engine_name):
+        for feature in match.group(1).split("+"):
+            if feature not in features:
+                features.append(feature)
+
+    clean_name = _RETRO_FEATURE_PATTERN.sub("", engine_name).strip()
+    if not features:
+        return clean_name, " /"
+    if features == ["pos"]:
+        return clean_name, " position"
+    if features == ["info"]:
+        return clean_name, " information"
+    return clean_name, " " + " + ".join(features)
+
+
+def retro_engine_name_has_feature(engine_name: str, feature: str) -> bool:
+    """Return whether a Lua capability marker contains the requested feature."""
+    return any(feature in match.group(1).split("+") for match in _RETRO_FEATURE_PATTERN.finditer(engine_name))
 
 
 def _parse_legal_picotutor_variation_moves(parent: chess.pgn.GameNode, variation: dict) -> list[chess.Move]:
@@ -853,18 +880,9 @@ class PgnDisplay(DisplayMsg):
 
         elif isinstance(message, Message.SYSTEM_INFO):
             if "engine_name" in message.info:
-                self.engine_name = message.info["engine_name"]
-
-                ModeInfo.retro_engine_features = " /"
-                if "(pos+info)" in self.engine_name:
-                    ModeInfo.retro_engine_features = " pos + info"
-                    self.engine_name = self.engine_name.replace("(pos+info)", "")
-                if "(pos)" in self.engine_name:
-                    ModeInfo.retro_engine_features = " position"
-                    self.engine_name = self.engine_name.replace("(pos)", "")
-                if "(info)" in self.engine_name:
-                    ModeInfo.retro_engine_features = " information"
-                    self.engine_name = self.engine_name.replace("(info)", "")
+                raw_engine_name = message.info["engine_name"]
+                self.engine_name, ModeInfo.retro_engine_features = parse_retro_engine_name(raw_engine_name)
+                if retro_engine_name_has_feature(raw_engine_name, "info"):
                     self.old_level_name = self.level_name
                     self.old_level_text = self.level_text
                     self.old_engine_elo = self.engine_elo
@@ -944,17 +962,7 @@ class PgnDisplay(DisplayMsg):
                     break
 
         elif isinstance(message, Message.ENGINE_READY):
-            self.engine_name = message.engine_name
-            ModeInfo.retro_engine_features = " /"
-            if "(pos+info)" in self.engine_name:
-                ModeInfo.retro_engine_features = " pos + info"
-                self.engine_name = self.engine_name.replace("(pos+info)", "")
-            if "(pos)" in self.engine_name:
-                ModeInfo.retro_engine_features = " position"
-                self.engine_name = self.engine_name.replace("(pos)", "")
-            if "(info)" in self.engine_name:
-                ModeInfo.retro_engine_features = " information"
-                self.engine_name = self.engine_name.replace("(info)", "")
+            self.engine_name, ModeInfo.retro_engine_features = parse_retro_engine_name(message.engine_name)
 
             self.engine_elo = message.eng["elo"]
             if not message.has_levels:
@@ -980,15 +988,9 @@ class PgnDisplay(DisplayMsg):
                 self._save_pgn(message)
 
         elif isinstance(message, Message.START_NEW_GAME):
-            if "(pos+info)" in self.engine_name:
-                ModeInfo.retro_engine_features = " pos + info"
-                self.engine_name = self.engine_name.replace("(pos+info)", "")
-            if "(pos)" in self.engine_name:
-                ModeInfo.retro_engine_features = " position"
-                self.engine_name = self.engine_name.replace("(pos)", "")
-            if "(info)" in self.engine_name:
-                ModeInfo.retro_engine_features = " information"
-                self.engine_name = self.engine_name.replace("(info)", "")
+            self.engine_name, retro_features = parse_retro_engine_name(self.engine_name)
+            if retro_features != " /":
+                ModeInfo.retro_engine_features = retro_features
             self.startime = datetime.datetime.now().strftime("%H:%M:%S")
 
         elif isinstance(message, Message.SAVE_GAME):

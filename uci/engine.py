@@ -2061,7 +2061,7 @@ class UciEngine(object):
 
         logger.debug("Loaded engine [%s]", self.get_name())
         if self.is_mame:
-            logger.debug(
+            logger.info(
                 "MAME capabilities [position=%s, edit=%s, info=%s]",
                 self.mame_capabilities.position,
                 self.mame_capabilities.edit,

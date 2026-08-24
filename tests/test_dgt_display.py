@@ -217,6 +217,19 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
 
         dispatch_fire.assert_awaited_once_with(message.text)
 
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_loaded_mame_capabilities_are_shown_as_timed_retro_info(self, dispatch_fire):
+        display = self.create_display()
+
+        await display._process_message(Message.ENGINE_RETRO_INFO(features="pos + edit + info"))
+
+        text = dispatch_fire.await_args.args[0]
+        self.assertEqual("Engine-Features:pos + edit + info", text.web_text)
+        self.assertEqual("pos + ed", text.medium_text)
+        self.assertFalse(text.beep)
+        self.assertEqual(3, text.maxtime)
+        self.assertFalse(text.wait)
+
     @patch("dgt.display.asyncio.sleep", new_callable=AsyncMock)
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_board_connection_restores_cached_startup_engine_name(self, dispatch_fire, _sleep):

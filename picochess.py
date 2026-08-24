@@ -1890,6 +1890,7 @@ async def main() -> None:
                 # Confirm startup after startup announcements to keep spoken order:
                 # "picochess", "engine setup", "ok".
                 await DisplayMsg.show(Message.PICOCOMMENT(picocomment="ok"))
+                await self.show_loaded_mame_capabilities()
             # update_elo_display sends "rspeed", "user_elo", "engine_elo" in SYSTEM_INFO
             await self.update_elo_display()
 
@@ -2481,6 +2482,15 @@ async def main() -> None:
                 self.state.dgtmenu.get_engine_rsound(),
                 engine_rwindow=self.state.dgtmenu.get_engine_rwindow(),
             )
+
+        async def show_loaded_mame_capabilities(self):
+            """Temporarily show reported Lua capabilities after a MAME load."""
+            if self.engine.is_mame_engine():
+                await DisplayMsg.show(
+                    Message.ENGINE_RETRO_INFO(
+                        features=self.engine.get_mame_capabilities().retro_info().strip() or "/"
+                    )
+                )
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -5916,6 +5926,8 @@ async def main() -> None:
                 gc.collect()
 
                 await self.set_wait_state(msg, not engine_fallback)
+                if not engine_fallback:
+                    await self.show_loaded_mame_capabilities()
                 if self.state.interaction_mode in (
                     Mode.NORMAL,
                     Mode.BRAIN,

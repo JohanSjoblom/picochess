@@ -102,6 +102,21 @@ explicitly requires it.
 - If a category has no manufacturer metadata, preserve the previous flat list.
   Under engine or manufacturer sorting, that fallback list is alphabetical.
 
+## MAME Capability Visibility
+
+- Keep the selected MAME Lua interface capabilities (`position`, `edit`, and
+  `info`) as structured booleans in web system information. Do not recover
+  them by parsing the displayed `pos + edit + info` string or by modifying the
+  canonical engine name.
+- The browser's permanent capability view belongs under Engine > Engine Info.
+  The physical DGT clock keeps its existing Engine > Retro Settings > Retro
+  Info path.
+- During the engine-capability testing campaign, Picochess also shows the
+  existing `B00_engine_retroinfo` text for three seconds immediately after a
+  successful MAME startup or engine selection. This temporary message is
+  display-only: it must not speak technical capability names or trigger engine
+  communication.
+
 ## Game Lifecycle State
 
 - `game_started` is a lifecycle flag for the web client and CPU-saving analysis

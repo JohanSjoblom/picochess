@@ -176,6 +176,7 @@ class MessageApi:
     SEEKING = "MSG_SEEKING"  # molli: seek for online player
     PGN_GAME_END = "MSG_PGN_GAME_END"
     ENGINE_SETUP = "MSG_ENGINE_SETUP"
+    ENGINE_RETRO_INFO = "MSG_ENGINE_RETRO_INFO"
     MOVE_RETRY = "MSG_MOVE_RETRY"
     MOVE_WRONG = "MSG_MOVE_WRONG"
     RESTORE_GAME = "MSG_RESTORE_GAME"
@@ -263,6 +264,7 @@ class Message:
         MessageApi.ENGINE_STARTUP, ["installed_engines", "file", "level_index", "has_960", "has_ponder"]
     )
     ENGINE_FAIL = ClassFactory(MessageApi.ENGINE_FAIL, [])
+    ENGINE_RETRO_INFO = ClassFactory(MessageApi.ENGINE_RETRO_INFO, ["features"])
     REMOTE_FAIL = ClassFactory(MessageApi.REMOTE_FAIL, [])
     LEVEL = ClassFactory(MessageApi.LEVEL, ["level_text", "level_name", "do_speak"])
     TIME_CONTROL = ClassFactory(MessageApi.TIME_CONTROL, ["time_text", "show_ok", "tc_init"])

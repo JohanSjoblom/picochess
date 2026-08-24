@@ -449,6 +449,7 @@ def _engine_menu_labels(dgttranslate) -> dict:
             "retro": get_menu_text(language, "engine.retro"),
             "favorites": get_menu_text(language, "engine.special"),
             "sort": get_menu_text(language, "engine.sort_order"),
+            "info": get_menu_text(language, "engine.info"),
         },
         "sort_options": {
             "file": get_menu_text(language, "engine.file_order"),
@@ -1888,6 +1889,14 @@ class InfoHandler(ServerRequestHandler):
                     settings["retro_features"] = _ModeInfo.get_retro_features().strip() or "/"
                 except Exception:
                     settings["retro_features"] = "/"
+                system_info = self.shared.get("system_info", {})
+                settings["is_mame"] = bool(system_info.get("is_mame", False))
+                settings["mame_capabilities"] = dict(
+                    system_info.get(
+                        "mame_capabilities",
+                        {"position": False, "edit": False, "info": False},
+                    )
+                )
                 # Voice speed (0–9)
                 settings["speed_voice"] = str(_bounded_voice_speed(config.get("speed-voice", "2")))
                 # Voice volume (0–20)
@@ -3386,6 +3395,8 @@ class WebDisplay(DisplayMsg):
             WebDisplay.engine_name = message.engine_name
             self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"] = message.engine_name
             WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"] = message.eng["elo"]
+            self.shared["system_info"]["is_mame"] = message.is_mame
+            self.shared["system_info"]["mame_capabilities"] = dict(message.mame_capabilities)
             if not message.has_levels:
                 if "level_text" in self.shared["game_info"]:
                     del self.shared["game_info"]["level_text"]
@@ -3395,7 +3406,16 @@ class WebDisplay(DisplayMsg):
             _send_headers()
             # Push the new engine name to connected web clients so the overlay
             # tile subtitle stays current without requiring a page refresh.
-            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"engine_name": message.engine_name}})
+            EventHandler.write_to_clients(
+                {
+                    "event": "SystemInfo",
+                    "msg": {
+                        "engine_name": message.engine_name,
+                        "is_mame": message.is_mame,
+                        "mame_capabilities": dict(message.mame_capabilities),
+                    },
+                }
+            )
 
         elif isinstance(message, Message.STARTUP_INFO):
             self.shared["game_info"] = message.info.copy()

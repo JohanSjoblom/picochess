@@ -1845,6 +1845,8 @@ async def main() -> None:
             sys_info = {
                 "version": version,
                 "engine_name": self.engine.get_name(),
+                "is_mame": self.engine.is_mame_engine(),
+                "mame_capabilities": self.engine.get_mame_capabilities().as_dict(),
                 "retro_info_only": (
                     self.engine.get_mame_capabilities().info
                     and not self.engine.get_mame_capabilities().position
@@ -5907,6 +5909,8 @@ async def main() -> None:
                         has_960=self.engine.has_chess960(),
                         has_ponder=self.engine.has_ponder(),
                         show_ok=event.show_ok,
+                        is_mame=self.engine.is_mame_engine(),
+                        mame_capabilities=self.engine.get_mame_capabilities().as_dict(),
                     )
                 # Schedule cleanup of old objects
                 gc.collect()

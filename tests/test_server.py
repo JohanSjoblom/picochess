@@ -269,6 +269,7 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
     def test_engine_menu_labels_default_to_english_web_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
+        self.assertEqual("Engine Info", labels["categories"]["info"])
 
         self.assertEqual("Modern", labels["categories"]["modern"])
         self.assertEqual("Retro", labels["categories"]["retro"])
@@ -279,6 +280,7 @@ class TestEngineMenuHelpers(unittest.TestCase):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "es", "version"))
 
         self.assertEqual("Moderno", labels["categories"]["modern"])
+        self.assertEqual("Información del motor", labels["categories"]["info"])
         self.assertEqual("Retro", labels["categories"]["retro"])
         self.assertEqual("Especial", labels["categories"]["favorites"])
         self.assertEqual("Orden", labels["categories"]["sort"])

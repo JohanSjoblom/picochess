@@ -2351,8 +2351,32 @@
                 { icon: '💻', labelKey: 'modern',    fallbackLabel: 'Modern',     value: 'modern'    },
                 { icon: '🕰️', labelKey: 'retro',     fallbackLabel: 'Retro',      value: 'retro'     },
                 { icon: '🧩', labelKey: 'favorites', fallbackLabel: 'Special',    value: 'favorites' },
-                { icon: '↕️', labelKey: 'sort',      fallbackLabel: 'Sort Order', value: 'sort'      }
+                { icon: '↕️', labelKey: 'sort',      fallbackLabel: 'Sort Order', value: 'sort'      },
+                { icon: 'ℹ️', labelKey: 'info',      fallbackLabel: 'Engine Info', value: 'info'     }
             ];
+
+            function _currentMameInfo() {
+                var systemInfo = window._picoSystemInfo || {};
+                var settings = window._picoCurrentSettings || {};
+                return {
+                    isMame: Object.prototype.hasOwnProperty.call(systemInfo, 'is_mame')
+                        ? Boolean(systemInfo.is_mame) : Boolean(settings.is_mame),
+                    capabilities: systemInfo.mame_capabilities || settings.mame_capabilities || {
+                        position: false, edit: false, info: false
+                    }
+                };
+            }
+
+            function _mameCapabilitySummary() {
+                var current = _currentMameInfo();
+                if (!current.isMame) return menuKey('common.unavailable');
+                var caps = current.capabilities;
+                var tokens = [];
+                if (caps.position) tokens.push('pos');
+                if (caps.edit) tokens.push('edit');
+                if (caps.info) tokens.push('info');
+                return tokens.length ? tokens.join(' · ') : menuKey('engine.no_capabilities');
+            }
 
             function _engineMenuLabelMap() {
                 var labels = (window._picoCurrentSettings || {}).engine_menu_labels || {};
@@ -2388,10 +2412,16 @@
                         var sEl = document.createElement('span'); sEl.className = 'pico-tile-sub';
                         sEl.textContent = sortLabels[sortValue] || sortLabels.file;
                         btn.appendChild(sEl);
+                    } else if (cat.value === 'info') {
+                        var infoSub = document.createElement('span'); infoSub.className = 'pico-tile-sub';
+                        infoSub.textContent = _mameCapabilitySummary();
+                        btn.appendChild(infoSub);
                     }
                     btn.addEventListener('click', function() {
                         if (cat.value === 'sort') {
                             navigateTo(showEngineSort);
+                        } else if (cat.value === 'info') {
+                            navigateTo(showEngineInfo);
                         } else {
                             navigateTo(function() { openEngineCat(cat.value); });
                         }
@@ -2403,6 +2433,54 @@
                     e.setAttribute('aria-hidden','true'); e.tabIndex = -1; grid.appendChild(e);
                 }
                 gridEl.appendChild(grid);
+            }
+
+            function showEngineInfo() {
+                var infoDef = _engCatDefs.find(function(d) { return d.value === 'info'; });
+                var infoLabel = _engineCatLabel(infoDef || {fallbackLabel: 'Engine Info', value: 'info'});
+                setOverlayPath('Engine > ' + infoLabel);
+                document.getElementById('ovl-engine-cat-grid').style.display = 'none';
+                document.getElementById('ovl-engine-cat-back').style.display = '';
+                var lbl = document.getElementById('ovl-engine-sub-label');
+                lbl.style.display = '';
+                lbl.textContent = 'ℹ️ ' + infoLabel;
+                document.getElementById('ovl-engine-sub-panel').style.display = 'flex';
+                document.getElementById('ovl-level-col').style.display = 'none';
+                var listEl = document.getElementById('ovl-engine-list');
+                listEl.innerHTML = '';
+
+                var current = _currentMameInfo();
+                var engineName = (window._picoSystemInfo || {}).engine_name || '—';
+                var heading = document.createElement('div');
+                heading.className = 'pico-picker-item';
+                var headingName = document.createElement('strong');
+                headingName.textContent = engineName;
+                heading.appendChild(headingName);
+                var headingSub = document.createElement('span');
+                headingSub.className = 'picker-sub';
+                headingSub.textContent = current.isMame
+                    ? menuKey('engine.retro_capabilities') : menuKey('engine.not_retro');
+                heading.appendChild(headingSub);
+                listEl.appendChild(heading);
+
+                if (!current.isMame) return;
+                var rows = [
+                    ['pos', 'engine.position_setup', Boolean(current.capabilities.position)],
+                    ['edit', 'engine.move_editing', Boolean(current.capabilities.edit)],
+                    ['info', 'engine.information', Boolean(current.capabilities.info)]
+                ];
+                rows.forEach(function(row) {
+                    var item = document.createElement('div');
+                    item.className = 'pico-picker-item';
+                    var name = document.createElement('strong');
+                    name.textContent = row[0] + ' · ' + menuKey(row[1]);
+                    item.appendChild(name);
+                    var state = document.createElement('span');
+                    state.className = 'picker-sub';
+                    state.textContent = row[2] ? menuKey('engine.reported') : menuKey('engine.not_reported');
+                    item.appendChild(state);
+                    listEl.appendChild(item);
+                });
             }
 
             function showEngineSort() {
@@ -3072,7 +3150,6 @@
                 { label:'🔈 Retro Sound',   value:'rsound' },
                 { label:'🖼️ Retro Display', value:'rdisplay' },
                 { label:'🪟 Retro Window',  value:'rwindow' },
-                { label:'ℹ️ Retro Info',     value:'rinfo' },
                 { label:'⚙️ Preferences',   value:'display' },
                 { label:'🎲 EBoard',         value:'eboard' },
                 { label:'📶 WiFi/BT',        value:'wifi'  }

@@ -155,6 +155,14 @@ class MameCapabilities:
             return " information"
         return " " + " + ".join(features) if features else " /"
 
+    def as_dict(self) -> dict[str, bool]:
+        """Return JSON-safe structured capability flags for display clients."""
+        return {
+            "position": self.position,
+            "edit": self.edit,
+            "info": self.info,
+        }
+
 
 class TolerantUciProtocol(UciProtocol):
     """UCI protocol that drops pre-uciok info lines to avoid init chatter crashes."""

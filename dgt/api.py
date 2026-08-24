@@ -246,7 +246,18 @@ class Message:
     WEB_ANALYSIS = ClassFactory(MessageApi.WEB_ANALYSIS, ["analysis"])
     REVIEW_MOVE_DONE = ClassFactory(MessageApi.REVIEW_MOVE_DONE, ["move", "fen", "turn", "game"])
     ENGINE_READY = ClassFactory(
-        MessageApi.ENGINE_READY, ["eng", "eng_text", "engine_name", "has_levels", "has_960", "has_ponder", "show_ok"]
+        MessageApi.ENGINE_READY,
+        [
+            "eng",
+            "eng_text",
+            "engine_name",
+            "has_levels",
+            "has_960",
+            "has_ponder",
+            "show_ok",
+            "is_mame",
+            "mame_capabilities",
+        ],
     )
     ENGINE_STARTUP = ClassFactory(
         MessageApi.ENGINE_STARTUP, ["installed_engines", "file", "level_index", "has_960", "has_ponder"]

@@ -192,6 +192,10 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(eng.get_mame_capabilities().info)
         self.assertTrue(eng.supports_mame_edit())
         self.assertEqual(" pos + edit", eng.get_mame_capabilities().retro_info())
+        self.assertEqual(
+            {"position": True, "edit": True, "info": False},
+            eng.get_mame_capabilities().as_dict(),
+        )
 
     async def test_old_mame_capabilities_default_to_no_edit_support(self):
         eng = UciEngine("/tmp/mame/boris", UciShell(), "", self.loop)

@@ -185,6 +185,15 @@ ENGLISH = {
     "engine.manufacturer": "Manufacturer",
     "engine.level": "Level",
     "engine.no_engines": "No engines found",
+    "engine.info": "Engine Info",
+    "engine.retro_capabilities": "Retro capabilities",
+    "engine.not_retro": "Not a retro engine",
+    "engine.no_capabilities": "No capabilities reported",
+    "engine.position_setup": "Position setup",
+    "engine.move_editing": "Move-list editing",
+    "engine.information": "Engine information",
+    "engine.reported": "Reported",
+    "engine.not_reported": "Not reported",
     "book.select_engine": "Select Engine Book",
     "book.select_display": "Select Display Book",
     "book.no_books": "No books found",
@@ -826,6 +835,11 @@ GERMAN.update({
     "tutor.depth": "d{depth}", "tutor.explorer": "Explorer", "tutor.hint": "Tipp",
     "tutor.lines": "{count} Varianten", "tutor.multipv": "MultiPV",
     "tutor.normal_threads": "Normal · 1×", "tutor.turbo_threads": "Turbo · {threads}×",
+    "engine.info": "Engine-Info", "engine.retro_capabilities": "Retro-Funktionen",
+    "engine.not_retro": "Keine Retro-Engine", "engine.no_capabilities": "Keine Funktionen gemeldet",
+    "engine.position_setup": "Positionsaufbau", "engine.move_editing": "Zuglisten-Bearbeitung",
+    "engine.information": "Engine-Information", "engine.reported": "Gemeldet",
+    "engine.not_reported": "Nicht gemeldet",
 })
 
 DUTCH.update({
@@ -862,6 +876,11 @@ DUTCH.update({
     "tutor.explorer": "Verkenner", "tutor.hint": "Hint", "tutor.lines": "{count} lijnen",
     "tutor.multipv": "MultiPV", "tutor.normal_threads": "Normaal · 1×",
     "tutor.target_depth": "Doeldiepte", "tutor.turbo_threads": "Turbo · {threads}×",
+    "engine.info": "Engine-info", "engine.retro_capabilities": "Retro-mogelijkheden",
+    "engine.not_retro": "Geen retro-engine", "engine.no_capabilities": "Geen mogelijkheden gemeld",
+    "engine.position_setup": "Positie instellen", "engine.move_editing": "Zettenlijst bewerken",
+    "engine.information": "Engine-informatie", "engine.reported": "Gemeld",
+    "engine.not_reported": "Niet gemeld",
 })
 
 FRENCH.update({
@@ -899,6 +918,11 @@ FRENCH.update({
     "tutor.depth": "p{depth}", "tutor.hint": "Conseil", "tutor.lines": "{count} variantes",
     "tutor.multipv": "MultiPV", "tutor.normal_threads": "Normal · 1×",
     "tutor.target_depth": "Profondeur cible", "tutor.turbo_threads": "Turbo · {threads}×",
+    "engine.info": "Infos moteur", "engine.retro_capabilities": "Fonctions rétro",
+    "engine.not_retro": "Ce n’est pas un moteur rétro", "engine.no_capabilities": "Aucune fonction déclarée",
+    "engine.position_setup": "Mise en place d’une position", "engine.move_editing": "Édition de la liste des coups",
+    "engine.information": "Informations du moteur", "engine.reported": "Déclaré",
+    "engine.not_reported": "Non déclaré",
 })
 
 SPANISH.update({
@@ -936,6 +960,11 @@ SPANISH.update({
     "tutor.depth": "p{depth}", "tutor.hint": "Pista", "tutor.lines": "{count} líneas",
     "tutor.multipv": "MultiPV", "tutor.normal_threads": "Normal · 1×",
     "tutor.target_depth": "Profundidad objetivo", "tutor.turbo_threads": "Turbo · {threads}×",
+    "engine.info": "Información del motor", "engine.retro_capabilities": "Funciones retro",
+    "engine.not_retro": "No es un motor retro", "engine.no_capabilities": "No se declararon funciones",
+    "engine.position_setup": "Configuración de posición", "engine.move_editing": "Edición de lista de jugadas",
+    "engine.information": "Información del motor", "engine.reported": "Declarado",
+    "engine.not_reported": "No declarado",
 })
 
 ITALIAN.update({
@@ -972,6 +1001,11 @@ ITALIAN.update({
     "tutor.depth": "p{depth}", "tutor.hint": "Suggerimento", "tutor.lines": "{count} linee",
     "tutor.multipv": "MultiPV", "tutor.normal_threads": "Normale · 1×",
     "tutor.target_depth": "Profondità obiettivo", "tutor.turbo_threads": "Turbo · {threads}×",
+    "engine.info": "Info motore", "engine.retro_capabilities": "Funzioni retro",
+    "engine.not_retro": "Non è un motore retro", "engine.no_capabilities": "Nessuna funzione dichiarata",
+    "engine.position_setup": "Impostazione posizione", "engine.move_editing": "Modifica lista mosse",
+    "engine.information": "Informazioni motore", "engine.reported": "Dichiarato",
+    "engine.not_reported": "Non dichiarato",
 })
 
 

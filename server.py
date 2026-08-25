@@ -88,6 +88,34 @@ logger = logging.getLogger(__name__)
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
+
+
+def mame_history_will_be_rebased(shared: dict) -> bool:
+    """Return whether the selected MAME can set positions but cannot replay moves."""
+    system_info = shared.get("system_info") or {}
+    capabilities = system_info.get("mame_capabilities") or {}
+    return bool(
+        system_info.get("is_mame")
+        and capabilities.get("position")
+        and not capabilities.get("edit")
+    )
+
+
+def publish_preserved_mame_history(shared: dict, pgn_text: str, selected_fen: str, reason: str) -> bool:
+    """Cache and publish a PGN that is about to be rebased for a pos-only MAME."""
+    pgn_text = str(pgn_text or "").strip()
+    if not pgn_text:
+        return False
+    snapshot = {
+        "event": "MameHistory",
+        "pgn": pgn_text,
+        "fen": str(selected_fen or "").strip(),
+        "reason": str(reason or "mame_rebase"),
+    }
+    shared["preserved_mame_history"] = snapshot
+    logger.info("preserving MAME history for web Explore restore: reason=%s", snapshot["reason"])
+    EventHandler.write_to_clients(snapshot)
+    return True
 INI_LINE_RE = re.compile(r"^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$")
 INI_COMMENT_RE = re.compile(r"^\s*#\s*(.+)$")
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
@@ -1034,6 +1062,7 @@ class ChannelHandler(ServerRequestHandler):
             try:
                 fen = self.get_argument("fen").strip()
                 pgn_prefix = self.get_argument("pgn", "").strip()
+                preserved_pgn = self.get_argument("preserved_pgn", "").strip()
                 uci960_hint = _truthy_web_arg(self.get_argument("uci960", "false"))
                 if pgn_prefix:
                     bit_board, uci960_enabled = _board_from_web_pgn_prefix(pgn_prefix, fen, uci960_hint)
@@ -1043,6 +1072,13 @@ class ChannelHandler(ServerRequestHandler):
                     event_game = None
 
                 logger.info("Setting position from web client: %s", bit_board.fen())
+                if preserved_pgn and mame_history_will_be_rebased(self.shared):
+                    publish_preserved_mame_history(
+                        self.shared,
+                        preserved_pgn,
+                        bit_board.fen(),
+                        "set_position",
+                    )
                 await Observable.fire(
                     Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled, game=event_game)
                 )
@@ -1727,6 +1763,11 @@ class EventHandler(WebSocketHandler):
                 self.write_message({"event": "Header", "headers": dict(self.shared["headers"])})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync headers to client: %s", exc)
+        if self.shared and "preserved_mame_history" in self.shared:
+            try:
+                self.write_message(dict(self.shared["preserved_mame_history"]))
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync preserved MAME history to client: %s", exc)
         # If the engine has suggested a move not yet confirmed on the board, send the
         # arrow so this new client shows the same hint as already-connected clients.
         if self.shared and "pending_computer_move" in self.shared:

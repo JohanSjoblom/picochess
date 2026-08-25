@@ -63,6 +63,7 @@ from utilities import (
     exit_pico,
     checkout_tag,
     ensure_important_headers,
+    keep_essential_headers,
 )
 from utilities import (
     Observable,
@@ -77,7 +78,7 @@ from utilities import (
 )
 from utilities import AsyncRepeatingTimer
 from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations, pgn_variation_review_points
-from server import WebDisplay, WebServer, WebVr, EventHandler
+from server import WebDisplay, WebServer, WebVr, EventHandler, publish_preserved_mame_history
 from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
 
@@ -2588,6 +2589,18 @@ async def main() -> None:
                     )
                 )
 
+        def preserve_mame_history_for_web(self, game_or_board, selected_fen: str, reason: str) -> None:
+            """Publish history before a pos-only MAME rebase clears the live stack."""
+            if isinstance(game_or_board, chess.pgn.Game):
+                snapshot_game = copy.deepcopy(game_or_board)
+            else:
+                snapshot_game = chess.pgn.Game.from_board(game_or_board)
+                snapshot_game.headers.update(keep_essential_headers(self.shared.get("headers", {})))
+            pgn_text = snapshot_game.accept(
+                chess.pgn.StringExporter(headers=True, comments=True, variations=True)
+            )
+            publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
+
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
                 return True
@@ -2897,6 +2910,11 @@ async def main() -> None:
 
             logger.info(
                 "MAME recovery: edit unsupported; using current FEN as a fresh game root"
+            )
+            self.preserve_mame_history_for_web(
+                self.state.game,
+                self.state.game.fen(),
+                "engine_recovery",
             )
             self.state.game = self.state.game.copy(stack=False)
             self._reset_loaded_pgn_lifecycle()
@@ -5135,6 +5153,11 @@ async def main() -> None:
             if not preserve_loaded_history and self.state.game.move_stack:
                 logger.info(
                     "MAME Read Game: edit unsupported; using loaded final FEN as a fresh game root"
+                )
+                self.preserve_mame_history_for_web(
+                    l_game_pgn,
+                    self.state.game.fen(),
+                    "read_game",
                 )
                 self.state.game = self.state.game.copy(stack=False)
                 published_pgn_game = pgn_with_board_as_fresh_root(l_game_pgn, self.state.game)

@@ -36,7 +36,9 @@ from server import (
     _engine_menu_payload,
     _apply_engine_menu_sort,
     _mode_text,
+    mame_history_will_be_rebased,
     _orient_scanned_board_fen,
+    publish_preserved_mame_history,
     _retag_setup_position_side,
     _resolve_web_theme,
     _select_engine_book,
@@ -98,6 +100,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
         self.assertIn("$('#clockMenuForwardBtn').on('click', clockButton4);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
+
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
         self.assertIn("switchSidesButton.hidden = active", script)
         self.assertIn("backButton.hidden = !active", script)
@@ -111,6 +114,16 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("grid-template-columns: 0.75rem minmax(0, 1fr) auto", stylesheet)
         self.assertIn("(max-height: 520px) and (orientation: landscape)", stylesheet)
         self.assertIn("transform: translateX(-1.5rem)", stylesheet)
+
+    def test_analysis_toolbar_exposes_mame_history_restore_control(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="restoreMameHistoryBtn"', template)
+        self.assertIn("preserveCurrentMameHistoryForSetPosition()", script)
+        self.assertIn("preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : ''", script)
+        self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
+        self.assertIn("startWebExploreFromCurrentPosition(false)", script)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -151,6 +164,55 @@ class TestServerEventHandler(unittest.TestCase):
 
         self.assertEqual(cached, client.messages[0])
         self.assertEqual({"event": "Header", "headers": headers}, client.messages[1])
+
+    def test_open_sends_cached_preserved_mame_history(self):
+        snapshot = {
+            "event": "MameHistory",
+            "pgn": '[Result "*"]\n\n1. e4 *',
+            "fen": chess.Board().fen(),
+            "reason": "engine_recovery",
+        }
+        client = self.Client({"preserved_mame_history": snapshot})
+
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+
+        self.assertIn(snapshot, client.messages)
+
+
+class TestMameHistoryPreservation(unittest.TestCase):
+    def test_rebase_requires_pos_only_mame(self):
+        shared = {
+            "system_info": {
+                "is_mame": True,
+                "mame_capabilities": {"position": True, "edit": False, "info": False},
+            }
+        }
+
+        self.assertTrue(mame_history_will_be_rebased(shared))
+
+        shared["system_info"]["mame_capabilities"]["edit"] = True
+        self.assertFalse(mame_history_will_be_rebased(shared))
+
+        shared["system_info"]["mame_capabilities"]["edit"] = False
+        shared["system_info"]["is_mame"] = False
+        self.assertFalse(mame_history_will_be_rebased(shared))
+
+    @patch("server.EventHandler.write_to_clients")
+    def test_publish_caches_and_broadcasts_snapshot(self, write_to_clients):
+        shared = {}
+
+        published = publish_preserved_mame_history(
+            shared,
+            '[SetUp "1"]\n[FEN "8/8/8/8/8/8/8/K6k w - - 0 1"]\n\n*',
+            "8/8/8/8/8/8/8/K6k w - - 0 1",
+            "read_game",
+        )
+
+        self.assertTrue(published)
+        self.assertEqual("MameHistory", shared["preserved_mame_history"]["event"])
+        self.assertEqual("read_game", shared["preserved_mame_history"]["reason"])
+        write_to_clients.assert_called_once_with(shared["preserved_mame_history"])
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):

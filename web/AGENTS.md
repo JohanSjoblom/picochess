@@ -320,6 +320,16 @@ explicitly requires it.
   the last real move highlight/arrow and discarding explorer-only highlights.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
+- The Analyses toolbar MAME-history restore control is another browser-local
+  Explore entry point. It restores the latest PGN preserved before a
+  `pos`-without-`edit` MAME rebase, sets `livePgnTreeActive=false`, and enables
+  Explore without sending a backend action.
+- Set Pos preservation must serialize the complete displayed browser game
+  before posting the selected PGN prefix. Read Game and engine recovery receive
+  equivalent snapshots from the backend. Keep one latest snapshot in memory
+  and `sessionStorage`; a backend cache lets clients connecting later receive
+  the latest snapshot. Do not clear it merely because the rebase publishes a
+  new live game.
 
 ## Temporary ANALYSIS Return
 

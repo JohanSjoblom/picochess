@@ -458,6 +458,15 @@ PGN loading has separate position, history, and mode rules:
   from the current final FEN and rebase the live game at the automatic-takeback
   completion or, as a fallback, immediately before the next search. This lets
   the takeback transaction consume its expected move before history is cleared.
+- Whenever Set Pos, Read Game, or MAME recovery must discard history for a
+  `pos`-without-`edit` interface, preserve the pre-rebase PGN for the web
+  client's temporary history restore. Set Pos must capture the complete
+  browser game before submitting its selected prefix; Read Game and recovery
+  publish their backend PGN before clearing the stack.
+- Restoring preserved MAME history is browser-local Explore. It must mark the
+  restored tree as non-live, enable Explore, and leave the stackless backend,
+  physical board, Tutor, and MAME engine unchanged. Position -> Set Pos remains
+  the explicit way to promote a selected restored node back into live play.
 - An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
   playing mode when possible, otherwise `Mode.NORMAL`, and must update
   `game_started`. A valid custom FEN does not override unfinished status.

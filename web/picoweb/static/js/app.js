@@ -314,6 +314,8 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
+var PRESERVED_MAME_HISTORY_KEY = 'picochess.preservedMameHistory.v1';
+var preservedMameHistory = null;
 var livePgnTreeActive = true;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
@@ -746,6 +748,110 @@ function updateWebExploreButton() {
         webExploreMode ? 'true' : 'false'
     );
     updateSyncButtonAttention();
+}
+
+function mameHistoryReasonLabel(reason) {
+    var labels = {
+        set_position: 'Set Pos',
+        read_game: 'Read Game',
+        engine_recovery: 'Engine recovery'
+    };
+    return labels[reason] || 'MAME position setup';
+}
+
+function updateMameHistoryRestoreButton() {
+    var btn = document.getElementById('restoreMameHistoryBtn');
+    if (!btn) {
+        return;
+    }
+    var available = Boolean(preservedMameHistory && preservedMameHistory.pgn);
+    btn.disabled = !available;
+    btn.classList.toggle('btn-warning', available);
+    btn.classList.toggle('btn-secondary', !available);
+    var title = available
+        ? 'Restore ' + mameHistoryReasonLabel(preservedMameHistory.reason) + ' history in Explore'
+        : 'No preserved MAME game available';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+}
+
+function loadPreservedMameHistory() {
+    try {
+        var stored = window.sessionStorage.getItem(PRESERVED_MAME_HISTORY_KEY);
+        if (stored) {
+            var snapshot = JSON.parse(stored);
+            if (snapshot && snapshot.pgn) {
+                preservedMameHistory = snapshot;
+            }
+        }
+    } catch (error) {
+        console.warn('Could not load preserved MAME history:', error);
+    }
+    updateMameHistoryRestoreButton();
+}
+
+function storePreservedMameHistory(snapshot) {
+    if (!snapshot || !snapshot.pgn) {
+        return null;
+    }
+    preservedMameHistory = {
+        pgn: String(snapshot.pgn),
+        fen: String(snapshot.fen || ''),
+        reason: String(snapshot.reason || 'mame_rebase'),
+        savedAt: snapshot.savedAt || new Date().toISOString()
+    };
+    try {
+        window.sessionStorage.setItem(
+            PRESERVED_MAME_HISTORY_KEY,
+            JSON.stringify(preservedMameHistory)
+        );
+    } catch (error) {
+        // Keep the in-memory copy usable even when browser storage is unavailable.
+        console.warn('Could not persist preserved MAME history:', error);
+    }
+    updateMameHistoryRestoreButton();
+    return preservedMameHistory;
+}
+
+function shouldPreserveMameHistoryForSetPosition() {
+    var systemInfo = window._picoSystemInfo || {};
+    var capabilities = systemInfo.mame_capabilities || {};
+    return Boolean(
+        systemInfo.is_mame
+        && capabilities.position
+        && !capabilities.edit
+    );
+}
+
+function preserveCurrentMameHistoryForSetPosition() {
+    if (!shouldPreserveMameHistoryForSetPosition()
+        || !gameHistory
+        || !gameHistory.variations
+        || !gameHistory.variations.length) {
+        return null;
+    }
+    return storePreservedMameHistory({
+        pgn: getFullGame(),
+        fen: (currentPosition && currentPosition.fen) || '',
+        reason: 'set_position'
+    });
+}
+
+function restorePreservedMameHistoryInExplore() {
+    if (!preservedMameHistory || !preservedMameHistory.pgn) {
+        return;
+    }
+    loadGame(preservedMameHistory.pgn.split('\n'), { livePgnTree: false });
+    if (!preservedMameHistory.fen
+        || !goToPosition(preservedMameHistory.fen, { redraw: false })) {
+        currentPosition = (fenHash && fenHash.last) || gameHistory;
+    }
+    setLivePgnTreeActive(false);
+    startWebExploreFromCurrentPosition(false);
+    removeHighlights();
+    removeArrow();
+    updateChessGround();
+    updateStatus();
 }
 
 function setWebExploreMode(enabled, redraw) {
@@ -1909,11 +2015,13 @@ function setPositionFromCurrentPgn() {
     }
     var fen = node.fen;
     var pgnPrefix = buildPgnPrefixForNode(node);
+    var preservedSnapshot = preserveCurrentMameHistoryForSetPosition();
     console.log('Setting position to FEN:', fen);
     return $.post('/channel', {
         action: 'set_position',
         fen: fen,
         pgn: pgnPrefix,
+        preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : '',
         uci960: chessGameType === 1 ? 'true' : 'false'
     }, function (data) {
         console.log('Position set response:', data);
@@ -3568,6 +3676,9 @@ $(function () {
             ws.onmessage = function (e) {
                 var data = JSON.parse(e.data);
                 switch (data.event) {
+                    case 'MameHistory':
+                        storePreservedMameHistory(data);
+                        break;
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing
                         clearBrainHint();
@@ -3852,6 +3963,8 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
+    $('#restoreMameHistoryBtn').on('click', restorePreservedMameHistoryInExplore);
+    loadPreservedMameHistory();
     applyPgnVariationVisibility();
     updateWebExploreButton();
 

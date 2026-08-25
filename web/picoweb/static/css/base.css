@@ -799,7 +799,7 @@ td.result {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 1rem;
 }
 
 .engine-version-label {
@@ -955,6 +955,12 @@ td.result {
     align-items: center;
     gap: 0.25rem;
     min-width: 0;
+}
+
+.explore-history-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .analysis-control-label {

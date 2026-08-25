@@ -326,10 +326,11 @@ explicitly requires it.
   Explore without sending a backend action.
 - Set Pos preservation must serialize the complete displayed browser game
   before posting the selected PGN prefix. Read Game and engine recovery receive
-  equivalent snapshots from the backend. Keep one latest snapshot in memory
-  and `sessionStorage`; a backend cache lets clients connecting later receive
-  the latest snapshot. Do not clear it merely because the rebase publishes a
-  new live game.
+  equivalent snapshots from the backend. An accepted physical-board Scan with
+  a `pos`-without-`edit` MAME preserves its FEN-only root as the initial problem
+  anchor. Keep one latest snapshot in memory and `sessionStorage`; a backend
+  cache lets clients connecting later receive the latest snapshot. Do not clear
+  it merely because the rebase publishes a new live game.
 
 ## Temporary ANALYSIS Return
 

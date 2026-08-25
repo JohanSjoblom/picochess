@@ -917,7 +917,9 @@ class ChannelHandler(ServerRequestHandler):
             try:
                 bit_board = _build_scanned_setup_board(fen, side_to_play, castling, uci960_enabled)
                 normalized_fen = bit_board.fen()
-                await Observable.fire(Event.SETUP_POSITION(fen=normalized_fen, uci960=uci960_enabled))
+                await Observable.fire(
+                    Event.SETUP_POSITION(fen=normalized_fen, uci960=uci960_enabled, from_scan=True)
+                )
                 return normalized_fen
 
             except Exception as fen_error:

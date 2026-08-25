@@ -752,6 +752,7 @@ function updateWebExploreButton() {
 
 function mameHistoryReasonLabel(reason) {
     var labels = {
+        scan_board: 'Scan',
         set_position: 'Set Pos',
         read_game: 'Read Game',
         engine_recovery: 'Engine recovery'

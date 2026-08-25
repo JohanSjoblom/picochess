@@ -1314,6 +1314,18 @@ def mame_requires_fresh_fen_root(
     return is_mame_engine and supports_position and not supports_edit
 
 
+def mame_history_snapshot_pgn(game_or_board, headers: dict | None = None) -> str:
+    """Serialize a game or board for temporary browser history restoration."""
+    if isinstance(game_or_board, chess.pgn.Game):
+        snapshot_game = copy.deepcopy(game_or_board)
+    else:
+        snapshot_game = chess.pgn.Game.from_board(game_or_board)
+        snapshot_game.headers.update(keep_essential_headers(headers or {}))
+    return snapshot_game.accept(
+        chess.pgn.StringExporter(headers=True, comments=True, variations=True)
+    )
+
+
 def should_preserve_loaded_pgn_history(
     is_mame_engine: bool,
     start_replay: bool,
@@ -2590,16 +2602,15 @@ async def main() -> None:
                 )
 
         def preserve_mame_history_for_web(self, game_or_board, selected_fen: str, reason: str) -> None:
-            """Publish history before a pos-only MAME rebase clears the live stack."""
-            if isinstance(game_or_board, chess.pgn.Game):
-                snapshot_game = copy.deepcopy(game_or_board)
-            else:
-                snapshot_game = chess.pgn.Game.from_board(game_or_board)
-                snapshot_game.headers.update(keep_essential_headers(self.shared.get("headers", {})))
-            pgn_text = snapshot_game.accept(
-                chess.pgn.StringExporter(headers=True, comments=True, variations=True)
-            )
-            publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
+            """Publish a pos-only MAME recovery point for browser Explore."""
+            try:
+                pgn_text = mame_history_snapshot_pgn(
+                    game_or_board,
+                    self.shared.get("headers", {}),
+                )
+                publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
+            except Exception:
+                logger.exception("failed to preserve MAME history for web Explore: reason=%s", reason)
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -6222,6 +6233,19 @@ async def main() -> None:
                     self.state.engine_board_copy(),
                     send_position_to_mame=True,
                 )
+                if (
+                    getattr(event, "from_scan", False)
+                    and mame_requires_fresh_fen_root(
+                        self.engine.is_mame_engine(),
+                        mame_capabilities.position,
+                        mame_capabilities.edit,
+                    )
+                ):
+                    self.preserve_mame_history_for_web(
+                        self.state.game,
+                        setup_fen,
+                        "scan_board",
+                    )
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()

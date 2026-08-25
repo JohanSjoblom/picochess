@@ -2,16 +2,17 @@ import json
 import asyncio
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
 import picotutor_constants as picotutor_c
-from dgt.api import DgtApi, EventApi, Message
+from dgt.api import DgtApi, Event, EventApi, Message
 from dgt.translate import DgtTranslate
 from dgt.util import EBoard as EBoardType
 from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
+    ChannelHandler,
     EventHandler,
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
@@ -742,6 +743,15 @@ class TestServerChannelAuth(unittest.TestCase):
 
 
 class TestServerSetPositionFromPgn(unittest.TestCase):
+    def test_setup_position_event_accepts_explicit_scan_source(self):
+        event = Event.SETUP_POSITION(
+            fen=chess.STARTING_FEN,
+            uci960=False,
+            from_scan=True,
+        )
+
+        self.assertTrue(event.from_scan)
+
     def test_scanned_position_drops_unavailable_castling_rights(self):
         parsed = _build_scanned_setup_board(
             "8/8/8/8/8/8/4K3/7k",
@@ -906,3 +916,27 @@ class TestServerSetPositionFromPgn(unittest.TestCase):
         self.assertTrue(uci960)
         self.assertEqual(board.fen(), parsed.fen())
         self.assertEqual(1, len(parsed.move_stack))
+
+
+class TestServerBoardScan(unittest.IsolatedAsyncioTestCase):
+    class Request:
+        shared = {
+            "dgt_fen": "8/8/8/8/8/8/4K3/7k",
+            "dgt_fen_raw": False,
+        }
+
+        @staticmethod
+        def get_argument(_name, default=None):
+            return default
+
+    async def test_scan_event_is_marked_for_snapshot_preservation(self):
+        with (
+            patch("server.ModeInfo.get_eboard_type", return_value=EBoardType.DGT),
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            result = await ChannelHandler.process_board_scan(self.Request())
+
+        self.assertEqual("8/8/8/8/8/8/4K3/7k w - - 0 1", result)
+        event = fire.await_args.args[0]
+        self.assertTrue(event.from_scan)
+        self.assertEqual(result, event.fen)

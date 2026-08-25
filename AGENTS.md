@@ -412,6 +412,9 @@ also honoring the timing-sensitive setup sequence required by MAME.
   batch-replay history.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
+- After an accepted Scan with a `pos`-without-`edit` MAME interface, preserve
+  the scanned FEN with an empty move stack as the web client's latest temporary
+  history-restore anchor.
 - MAME Scan announces `please wait` while that eager engine setup completes,
   followed by `new position` and one `POSOK`. It does not announce `set
   pieces`, because the scanned eboard placement is already the target.

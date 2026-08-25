@@ -365,7 +365,7 @@ class Event:
     RESTORE_POSITION_CHECKPOINT = ClassFactory(EventApi.RESTORE_POSITION_CHECKPOINT, [])
     SETUP_POSITION = ClassFactory(
         EventApi.SETUP_POSITION,
-        ["fen", "uci960", "game", "preserve_play_mode", "side_only"],
+        ["fen", "uci960", "game", "preserve_play_mode", "side_only", "from_scan"],
     )
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, [])

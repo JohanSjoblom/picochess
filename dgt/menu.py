@@ -3044,6 +3044,7 @@ class DgtMenu(object):
                     fen=bit_board.fen(),
                     uci960=self.menu_position_uci960,
                     side_only=True,
+                    from_scan=True,
                 )
                 await Observable.fire(event)
                 # self._reset_moves_and_score() done in "START_NEW_GAME"

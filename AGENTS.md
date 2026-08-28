@@ -285,7 +285,8 @@ Keep this boundary intact when changing analysis behavior:
 - Once `WEB_ANALYSIS` is active, do not rebroadcast the clock/DGT
   `NEW_DEPTH`/`NEW_PV`/`NEW_SCORE` assembly as a second web payload. That
   legacy PV1 payload would overwrite MultiPV state and make the row flicker.
-- Selected-engine MultiPV is initially enabled only in `Mode.PONDER`. Do not
+- Selected-engine MultiPV is enabled in the non-playing analysis workflows
+  `Mode.PONDER`, `Mode.ANALYSIS`, `Mode.KIBITZ`, and `Mode.PGNREPLAY`. Do not
   make `ContinuousAnalysis` default to MultiPV 3, because it is also used in
   playing-mode and Tutor lifecycles. Tutor may expose the first three lines
   from its already-wider analysis without changing its requested width.

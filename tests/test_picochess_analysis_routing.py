@@ -7,9 +7,9 @@ from dgt.util import Mode
 from picochess import (
     loaded_pgn_interaction_mode,
     mame_requires_fresh_fen_root,
-    ponder_engine_multipv,
     pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
+    selected_engine_analysis_multipv,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
@@ -29,22 +29,29 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
     def test_ponder_requests_three_lines_from_capable_engine(self):
         option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
 
-        self.assertEqual(3, ponder_engine_multipv(Mode.PONDER, {"MultiPV": option}))
+        self.assertEqual(3, selected_engine_analysis_multipv(Mode.PONDER, {"MultiPV": option}))
 
     def test_ponder_caps_request_to_engine_multipv_maximum(self):
         option = chess.engine.Option("MultiPV", "spin", 1, 1, 2, None)
 
-        self.assertEqual(2, ponder_engine_multipv(Mode.PONDER, {"MultiPV": option}))
+        self.assertEqual(2, selected_engine_analysis_multipv(Mode.PONDER, {"MultiPV": option}))
 
     def test_ponder_keeps_single_pv_when_engine_has_no_multipv_option(self):
-        self.assertIsNone(ponder_engine_multipv(Mode.PONDER, {}))
+        self.assertIsNone(selected_engine_analysis_multipv(Mode.PONDER, {}))
 
-    def test_other_non_playing_modes_do_not_request_multipv_yet(self):
+    def test_move_entry_and_replay_modes_request_three_lines(self):
         option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
 
         for mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PGNREPLAY):
             with self.subTest(mode=mode):
-                self.assertIsNone(ponder_engine_multipv(mode, {"MultiPV": option}))
+                self.assertEqual(3, selected_engine_analysis_multipv(mode, {"MultiPV": option}))
+
+    def test_other_modes_keep_selected_engine_single_pv(self):
+        option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
+
+        for mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.OBSERVE):
+            with self.subTest(mode=mode):
+                self.assertIsNone(selected_engine_analysis_multipv(mode, {"MultiPV": option}))
 
     def test_web_analysis_payload_carries_three_lines_and_mirrors_pv1(self):
         board = chess.Board()

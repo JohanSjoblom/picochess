@@ -304,8 +304,9 @@ def update_picochess_now():
 
     The install script must be run twice: the first pass may update the script
     itself; the second pass uses the updated version to update the application code.
-    After both passes, chromium (kiosk) is killed so it reconnects to the fresh
-    server, and PicoChess is restarted via systemctl (no full reboot required).
+    After both passes, PicoChess is restarted via systemctl (no full reboot
+    required). The kiosk supervisor closes and relaunches its own Chromium process
+    across the service restart.
     """
     script = "/opt/picochess/install-picochess.sh"
     logfile = "/var/log/picochess-update.log"
@@ -315,7 +316,6 @@ def update_picochess_now():
         f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
         f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
-        f"pkill -f chromium 2>/dev/null ; "
         f"systemctl restart picochess"
     )
     try:
@@ -408,18 +408,12 @@ def exit_pico(dgtpi: bool, dev: str):
     logging.debug("exit picochess requested by (%s)", dev)
 
     if platform.system() == "Windows":
-        os.system("sudo pkill -f chromium")
         os.system("sudo systemctl stop picochess")
     elif dgtpi:
         shutdown_dgtpi()
-        os.system("sudo pkill -f chromium")
         os.system("sudo systemctl stop dgtpi")
-    elif platform.machine() != "x86_64":
-        # on Debian Linux laptops we dont want to stop chromium
-        # on Pi systems we have kiosk mode, so we kill chromium
-        # @todo should perhaps have a check for kiosk mode here
-        os.system("sudo pkill -f chromium")
-    # no need to stop picochess, all async will be stopped by MainLoop
+    # The kiosk launcher owns and closes only the Chromium process it started.
+    # No browser should be stopped here because PicoChess may not be in kiosk mode.
 
 
 def reboot(dgtpi: bool, dev: str):

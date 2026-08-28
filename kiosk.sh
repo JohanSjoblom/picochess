@@ -1,5 +1,12 @@
 #!/bin/bash
 
+PICOCHESS_SERVICE="${PICOCHESS_KIOSK_SERVICE:-picochess}"
+CHROMIUM_BIN="${PICOCHESS_KIOSK_CHROMIUM:-/usr/bin/chromium}"
+KIOSK_PROFILE_DIR="${PICOCHESS_KIOSK_PROFILE:-${HOME}/.config/picochess-kiosk-chromium}"
+SERVICE_POLL_INTERVAL="${PICOCHESS_KIOSK_POLL_INTERVAL:-1}"
+STARTUP_POLL_INTERVAL="${PICOCHESS_KIOSK_STARTUP_POLL_INTERVAL:-5}"
+CHROMIUM_PID=""
+
 is_wayland() {
   [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
 }
@@ -16,11 +23,6 @@ else
   # xrandr --output DSI-1 --rotate right
 
   unclutter -idle 0.5 -root &
-fi
-
-if [ -d "/home/$USER/.config/chromium/Default" ]; then
-  sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' /home/$USER/.config/chromium/'Local State'
-  sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' /home/$USER/.config/chromium/Default/Preferences
 fi
 
 display_ready() {
@@ -95,6 +97,12 @@ port_open() {
 
 picochess_url() {
   local port
+
+  if [ -n "${PICOCHESS_KIOSK_URL:-}" ]; then
+    printf '%s\n' "$PICOCHESS_KIOSK_URL"
+    return
+  fi
+
   port="$(configured_web_port)"
   [ -n "$port" ] || port=80
   case "$port" in
@@ -121,8 +129,11 @@ picochess_url() {
   fi
 }
 
-# This will wait for PicoChess to start before launching the browser
-while true; do
+service_active() {
+  systemctl is-active --quiet "$PICOCHESS_SERVICE"
+}
+
+show_update_status() {
   if display_ready; then
     if update_pending || systemctl is-active --quiet picochess-update.service; then
       if [ -z "${UPDATE_TERM_PID:-}" ] || ! kill -0 "$UPDATE_TERM_PID" 2>/dev/null; then
@@ -143,25 +154,95 @@ while true; do
       NO_TERM_NOTICE_SENT=""
     fi
   fi
+}
 
-  systemctl is-active --quiet picochess
-  if [ $? -eq 0 ]; then
-    close_update_terminal
-    PICOCHESS_URL="$(picochess_url)"
-    if is_wayland; then
-      /usr/bin/chromium --password-store=basic --kiosk "$PICOCHESS_URL" &
-    else
-      /usr/bin/chromium --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk "$PICOCHESS_URL" &
-    fi
-    exit 0
+wait_for_picochess() {
+  while ! service_active; do
+    show_update_status
+    /bin/sleep "$STARTUP_POLL_INTERVAL"
+  done
+  close_update_terminal
+}
+
+prepare_kiosk_profile() {
+  mkdir -p "$KIOSK_PROFILE_DIR/Default"
+  if [ -f "$KIOSK_PROFILE_DIR/Local State" ]; then
+    sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' "$KIOSK_PROFILE_DIR/Local State"
+  fi
+  if [ -f "$KIOSK_PROFILE_DIR/Default/Preferences" ]; then
+    sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' "$KIOSK_PROFILE_DIR/Default/Preferences"
+  fi
+}
+
+launch_kiosk_browser() {
+  local picochess_url
+  picochess_url="$(picochess_url)"
+  prepare_kiosk_profile
+
+  if is_wayland; then
+    "$CHROMIUM_BIN" --user-data-dir="$KIOSK_PROFILE_DIR" --no-first-run --password-store=basic --kiosk "$picochess_url" &
   else
-    /bin/sleep 5
+    "$CHROMIUM_BIN" --user-data-dir="$KIOSK_PROFILE_DIR" --no-first-run --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk "$picochess_url" &
+  fi
+  CHROMIUM_PID=$!
+  echo "kiosk.sh: Chromium started with pid $CHROMIUM_PID"
+}
+
+close_kiosk_browser() {
+  local attempt
+
+  if [ -z "$CHROMIUM_PID" ]; then
+    return
+  fi
+
+  if kill -0 "$CHROMIUM_PID" 2>/dev/null; then
+    echo "kiosk.sh: stopping Chromium pid $CHROMIUM_PID"
+    kill "$CHROMIUM_PID" 2>/dev/null
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+      if ! kill -0 "$CHROMIUM_PID" 2>/dev/null; then
+        break
+      fi
+      /bin/sleep 0.2
+    done
+    if kill -0 "$CHROMIUM_PID" 2>/dev/null; then
+      kill -KILL "$CHROMIUM_PID" 2>/dev/null
+    fi
+  fi
+  wait "$CHROMIUM_PID" 2>/dev/null
+  CHROMIUM_PID=""
+}
+
+monitor_kiosk_browser() {
+  while service_active; do
+    if ! kill -0 "$CHROMIUM_PID" 2>/dev/null; then
+      wait "$CHROMIUM_PID" 2>/dev/null
+      CHROMIUM_PID=""
+      return 1
+    fi
+    /bin/sleep "$SERVICE_POLL_INTERVAL"
+  done
+  return 0
+}
+
+cleanup() {
+  close_kiosk_browser
+  close_update_terminal
+}
+
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+
+# Keep ownership of the kiosk browser for the desktop session. When PicoChess
+# stops, close only this Chromium process. If the service is started again,
+# launch a fresh kiosk without touching any normal Chromium session.
+while true; do
+  wait_for_picochess
+  launch_kiosk_browser
+  if monitor_kiosk_browser; then
+    echo "kiosk.sh: PicoChess stopped; closing Chromium"
+    close_kiosk_browser
+  else
+    echo "kiosk.sh: Chromium exited while PicoChess was running"
+    exit 0
   fi
 done
-
-# This section will enable a refresh by chromium every 'sleep xx' seconds.
-#
-#while true; do
-#  xdotool keydown ctrl+r; xdotool keyup ctrl+r;
-#  sleep 20
-#done

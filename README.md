@@ -117,6 +117,12 @@ Recommended approach:
    - Copy `/opt/picochess/etc/pico-kiosk.desktop` to `~/.config/autostart/` (create the directory if needed: `mkdir -p ~/.config/autostart`).
    - If your username is not `pi`, edit the `Exec=` path in that file.
 
+The kiosk script supervises the Chromium process it starts. Chromium closes when
+PicoChess stops and opens again if the service is restarted; normal Chromium
+sessions are not affected. Existing kiosk installations keep their locally
+customized `~/kiosk.sh`, so copy the repository version again to receive kiosk
+launcher fixes and then reapply any local display customizations.
+
 How to analyse a PGN game using Picotutor?
 ------------------------------------------
 You can upload a PGN game. Go to `localhost/upload` and choose a PGN file to upload to Picochess. It will ask you for your pi user password. It will load the PGN game into the starting position. Now you can step through the PGN game in Picochess by using the play-pause button. Finally save the game from the menu if you want to store the evaluations. Uploads are written to `/opt/picochess/games/upload`. Games are saved in `/opt/picochess/games`.

@@ -400,6 +400,35 @@ class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("brain_hint", shared)
         write_to_clients.assert_any_call({"event": "BrainHint", "squares": []})
 
+    async def test_rich_web_analysis_is_not_overwritten_by_legacy_pv1_events(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        rich_analysis = {
+            "source": "engine",
+            "depth": 18,
+            "score": 30,
+            "mate": 0,
+            "pv": ["e4", "e5"],
+            "lines": [
+                {"multipv": 1, "depth": 18, "score": 30, "mate": 0, "pv": ["e4", "e5"]},
+                {"multipv": 2, "depth": 17, "score": 20, "mate": 0, "pv": ["d4", "d5"]},
+                {"multipv": 3, "depth": 17, "score": 10, "mate": 0, "pv": ["c4", "e5"]},
+            ],
+        }
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.WEB_ANALYSIS(analysis=rich_analysis))
+            await display.task(Message.NEW_DEPTH(depth=18))
+            await display.task(Message.NEW_PV(pv=[chess.Move.from_uci("e2e4")]))
+            await display.task(Message.NEW_SCORE(score=30, mate=0))
+
+        analysis_calls = [
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Analysis"
+        ]
+        self.assertEqual([{"event": "Analysis", "analysis": rich_analysis}], analysis_calls)
+
 
 class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
     async def test_game_ends_publishes_inactive_game_before_final_fen(self):
@@ -571,6 +600,25 @@ class TestServerWebAnalysisState(unittest.TestCase):
         self.assertEqual("some-fen", payload["fen"])
         self.assertEqual(payload, shared["analysis_state_tutor"])
         self.assertEqual({"source": "engine", "depth": 8}, shared["analysis_state_engine"])
+
+    def test_analysis_cache_preserves_multipv_lines(self):
+        shared = {"analysis_state": {"source": "engine", "depth": 12, "pv": ["e4"]}}
+        analysis = {
+            "source": "engine",
+            "depth": 18,
+            "pv": ["e4", "e5"],
+            "lines": [
+                {"multipv": 1, "depth": 18, "score": 30, "pv": ["e4", "e5"]},
+                {"multipv": 2, "depth": 17, "score": 20, "pv": ["d4", "d5"]},
+                {"multipv": 3, "depth": 17, "score": 10, "pv": ["c4", "e5"]},
+            ],
+        }
+
+        payload = _apply_web_analysis_state(shared, analysis)
+
+        self.assertEqual(analysis["lines"], payload["lines"])
+        self.assertEqual(payload, shared["analysis_state_engine"])
+        self.assertNotIn("analysis_state", shared)
 
 
 class TestServerClockState(unittest.TestCase):

@@ -879,6 +879,28 @@ td.result {
     min-width: 0;
 }
 
+#enginePvBody {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.backend-pv-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.backend-pv-rank {
+    color: var(--bs-secondary-color, #6c757d);
+    flex: 0 0 1em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
 /* Engine / source name — plain bold label, no pill */
 .engine-name-badge {
     display: inline-block;

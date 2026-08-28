@@ -197,6 +197,9 @@ explicitly requires it.
 - In the `ANALYSES` tab, the Pico backend analysis row should stay visually
   distinct from the web-client Stockfish row. Preserve the Pico source badge:
   `E` for selected-engine backend analysis and `T` for Tutor backend analysis.
+- The Pico backend row may contain up to three lines. Each line owns its score,
+  depth, and PV; the group owns the `E`/`T` source badge. Preserve support for
+  older single-line payloads, and keep the web clock display tied to PV1.
 - Read and display backend tutor state when the web client opens, and keep it in
   sync via websocket updates.
 - When a PGN is loaded from disk, the WATCHER list may show lightweight review

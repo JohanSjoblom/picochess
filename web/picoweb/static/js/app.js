@@ -2901,19 +2901,20 @@ function formatBackendAnalysisPv(pvMoves, baseFen) {
     };
 }
 
-// Update the static engine-row elements with live analysis data.
-function updateBackendAnalysisLine(analysis) {
-    if (!analysis) {
-        setEngineLinePlaceholder();
-        return;
+function backendAnalysisLines(analysis) {
+    if (!analysis) return [];
+    if (Array.isArray(analysis.lines) && analysis.lines.length > 0) {
+        return analysis.lines.slice(0, 3);
     }
-    setAnalysisRowVisible('engineRow', true);
-    updateBackendAnalysisSourceBadge(analysis.source);
+    return [analysis];
+}
+
+function backendAnalysisLineHtml(line, fen, index, lineCount) {
     var scoreText = '?';
-    if (analysis.mate) {
-        scoreText = '#' + analysis.mate;
-    } else if (analysis.score !== null && analysis.score !== undefined) {
-        var numericScore = analysis.score / 100.0;
+    if (line.mate) {
+        scoreText = '#' + line.mate;
+    } else if (line.score !== null && line.score !== undefined) {
+        var numericScore = line.score / 100.0;
         scoreText = (numericScore > 0 ? '+' : '') + numericScore.toFixed(2);
     }
     var scoreClass = 'score-display';
@@ -2924,31 +2925,48 @@ function updateBackendAnalysisLine(analysis) {
     } else if (scoreText !== '?' && parseFloat(scoreText) < 0) {
         scoreClass += ' score-negative';
     }
-    var pvMoves = Array.isArray(analysis.pv) ? analysis.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
-    var pvFormatted = formatBackendAnalysisPv(pvMoves, analysis.fen);
+    var pvMoves = Array.isArray(line.pv) ? line.pv.slice(0, MAX_BACKEND_PV_MOVES) : [];
+    var pvFormatted = formatBackendAnalysisPv(pvMoves, fen);
+    var bodyHtml = '<div class="backend-pv-line">';
+    if (lineCount > 1) {
+        var rank = Number(line.multipv) || (index + 1);
+        bodyHtml += '<span class="backend-pv-rank" aria-label="Analysis line ' + rank + '">' + rank + '</span>';
+    }
+    if (typeof line.depth === 'number') {
+        bodyHtml += '<span class="depth-display">d' + line.depth + '</span>';
+    }
+    bodyHtml += '<span class="' + scoreClass + '">' + scoreText + '</span>';
+    if (pvFormatted) {
+        bodyHtml += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
+        if (pvFormatted.continuation) {
+            bodyHtml += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
+        }
+    } else if (pvMoves.length > 0) {
+        bodyHtml += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+    }
+    return bodyHtml + '</div>';
+}
 
-    // Keep the header compact (Pico + source + depth) and place the score with
-    // its PV, matching the Web analysis row and allowing future MultiPV lines
-    // to carry their own evaluations.
+// Update the static engine-row elements with live analysis data.
+function updateBackendAnalysisLine(analysis) {
+    if (!analysis) {
+        setEngineLinePlaceholder();
+        return;
+    }
+    setAnalysisRowVisible('engineRow', true);
+    updateBackendAnalysisSourceBadge(analysis.source);
+    var lines = backendAnalysisLines(analysis);
+
+    // Depth is rendered per PV because MultiPV lines can arrive at different depths.
     var metaEl = document.getElementById('engineMeta');
     if (metaEl) {
-        var metaHtml = '';
-        if (typeof analysis.depth === 'number') {
-            metaHtml = '<span class="depth-display">d' + analysis.depth + '</span>';
-        }
-        metaEl.innerHTML = metaHtml;
+        metaEl.innerHTML = '';
     }
-    // Update score + PV moves in #enginePvBody
     var bodyEl = document.getElementById('enginePvBody');
     if (bodyEl) {
-        var bodyHtml = '<span class="' + scoreClass + '">' + scoreText + '</span>';
-        if (pvFormatted) {
-            bodyHtml += '<span class="first-move">' + pvFormatted.firstMove + '</span>';
-            if (pvFormatted.continuation) {
-                bodyHtml += '<span class="continuation-moves">' + pvFormatted.continuation + '</span>';
-            }
-        } else if (pvMoves.length > 0) {
-            bodyHtml += '<span class="pv-display">' + pvMoves.join(' ') + '</span>';
+        var bodyHtml = '';
+        for (var i = 0; i < lines.length; i++) {
+            bodyHtml += backendAnalysisLineHtml(lines[i], analysis.fen, i, lines.length);
         }
         bodyEl.innerHTML = bodyHtml;
     }
@@ -3010,6 +3028,7 @@ function backendAnalysisKey(analysis) {
         mate: analysis.mate,
         fen: analysis.fen || '',
         pv: Array.isArray(analysis.pv) ? analysis.pv : [],
+        lines: Array.isArray(analysis.lines) ? analysis.lines : [],
         suppress_engine_line: !!analysis.suppress_engine_line
     });
 }

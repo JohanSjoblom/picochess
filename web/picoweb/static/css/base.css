@@ -1891,6 +1891,12 @@ piece {
     background: rgba(255, 255, 255, 0.18);
 }
 
+.pico-tile.selected {
+    background: rgba(13, 110, 253, 0.18);
+    outline: 1px solid rgba(13, 110, 253, 0.60);
+    outline-offset: -1px;
+}
+
 .pico-tile.pico-empty-tile {
     cursor: default;
     pointer-events: none;

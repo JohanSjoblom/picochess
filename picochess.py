@@ -125,9 +125,10 @@ WEB_SERVER_PERMISSION_FALLBACK_PORT = 8080
 WEB_SERVER_SETCAP_HINT = "sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))"
 
 
-def ponder_engine_multipv(interaction_mode: Mode, engine_options) -> int | None:
-    """Return the supported MultiPV width for selected-engine PONDER analysis."""
-    if interaction_mode != Mode.PONDER or not engine_options:
+def selected_engine_analysis_multipv(interaction_mode: Mode, engine_options) -> int | None:
+    """Return the supported MultiPV width for selected-engine analysis modes."""
+    multipv_modes = (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ, Mode.PGNREPLAY)
+    if interaction_mode not in multipv_modes or not engine_options:
         return None
     multipv_option = engine_options.get("MultiPV")
     if multipv_option is None:
@@ -4467,7 +4468,7 @@ async def main() -> None:
                     limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
                     # Use variant board if available for correct position representation
                     analysis_board = self.state.get_move_check_board()
-                    multipv = ponder_engine_multipv(
+                    multipv = selected_engine_analysis_multipv(
                         self.state.interaction_mode,
                         self.engine.get_options(),
                     )

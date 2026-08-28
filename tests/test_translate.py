@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from dgt.translate import DgtTranslate
+from dgt.util import GameResult
 
 
 class TestItalianTutorMoveTranslation(unittest.TestCase):
@@ -97,6 +98,12 @@ class TestDisplayTextLengths(unittest.TestCase):
             text = DgtTranslate("none", 0, language, "0.9m").text("B00_retrospeed", "1000%")
             self.assertTrue(text.medium_text.endswith("1000%"))
             self.assertTrue(text.small_text.endswith("1000%"))
+
+    def test_fivefold_repetition_uses_fivefold_message(self):
+        text = DgtTranslate("none", 0, "en", "0.9m").text(GameResult.FIVEFOLD_REPETITION.value)
+
+        self.assertEqual("Fivefold repetition ", text.web_text)
+        self.assertEqual("5Repetition", text.large_text)
 
 
 if __name__ == "__main__":

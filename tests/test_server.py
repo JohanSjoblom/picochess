@@ -32,6 +32,7 @@ from server import (
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
+    _current_engine_metadata,
     _engine_menu_labels,
     _engine_menu_payload,
     _apply_engine_menu_sort,
@@ -98,6 +99,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("$('#clockMenuBackBtn').on('click', clockButton0);", script)
         self.assertIn("$('#clockMenuForwardBtn').on('click', clockButton4);", script)
         self.assertIn("action: 'get_clock_menu_state'", script)
+
         self.assertIn("setClockMenuActive(Boolean(data.menu_active))", script)
         self.assertIn("switchSidesButton.hidden = active", script)
         self.assertIn("backButton.hidden = !active", script)
@@ -111,6 +113,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("grid-template-columns: 0.75rem minmax(0, 1fr) auto", stylesheet)
         self.assertIn("(max-height: 520px) and (orientation: landscape)", stylesheet)
         self.assertIn("transform: translateX(-1.5rem)", stylesheet)
+
+    def test_engine_info_shows_current_elo_and_level(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("var engineElo = settings.engine_elo", template)
+        self.assertIn("var engineLevel = settings.engine_level", template)
+        self.assertIn("[menuKey('game.elo'), engineElo]", template)
+        self.assertIn("[menuKey('engine.level'), engineLevel]", template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -507,6 +517,17 @@ class TestServerWebEngineSelection(unittest.TestCase):
 
         self.assertEqual("", level_event.level_name)
         self.assertEqual({}, engine_event.options)
+
+    def test_current_engine_metadata_uses_live_engine_state(self):
+        shared = {
+            "system_info": {"engine_name": "Stockfish", "engine_elo": 2500},
+            "game_info": {"level_name": "Elo@1800"},
+        }
+
+        self.assertEqual(
+            {"engine_name": "Stockfish", "engine_elo": 2500, "engine_level": "Elo@1800"},
+            _current_engine_metadata(shared),
+        )
 
 
 class TestServerEngineBookSelection(unittest.TestCase):

@@ -439,6 +439,16 @@ def _engine_menu_payload() -> dict:
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
+def _current_engine_metadata(shared: dict) -> dict:
+    """Return the live engine metadata shown by the web Engine Info panel."""
+    system_info = shared.get("system_info", {})
+    return {
+        "engine_name": system_info.get("engine_name", ""),
+        "engine_elo": system_info.get("engine_elo", ""),
+        "engine_level": shared.get("game_info", {}).get("level_name", ""),
+    }
+
+
 def _engine_menu_labels(dgttranslate) -> dict:
     """Return translated labels for the web engine-menu overlay."""
     language = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
@@ -1933,10 +1943,8 @@ class InfoHandler(ServerRequestHandler):
                 ) else "off"
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
-            # Engine name and level come from shared (live state, not ini)
-            si = self.shared.get("system_info", {})
-            settings["engine_name"] = si.get("engine_name", "")
-            settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            # Engine metadata comes from shared (live state, not ini).
+            settings.update(_current_engine_metadata(self.shared))
             settings.update(_tutor_settings_from_shared(self.shared))
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps(settings))
@@ -3410,7 +3418,7 @@ class WebDisplay(DisplayMsg):
                 {
                     "event": "SystemInfo",
                     "msg": {
-                        "engine_name": message.engine_name,
+                        **_current_engine_metadata(self.shared),
                         "is_mame": message.is_mame,
                         "mame_capabilities": dict(message.mame_capabilities),
                     },

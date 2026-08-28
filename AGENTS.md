@@ -279,6 +279,16 @@ Keep this boundary intact when changing analysis behavior:
 - Keep `best_sent_depth` limited to clock/DGT output. Web analysis is an
   independent, ungated stream intended to show the current Tutor or selected
   engine search growing in real time, with the correct source tag.
+- Web analysis may publish up to three MultiPV lines from the selected source.
+  Keep the compatibility fields and all clock/DGT output tied to the first PV;
+  additional PVs belong only to the web ANALYSES tab.
+- Once `WEB_ANALYSIS` is active, do not rebroadcast the clock/DGT
+  `NEW_DEPTH`/`NEW_PV`/`NEW_SCORE` assembly as a second web payload. That
+  legacy PV1 payload would overwrite MultiPV state and make the row flicker.
+- Selected-engine MultiPV is initially enabled only in `Mode.PONDER`. Do not
+  make `ContinuousAnalysis` default to MultiPV 3, because it is also used in
+  playing-mode and Tutor lifecycles. Tutor may expose the first three lines
+  from its already-wider analysis without changing its requested width.
 - In `Mode.KIBITZ` and `Mode.ANALYSIS`, an entered move may match a move in the
   analysis calculated for the preceding position. Picochess then reuses that
   deeper continuation for the clock/DGT display, including its reply, score,

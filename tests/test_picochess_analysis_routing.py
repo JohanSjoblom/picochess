@@ -7,6 +7,7 @@ from dgt.util import Mode
 from picochess import (
     loaded_pgn_interaction_mode,
     mame_requires_fresh_fen_root,
+    ponder_engine_multipv,
     pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
     should_block_takeback,
@@ -20,10 +21,104 @@ from picochess import (
     setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
+    web_analysis_payload,
 )
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_ponder_requests_three_lines_from_capable_engine(self):
+        option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
+
+        self.assertEqual(3, ponder_engine_multipv(Mode.PONDER, {"MultiPV": option}))
+
+    def test_ponder_caps_request_to_engine_multipv_maximum(self):
+        option = chess.engine.Option("MultiPV", "spin", 1, 1, 2, None)
+
+        self.assertEqual(2, ponder_engine_multipv(Mode.PONDER, {"MultiPV": option}))
+
+    def test_ponder_keeps_single_pv_when_engine_has_no_multipv_option(self):
+        self.assertIsNone(ponder_engine_multipv(Mode.PONDER, {}))
+
+    def test_other_non_playing_modes_do_not_request_multipv_yet(self):
+        option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
+
+        for mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PGNREPLAY):
+            with self.subTest(mode=mode):
+                self.assertIsNone(ponder_engine_multipv(mode, {"MultiPV": option}))
+
+    def test_web_analysis_payload_carries_three_lines_and_mirrors_pv1(self):
+        board = chess.Board()
+        info_list = [
+            {
+                "multipv": 1,
+                "depth": 18,
+                "score": chess.engine.PovScore(chess.engine.Cp(35), chess.WHITE),
+                "pv": [chess.Move.from_uci("e2e4"), chess.Move.from_uci("e7e5")],
+            },
+            {
+                "multipv": 2,
+                "depth": 17,
+                "score": chess.engine.PovScore(chess.engine.Cp(20), chess.WHITE),
+                "pv": [chess.Move.from_uci("d2d4"), chess.Move.from_uci("d7d5")],
+            },
+            {
+                "multipv": 3,
+                "depth": 16,
+                "score": chess.engine.PovScore(chess.engine.Cp(10), chess.WHITE),
+                "pv": [chess.Move.from_uci("c2c4"), chess.Move.from_uci("e7e5")],
+            },
+            {
+                "multipv": 4,
+                "depth": 15,
+                "score": chess.engine.PovScore(chess.engine.Cp(5), chess.WHITE),
+                "pv": [chess.Move.from_uci("g1f3"), chess.Move.from_uci("d7d5")],
+            },
+        ]
+
+        payload = web_analysis_payload(info_list, board.fen(), "tutor", suppress_engine_line=True)
+
+        self.assertEqual(3, len(payload["lines"]))
+        self.assertEqual([1, 2, 3], [line["multipv"] for line in payload["lines"]])
+        self.assertEqual(["e4", "e5"], payload["lines"][0]["pv"])
+        self.assertEqual(["d4", "d5"], payload["lines"][1]["pv"])
+        self.assertEqual(["c4", "e5"], payload["lines"][2]["pv"])
+        self.assertEqual(payload["lines"][0]["depth"], payload["depth"])
+        self.assertEqual(payload["lines"][0]["score"], payload["score"])
+        self.assertEqual(payload["lines"][0]["mate"], payload["mate"])
+        self.assertEqual(payload["lines"][0]["pv"], payload["pv"])
+        self.assertEqual("tutor", payload["source"])
+        self.assertTrue(payload["suppress_engine_line"])
+
+    def test_web_analysis_payload_filters_incomplete_lines(self):
+        info_list = [
+            {
+                "multipv": 1,
+                "depth": 2,
+                "score": chess.engine.PovScore(chess.engine.Cp(12), chess.WHITE),
+                "pv": [chess.Move.from_uci("e2e4")],
+            },
+            {"multipv": 2, "depth": 2, "pv": [chess.Move.from_uci("d2d4")]},
+        ]
+
+        payload = web_analysis_payload(info_list, chess.Board().fen(), "engine")
+
+        self.assertEqual(1, len(payload["lines"]))
+        self.assertEqual(1, payload["lines"][0]["multipv"])
+        self.assertEqual(payload["lines"][0]["pv"], payload["pv"])
+
+    def test_web_analysis_payload_waits_for_complete_pv1(self):
+        info_list = [
+            {"multipv": 1, "depth": 2, "pv": [chess.Move.from_uci("e2e4")]},
+            {
+                "multipv": 2,
+                "depth": 2,
+                "score": chess.engine.PovScore(chess.engine.Cp(12), chess.WHITE),
+                "pv": [chess.Move.from_uci("d2d4")],
+            },
+        ]
+
+        self.assertIsNone(web_analysis_payload(info_list, chess.Board().fen(), "engine"))
+
     def test_unfinished_custom_fen_load_returns_to_normal_play(self):
         mode = loaded_pgn_interaction_mode(
             previous_mode=Mode.KIBITZ,

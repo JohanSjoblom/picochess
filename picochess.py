@@ -110,6 +110,7 @@ FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
 FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 50  # max limit for any analysis
+WEB_ANALYSIS_MULTIPV = 3  # maximum backend analysis lines shown by the web client
 # since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING
 # Dont make the following large as it will block engine play go
@@ -122,6 +123,93 @@ logger = logging.getLogger(__name__)
 WEB_SERVER_DEFAULT_PORT = 80
 WEB_SERVER_PERMISSION_FALLBACK_PORT = 8080
 WEB_SERVER_SETCAP_HINT = "sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))"
+
+
+def ponder_engine_multipv(interaction_mode: Mode, engine_options) -> int | None:
+    """Return the supported MultiPV width for selected-engine PONDER analysis."""
+    if interaction_mode != Mode.PONDER or not engine_options:
+        return None
+    multipv_option = engine_options.get("MultiPV")
+    if multipv_option is None:
+        return None
+    minimum = getattr(multipv_option, "min", None)
+    maximum = getattr(multipv_option, "max", None)
+    if minimum is not None and minimum > WEB_ANALYSIS_MULTIPV:
+        return None
+    requested = WEB_ANALYSIS_MULTIPV if maximum is None else min(WEB_ANALYSIS_MULTIPV, maximum)
+    return requested if requested > 1 else None
+
+
+def _web_analysis_pv(info: InfoDict, analysed_fen: str, move: chess.Move | None) -> list[str]:
+    """Convert one cached engine PV to SAN, with UCI as a defensive fallback."""
+    pv_moves = list(info.get("pv") or [])
+    pv_to_send = []
+    if pv_moves and analysed_fen:
+        try:
+            san_board = chess.Board(analysed_fen)
+            for pv_move in pv_moves:
+                if not pv_move or pv_move == chess.Move.null():
+                    break
+                try:
+                    pv_to_send.append(san_board.san(pv_move))
+                    san_board.push(pv_move)
+                except (ValueError, AssertionError):
+                    break
+        except Exception:
+            pass
+    if not pv_to_send:
+        pv_to_send = [pv_move.uci() for pv_move in pv_moves if pv_move and pv_move != chess.Move.null()]
+    if not pv_to_send and move and move != chess.Move.null():
+        try:
+            pv_to_send = [chess.Board(analysed_fen).san(move)]
+        except Exception:
+            pv_to_send = [move.uci()]
+    return pv_to_send
+
+
+def web_analysis_payload(
+    info_list: list[InfoDict],
+    analysed_fen: str,
+    source: str,
+    suppress_engine_line: bool = False,
+) -> dict | None:
+    """Build up to three web lines while retaining PV1 compatibility fields."""
+    limited_info = (info_list or [])[:WEB_ANALYSIS_MULTIPV]
+    if not limited_info:
+        return None
+    lines = []
+    for index, info in enumerate(limited_info, start=1):
+        if not info:
+            if index == 1:
+                return None
+            continue
+        move, score, mate = PicoTutor.get_score(info)
+        if score is None and not mate:
+            if index == 1:
+                return None
+            continue
+        lines.append(
+            {
+                "multipv": info.get("multipv", index),
+                "depth": info.get("depth"),
+                "score": score,
+                "mate": mate,
+                "pv": _web_analysis_pv(info, analysed_fen, move),
+            }
+        )
+    if not lines:
+        return None
+    first_line = lines[0]
+    return {
+        "depth": first_line["depth"],
+        "score": first_line["score"],
+        "mate": first_line["mate"],
+        "pv": first_line["pv"],
+        "fen": analysed_fen,
+        "source": source,
+        "suppress_engine_line": suppress_engine_line,
+        "lines": lines,
+    }
 
 
 class WebServerListenError(RuntimeError):
@@ -2149,7 +2237,7 @@ async def main() -> None:
                                 # line.  The 1-second analyse() timer may never fire before a fast
                                 # engine (Stockfish) finishes its move, so do it right here while
                                 # the info is fresh.
-                                await self.send_web_analysis(info, analysed_fen, "engine")
+                                await self.send_web_analysis([info], analysed_fen, "engine")
                             await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
@@ -4379,7 +4467,11 @@ async def main() -> None:
                     limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
                     # Use variant board if available for correct position representation
                     analysis_board = self.state.get_move_check_board()
-                    await self.engine.start_analysis(analysis_board, limit=limit)
+                    multipv = ponder_engine_multipv(
+                        self.state.interaction_mode,
+                        self.engine.get_options(),
+                    )
+                    await self.engine.start_analysis(analysis_board, limit=limit, multipv=multipv)
                 else:
                     await self.engine.stop_analysis()
 
@@ -4406,8 +4498,8 @@ async def main() -> None:
             info: InfoDict | None = None
             info_list: list[InfoDict] = None
             info_list_source: str | None = None
-            info_for_web_engine: InfoDict | None = None
-            info_for_web_tutor: InfoDict | None = None
+            info_for_web_engine: list[InfoDict] | None = None
+            info_for_web_tutor: list[InfoDict] | None = None
             analysed_fen = ""  # analysis is only valid for this fen
             analysed_fen_for_web_engine = ""
             analysed_fen_for_web_tutor = ""
@@ -4422,7 +4514,7 @@ async def main() -> None:
                 info_list: list[InfoDict] = result.get("info")
                 info_list_source = "tutor"
                 analysed_fen = result.get("fen", "")
-                info_for_web_tutor = info_list[0] if info_list else None
+                info_for_web_tutor = info_list
                 analysed_fen_for_web_tutor = analysed_fen
                 if self.state.picotutor.get_board().fen() != self.state.game.fen():
                     logger.warning("picotutor board out of sync with game")
@@ -4435,7 +4527,7 @@ async def main() -> None:
                 info_list: list[InfoDict] = result.get("info")
                 info_list_source = "engine"
                 analysed_fen = result.get("fen", "")
-                info_for_web_engine = info_list[0] if info_list else None
+                info_for_web_engine = info_list
                 analysed_fen_for_web_engine = analysed_fen
                 info_candidate = info_list[0] if info_list else None
                 if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
@@ -4450,14 +4542,14 @@ async def main() -> None:
                         info_list: list[InfoDict] = result.get("info")
                         info_list_source = "engine-thinking"
                         analysed_fen = result.get("fen", "")
-                        info_for_web_engine = info_list[0] if info_list else None
+                        info_for_web_engine = info_list
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
                             # Tutor output goes to the Tutor: line as before.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
-                            info_for_web_tutor = info_candidate_list[0] if info_candidate_list else None
+                            info_for_web_tutor = info_candidate_list
                             analysed_fen_for_web_tutor = result.get("fen", "")
                         # Always read ContinuousAnalysis for the Engine: line during the user's
                         # turn, even when the tutor is also active.  Previously only one or the
@@ -4470,7 +4562,7 @@ async def main() -> None:
                         info_list: list[InfoDict] = result.get("info")
                         info_list_source = "engine"
                         analysed_fen = result.get("fen", "")
-                        info_for_web_engine = info_list[0] if info_list else None
+                        info_for_web_engine = info_list
                         analysed_fen_for_web_engine = analysed_fen
                         info_candidate = info_list[0] if info_list else None
                         if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
@@ -4559,62 +4651,27 @@ async def main() -> None:
 
         async def send_web_analysis(
             self,
-            info: InfoDict,
+            info_list: list[InfoDict],
             analysed_fen: str,
             source: str,
             suppress_engine_line: bool = False,
         ):
             """Send full analysis info to the web client without depth gating."""
-            if not info:
+            if not info_list:
                 return
             current_fen = self.state.get_fen()
             if analysed_fen != current_fen:
                 logger.debug("ignoring web analysis for old fen: %s != %s", analysed_fen, current_fen)
                 return
-            (move, score, mate) = PicoTutor.get_score(info)
-            # Don't send incomplete analysis that would show "?" in the UI.
-            # get_score() returns mate=0 (falsy) when there is no mate, so check
-            # "not mate" rather than "mate is None" to cover both None and 0.
-            if score is None and not mate:
-                logger.debug("skip web analysis for %s: no score/mate yet", source)
+            analysis_payload = web_analysis_payload(
+                info_list,
+                analysed_fen,
+                source,
+                suppress_engine_line=suppress_engine_line,
+            )
+            if analysis_payload is None:
+                logger.debug("skip web analysis for %s: no complete score/mate lines yet", source)
                 return
-            depth = info.get("depth")
-            pv_moves = list(info.get("pv") or [])
-            # Convert PV to SAN using the analysed position so the web client can render
-            # figurine notation without needing to re-parse UCI+FEN through chess.js.
-            # (chess.js FEN loading or move application can silently fail, falling back to
-            # raw UCI coordinates.  Pre-computing SAN in Python eliminates that code path.)
-            pv_to_send = []
-            if pv_moves and analysed_fen:
-                try:
-                    san_board = chess.Board(analysed_fen)
-                    for m in pv_moves:
-                        if not m or m == chess.Move.null():
-                            break
-                        try:
-                            pv_to_send.append(san_board.san(m))
-                            san_board.push(m)
-                        except (ValueError, AssertionError):
-                            break
-                except Exception:
-                    pass
-            if not pv_to_send:
-                # Fallback: raw UCI (SAN board construction failed; JS will attempt chess.js parsing)
-                pv_to_send = [m.uci() for m in pv_moves if m and m != chess.Move.null()]
-            if not pv_to_send and move and move != chess.Move.null():
-                try:
-                    pv_to_send = [chess.Board(analysed_fen).san(move)]
-                except Exception:
-                    pv_to_send = [move.uci()]
-            analysis_payload = {
-                "depth": depth,
-                "score": score,
-                "mate": mate,
-                "pv": pv_to_send,
-                "fen": analysed_fen,
-                "source": source,
-                "suppress_engine_line": suppress_engine_line,
-            }
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=analysis_payload))
 
         async def autoplay_pgnreplay_move(

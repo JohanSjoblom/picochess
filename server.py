@@ -605,6 +605,10 @@ def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_stat
         if source == "tutor":
             shared["analysis_state_tutor"] = analysis_payload
         else:
+            # WEB_ANALYSIS is the authoritative rich engine payload.  Drop the
+            # legacy NEW_PV/NEW_SCORE cache so reconnects cannot replay a stale
+            # single-PV payload immediately after the current MultiPV state.
+            shared.pop("analysis_state", None)
             shared["analysis_state_engine"] = analysis_payload
     shared["analysis_web_enabled"] = True
     return analysis_payload
@@ -3234,6 +3238,12 @@ class WebDisplay(DisplayMsg):
 
         def _maybe_send_analysis():
             state = self.analysis_state
+            # NEW_DEPTH/NEW_PV/NEW_SCORE remain the clock/DGT compatibility
+            # path.  Once picochess publishes WEB_ANALYSIS, broadcasting those
+            # events as a second web payload would replace MultiPV with PV1 on
+            # every cycle and make the ANALYSES row flicker.
+            if self.shared.get("analysis_web_enabled"):
+                return
             if self.shared.get("suppress_engine_analysis"):
                 return
             if state.get("pv") is None:

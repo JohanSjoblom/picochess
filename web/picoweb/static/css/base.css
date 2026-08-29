@@ -711,6 +711,7 @@ td.result {
     font-weight: 600;
     font-size: 0.95rem;
     flex-shrink: 0;
+    white-space: nowrap;
 }
 
 /* Source label for backend analysis lines */

@@ -722,7 +722,9 @@ class PgnDisplay(DisplayMsg):
                         nag = value["nag"]  # $N symbol for !!, ! etc
                         if nag != chess.pgn.NAG_NULL:
                             node.nags.add(nag)
-                        node.comment = ""
+                        # Keep the symbol in the comment as well as the NAG so
+                        # the raw PGN remains readable without a PGN viewer.
+                        node.comment = PicoTutor.nag_to_symbol(nag) if nag != chess.pgn.NAG_NULL else ""
                         eval_score = self._get_picotutor_eval_score(value, turn)
                         if eval_score is not None:
                             # python-chess writes the commonly supported PGN

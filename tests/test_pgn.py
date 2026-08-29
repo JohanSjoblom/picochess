@@ -101,8 +101,10 @@ class TestPgnDisplay(unittest.TestCase):
 
         evaluated_node = game.next()
         self.assertEqual(evaluated_node.nags, {chess.pgn.NAG_MISTAKE})
-        self.assertEqual(evaluated_node.comment, "[%eval 0.00] [%bestmove Nf3] [%cpl 1000]")
+        self.assertEqual(evaluated_node.comment, "? [%eval 0.00] [%bestmove Nf3] [%cpl 1000]")
         self.assertEqual(evaluated_node.eval().white().score(), 0)
+        exported = game.accept(chess.pgn.StringExporter(headers=False, comments=True, variations=True))
+        self.assertIn("$2 { ? [%eval 0.00] [%bestmove Nf3] [%cpl 1000] }", exported)
 
     def test_picotutor_evaluation_uses_white_perspective_and_pawn_decimals(self):
         board = chess.Board()
@@ -136,11 +138,9 @@ class TestPgnDisplay(unittest.TestCase):
         white_node, black_node = list(game.mainline())
         self.assertEqual(
             white_node.comment,
-            "[%eval 0.50] [%bestmove e4] [%cpl 0] [%pico_ds 12]",
+            "! [%eval 0.50] [%bestmove e4] [%cpl 0] [%pico_ds 12]",
         )
-        self.assertEqual(black_node.comment, "[%eval -0.50] [%bestmove c5] [%cpl 40]")
-        self.assertNotIn("!", white_node.comment)
-        self.assertNotIn("?", black_node.comment)
+        self.assertEqual(black_node.comment, "? [%eval -0.50] [%bestmove c5] [%cpl 40]")
         self.assertEqual(white_node.eval().white().score(), 50)
         self.assertEqual(black_node.eval().white().score(), -50)
 
@@ -171,8 +171,8 @@ class TestPgnDisplay(unittest.TestCase):
         self.testee.add_picotutor_evaluation(game)
 
         white_node, black_node = list(game.mainline())
-        self.assertEqual(white_node.comment, "[%eval #3] [%cpl 0]")
-        self.assertEqual(black_node.comment, "[%eval #-3] [%cpl 0]")
+        self.assertEqual(white_node.comment, "! [%eval #3] [%cpl 0]")
+        self.assertEqual(black_node.comment, "! [%eval #-3] [%cpl 0]")
         self.assertEqual(white_node.eval().white().mate(), 3)
         self.assertEqual(black_node.eval().white().mate(), -3)
 

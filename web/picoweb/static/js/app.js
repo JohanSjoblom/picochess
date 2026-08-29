@@ -417,6 +417,39 @@ function figurinizeMove(move) {
     return move;
 }
 
+function useLongPgnNotation() {
+    return Boolean(window._picoCurrentSettings && window._picoCurrentSettings.notation === 'long');
+}
+
+function formatPgnWindowMove(move, board) {
+    if (!move || !useLongPgnNotation()) {
+        return move ? move.san : '';
+    }
+
+    var flags = move.flags || '';
+    var suffixMatch = (move.san || '').match(/[+#]+$/);
+    var suffix = suffixMatch ? suffixMatch[0] : '';
+    if (flags.indexOf(board.FLAGS.KSIDE_CASTLE) > -1 ||
+        flags.indexOf(board.FLAGS.QSIDE_CASTLE) > -1) {
+        var rank = move.color === board.WHITE ? '1' : '8';
+        var destination = flags.indexOf(board.FLAGS.KSIDE_CASTLE) > -1 ? 'g' + rank : 'c' + rank;
+        return move.from + '-' + destination + suffix;
+    }
+
+    var formatted = move.piece === board.PAWN ? '' : move.piece.toUpperCase();
+    formatted += move.from;
+    if (flags.indexOf(board.FLAGS.CAPTURE) > -1 || flags.indexOf(board.FLAGS.EP_CAPTURE) > -1) {
+        formatted += 'x';
+    } else {
+        formatted += '-';
+    }
+    formatted += move.to;
+    if (flags.indexOf(board.FLAGS.PROMOTION) > -1 && move.promotion) {
+        formatted += '=' + move.promotion.toUpperCase();
+    }
+    return formatted + suffix;
+}
+
 function isLightTheme() {
     var bgcolor = $('body').css("background-color")
     const [r, g, b, a] = bgcolor.match(/[\d\.]+/g).map(Number);
@@ -907,15 +940,18 @@ function WebExporter(columns) {
         var out_move = tmp_board.move(m);
         var fen = tmp_board.fen();
         var stripped_fen = stripFen(fen);
+        var display_move;
         if (!out_move) {
             console.warn('put_move error');
             console.log(board.ascii());
             console.log(board.moves());
             console.log(tmp_board.ascii());
             console.log(m);
-            out_move = { 'san': 'X' + m.from + m.to };
+            display_move = 'X' + m.from + m.to;
+        } else {
+            display_move = formatPgnWindowMove(out_move, tmp_board);
         }
-        this.write_token('<span class="gameMove' + (board.fullmove_number) + '"><a href="#" class="fen" data-fen="' + fen + '" id="' + stripped_fen + '"> ' + figurinizeMove(out_move.san) + ' </a></span>');
+        this.write_token('<span class="gameMove' + (board.fullmove_number) + '"><a href="#" class="fen" data-fen="' + fen + '" id="' + stripped_fen + '"> ' + figurinizeMove(display_move) + ' </a></span>');
     };
 
     this.put_result = function (result) {
@@ -1169,6 +1205,15 @@ function writeVariationTree(dom, gameMoves, gameHistoryEl) {
     $(dom).html(gameHistoryEl.gameHeader + '<div class="gameMoves">' + gameMoves + ' <span class="gameResult">' + gameHistoryEl.result + '</span></div>');
     bindPgnFenLinks();
     applyPgnVariationVisibility();
+}
+
+function refreshPgnMoveWindow() {
+    if (!gameHistory) {
+        return;
+    }
+    var exporter = new WebExporter();
+    exportGame(gameHistory, exporter, true, true, undefined, false);
+    writeVariationTree(pgnEl, exporter.toString(), gameHistory);
 }
 
 function bindPgnFenLinks() {
@@ -3243,6 +3288,14 @@ function setHeaders(data) {
 }
 
 function getAllInfo() {
+    $.get('/info', { action: 'get_current_settings' }, function (data) {
+        var wasLongNotation = useLongPgnNotation();
+        window._picoCurrentSettings = window._picoCurrentSettings || {};
+        Object.assign(window._picoCurrentSettings, data || {});
+        if (useLongPgnNotation() !== wasLongNotation) {
+            refreshPgnMoveWindow();
+        }
+    }).fail(function () { });
     $.get('/info', { action: 'get_system_info' }, function (data) {
         window.system_info = data;
         // Merge into _picoSystemInfo (used by the overlay) and refresh diagram

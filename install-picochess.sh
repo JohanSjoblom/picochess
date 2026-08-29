@@ -44,6 +44,7 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   kiosk      -> enable autologin and kiosk autostart
 #   pi3        -> install Bluetooth unblock service for Raspberry Pi 3
 #   master     -> switch checkout back to origin/master before installing
+#   reset      -> back up and reset kiosk.sh and picochess.ini to current defaults
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
@@ -52,6 +53,7 @@ EXPLICIT_ENGINE_VARIANT=false
 INSTALL_KIOSK=false
 INSTALL_PI3_BT=false
 FORCE_MASTER=false
+RESET_SETTINGS=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -81,8 +83,16 @@ for arg in "$@"; do
         master|MASTER)
             FORCE_MASTER=true
             ;;
+        reset|RESET)
+            RESET_SETTINGS=true
+            ;;
     esac
 done
+
+if [ "$RESET_SETTINGS" = true ]; then
+    echo "WARNING: reset mode will replace local kiosk.sh and picochess.ini customizations."
+    echo "Existing files will be retained as one .backup copy before replacement."
+fi
 
 set_ini_setting() {
     ini_file=$1
@@ -518,15 +528,33 @@ if [ -x "$VENV_PYTHON" ]; then
 fi
 
 # picochess.ini
-if [ -f "$REPO_DIR/picochess.ini" ]; then
+# shellcheck source=install-managed-files.sh
+. "$REPO_DIR/install-managed-files.sh"
+USE_DGTPI_DEFAULTS="$INSTALL_DGTPI"
+if [ "$RESET_SETTINGS" = true ] && [ "$USE_DGTPI_DEFAULTS" != true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
+    if ini_setting_is_true "$REPO_DIR/picochess.ini" dgtpi; then
+        USE_DGTPI_DEFAULTS=true
+        echo "Reset mode detected an existing DGTPi configuration."
+    fi
+fi
+
+if [ "$USE_DGTPI_DEFAULTS" = true ]; then
+    DEFAULT_INI="$REPO_DIR/picochess.ini.example-dgtpi-clock"
+else
+    DEFAULT_INI="$REPO_DIR/picochess.ini.example-web-$(uname -m)"
+fi
+
+if [ "$RESET_SETTINGS" = true ]; then
+    replace_managed_file \
+        "$DEFAULT_INI" \
+        "$REPO_DIR/picochess.ini" \
+        "$REPO_DIR/picochess.ini.backup" \
+        false false "$INSTALL_USER" || exit 1
+elif [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "picochess.ini already existed - no changes done"
 else
     cd "$REPO_DIR"
-    if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini.example-dgtpi-clock" ]; then
-        cp "$REPO_DIR/picochess.ini.example-dgtpi-clock" "$REPO_DIR/picochess.ini"
-    else
-        cp "$REPO_DIR/picochess.ini.example-web-$(uname -m)" "$REPO_DIR/picochess.ini"
-    fi
+    cp "$DEFAULT_INI" "$REPO_DIR/picochess.ini"
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
 if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
@@ -605,6 +633,23 @@ if [ "$INSTALL_KIOSK" = true ]; then
     fi
 else
     echo "Kiosk flag not set - skipping kiosk install"
+fi
+
+# Refresh an existing home-directory kiosk during every normal update without
+# enabling kiosk mode on systems that do not use it. Explicit reset creates the
+# current kiosk even when the deployed copy is missing and overrides opt-out.
+KIOSK_TARGET="$INSTALL_USER_HOME/kiosk.sh"
+if [ "$RESET_SETTINGS" = true ] || [ -f "$KIOSK_TARGET" ]; then
+    if [ "$RESET_SETTINGS" = true ]; then
+        RESPECT_KIOSK_MARKER=false
+    else
+        RESPECT_KIOSK_MARKER=true
+    fi
+    replace_managed_file \
+        "$REPO_DIR/kiosk.sh" \
+        "$KIOSK_TARGET" \
+        "$KIOSK_TARGET.backup" \
+        "$RESPECT_KIOSK_MARKER" true "$INSTALL_USER" || exit 1
 fi
 
 # Python module check

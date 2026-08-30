@@ -101,6 +101,28 @@ event loop used throughout the program. Preserve that architecture.
 - If a library API is blocking, isolate it behind an async boundary rather than
   leaking blocking behavior into `picochess.py`.
 
+## Engine Ponder And Legacy Ponder-Hit State
+
+PicoChess V4 does not use a meaningful classic UCI ponder-hit transition in
+its primary modern-engine path.
+
+- `PlayingContinuousAnalysis` normally uses `engine.analysis()` to obtain the
+  engine move and live thinking information. It does not start a classic UCI
+  ponder search and later send `ponderhit`.
+- The `ponder_hit` calculation, parameter, logging, and related comments still
+  present in `picochess.py` are legacy plumbing. Do not build new behavior or
+  tests around a supposed V4 ponder-hit optimization.
+- `Mode.BRAIN`, stored ponder moves such as `pb_move`, and the user-facing
+  Brain mode are broader PicoChess concepts. Do not assume their names prove
+  that a protocol-level UCI ponder/ponder-hit exchange is taking place.
+- MAME/retro catalog entries normally declare `ponder/brain = n`, and Brain
+  mode is rejected when the selected engine does not advertise Ponder support.
+  Do not require MAME workflows to exercise engine pondering.
+- Removing the remaining legacy state may be done as a focused cleanup, but it
+  is not currently a priority. Before deleting it, audit the nonstandard
+  `engine.play(..., ponder=...)` fallback used when the normal analysis info
+  loop is disabled, along with mode-menu compatibility and existing tests.
+
 ## Clock Timing Pitfalls
 
 Clock drift regressions have occurred before. Preserve these timing-specific

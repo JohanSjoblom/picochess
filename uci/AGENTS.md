@@ -64,6 +64,22 @@ class.
   move, while still exposing cached thinking analysis through
   `get_thinking_analysis()`.
 
+### Ponder terminology
+
+Do not treat V4's primary `PlayingContinuousAnalysis` path as a classic UCI
+ponder/ponder-hit implementation.
+
+- The normal modern-engine path calls `engine.analysis()` and never sends a
+  later `ponderhit`. A returned ponder move may still be cached as continuation
+  information, but that does not create a live ponder-hit lifecycle.
+- The `ponder` argument currently reaches `engine.play()` only on the fallback
+  path where the analysis info loop is disabled, including MAME and configured
+  legacy-analysis engines. This residual path must be audited before removing
+  the argument or related state completely.
+- Do not add new engine coordination, timeout, or MAME behavior that depends on
+  `ponder_hit` being meaningful. Coordinate active searches through the
+  existing async playing state and engine-lease lifecycle instead.
+
 The two sisters must not be collapsed into a plain `play()` call, one generic
 helper, a shared base class, or a mode-flagged combined analyser. Keep the
 separate classes unless the project owner explicitly asks for an architecture

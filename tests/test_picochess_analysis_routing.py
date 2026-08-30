@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import chess
 
@@ -9,6 +10,7 @@ from picochess import (
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
+    selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
@@ -26,6 +28,18 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    @patch("picochess.platform.machine", return_value="aarch64")
+    def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
+        self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))
+
+    @patch("picochess.platform.machine", return_value="aarch64")
+    def test_aarch64_playing_modes_keep_selected_engine_depth(self, _machine):
+        self.assertEqual(40, selected_engine_analysis_depth(engine_plays=True))
+
+    @patch("picochess.platform.machine", return_value="x86_64")
+    def test_desktop_non_playing_modes_keep_selected_engine_depth(self, _machine):
+        self.assertEqual(40, selected_engine_analysis_depth(engine_plays=False))
+
     def test_ponder_requests_three_lines_from_capable_engine(self):
         option = chess.engine.Option("MultiPV", "spin", 1, 1, 500, None)
 

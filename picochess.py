@@ -109,7 +109,8 @@ import pairing_ipc
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
-FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 50  # max limit for any analysis
+FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 40  # fallback cap for selected main-engine ContinuousAnalysis
+AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH = 30  # lower cap when no engine moves are being played
 WEB_ANALYSIS_MULTIPV = 3  # maximum backend analysis lines shown by the web client
 # since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING
@@ -123,6 +124,12 @@ logger = logging.getLogger(__name__)
 WEB_SERVER_DEFAULT_PORT = 80
 WEB_SERVER_PERMISSION_FALLBACK_PORT = 8080
 WEB_SERVER_SETCAP_HINT = "sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))"
+
+def selected_engine_analysis_depth(engine_plays: bool) -> int:
+    """Return the selected main-engine ContinuousAnalysis depth limit."""
+    if platform.machine().lower() == "aarch64" and not engine_plays:
+        return AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH
+    return FLOAT_ENGINE_MAX_ANALYSIS_DEPTH
 
 
 def selected_engine_analysis_multipv(interaction_mode: Mode, engine_options) -> int | None:
@@ -4465,7 +4472,7 @@ async def main() -> None:
             """start or stop engine analyser as needed (tutor handles this on its own)"""
             if self.engine:
                 if self.need_engine_analyser():
-                    limit = Limit(depth=FLOAT_ENGINE_MAX_ANALYSIS_DEPTH)
+                    limit = Limit(depth=selected_engine_analysis_depth(self.eng_plays()))
                     # Use variant board if available for correct position representation
                     analysis_board = self.state.get_move_check_board()
                     multipv = selected_engine_analysis_multipv(

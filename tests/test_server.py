@@ -121,6 +121,8 @@ class TestSettingsTemplate(unittest.TestCase):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
 
         self.assertIn('id="restoreMameHistoryBtn"', template)
+        self.assertRegex(template, r'id="restoreMameHistoryBtn"[^>]*\bhidden\b')
+        self.assertIn("btn.hidden = !available", script)
         self.assertIn("preserveCurrentMameHistoryForSetPosition()", script)
         self.assertIn("preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : ''", script)
         self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
@@ -130,7 +132,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
         self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=11', template)
+        self.assertIn('app.js?v=12', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

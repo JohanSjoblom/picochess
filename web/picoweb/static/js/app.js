@@ -766,6 +766,7 @@ function updateMameHistoryRestoreButton() {
         return;
     }
     var available = Boolean(preservedMameHistory && preservedMameHistory.pgn);
+    btn.hidden = !available;
     btn.disabled = !available;
     btn.classList.toggle('btn-warning', available);
     btn.classList.toggle('btn-secondary', !available);

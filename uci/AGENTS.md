@@ -80,8 +80,11 @@ new deep search and should not be treated as synchronous analysis requests.
 Keep these rules intact when changing `uci/engine.py`:
 
 - `start_analysis()` owns the lifecycle of `ContinuousAnalysis`. If analysis is
-  already running for the same position it keeps the existing analyser; if the
-  position or depth changes, it updates the running analyser.
+  already running for the same position and configuration, it keeps the
+  existing analyser. A position change updates the running analyser; a depth or
+  effective MultiPV change cleanly stops and restarts it so the new search
+  command receives the requested configuration. Treat `multipv=None` and
+  `multipv=1` as equivalent.
 - `ContinuousAnalysis` stores the latest received `InfoDict` list in
   `_analysis_data` while its background task consumes engine analysis output.
 - `ContinuousAnalysis.get_analysis()` returns a deep-copied snapshot of that

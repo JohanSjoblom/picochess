@@ -17,7 +17,7 @@ import asyncio
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import chess
 from uci.engine import ContinuousAnalysis, EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
@@ -584,6 +584,71 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(started_after_mode)
         eng.analyser.start.assert_called_once()
+
+    async def test_start_analysis_restarts_when_depth_changes(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.set_mode()
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+        eng.analyser.get_limit_depth.return_value = 40
+        eng.analyser.get_multipv.return_value = None
+        eng.analyser.get_fen.return_value = chess.Board().fen()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+
+        async def stop_analysis():
+            eng.analyser.is_running.return_value = False
+
+        eng.stop_analysis = AsyncMock(side_effect=stop_analysis)
+
+        started = await eng.start_analysis(chess.Board(), limit=chess.engine.Limit(depth=30))
+
+        self.assertFalse(started)
+        eng.stop_analysis.assert_awaited_once_with()
+        eng.analyser.start.assert_called_once()
+        self.assertEqual(30, eng.analyser.start.call_args.kwargs["limit"].depth)
+
+    async def test_start_analysis_restarts_when_multipv_changes(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.set_mode()
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+        eng.analyser.get_limit_depth.return_value = 30
+        eng.analyser.get_multipv.return_value = None
+        eng.analyser.get_fen.return_value = chess.Board().fen()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+
+        async def stop_analysis():
+            eng.analyser.is_running.return_value = False
+
+        eng.stop_analysis = AsyncMock(side_effect=stop_analysis)
+
+        started = await eng.start_analysis(chess.Board(), limit=chess.engine.Limit(depth=30), multipv=3)
+
+        self.assertFalse(started)
+        eng.stop_analysis.assert_awaited_once_with()
+        eng.analyser.start.assert_called_once_with(ANY, limit=ANY, multipv=3)
+
+    async def test_start_analysis_treats_default_and_single_multipv_as_equivalent(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.set_mode()
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+        eng.analyser.get_limit_depth.return_value = 30
+        eng.analyser.get_multipv.return_value = None
+        eng.analyser.get_fen.return_value = chess.Board().fen()
+        eng.playing = Mock()
+        eng.stop_analysis = AsyncMock()
+
+        started = await eng.start_analysis(chess.Board(), limit=chess.engine.Limit(depth=30), multipv=1)
+
+        self.assertTrue(started)
+        eng.stop_analysis.assert_not_awaited()
+        eng.analyser.start.assert_not_called()
 
     async def test_get_analysis_returns_empty_while_engine_setup_incomplete(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

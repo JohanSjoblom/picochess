@@ -290,6 +290,11 @@ Keep this boundary intact when changing analysis behavior:
   make `ContinuousAnalysis` default to MultiPV 3, because it is also used in
   playing-mode and Tutor lifecycles. Tutor may expose the first three lines
   from its already-wider analysis without changing its requested width.
+- On `aarch64`, the selected main engine's `ContinuousAnalysis` is capped at
+  depth 30 whenever `eng_plays()` is false, including REMOTE and OBSERVE, to
+  avoid indefinite Pi CPU load. All other selected-main-engine
+  `ContinuousAnalysis` paths are capped at depth 40. Keep PicoTutor's
+  separately configured depth policy unchanged.
 - In `Mode.KIBITZ` and `Mode.ANALYSIS`, an entered move may match a move in the
   analysis calculated for the preceding position. Picochess then reuses that
   deeper continuation for the clock/DGT display, including its reply, score,

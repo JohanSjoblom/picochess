@@ -1078,7 +1078,7 @@ class ChannelHandler(ServerRequestHandler):
                     publish_preserved_mame_history(
                         self.shared,
                         preserved_pgn,
-                        bit_board.fen(),
+                        fen,
                         "set_position",
                     )
                 await Observable.fire(

@@ -3,6 +3,12 @@ PicoChess
 Picochess transforms a Raspberry Pi or Linux computer into a flexible chess computer. It is not a single chess engine; it is a platform that lets you choose and run the engines you want. You can play from any web browser (phone, tablet, or desktop) without an electronic board, or connect an e-board for a traditional over-the-board feel.
 Installation includes Stockfish and Leela Chess Zero (LC0) as examples. You can add modern or retro engines, including classics like Mephisto and TuroChamp. See the "How to add more engines" section below for details.
 
+[♟️ Support AI-assisted PicoChess development](https://paypal.me/picochess)
+
+Contributions help cover the AI service subscription costs used for PicoChess development and maintenance; they are not intended as payment for the maintainers' work hours.
+At present, these services cost approximately US$24 per month. Future use of automated development agents on GitHub may add further service costs.
+Companies interested in sponsoring these monthly costs are welcome to contact the maintainers through the [PicoChess Google Group](https://groups.google.com/g/picochess).
+
 Contributing
 ============
 

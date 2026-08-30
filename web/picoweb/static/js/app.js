@@ -855,6 +855,40 @@ function restorePreservedMameHistoryInExplore() {
     updateStatus();
 }
 
+function fenWithoutEnPassant(fen) {
+    var fields = String(fen || '').trim().split(/\s+/);
+    if (fields.length !== 6) {
+        return String(fen || '').trim();
+    }
+    fields[3] = '-';
+    return fields.join(' ');
+}
+
+function findPositionByFen(fen) {
+    if (!fenHash || !fen) {
+        return null;
+    }
+    if (fenHash[fen]) {
+        return fenHash[fen];
+    }
+
+    // chess.js records the target square after every double pawn move, while
+    // python-chess omits it when no legal en-passant capture exists. Treat
+    // those serializations as the same position without weakening the other
+    // FEN fields used to identify the selected historical node.
+    var comparableFen = fenWithoutEnPassant(fen);
+    for (var key in fenHash) {
+        if (!Object.prototype.hasOwnProperty.call(fenHash, key)) {
+            continue;
+        }
+        var node = fenHash[key];
+        if (node && node.fen && fenWithoutEnPassant(node.fen) === comparableFen) {
+            return node;
+        }
+    }
+    return null;
+}
+
 function setWebExploreMode(enabled, redraw) {
     enabled = Boolean(enabled);
     if (enabled) {
@@ -1678,6 +1712,13 @@ function loadGame(pgn_lines, options) {
         chessGameType = 0;
     }
 
+    // A PGN containing only a custom root position has no move through which
+    // addNewMove() can initialize fenHash. Make the root a first-class node so
+    // restored Scan snapshots can be selected and promoted with Set Pos.
+    current_position.fen = setupBoardFen;
+    fenHash['first'] = current_position;
+    fenHash[setupBoardFen] = current_position;
+
     var board_stack = [tmpGame];
     var variation_stack = [current_position];
     var last_board_stack_index = 0;
@@ -1983,7 +2024,7 @@ function clockShowHint() {
 function goToPosition(fen, options) {
     options = options || {};
     stopAnalysis();
-    currentPosition = fenHash[fen];
+    currentPosition = findPositionByFen(fen);
     if (!currentPosition) {
         return false;
     }

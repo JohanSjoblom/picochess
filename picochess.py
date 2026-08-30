@@ -2924,7 +2924,7 @@ async def main() -> None:
             )
             self.preserve_mame_history_for_web(
                 self.state.game,
-                self.state.game.fen(),
+                self.state.game.fen(en_passant="fen"),
                 "engine_recovery",
             )
             self.state.game = self.state.game.copy(stack=False)
@@ -5167,7 +5167,7 @@ async def main() -> None:
                 )
                 self.preserve_mame_history_for_web(
                     l_game_pgn,
-                    self.state.game.fen(),
+                    self.state.game.fen(en_passant="fen"),
                     "read_game",
                 )
                 self.state.game = self.state.game.copy(stack=False)

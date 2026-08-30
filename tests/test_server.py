@@ -125,6 +125,12 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : ''", script)
         self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
         self.assertIn("startWebExploreFromCurrentPosition(false)", script)
+        self.assertIn("function findPositionByFen(fen)", script)
+        self.assertIn("fields[3] = '-'", script)
+        self.assertIn("current_position.fen = setupBoardFen", script)
+        self.assertIn("fenHash[setupBoardFen] = current_position", script)
+        self.assertIn('base.css?v=11', template)
+        self.assertIn('app.js?v=11', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

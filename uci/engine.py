@@ -669,12 +669,9 @@ class ContinuousAnalysis:
             return self.limit.depth
         return None
 
-    def update_limit(self, limit: Limit | None):
-        """update the limit for the analysis - first check if needed"""
-        if self._running:
-            self.limit = limit  # None is also OK here
-        else:
-            logger.debug("%s not running - cannot update", self.whoami)
+    def get_multipv(self) -> int | None:
+        """Return the MultiPV value used by analysis; None means one line."""
+        return self.multipv
 
     def stop(self):
         """Stops the continuous analysis - in a nice way
@@ -1794,7 +1791,6 @@ class UciEngine(object):
         game: the game position to be analysed
         limit: limit for analysis - None means forever
         multipv: multipv for analysis - None means 1"""
-        result = False
         if self._shutting_down:
             logger.debug("%s start_analysis skipped - engine is shutting down", self.whoami)
             return False
@@ -1802,16 +1798,29 @@ class UciEngine(object):
             logger.debug("%s start_analysis skipped - engine setup not complete", self.whoami)
             return False
         if self.analyser and self.analyser.is_running():
-            if limit and limit.depth != self.analyser.get_limit_depth():
-                logger.debug("%s picotutor limit change: %d- mode/engine switch?", self.whoami, limit.depth)
-                self.analyser.update_limit(limit)
-            if game.fen() != self.analyser.get_fen():
+            requested_depth = limit.depth if limit else None
+            active_depth = self.analyser.get_limit_depth()
+            requested_multipv = 1 if multipv is None else multipv
+            active_multipv_value = self.analyser.get_multipv()
+            active_multipv = 1 if active_multipv_value is None else active_multipv_value
+            if requested_depth != active_depth or requested_multipv != active_multipv:
+                logger.debug(
+                    "%s restarting analysis after configuration change: depth %s -> %s, multipv %s -> %s",
+                    self.whoami,
+                    active_depth,
+                    requested_depth,
+                    active_multipv,
+                    requested_multipv,
+                )
+                await self.stop_analysis()
+            elif game.fen() != self.analyser.get_fen():
                 await self.analyser.update_game(game)  # new position
                 logger.debug("%s new analysis position", self.whoami)
+                return False
             else:
-                result = True  # was running - results to be expected
-                # logger.debug("continue with old analysis position")
-        else:
+                return True  # was running in this position with the requested configuration
+
+        if not self.analyser or not self.analyser.is_running():
             if self.engine:
                 async with self.engine_lock:
                     if self._shutting_down:
@@ -1826,7 +1835,7 @@ class UciEngine(object):
                         logger.debug("%s cannot start analysis - engine is thinking", self.whoami)
             else:
                 logger.warning("start analysis requested but no engine loaded")
-        return result
+        return False
 
     def is_analyser_running(self) -> bool:
         """check if analyser is running"""

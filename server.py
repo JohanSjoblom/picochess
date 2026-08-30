@@ -439,6 +439,79 @@ def _engine_menu_payload() -> dict:
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
+def _current_engine_menu_settings(shared: dict) -> dict:
+    """Return stable web-menu identity for the selected engine."""
+    from uci.engine_provider import EngineProvider
+
+    selected = {}
+    dgtmenu = shared.get("dgtmenu")
+    if dgtmenu is not None:
+        try:
+            selected = dgtmenu.get_engine() or {}
+        except (AttributeError, IndexError):
+            selected = {}
+
+    system_info = shared.get("system_info", {})
+    engine_file = str(selected.get("file", "") or "")
+    engine_name = str(selected.get("name", "") or system_info.get("engine_name", "") or "")
+    match = None
+    match_category = ""
+    for category, catalog in (
+        ("modern", EngineProvider.modern_engines),
+        ("retro", EngineProvider.retro_engines),
+        ("favorites", EngineProvider.favorite_engines),
+    ):
+        for engine in catalog:
+            same_file = bool(engine_file) and engine.get("file", "") == engine_file
+            same_name = not engine_file and engine_name and engine.get("name", "") == engine_name
+            if same_file or same_name:
+                match = engine
+                match_category = category
+                break
+        if match is not None:
+            break
+
+    if match is not None:
+        engine_file = str(match.get("file", engine_file))
+        engine_name = str(match.get("name", engine_name))
+
+    return {
+        "engine_file": engine_file,
+        "engine_name": engine_name,
+        "engine_category": match_category,
+        "engine_manufacturer": str((match or {}).get("manufacturer", "")),
+    }
+
+
+def _web_time_control_settings(tc_init: dict) -> dict:
+    """Serialize the selected time control for exact web-picker matching."""
+    if not tc_init:
+        return {}
+
+    depth = int(tc_init.get("depth") or 0)
+    node = int(tc_init.get("node") or 0)
+    moves = int(tc_init.get("moves_to_go") or 0)
+    blitz = int(tc_init.get("blitz") or 0)
+    fixed = int(tc_init.get("fixed") or 0)
+    fischer = int(tc_init.get("fischer") or 0)
+    blitz2 = int(tc_init.get("blitz2") or 0)
+    mode = tc_init.get("mode")
+
+    if depth:
+        return {"mode": "depth", "value": depth}
+    if node:
+        return {"mode": "nodes", "value": node}
+    if moves:
+        return {"mode": "tournament", "value": f"{moves} {blitz} {blitz2} {fischer}"}
+    if mode == TimeMode.FISCHER:
+        return {"mode": "fischer", "value": [blitz, fischer]}
+    if mode == TimeMode.BLITZ:
+        return {"mode": "blitz", "value": blitz}
+    if mode == TimeMode.FIXED:
+        return {"mode": "fixed", "value": fixed}
+    return {}
+
+
 def _engine_menu_labels(dgttranslate) -> dict:
     """Return translated labels for the web engine-menu overlay."""
     language = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
@@ -1933,10 +2006,11 @@ class InfoHandler(ServerRequestHandler):
                 ) else "off"
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
-            # Engine name and level come from shared (live state, not ini)
-            si = self.shared.get("system_info", {})
-            settings["engine_name"] = si.get("engine_name", "")
-            settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            # Engine and time selections come from live state, not ini display labels.
+            settings.update(_current_engine_menu_settings(self.shared))
+            game_info = self.shared.get("game_info", {})
+            settings["engine_level"] = game_info.get("level_name", "")
+            settings["time_control"] = _web_time_control_settings(game_info.get("tc_init", {}))
             settings.update(_tutor_settings_from_shared(self.shared))
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps(settings))
@@ -3446,6 +3520,7 @@ class WebDisplay(DisplayMsg):
                 _tc_label = self._tc_to_label(_tc_init)
                 if _tc_label:
                     self.shared["system_info"]["time_label"] = _tc_label
+                self.shared["system_info"]["time_control"] = _web_time_control_settings(_tc_init)
 
             # remove if no level_text or level_name exist, else set old/original value from start
             if self.shared["game_info"].get("level_text") is None:
@@ -3553,14 +3628,20 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
-            # Derive a plain-string time label from tc_init and push it.
-            # tc_init contains TimeMode enums which are not JSON-safe, so we
-            # never put tc_init itself into system_info — only the derived label.
+            # Publish display text plus an enum-free picker selection. The raw
+            # tc_init contains TimeMode values and is not JSON-safe.
             _time_label = self._tc_to_label(message.tc_init)
             if _time_label:
                 self._create_system_info()
                 self.shared["system_info"]["time_label"] = _time_label
-                EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"time_label": _time_label}})
+                _time_control = _web_time_control_settings(message.tc_init)
+                self.shared["system_info"]["time_control"] = _time_control
+                EventHandler.write_to_clients(
+                    {
+                        "event": "SystemInfo",
+                        "msg": {"time_label": _time_label, "time_control": _time_control},
+                    }
+                )
             # Immediately push new clock times to web clients.
             # The normal dispatch chain (CLOCK_SET → CLOCK_START) can be silently
             # dropped when clock_connected["web"] is not yet set, or can be

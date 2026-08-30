@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css?v=9" />
+    <link rel="stylesheet" href="/static/css/base.css?v=10" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -1235,6 +1235,25 @@
                 window._picoCurrentSettings = window._picoCurrentSettings || {};
                 window._picoCurrentSettings[key] = value;
             }
+            function scrollSelectedMenuItem(container) {
+                if (!container) return;
+                window.requestAnimationFrame(function() {
+                    var selected = container.querySelector('.selected');
+                    if (selected) selected.scrollIntoView({block: 'center', inline: 'nearest'});
+                });
+            }
+            function currentTimeControl() {
+                var sysInfo = window._picoSystemInfo || {};
+                var settings = window._picoCurrentSettings || {};
+                return settings.time_control || sysInfo.time_control || {};
+            }
+            function sameTimeValue(left, right) {
+                return JSON.stringify(left) === JSON.stringify(right);
+            }
+            function tilePageForItem(index, itemCount) {
+                if (index < 0 || itemCount <= 9 || index < 8) return 0;
+                return 1 + Math.floor((index - 8) / 7);
+            }
             function setCurrentSettingFromAction(action) {
                 var m;
                 if ((m = /^lang&val=([^&]+)$/.exec(action))) {
@@ -1449,6 +1468,14 @@
                 if (mg) mg.style.display = '';
                 if (sp) sp.style.display = 'none';
                 updateTimeSubpanel();
+                fetch('/info?action=get_current_settings')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        window._picoCurrentSettings = d;
+                        applyMenuText(d);
+                        updateTimeSubpanel();
+                    })
+                    .catch(function() {});
             }
             function refreshTutorSettings() {
                 return fetch('/info?action=get_current_settings')
@@ -2402,7 +2429,8 @@
                 grid.className = 'pico-tile-grid';
                 _engCatDefs.forEach(function(cat) {
                     var btn = document.createElement('button');
-                    btn.className = 'pico-tile';
+                    var currentCategory = (window._picoCurrentSettings || {}).engine_category || '';
+                    btn.className = 'pico-tile' + (cat.value === currentCategory ? ' selected' : '');
                     var lEl = document.createElement('span'); lEl.className = 'pico-tile-label';
                     lEl.textContent = cat.icon + ' ' + _engineCatLabel(cat);
                     btn.appendChild(lEl);
@@ -2534,13 +2562,15 @@
                 levelEl.style.display = 'none';
                 document.getElementById('ovl-level-list').innerHTML = '';
                 _engAllData = [];
-                fetch('/info?action=get_current_settings')
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) { window._picoCurrentSettings = d; applyMenuText(d); })
-                    .catch(function() {});
-                fetch('/info?action=get_engines')
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
+                Promise.all([
+                    fetch('/info?action=get_current_settings').then(function(r) { return r.json(); }),
+                    fetch('/info?action=get_engines').then(function(r) { return r.json(); })
+                ])
+                    .then(function(results) {
+                        var settings = results[0] || {};
+                        var data = results[1] || {};
+                        window._picoCurrentSettings = settings;
+                        applyMenuText(settings);
                         _engAllData = data.engines || [];
                         setCurrentSetting('engine_menu_sort', data.engine_menu_sort || 'file');
                         if (data.engine_menu_labels) setCurrentSetting('engine_menu_labels', data.engine_menu_labels);
@@ -2548,7 +2578,10 @@
                         var hasManufacturers = _engAllData.some(function(eng) {
                             return (eng.category || '') === cat && Boolean(eng.manufacturer);
                         });
-                        if (hasManufacturers) {
+                        var isCurrentCategory = settings.engine_category === cat;
+                        if (isCurrentCategory && !hasManufacturers) {
+                            _showEngineList(cat, settings.engine_manufacturer || '', true);
+                        } else if (hasManufacturers) {
                             _showManufacturerList(cat);
                         } else {
                             _showEngineList(cat);
@@ -2574,11 +2607,15 @@
                     .catch(function() {});
             }
 
-            function populateLevels(file, levels) {
+            function populateLevels(file, levels, applyWhenEmpty) {
                 var col    = document.getElementById('ovl-level-col');
                 var listEl = document.getElementById('ovl-level-list');
                 listEl.innerHTML = '';
-                if (!levels || !levels.length) { col.style.display = 'none'; applyEngine(file, ''); return; }
+                if (!levels || !levels.length) {
+                    col.style.display = 'none';
+                    if (applyWhenEmpty !== false) applyEngine(file, '');
+                    return;
+                }
                 col.style.display = 'flex';
                 var _curLevel = (window._picoCurrentSettings && window._picoCurrentSettings.engine_level) || '';
                 levels.forEach(function(level) {
@@ -2593,6 +2630,7 @@
                     });
                     listEl.appendChild(btn);
                 });
+                scrollSelectedMenuItem(listEl);
             }
 
             function applyEngine(file, level) {
@@ -2635,11 +2673,24 @@
                 if (subPanel) subPanel.style.display = '';
                 if (lbl) lbl.textContent = td.label;
                 var items = td.values.map(function(val, i) { return { label: val, value: i }; });
-                renderSubTileGrid(listEl, items, 0, undefined, function(item, btn, grid) {
+                var current = currentTimeControl();
+                var currentIndex = -1;
+                if (current.mode === mode) {
+                    for (var i = 0; i < td.raw.length; i++) {
+                        if (sameTimeValue(td.raw[i], current.value)) {
+                            currentIndex = i;
+                            break;
+                        }
+                    }
+                }
+                var currentPage = tilePageForItem(currentIndex, items.length);
+                renderSubTileGrid(listEl, items, currentPage,
+                    currentIndex >= 0 ? currentIndex : undefined, function(item, btn, grid) {
                     grid.querySelectorAll('.pico-sub-tile').forEach(function(t) { t.classList.remove('selected'); });
                     btn.classList.add('selected');
                     setTimeout(function() { applyTime(mode, item.value); }, 180);
                 });
+                scrollSelectedMenuItem(listEl);
             }
 
             function applyTime(mode, idx) {
@@ -2663,6 +2714,8 @@
                 // carries the raw internal text; this friendly label wins).
                 window._picoSystemInfo = window._picoSystemInfo || {};
                 window._picoSystemInfo.time_label = td.values[i];
+                window._picoSystemInfo.time_control = {mode: mode, value: raw};
+                setCurrentSetting('time_control', {mode: mode, value: raw});
                 close();
             }
 
@@ -2753,6 +2806,11 @@
             /* ── engine category filter ──────────────── */
             var _engCurrentCat = 'modern';
             var _engAllData    = [];
+            function _isCurrentEngine(eng) {
+                var settings = window._picoCurrentSettings || {};
+                if (settings.engine_file) return eng.file === settings.engine_file;
+                return Boolean(settings.engine_name) && (eng.name || eng.file) === settings.engine_name;
+            }
             function _showManufacturerList(cat) {
                 var listEl = document.getElementById('ovl-engine-list');
                 var levelEl = document.getElementById('ovl-level-col');
@@ -2766,25 +2824,25 @@
                     if ((eng.category || '') !== cat || !eng.manufacturer) return;
                     if (manufacturers.indexOf(eng.manufacturer) === -1) manufacturers.push(eng.manufacturer);
                 });
-                var currentEngine = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
                 manufacturers.forEach(function(manufacturer) {
                     var btn = document.createElement('button');
                     var containsCurrent = _engAllData.some(function(eng) {
                         return eng.category === cat && eng.manufacturer === manufacturer
-                            && (eng.name || eng.file) === currentEngine;
+                            && _isCurrentEngine(eng);
                     });
                     btn.className = 'pico-picker-item' + (containsCurrent ? ' selected' : '');
                     var nameEl = document.createElement('strong');
                     nameEl.textContent = manufacturer;
                     btn.appendChild(nameEl);
                     btn.addEventListener('click', function() {
-                        navigateTo(function() { _showEngineList(cat, manufacturer); });
+                        navigateTo(function() { _showEngineList(cat, manufacturer, containsCurrent); });
                     });
                     listEl.appendChild(btn);
                 });
+                scrollSelectedMenuItem(listEl);
             }
 
-            function _showEngineList(cat, manufacturer) {
+            function _showEngineList(cat, manufacturer, openCurrentLevel) {
                 var listEl  = document.getElementById('ovl-engine-list');
                 var levelEl = document.getElementById('ovl-level-col');
                 levelEl.style.display = 'none';
@@ -2799,7 +2857,7 @@
                     return categoryMatches && (!manufacturer || e.manufacturer === manufacturer);
                 });
                 if (!filtered.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">None</div>'; return; }
-                var _curEngineName = (window._picoSystemInfo && window._picoSystemInfo.engine_name) || '';
+                var currentEntry = null;
                 filtered.forEach(function(eng) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item pico-engine-picker-item';
@@ -2807,7 +2865,10 @@
                     var nameEl = document.createElement('strong');
                     nameEl.textContent = engName;
                     btn.appendChild(nameEl);
-                    if (engName === _curEngineName) btn.classList.add('selected');
+                    if (_isCurrentEngine(eng)) {
+                        btn.classList.add('selected');
+                        currentEntry = eng;
+                    }
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
@@ -2815,6 +2876,10 @@
                     });
                     listEl.appendChild(btn);
                 });
+                scrollSelectedMenuItem(listEl);
+                if (openCurrentLevel && currentEntry) {
+                    populateLevels(currentEntry.file, currentEntry.levels, false);
+                }
             }
 
             /* ── game action picker ──────────────────── */
@@ -3603,10 +3668,7 @@
             }
 
             function updateTimeSubpanel() {
-                var current  = String((window._picoSystemInfo || {}).time_mode || '').toLowerCase();
-                var modeMap  = { '0':'fixed','1':'blitz','2':'fischer','3':'tournament','4':'depth','5':'nodes',
-                                 'fixed':'fixed','blitz':'blitz','fischer':'fischer','tournament':'tournament','depth':'depth','nodes':'nodes' };
-                var active   = modeMap[current] || '';
+                var active = String(currentTimeControl().mode || '').toLowerCase();
                 var modeList = document.getElementById('ovl-time-mode-list');
                 if (!modeList) return;
                 // Highlight active mode tile; user taps to open its value sub-panel

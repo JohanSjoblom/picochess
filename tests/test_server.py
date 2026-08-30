@@ -29,6 +29,7 @@ from server import (
     _tutor_settings_from_shared,
     _board_from_web_pgn_prefix,
     _configured_engine_book_file,
+    _current_engine_menu_settings,
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
@@ -42,6 +43,7 @@ from server import (
     _select_engine_book,
     _select_web_book,
     _time_control_text,
+    _web_time_control_settings,
     _update_web_book_selection,
     _validate_setup_position_fen,
     _web_book_choices,
@@ -71,6 +73,17 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("'alt_move'", template)
         self.assertIn("'display&ponder=8'", template)
         self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
+
+    def test_current_engine_and_time_selections_use_authoritative_state(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("if (settings.engine_file) return eng.file === settings.engine_file;", template)
+        self.assertIn("settings.engine_category === cat", template)
+        self.assertIn("if (isCurrentCategory && !hasManufacturers)", template)
+        self.assertIn("_showEngineList(cat, manufacturer, containsCurrent)", template)
+        self.assertIn("var current = currentTimeControl();", template)
+        self.assertIn("tilePageForItem(currentIndex, items.length)", template)
+        self.assertNotIn("String((window._picoSystemInfo || {}).time_mode", template)
 
     def test_position_side_is_immediate_only_in_ponder(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
@@ -204,6 +217,27 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
         self.assert_display_text(text)
         self.assertEqual("PGN Replay", text.web_text)
 
+    def test_web_time_control_settings_are_json_safe_and_picker_exact(self):
+        cases = [
+            ({"mode": TimeMode.FIXED, "fixed": 10}, {"mode": "fixed", "value": 10}),
+            ({"mode": TimeMode.BLITZ, "blitz": 5}, {"mode": "blitz", "value": 5}),
+            (
+                {"mode": TimeMode.FISCHER, "blitz": 5, "fischer": 3},
+                {"mode": "fischer", "value": [5, 3]},
+            ),
+            (
+                {"mode": TimeMode.FISCHER, "moves_to_go": 40, "blitz": 90, "blitz2": 60, "fischer": 30},
+                {"mode": "tournament", "value": "40 90 60 30"},
+            ),
+            ({"mode": TimeMode.FIXED, "depth": 15}, {"mode": "depth", "value": 15}),
+            ({"mode": TimeMode.FIXED, "node": 250}, {"mode": "nodes", "value": 250}),
+        ]
+        for tc_init, expected in cases:
+            with self.subTest(expected=expected):
+                result = _web_time_control_settings(tc_init)
+                self.assertEqual(expected, result)
+                json.dumps(result)
+
 
 class TestEngineMenuHelpers(unittest.TestCase):
     def setUp(self):
@@ -247,6 +281,29 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
         self.assertEqual(["retro-1", "retro-0"], [entry["file"] for entry in retro])
         self.assertEqual("", retro[0]["manufacturer"])
+
+    def test_current_engine_settings_use_file_identity(self):
+        EngineProvider.modern_engines = [
+            {"name": "Shared Name", "file": "modern-engine", "level_dict": {}},
+        ]
+        EngineProvider.retro_engines = [
+            {
+                "name": "Shared Name",
+                "file": "retro-engine",
+                "manufacturer": "Novag",
+                "level_dict": {},
+            },
+        ]
+        menu = Mock()
+        menu.get_engine.return_value = EngineProvider.retro_engines[0]
+
+        settings = _current_engine_menu_settings(
+            {"dgtmenu": menu, "system_info": {"engine_name": "Shared Name"}}
+        )
+
+        self.assertEqual("retro-engine", settings["engine_file"])
+        self.assertEqual("retro", settings["engine_category"])
+        self.assertEqual("Novag", settings["engine_manufacturer"])
 
     def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
         EngineProvider.modern_engines = [
@@ -399,6 +456,30 @@ class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
 
         self.assertNotIn("brain_hint", shared)
         write_to_clients.assert_any_call({"event": "BrainHint", "squares": []})
+
+    async def test_time_control_publishes_structured_picker_state(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        tc_init = {
+            "mode": TimeMode.FISCHER,
+            "fixed": 0,
+            "blitz": 5,
+            "fischer": 3,
+            "moves_to_go": 0,
+            "blitz2": 0,
+            "depth": 0,
+            "node": 0,
+            "internal_time": None,
+        }
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.TIME_CONTROL(time_text=Mock(), show_ok=False, tc_init=tc_init))
+
+        expected = {"mode": "fischer", "value": [5, 3]}
+        self.assertEqual(expected, shared["system_info"]["time_control"])
+        write_to_clients.assert_any_call(
+            {"event": "SystemInfo", "msg": {"time_label": "5+3", "time_control": expected}}
+        )
 
 
 class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):

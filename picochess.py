@@ -1416,6 +1416,14 @@ def should_use_tutor_analysis(
     return result
 
 
+async def rollback_picotutor_for_alternative(picotutor, game: chess.Board, resync) -> bool:
+    """Undo the previously posted engine move before requesting an alternative."""
+    valid = await picotutor.pop_last_move(game)
+    if not valid:
+        await resync()
+    return valid
+
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -2665,12 +2673,15 @@ async def main() -> None:
             else:
                 logger.debug("molli PGN fen is invalid!")
 
-        async def set_picotutor_position(self, new_game=False):
+        async def set_picotutor_position(self, new_game=False, position: chess.Board | None = None):
             """tutor is either off sync or we are starting from a new position
             set tutor back to same position as main board game"""
             if self.picotutor_mode():
-                # we dont really need to copy the self.state.game but just to be sure...
-                await self.state.picotutor.set_position(self.state.game.copy(), new_game=new_game)
+                # An announced physical-board engine move may not have been pushed
+                # into state.game yet.  In that case the caller supplies the
+                # already-advanced position that PicoTutor must analyse.
+                target_position = position if position is not None else self.state.game
+                await self.state.picotutor.set_position(target_position.copy(), new_game=new_game)
                 if self.state.play_mode == PlayMode.USER_BLACK:
                     await self.state.picotutor.set_user_color(chess.BLACK, self.pgn_mode() or not self.eng_plays())
                 else:
@@ -6626,7 +6637,13 @@ async def main() -> None:
                         # e-board: engine move still pending on the board; allow user to request another move
                         # (when go() sees searchlist=True it removes already-played moves from the root list)
                         if not self.state.check_game_state():
-                            # picotuter should be in sync as takeback already was done
+                            if self.picotutor_mode():
+                                await rollback_picotutor_for_alternative(
+                                    self.state.picotutor,
+                                    self.state.game,
+                                    self.set_picotutor_position,
+                                )
+                                self.state.best_move_posted = False
                             await self.think(
                                 Message.ALTERNATIVE_MOVE(game=self.state.game.copy(), play_mode=self.state.play_mode),
                                 searchlist=True,
@@ -6681,7 +6698,12 @@ async def main() -> None:
                         )
                         if not self.state.check_game_state():
                             if self.picotutor_mode():
-                                await self.state.picotutor.pop_last_move(self.state.game)
+                                await rollback_picotutor_for_alternative(
+                                    self.state.picotutor,
+                                    self.state.game,
+                                    self.set_picotutor_position,
+                                )
+                                self.state.best_move_posted = False
                             # Allow any late bestmove/info lines from the previous search to drain.
                             await asyncio.sleep(0.2)
                             await self.think(
@@ -7325,7 +7347,7 @@ async def main() -> None:
 
                                 valid = await self.state.picotutor.push_move(event.move, game_copy)
                                 if not valid:
-                                    await self.set_picotutor_position()
+                                    await self.set_picotutor_position(position=game_copy)
                             self._prepare_engine_move(
                                 game_copy,
                                 event.move,

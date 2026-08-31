@@ -1,6 +1,6 @@
 import io
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
@@ -12,6 +12,7 @@ from picochess import (
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
     remote_move_matches_current_position,
+    rollback_picotutor_for_alternative,
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
     should_block_takeback,
@@ -554,3 +555,29 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 chess.Board(),
             )
         )
+
+
+class TestPicochessAlternativeTutorRollback(unittest.IsolatedAsyncioTestCase):
+    async def test_successful_rollback_does_not_force_resync(self):
+        board = chess.Board()
+        picotutor = Mock()
+        picotutor.pop_last_move = AsyncMock(return_value=True)
+        resync = AsyncMock()
+
+        valid = await rollback_picotutor_for_alternative(picotutor, board, resync)
+
+        self.assertTrue(valid)
+        picotutor.pop_last_move.assert_awaited_once_with(board)
+        resync.assert_not_awaited()
+
+    async def test_failed_rollback_resynchronizes_before_replacement_search(self):
+        board = chess.Board()
+        picotutor = Mock()
+        picotutor.pop_last_move = AsyncMock(return_value=False)
+        resync = AsyncMock()
+
+        valid = await rollback_picotutor_for_alternative(picotutor, board, resync)
+
+        self.assertFalse(valid)
+        picotutor.pop_last_move.assert_awaited_once_with(board)
+        resync.assert_awaited_once_with()

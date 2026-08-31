@@ -353,6 +353,12 @@ The tutor-side rule is:
 - `PicoTutor.get_analysis()` should read the tutor `best_engine` buffer only if
   tutor analysis is enabled and the analyser is already running. It should not
   be used as a back door to start tutor analysis.
+- When an announced engine move is still pending on a physical eboard and the
+  user requests an alternative, roll the announced move back out of PicoTutor
+  before starting the replacement search. Push the replacement into PicoTutor
+  when it is announced so Tutor analysis owns the resulting user turn; a
+  fallback resync must use the replacement position, not the still-unadvanced
+  physical-board game.
 
 If `UciEngine` analysis internals are updated again, preserve both lifecycle
 guards: `picochess.py` decides whether the selected main engine analyser should

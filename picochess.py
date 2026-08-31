@@ -1410,10 +1410,11 @@ def should_use_tutor_analysis(
         return False
     if pgn_mode or engine_should_skip_analyser:
         return True
-    result = not engine_is_playing
-    if not result:
-        result = engine_is_playing and engine_move_was_book and is_user_turn
-    return result
+    # While an engine is playing, its PlayingContinuousAnalysis owns the engine
+    # turn.  On the user turn PicoTutor replaces selected-engine
+    # ContinuousAnalysis, preserving the final playing-search snapshot while
+    # avoiding a second deep analyser competing for Pi CPU.
+    return not engine_is_playing or is_user_turn
 
 
 async def rollback_picotutor_for_alternative(picotutor, game: chess.Board, resync) -> bool:
@@ -4176,8 +4177,9 @@ async def main() -> None:
         #
         # 1. Engine is playing and tutor is on:
         #   - Engine turn: use engine PlayingContinuousAnalysis (engine-thinking info).
-        #   - User turn: keep clock hint/value engine-driven (do NOT overwrite with tutor info);
-        #     tutor info may still be sent to web client output.
+        #   - User turn: stop engine ContinuousAnalysis and let Tutor own the only
+        #     deep search.  Preserve the completed playing search as the latest
+        #     clock/web Engine snapshot; publish fresh Tutor output to the web.
         # 2. Engine is playing and tutor is off:
         #   - User turn: use engine ContinuousAnalysis for clock updates.
         #   - Engine turn: use engine PlayingContinuousAnalysis.
@@ -4594,27 +4596,27 @@ async def main() -> None:
                         analysed_fen_for_web_engine = analysed_fen
                     else:
                         if self.state.picotutor.can_use_coach_analyser():
-                            # Tutor output goes to the Tutor: line as before.
+                            # PicoTutor owns current user-turn analysis.  Keep the
+                            # selected engine's final playing-search snapshot; do
+                            # not start or poll a second deep analyser merely to
+                            # refresh the web Engine line.
                             result = await self.state.picotutor.get_analysis()
                             info_candidate_list: list[InfoDict] = result.get("info")
                             info_for_web_tutor = info_candidate_list
                             analysed_fen_for_web_tutor = result.get("fen", "")
-                        # Always read ContinuousAnalysis for the Engine: line during the user's
-                        # turn, even when the tutor is also active.  Previously only one or the
-                        # other was read; fast engines (Stockfish) that finish in < 1 s always
-                        # fell here, and with the old tutor-only branch the Engine: line was
-                        # permanently empty.  get_analysis() is a cheap buffer read — the
-                        # ContinuousAnalysis is already running (started by need_engine_analyser).
-                        analysis_board = self.state.get_move_check_board()
-                        result = await self.engine.get_analysis(analysis_board)
-                        info_list: list[InfoDict] = result.get("info")
-                        info_list_source = "engine"
-                        analysed_fen = result.get("fen", "")
-                        info_for_web_engine = info_list
-                        analysed_fen_for_web_engine = analysed_fen
-                        info_candidate = info_list[0] if info_list else None
-                        if not self.state.best_sent_depth.is_better(info_candidate, analysed_fen, self.state.game):
-                            info_list = None  # optimised: prevent re-sending analysis at same depth
+                        else:
+                            analysis_board = self.state.get_move_check_board()
+                            result = await self.engine.get_analysis(analysis_board)
+                            info_list: list[InfoDict] = result.get("info")
+                            info_list_source = "engine"
+                            analysed_fen = result.get("fen", "")
+                            info_for_web_engine = info_list
+                            analysed_fen_for_web_engine = analysed_fen
+                            info_candidate = info_list[0] if info_list else None
+                            if not self.state.best_sent_depth.is_better(
+                                info_candidate, analysed_fen, self.state.game
+                            ):
+                                info_list = None  # prevent re-sending analysis at the same depth
                     await self._start_or_stop_analysis_as_needed()
             if info_for_web_engine:
                 await self.send_web_analysis(

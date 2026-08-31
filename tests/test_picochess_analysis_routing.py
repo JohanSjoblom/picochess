@@ -384,6 +384,32 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
             )
         )
 
+    def test_playing_user_turn_prefers_tutor_for_cpu_saving(self):
+        for engine_move_was_book in (False, True):
+            with self.subTest(engine_move_was_book=engine_move_was_book):
+                self.assertTrue(
+                    should_use_tutor_analysis(
+                        interaction_mode=Mode.NORMAL,
+                        pgn_mode=False,
+                        engine_should_skip_analyser=False,
+                        engine_is_playing=True,
+                        engine_move_was_book=engine_move_was_book,
+                        is_user_turn=True,
+                    )
+                )
+
+    def test_playing_engine_turn_keeps_tutor_out_of_playing_search(self):
+        self.assertFalse(
+            should_use_tutor_analysis(
+                interaction_mode=Mode.NORMAL,
+                pgn_mode=False,
+                engine_should_skip_analyser=False,
+                engine_is_playing=True,
+                engine_move_was_book=False,
+                is_user_turn=False,
+            )
+        )
+
     def test_ponder_always_allows_takeback(self):
         for guard in (
             {"take_back_locked": True},

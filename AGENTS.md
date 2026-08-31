@@ -207,9 +207,11 @@ Analysis routing has four main cases:
 - Engine is playing and tutor is on:
   - On the engine turn, use engine `PlayingContinuousAnalysis` for
     engine-thinking information.
-  - On the user turn, keep clock hints and values engine-driven. Do not
-    overwrite the clock output with tutor information, though tutor information
-    may still be sent to the web client.
+  - On the user turn, stop selected-engine `ContinuousAnalysis`; PicoTutor is
+    the only deep analyser. Keep the latest clock/DGT snapshot delivered by the
+    completed playing search rather than replacing it with Tutor output. Send
+    current Tutor information to the web client without continuously refreshing
+    the web Engine line.
 - Engine is playing and tutor is off:
   - On the user turn, use engine `ContinuousAnalysis` for clock updates.
   - On the engine turn, use engine `PlayingContinuousAnalysis`.
@@ -224,8 +226,8 @@ clock-driving analyser at a time. That analyser is either the selected main
 engine or the tutor `best_engine`; do not let both run deep analysis for the
 same cycle.
 
-- `picotutor` `best_engine` `ContinuousAnalysis` for tutor-driven analysis paths
-  when it is the user turn.
+- `picotutor` `best_engine` `ContinuousAnalysis` for tutor-driven analysis paths,
+  including the user turn in playing modes when Tutor is active.
 - Engine `ContinuousAnalysis` for tutor-off analysis paths, especially when the
   engine is not playing and Picochess analyses both sides.
 - Engine `PlayingContinuousAnalysis` for the engine-thinking path when it is
@@ -287,9 +289,11 @@ Keep this boundary intact when changing analysis behavior:
 - Do not start engine `ContinuousAnalysis` while the playing engine is thinking
   about its move. Use `get_thinking_analysis()` / `PlayingContinuousAnalysis`
   for that path.
-- In the normal user-turn path, `analyse()` may read tutor output for the web
-  Tutor line and engine `ContinuousAnalysis` for the web Engine line. Clock/DGT
-  output must still follow the CPU-saving routing rules above.
+- In the normal user-turn path with Tutor active, `analyse()` reads Tutor output
+  for the web Tutor line and leaves selected-engine `ContinuousAnalysis`
+  stopped. The web Engine line retains the final snapshot published directly by
+  `PlayingContinuousAnalysis` when the engine selected its move. With Tutor off,
+  selected-engine `ContinuousAnalysis` supplies current engine analysis normally.
 - `best_sent_depth` is a clock/DGT display optimization, not an analysis or CPU
   control. It remembers the depth, half-move number, and continuation move from
   the latest accepted clock analysis. When analysis restarts after a move, it

@@ -760,12 +760,26 @@ function mameHistoryReasonLabel(reason) {
     return labels[reason] || 'MAME position setup';
 }
 
+function mameHistoryRestoreSupportedByCurrentEngine() {
+    var systemInfo = window._picoSystemInfo || {};
+    var capabilities = systemInfo.mame_capabilities || {};
+    return Boolean(
+        systemInfo.is_mame
+        && capabilities.position
+        && !capabilities.edit
+    );
+}
+
 function updateMameHistoryRestoreButton() {
     var btn = document.getElementById('restoreMameHistoryBtn');
     if (!btn) {
         return;
     }
-    var available = Boolean(preservedMameHistory && preservedMameHistory.pgn);
+    var available = Boolean(
+        preservedMameHistory
+        && preservedMameHistory.pgn
+        && mameHistoryRestoreSupportedByCurrentEngine()
+    );
     btn.hidden = !available;
     btn.disabled = !available;
     btn.classList.toggle('btn-warning', available);
@@ -816,13 +830,7 @@ function storePreservedMameHistory(snapshot) {
 }
 
 function shouldPreserveMameHistoryForSetPosition() {
-    var systemInfo = window._picoSystemInfo || {};
-    var capabilities = systemInfo.mame_capabilities || {};
-    return Boolean(
-        systemInfo.is_mame
-        && capabilities.position
-        && !capabilities.edit
-    );
+    return mameHistoryRestoreSupportedByCurrentEngine();
 }
 
 function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen) {
@@ -3473,6 +3481,7 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
+        updateMameHistoryRestoreButton();
         applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
@@ -3889,6 +3898,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
+                        updateMameHistoryRestoreButton();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.

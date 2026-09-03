@@ -123,6 +123,12 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn('id="restoreMameHistoryBtn"', template)
         self.assertRegex(template, r'id="restoreMameHistoryBtn"[^>]*\bhidden\b')
         self.assertIn("btn.hidden = !available", script)
+        self.assertIn("function mameHistoryRestoreSupportedByCurrentEngine()", script)
+        self.assertIn("&& mameHistoryRestoreSupportedByCurrentEngine()", script)
+        self.assertIn("systemInfo.is_mame", script)
+        self.assertIn("&& capabilities.position", script)
+        self.assertIn("&& !capabilities.edit", script)
+        self.assertGreaterEqual(script.count("updateMameHistoryRestoreButton();"), 4)
         self.assertIn("function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen)", script)
         self.assertIn("pgn: pgnPrefix", script)
         self.assertNotIn("pgn: getFullGame()", script)
@@ -135,7 +141,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
         self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=13', template)
+        self.assertIn('app.js?v=14', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

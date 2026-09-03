@@ -522,6 +522,69 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(eng.game_id, eng.engine.game)
         self.assertEqual(["ucinewgame", "position", "isready"], command_order)
 
+    async def test_mame_terminal_position_preserves_final_move_without_waiting(self):
+        eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine._position = Mock()
+        eng.engine.ping = AsyncMock()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+        board = chess.Board()
+        for san in ("f3", "e5", "g4", "Qh4#"):
+            board.push_san(san)
+
+        sent = await eng.send_terminal_position_to_mame(board)
+
+        self.assertTrue(sent)
+        eng.engine._position.assert_called_once()
+        sent_board = eng.engine._position.call_args.args[0]
+        self.assertEqual(board.fen(), sent_board.fen())
+        self.assertEqual(board.move_stack, sent_board.move_stack)
+        self.assertIsNot(board, sent_board)
+        eng.engine.ping.assert_not_awaited()
+
+    async def test_terminal_position_is_not_sent_to_non_mame_engine(self):
+        eng = UciEngine("engines/aarch64/some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine._position = Mock()
+
+        sent = await eng.send_terminal_position_to_mame(chess.Board())
+
+        self.assertFalse(sent)
+        eng.engine._position.assert_not_called()
+
+    async def test_mame_terminal_position_skips_when_previous_search_does_not_stop(self):
+        eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine._position = Mock()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = True
+        eng.playing.wait_until_idle = AsyncMock(return_value=False)
+
+        with self.assertLogs("uci.engine", level="WARNING") as captured:
+            sent = await eng.send_terminal_position_to_mame(chess.Board())
+
+        self.assertFalse(sent)
+        eng.playing.wait_until_idle.assert_awaited_once_with(timeout=2.5)
+        eng.engine._position.assert_not_called()
+        self.assertIn("still thinking", "\n".join(captured.output))
+
+    async def test_mame_terminal_position_is_sent_after_previous_search_stops(self):
+        eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.engine._position = Mock()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = True
+        eng.playing.wait_until_idle = AsyncMock(return_value=True)
+        board = chess.Board()
+        board.push_san("e4")
+
+        sent = await eng.send_terminal_position_to_mame(board)
+
+        self.assertTrue(sent)
+        eng.playing.wait_until_idle.assert_awaited_once_with(timeout=2.5)
+        eng.engine._position.assert_called_once()
+
     async def test_newgame_mame_setup_position_handles_failed_isready(self):
         eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
         eng.engine = MockEngine()

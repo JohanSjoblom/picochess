@@ -8,6 +8,7 @@ from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
     loaded_pgn_interaction_mode,
+    mame_scan_history_snapshot_pgn,
     mame_history_snapshot_pgn,
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
@@ -217,14 +218,16 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
     def test_scanned_position_snapshot_keeps_custom_fen_without_moves(self):
         board = chess.Board("8/8/8/8/8/8/4K3/7k w - - 0 1")
+        board.push(next(iter(board.legal_moves)))
+        scanned_fen = board.fen()
 
-        pgn_text = mame_history_snapshot_pgn(board, {"Event": "Scanned problem"})
+        pgn_text = mame_scan_history_snapshot_pgn(board, {"Event": "Scanned problem"})
         snapshot = chess.pgn.read_game(io.StringIO(pgn_text))
 
         self.assertIsNotNone(snapshot)
         self.assertEqual("Scanned problem", snapshot.headers["Event"])
         self.assertEqual("1", snapshot.headers["SetUp"])
-        self.assertEqual(board.fen(), snapshot.headers["FEN"])
+        self.assertEqual(scanned_fen, snapshot.headers["FEN"])
         self.assertEqual([], list(snapshot.mainline_moves()))
 
     def test_rebased_loaded_pgn_keeps_headers_but_replaces_setup(self):

@@ -1326,6 +1326,11 @@ def mame_history_snapshot_pgn(game_or_board, headers: dict | None = None) -> str
     )
 
 
+def mame_scan_history_snapshot_pgn(board: chess.Board, headers: dict | None = None) -> str:
+    """Serialize a scanned position as a move-free original-position root."""
+    return mame_history_snapshot_pgn(board.copy(stack=False), headers)
+
+
 def should_preserve_loaded_pgn_history(
     is_mame_engine: bool,
     start_replay: bool,
@@ -2620,6 +2625,17 @@ async def main() -> None:
                 publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
             except Exception:
                 logger.exception("failed to preserve MAME history for web Explore: reason=%s", reason)
+
+        def preserve_mame_scan_history_for_web(self, board, selected_fen: str) -> None:
+            """Publish a scanned FEN as a move-free browser restore root."""
+            try:
+                pgn_text = mame_scan_history_snapshot_pgn(
+                    board,
+                    self.shared.get("headers", {}),
+                )
+                publish_preserved_mame_history(self.shared, pgn_text, selected_fen, "scan_board")
+            except Exception:
+                logger.exception("failed to preserve scanned MAME position for web Explore")
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -6254,10 +6270,9 @@ async def main() -> None:
                         mame_capabilities.edit,
                     )
                 ):
-                    self.preserve_mame_history_for_web(
+                    self.preserve_mame_scan_history_for_web(
                         self.state.game,
                         setup_fen,
-                        "scan_board",
                     )
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None

@@ -825,16 +825,16 @@ function shouldPreserveMameHistoryForSetPosition() {
     );
 }
 
-function preserveCurrentMameHistoryForSetPosition() {
+function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen) {
     if (!shouldPreserveMameHistoryForSetPosition()
-        || !gameHistory
-        || !gameHistory.variations
-        || !gameHistory.variations.length) {
+        || !currentPosition
+        || !currentPosition.previous
+        || !pgnPrefix) {
         return null;
     }
     return storePreservedMameHistory({
-        pgn: getFullGame(),
-        fen: (currentPosition && currentPosition.fen) || '',
+        pgn: pgnPrefix,
+        fen: selectedFen || currentPosition.fen || '',
         reason: 'set_position'
     });
 }
@@ -2058,7 +2058,7 @@ function setPositionFromCurrentPgn() {
     }
     var fen = node.fen;
     var pgnPrefix = buildPgnPrefixForNode(node);
-    var preservedSnapshot = preserveCurrentMameHistoryForSetPosition();
+    var preservedSnapshot = preserveCurrentMameHistoryForSetPosition(pgnPrefix, fen);
     console.log('Setting position to FEN:', fen);
     return $.post('/channel', {
         action: 'set_position',

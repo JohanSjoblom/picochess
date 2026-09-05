@@ -54,6 +54,7 @@ from utilities import (
     version as pico_version,
 )
 from upload_pgn import UploadHandler
+from audio_volume import set_system_volume
 from web.picoweb import picoweb as pw
 from web.menu_translate import get_menu_catalog, get_menu_source_map, get_menu_text
 
@@ -1671,21 +1672,11 @@ class ChannelHandler(ServerRequestHandler):
             if dgtmenu:
                 dgtmenu.set_voice_volume(vol_factor)
             write_picochess_ini("volume-voice", str(vol_factor))
-            # Set system volume: each factor unit = 5 % (same as _set_volume_voice in menu.py)
-            pct = str(vol_factor * 5)
-            for channel in ("Headphone", "Master", "HDMI", "PCM"):
-                try:
-                    subprocess.run(
-                        ["amixer", "-M", "sset", channel, f"{pct}%"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                except Exception:
-                    pass
+            await asyncio.to_thread(set_system_volume, vol_factor)
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             await Observable.fire(Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=speed_factor))
-            logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, pct)
+            logger.info("web voice_volume: factor=%d (%s%%)", vol_factor, vol_factor * 5)
         elif action == "rspeed":
             val_str = self.get_argument("val", "100").strip()
             try:

@@ -2,6 +2,7 @@
 
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -95,6 +96,37 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
         adjusted = PicoTalkerDisplay._apply_replaygain_track_gain(samples, None)
 
         self.assertIs(adjusted, samples)
+
+
+class TestPicoTalkerNativeVolume(unittest.TestCase):
+    @patch("picotalker.set_system_volume")
+    @patch("picotalker.sd.OutputStream")
+    def test_native_stream_reapplies_volume_after_start(self, output_stream, set_volume):
+        stream = Mock(active=True)
+        started = False
+
+        def mark_started():
+            nonlocal started
+            started = True
+
+        def require_started(_volume_factor):
+            self.assertTrue(started)
+
+        stream.start.side_effect = mark_started
+        set_volume.side_effect = require_started
+        output_stream.return_value = stream
+        talker = PicoTalkerDisplay.__new__(PicoTalkerDisplay)
+        talker.native_stream = None
+        talker.native_stream_samplerate = None
+        talker.native_stream_channels = None
+        talker.native_stream_lock = threading.RLock()
+        talker.volume_factor_getter = lambda: 10
+
+        ready = talker._ensure_native_stream(16000, 1)
+
+        self.assertTrue(ready)
+        stream.start.assert_called_once_with()
+        set_volume.assert_called_once_with(10)
 
 
 if __name__ == "__main__":

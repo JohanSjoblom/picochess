@@ -133,6 +133,7 @@ WEB_SERVER_DEFAULT_PORT = 80
 WEB_SERVER_PERMISSION_FALLBACK_PORT = 8080
 WEB_SERVER_SETCAP_HINT = "sudo setcap 'cap_net_bind_service=+ep' $(readlink -f $(which python3))"
 
+
 def selected_engine_analysis_depth(engine_plays: bool) -> int:
     """Return the selected main-engine ContinuousAnalysis depth limit."""
     if platform.machine().lower() == "aarch64" and not engine_plays:
@@ -1147,8 +1148,6 @@ def log_pgn(state: PicochessState):
     logger.debug("molli pgn: max_guess_black: %s", state.max_guess_black)
     logger.debug("molli pgn: no_guess_white: %s", state.no_guess_white)
     logger.debug("molli pgn: no_guess_black: %s", state.no_guess_black)
-
-
 
 
 def read_online_result():
@@ -4274,7 +4273,6 @@ async def main() -> None:
             # @ todo - check how to do this in new chess library
             # self.engine.position(copy.deepcopy(game))
 
-
         # Analysis routing has four main cases.
         # IMPORTANT: `analyse()` has two outputs:
         # 1) clock/DGT output via send_analyse() (depth-gated by best_sent_depth)
@@ -6463,11 +6461,11 @@ async def main() -> None:
                 self.state.reset_auto = False
                 self.state.flag_startup = False
                 self.state.flag_pgn_game_over = False
-                
+
                 # Check if game already ended BEFORE resetting the game ending status
                 # This prevents duplicate PGN saves when user resets board after game ends
                 game_already_ended = ModeInfo.get_game_ending() != "*"
-                
+
                 ModeInfo.set_game_ending(result="*")  # initialize game result for game saving status
                 self.state.position_mode = False
                 self.reset_setpieces_window_switch()
@@ -6483,7 +6481,7 @@ async def main() -> None:
                 if newgame:
                     logger.debug("starting a new game with code: %s", event.pos960)
                     uci960 = event.pos960 != 518
-                    
+
                     if not (self.state.game.is_game_over() or self.state.game_declared) or self.pgn_mode():
                         if self.emulation_mode():  # force abortion for mame
                             if self.state.is_not_user_turn():

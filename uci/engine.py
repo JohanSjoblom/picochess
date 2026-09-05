@@ -102,6 +102,7 @@ def safe_eval_elo(expr: str) -> int:
     except (ArithmeticError, TypeError) as e:
         raise ValueError("invalid arithmetic expression") from e
 
+
 # Seconds to wait for an engine to exit before escalating.
 ENGINE_QUIT_TIMEOUT = 3.0  # waiting seconds for a normal engine to quit
 ENGINE_TERMINATE_TIMEOUT = 2.0  # if not send SIGTERM and wait a bit

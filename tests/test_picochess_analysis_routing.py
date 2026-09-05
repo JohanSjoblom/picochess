@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
@@ -30,6 +31,12 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_new_game_clears_preserved_mame_history(self):
+        source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
+        new_game_handler = source.split("elif isinstance(event, Event.NEW_GAME):", 1)[1]
+
+        self.assertIn("clear_preserved_mame_history(self.shared)", new_game_handler[:500])
+
     @patch("picochess.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
         self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))

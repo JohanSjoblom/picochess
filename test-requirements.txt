@@ -3,3 +3,4 @@ mypy
 mock
 pylama
 pyflakes
+pytest

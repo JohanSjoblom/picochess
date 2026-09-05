@@ -957,12 +957,6 @@ td.result {
     min-width: 0;
 }
 
-.explore-history-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 .analysis-control-label {
     color: var(--bs-secondary-color, #6c757d);
     font-size: 0.8rem;

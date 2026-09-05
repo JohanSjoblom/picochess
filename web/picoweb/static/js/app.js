@@ -699,6 +699,7 @@ function updateSyncButtonAttention() {
 function setLivePgnTreeActive(active) {
     livePgnTreeActive = Boolean(active);
     updateSyncButtonAttention();
+    updateMameHistoryStartButton();
 }
 
 function syncToCurrentPicoLivePosition() {
@@ -779,19 +780,17 @@ function shouldOfferMameHistoryRestore() {
     );
 }
 
-function updateMameHistoryRestoreButton() {
-    var btn = document.getElementById('restoreMameHistoryBtn');
+function updateMameHistoryStartButton() {
+    var btn = document.getElementById('startBtn');
     if (!btn) {
         return;
     }
     var available = shouldOfferMameHistoryRestore();
-    btn.hidden = !available;
-    btn.disabled = !available;
     btn.classList.toggle('btn-warning', available);
-    btn.classList.toggle('btn-secondary', !available);
+    btn.classList.toggle('btn-light', !available);
     var title = available
-        ? 'Restore ' + mameHistoryReasonLabel(preservedMameHistory.reason) + ' history in Explore'
-        : 'No preserved MAME game available';
+        ? 'Restore ' + mameHistoryReasonLabel(preservedMameHistory.reason) + ' history and go to first move'
+        : 'First move';
     btn.title = title;
     btn.setAttribute('aria-label', title);
 }
@@ -808,7 +807,7 @@ function loadPreservedMameHistory() {
     } catch (error) {
         console.warn('Could not load preserved MAME history:', error);
     }
-    updateMameHistoryRestoreButton();
+    updateMameHistoryStartButton();
 }
 
 function storePreservedMameHistory(snapshot) {
@@ -830,7 +829,7 @@ function storePreservedMameHistory(snapshot) {
         // Keep the in-memory copy usable even when browser storage is unavailable.
         console.warn('Could not persist preserved MAME history:', error);
     }
-    updateMameHistoryRestoreButton();
+    updateMameHistoryStartButton();
     return preservedMameHistory;
 }
 
@@ -2092,6 +2091,9 @@ function setPositionFromCurrentPgn() {
 window.setPicoPositionFromCurrentPgn = setPositionFromCurrentPgn;
 
 function goToStart() {
+    if (shouldOfferMameHistoryRestore()) {
+        restorePreservedMameHistoryForReview();
+    }
     removeHighlights();
     stopAnalysis();
     currentPosition = gameHistory;
@@ -3487,7 +3489,7 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
-        updateMameHistoryRestoreButton();
+        updateMameHistoryStartButton();
         applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
@@ -3904,7 +3906,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
-                        updateMameHistoryRestoreButton();
+                        updateMameHistoryStartButton();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
@@ -4022,7 +4024,6 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
-    $('#restoreMameHistoryBtn').on('click', restorePreservedMameHistoryForReview);
     loadPreservedMameHistory();
     applyPgnVariationVisibility();
     updateWebExploreButton();

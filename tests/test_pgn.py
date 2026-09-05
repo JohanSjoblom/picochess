@@ -99,6 +99,89 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertEqual(side_line.parent, game)
         self.assertEqual(side_line.variations[0].move.uci(), "d7d5")
 
+        evaluated_node = game.next()
+        self.assertEqual(evaluated_node.nags, {chess.pgn.NAG_MISTAKE})
+        self.assertEqual(evaluated_node.comment, "? [%eval 0.00] [%bestmove Nf3] [%cpl 1000]")
+        self.assertEqual(evaluated_node.eval().white().score(), 0)
+        exported = game.accept(chess.pgn.StringExporter(headers=False, comments=True, variations=True))
+        self.assertIn("$2 { ? [%eval 0.00] [%bestmove Nf3] [%cpl 1000] }", exported)
+
+    def test_picotutor_evaluation_uses_white_perspective_and_pawn_decimals(self):
+        board = chess.Board()
+        white_move = chess.Move.from_uci("e2e4")
+        black_move = chess.Move.from_uci("e7e5")
+        board.push(white_move)
+        board.push(black_move)
+        game = chess.pgn.Game.from_board(board)
+        self.testee.set_picotutor(
+            FakePicoTutor(
+                {
+                    (1, white_move, chess.BLACK): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "best_move": "e4",
+                        "CPL": 0,
+                        "score": 50,
+                        "deep_low_diff": 12,
+                    },
+                    (2, black_move, chess.WHITE): {
+                        "nag": chess.pgn.NAG_MISTAKE,
+                        "best_move": "c5",
+                        "CPL": 40,
+                        "score": 50,
+                    },
+                }
+            )
+        )
+
+        self.testee.add_picotutor_evaluation(game)
+
+        white_node, black_node = list(game.mainline())
+        self.assertEqual(
+            white_node.comment,
+            "! [%eval 0.50] [%bestmove e4] [%cpl 0] [%pico_ds 12]",
+        )
+        self.assertEqual(black_node.comment, "? [%eval -0.50] [%bestmove c5] [%cpl 40]")
+        self.assertEqual(white_node.eval().white().score(), 50)
+        self.assertEqual(black_node.eval().white().score(), -50)
+
+    def test_picotutor_mate_evaluation_uses_white_perspective(self):
+        board = chess.Board()
+        white_move = chess.Move.from_uci("e2e4")
+        black_move = chess.Move.from_uci("e7e5")
+        board.push(white_move)
+        board.push(black_move)
+        game = chess.pgn.Game.from_board(board)
+        self.testee.set_picotutor(
+            FakePicoTutor(
+                {
+                    (1, white_move, chess.BLACK): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "mate": 3,
+                        "CPL": 0,
+                    },
+                    (2, black_move, chess.WHITE): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "mate": 3,
+                        "CPL": 0,
+                    },
+                }
+            )
+        )
+
+        self.testee.add_picotutor_evaluation(game)
+
+        white_node, black_node = list(game.mainline())
+        self.assertEqual(white_node.comment, "! [%eval #3] [%cpl 0]")
+        self.assertEqual(black_node.comment, "! [%eval #-3] [%cpl 0]")
+        self.assertEqual(white_node.eval().white().mate(), 3)
+        self.assertEqual(black_node.eval().white().mate(), -3)
+
+        exported = game.accept(chess.pgn.StringExporter(headers=False, comments=True, variations=True))
+        reparsed = chess.pgn.read_game(io.StringIO(exported))
+        reparsed_white, reparsed_black = list(reparsed.mainline())
+        self.assertEqual(reparsed_white.eval().white().mate(), 3)
+        self.assertEqual(reparsed_black.eval().white().mate(), -3)
+
     def test_add_picotutor_evaluation_does_not_duplicate_existing_first_move(self):
         board = chess.Board()
         user_move = chess.Move.from_uci("e2e4")

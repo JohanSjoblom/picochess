@@ -335,6 +335,9 @@ explicitly requires it.
   a new live game.
 - New Game clears the backend snapshot and every browser's in-memory and
   `sessionStorage` copies because no earlier session history remains relevant.
+- A successful explicit engine selection clears those snapshots as well. Do
+  not clear them for a failed selection that falls back to the current engine
+  or for automatic MAME crash recovery.
 
 ## Temporary ANALYSIS Return
 

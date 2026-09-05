@@ -505,6 +505,9 @@ PGN loading has separate position, history, and mode rules:
   into live play.
 - New Game is an authoritative fresh start and clears any preserved MAME
   history snapshot from the backend and browser clients.
+- A successful explicit engine selection also clears preserved MAME history.
+  A failed selection that falls back to the existing engine and automatic MAME
+  crash recovery retain it.
 - An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
   playing mode when possible, otherwise `Mode.NORMAL`, and must update
   `game_started`. A valid custom FEN does not override unfinished status.

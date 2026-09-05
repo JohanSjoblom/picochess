@@ -6029,6 +6029,7 @@ async def main() -> None:
                     )
                     self.state.new_engine_level = self.state.old_engine_level
                 else:
+                    clear_preserved_mame_history(self.shared)
                     self.state.searchmoves.reset()
                     msg = Message.ENGINE_READY(
                         eng=event.eng,

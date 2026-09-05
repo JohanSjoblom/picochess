@@ -37,6 +37,15 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertIn("clear_preserved_mame_history(self.shared)", new_game_handler[:500])
 
+    def test_successful_engine_change_clears_preserved_mame_history(self):
+        source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
+        success_branch = """else:
+                    clear_preserved_mame_history(self.shared)
+                    self.state.searchmoves.reset()
+                    msg = Message.ENGINE_READY("""
+
+        self.assertIn(success_branch, source)
+
     @patch("picochess.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
         self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))

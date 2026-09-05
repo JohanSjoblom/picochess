@@ -16,7 +16,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import subprocess
 import logging
 import dgt.util
 import asyncio
@@ -83,6 +82,7 @@ from dgt.api import Dgt, Event
 from dgt.board import Rev2Info
 from dgt.translate import DgtTranslate
 from uci.engine_provider import EngineProvider
+from audio_volume import set_system_volume
 
 
 logger = logging.getLogger(__name__)
@@ -1036,6 +1036,9 @@ class DgtMenu(object):
 
     def get_comment_factor(self):
         return self.res_picotutor_picocomment_prob
+
+    def get_voice_volume(self) -> int:
+        return self.menu_system_voice_volumefactor
 
     def get_engine_rwindow(self):
         """Get the flag."""
@@ -2072,20 +2075,7 @@ class DgtMenu(object):
 
     def _set_volume_voice(self, volume_factor):
         """Set the Volume-Voice."""
-        factor = str(volume_factor * 5)
-        for channel in ("Headphone", "Master", "HDMI", "PCM"):
-            volume_cmd = f"amixer -M sset {channel} {factor}%"
-            logger.debug(volume_cmd)
-            result = subprocess.run(
-                volume_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-                shell=True,
-            )
-            if result.stdout:
-                logger.debug(result.stdout)
-        return
+        return set_system_volume(volume_factor)
 
     def enter_sys_disp_menu(self):
         """Set the menu state."""
@@ -3577,7 +3567,7 @@ class DgtMenu(object):
         elif self.state == MenuState.SYS_VOICE_VOLUME_FACTOR:
             assert self.menu_system_voice == Voice.VOLUME, "menu item is not Voice.VOLUME: %s" % self.menu_system_voice
             write_picochess_ini("volume-voice", str(self.menu_system_voice_volumefactor))
-            self._set_volume_voice(self.menu_system_voice_volumefactor)
+            await asyncio.to_thread(self._set_volume_voice, self.menu_system_voice_volumefactor)
             event = Event.SET_VOICE(
                 type=self.menu_system_voice,
                 lang="en",

@@ -1616,11 +1616,15 @@ async def main() -> None:
     def _should_emit_web_audio() -> bool:
         return bool(shared.get("web_audio_backend_remote", False)) and EventHandler.has_remote_clients()
 
+    def _voice_volume_factor() -> int:
+        return state.dgtmenu.get_voice_volume()
+
     pico_talker = PicoTalkerDisplay(
         args.user_voice,
         args.computer_voice,
         args.speed_voice,
         args.audio_backend,
+        _voice_volume_factor,
         bool(args.web_server_port),
         _emit_web_audio,
         _should_emit_web_audio,

@@ -12,6 +12,7 @@ from picochess import (
     mame_history_snapshot_pgn,
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
+    pending_set_position_fen_action,
     remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
     selected_engine_analysis_depth,
@@ -351,6 +352,50 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 variant="chess",
             )
         )
+
+    def test_pending_set_position_treats_start_as_new_game(self):
+        action, new_game_code = pending_set_position_fen_action(
+            chess.STARTING_BOARD_FEN,
+            chess.STARTING_BOARD_FEN,
+            allow_chess960=False,
+            variant="chess",
+        )
+
+        self.assertEqual("new_game", action)
+        self.assertEqual(518, new_game_code)
+
+    def test_pending_set_position_accepts_only_its_target(self):
+        target = "8/8/8/8/8/8/4K3/7k"
+
+        self.assertEqual(
+            ("target", None),
+            pending_set_position_fen_action(
+                target,
+                target,
+                allow_chess960=False,
+                variant="chess",
+            ),
+        )
+
+    def test_pending_set_position_waits_on_move_or_takeback_positions(self):
+        target = chess.Board()
+        target.push_uci("e2e4")
+        historical_position = target.board_fen()
+        target.push_uci("e7e5")
+        move_position = target.copy()
+        move_position.push_uci("g1f3")
+
+        for intermediate_fen in (move_position.board_fen(), historical_position):
+            with self.subTest(fen=intermediate_fen):
+                self.assertEqual(
+                    ("wait", None),
+                    pending_set_position_fen_action(
+                        intermediate_fen,
+                        target.board_fen(),
+                        allow_chess960=False,
+                        variant="chess",
+                    ),
+                )
 
     def test_user_move_opening_is_queued_before_engine_search(self):
         board = chess.Board()

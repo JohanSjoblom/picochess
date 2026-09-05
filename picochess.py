@@ -493,6 +493,8 @@ class PicochessState:
         self.play_mode = PlayMode.USER_WHITE
         self.position_mode = False
         self.set_position_ack_pending = False
+        self.set_position_ack_target_fen = ""
+        self.set_position_ack_ready = False
         self.setpieces_switch_anchor_fen = ""
         self.setpieces_switch_armed = False
         self.reset_auto = False
@@ -1309,7 +1311,10 @@ def setup_position_game(
 
 def set_position_new_game_code(fen: str, uci960: bool, variant: str) -> int | None:
     """Return the New Game code when a Set Pos target is a starting layout."""
-    board_fen = str(fen or "").split()[0]
+    fen_parts = str(fen or "").split()
+    if not fen_parts:
+        return None
+    board_fen = fen_parts[0]
     if variant == "racingkings" and board_fen == RK_STARTING_BOARD_FEN:
         return 518
     try:
@@ -1319,6 +1324,21 @@ def set_position_new_game_code(fen: str, uci960: bool, variant: str) -> int | No
     if position == 518 or (uci960 and position is not None):
         return position
     return None
+
+
+def pending_set_position_fen_action(
+    fen: str,
+    target_fen: str,
+    allow_chess960: bool,
+    variant: str,
+) -> tuple[str, int | None]:
+    """Classify a physical FEN while an explicit Set Pos is awaiting OK."""
+    new_game_code = set_position_new_game_code(fen, allow_chess960, variant)
+    if new_game_code is not None:
+        return "new_game", new_game_code
+    if fen == target_fen:
+        return "target", None
+    return "wait", None
 
 
 def should_load_pgn_moves(stop_at_halfmove: int | None) -> bool:
@@ -2603,6 +2623,42 @@ async def main() -> None:
             self.state.setpieces_switch_anchor_fen = ""
             self.state.setpieces_switch_armed = False
 
+        def _clear_set_position_ack(self) -> None:
+            """Release any explicit Set Pos physical-board synchronization."""
+            self.state.set_position_ack_pending = False
+            self.state.set_position_ack_target_fen = ""
+            self.state.set_position_ack_ready = False
+            self.state.stop_fen_timer()
+            self.state.error_fen = None
+
+        def _begin_set_position_ack(self, target_fen: str, physical_fen: str) -> None:
+            """Claim Set Pos synchronization before the event handler first yields."""
+            self._clear_set_position_ack()
+            self.state.set_position_ack_target_fen = target_fen
+            self.state.set_position_ack_pending = physical_fen != target_fen
+
+        def _owns_set_position_ack(self, target_fen: str | None) -> bool:
+            return target_fen is None or target_fen == self.state.set_position_ack_target_fen
+
+        async def _finish_set_position_ack(self, target_fen: str) -> None:
+            """Acknowledge one matching physical position and release its guard."""
+            if (
+                target_fen != self.state.set_position_ack_target_fen
+                or not self.state.set_position_ack_ready
+            ):
+                return
+            self.state.set_position_ack_ready = False
+            self.state.set_position_ack_pending = False
+            self.state.stop_fen_timer()
+            self.state.error_fen = None
+            self.state.position_mode = False
+            await DisplayMsg.show(
+                Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
+            )
+            await asyncio.sleep(1)
+            if target_fen == self.state.set_position_ack_target_fen:
+                self.state.set_position_ack_target_fen = ""
+
         def switch_artwork_window(self):
             if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                 cmd = get_window_command("switch_window")
@@ -3124,6 +3180,8 @@ async def main() -> None:
                 known_fens.update(self.state.last_legal_fens)
                 known_fens.update(self.state.legal_fens_after_cmove)
                 known_fens.add(self.state.get_board_fen())
+                if self.state.set_position_ack_target_fen:
+                    known_fens.add(self.state.set_position_ack_target_fen)
                 if self.state.done_computer_fen:
                     known_fens.add(self.state.done_computer_fen)
                 if flipped_fen != fen and flipped_fen in known_fens and fen not in known_fens:
@@ -3145,6 +3203,32 @@ async def main() -> None:
                     self.state.error_fen = fen
                     self.state.position_mode = True
                     self.start_fen_timer()
+                return
+
+            # Set Pos has already installed its logical target. Until the
+            # physical board matches, intermediate placements are setup input,
+            # not moves, sliding moves, engine-move completion, or takebacks.
+            if self.state.set_position_ack_target_fen:
+                action, new_game_code = pending_set_position_fen_action(
+                    fen,
+                    self.state.set_position_ack_target_fen,
+                    bool(self.engine and self.engine.has_chess960()),
+                    self.state.variant,
+                )
+                if action == "new_game":
+                    logger.info("starting position cancels pending Set Pos")
+                    self._clear_set_position_ack()
+                    await Observable.fire(Event.NEW_GAME(pos960=new_game_code))
+                elif action == "target":
+                    if self.state.set_position_ack_ready:
+                        await self._finish_set_position_ack(
+                            self.state.set_position_ack_target_fen
+                        )
+                else:
+                    self.state.stop_fen_timer()
+                    self.state.error_fen = fen
+                    if self.state.set_position_ack_ready:
+                        self.start_fen_timer()
                 return
 
             starting_board_fen = (
@@ -4802,6 +4886,15 @@ async def main() -> None:
                 internal_fen = game_fen
                 external_fen = self.state.error_fen
                 fen_res = compare_fen(external_fen, internal_fen)
+                if self.state.set_position_ack_target_fen:
+                    if self.state.set_position_ack_ready:
+                        if fen_res:
+                            await DisplayMsg.show(Message.POSITION_FAIL(fen_result=fen_res))
+                        else:
+                            await self._finish_set_position_ack(
+                                self.state.set_position_ack_target_fen
+                            )
+                    return
                 if self.state.position_checkpoint_restore_pending:
                     logger.info("waiting for physical checkpoint position")
                     if fen_res:
@@ -6198,6 +6291,7 @@ async def main() -> None:
                 )
                 if not getattr(event, "from_scan", False) and new_game_code is not None:
                     logger.info("Set Pos selected a starting position; routing to New Game")
+                    self._clear_set_position_ack()
                     await Observable.fire(Event.NEW_GAME(pos960=new_game_code))
                     return
                 logger.debug("setting up custom fen: %s", event.fen)
@@ -6205,8 +6299,18 @@ async def main() -> None:
                     self._clear_position_checkpoint()
                 uci960 = event.uci960
                 self.state.position_mode = False
-                self.state.set_position_ack_pending = False
                 self.reset_setpieces_window_switch()
+                event_game = getattr(event, "game", None)
+                target_fen = None
+                if event_game is not None and self.board_type != dgt.util.EBoard.NOEBOARD:
+                    target_fen = str(event.fen).split()[0]
+                    physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
+                    self._begin_set_position_ack(
+                        target_fen,
+                        physical_fen,
+                    )
+                else:
+                    self._clear_set_position_ack()
 
                 if self.state.game.move_stack:
                     if not (self.state.game.is_game_over() or self.state.game_declared):
@@ -6221,11 +6325,13 @@ async def main() -> None:
                                 mode=self.state.interaction_mode,
                             )
                         )
+                if not self._owns_set_position_ack(target_fen):
+                    logger.info("Set Pos was cancelled before installing its target")
+                    return
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)
                 self._reset_loaded_pgn_lifecycle()
                 ModeInfo.set_game_ending(result="*")
-                event_game = getattr(event, "game", None)
                 mame_capabilities = self.engine.get_mame_capabilities()
                 preserve_history = should_preserve_set_position_history(
                     event_game,
@@ -6256,6 +6362,9 @@ async def main() -> None:
 
                 # see new_game
                 await self.stop_search_and_clock()
+                if not self._owns_set_position_ack(target_fen):
+                    logger.info("Set Pos was cancelled while stopping the current game")
+                    return
                 if self.engine.has_chess960():
                     self.engine.option("UCI_Chess960", uci960)
                     await self.engine.send()
@@ -6269,16 +6378,13 @@ async def main() -> None:
                         )
                     )
                 )
-                physical_fen = self.state.dgtmenu.get_dgt_fen() if self.state.dgtmenu is not None else ""
-                self.state.set_position_ack_pending = bool(
-                    event_game is not None
-                    and self.board_type != dgt.util.EBoard.NOEBOARD
-                    and physical_fen != self.state.get_board_fen()
-                )
                 await self.engine.newgame(
                     self.state.engine_board_copy(),
                     send_position_to_mame=True,
                 )
+                if not self._owns_set_position_ack(target_fen):
+                    logger.info("Set Pos was cancelled during engine setup")
+                    return
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
@@ -6295,6 +6401,9 @@ async def main() -> None:
                     self.state.new_game_msg(newgame=True),
                     preserve_play_mode=bool(getattr(event, "preserve_play_mode", False)),
                 )
+                if not self._owns_set_position_ack(target_fen):
+                    logger.info("Set Pos was cancelled while entering its wait state")
+                    return
                 if self.emulation_mode():
                     if self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                         # switch windows/tasks
@@ -6315,8 +6424,23 @@ async def main() -> None:
                 elif event_game is not None:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
                 self.state.position_mode = False
-                if self.state.set_position_ack_pending:
-                    await DisplayMsg.show(Message.WRONG_FEN())
+                if target_fen is not None:
+                    if not self._owns_set_position_ack(target_fen):
+                        logger.info("Set Pos physical synchronization was superseded")
+                        return
+                    self.state.set_position_ack_ready = True
+                    physical_fen = (
+                        self.state.dgtmenu.get_dgt_fen()
+                        if self.state.dgtmenu is not None
+                        else ""
+                    )
+                    self.state.set_position_ack_pending = (
+                        physical_fen != self.state.set_position_ack_target_fen
+                    )
+                    if self.state.set_position_ack_pending:
+                        await DisplayMsg.show(Message.WRONG_FEN())
+                    else:
+                        await self._finish_set_position_ack(target_fen)
                 else:
                     tutor_str = "POSOK"
                     msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
@@ -6324,9 +6448,9 @@ async def main() -> None:
                     await asyncio.sleep(1)
 
             elif isinstance(event, Event.NEW_GAME):
+                self._clear_set_position_ack()
                 self._clear_position_checkpoint()
                 clear_preserved_mame_history(self.shared)
-                self.state.set_position_ack_pending = False
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)
                 self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started

@@ -6301,6 +6301,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.NEW_GAME):
                 self._clear_position_checkpoint()
+                clear_preserved_mame_history(self.shared)
                 self.state.set_position_ack_pending = False
                 await self.get_rid_of_engine_move()
                 self._set_game_started(False)

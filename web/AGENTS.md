@@ -333,6 +333,8 @@ explicitly requires it.
   backend cache lets clients connecting later receive the latest snapshot. Do
   not clear it merely because a Set Pos, Read Game, or recovery rebase publishes
   a new live game.
+- New Game clears the backend snapshot and every browser's in-memory and
+  `sessionStorage` copies because no earlier session history remains relevant.
 
 ## Temporary ANALYSIS Return
 

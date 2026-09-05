@@ -503,6 +503,8 @@ PGN loading has separate position, history, and mode rules:
   stackless backend, physical board, Tutor, and MAME engine unchanged. Position
   -> Set Pos remains the explicit way to promote a selected restored node back
   into live play.
+- New Game is an authoritative fresh start and clears any preserved MAME
+  history snapshot from the backend and browser clients.
 - An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
   playing mode when possible, otherwise `Mode.NORMAL`, and must update
   `game_started`. A valid custom FEN does not override unfinished status.

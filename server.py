@@ -116,6 +116,15 @@ def publish_preserved_mame_history(shared: dict, pgn_text: str, selected_fen: st
     logger.info("preserving MAME history for web Explore restore: reason=%s", snapshot["reason"])
     EventHandler.write_to_clients(snapshot)
     return True
+
+
+def clear_preserved_mame_history(shared: dict) -> bool:
+    """Discard obsolete browser restore history and notify every client."""
+    removed = shared.pop("preserved_mame_history", None) is not None
+    EventHandler.write_to_clients({"event": "MameHistory", "pgn": ""})
+    return removed
+
+
 INI_LINE_RE = re.compile(r"^\s*(#\s*)?([A-Za-z0-9_-]+)\s*=\s*(.*)$")
 INI_COMMENT_RE = re.compile(r"^\s*#\s*(.+)$")
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
@@ -1765,9 +1774,12 @@ class EventHandler(WebSocketHandler):
                 self.write_message({"event": "Header", "headers": dict(self.shared["headers"])})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync headers to client: %s", exc)
-        if self.shared and "preserved_mame_history" in self.shared:
+        if self.shared is not None:
             try:
-                self.write_message(dict(self.shared["preserved_mame_history"]))
+                snapshot = self.shared.get("preserved_mame_history")
+                self.write_message(
+                    dict(snapshot) if snapshot else {"event": "MameHistory", "pgn": ""}
+                )
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync preserved MAME history to client: %s", exc)
         # If the engine has suggested a move not yet confirmed on the board, send the

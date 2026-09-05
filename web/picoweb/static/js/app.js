@@ -2684,7 +2684,16 @@ function updateDGTPosition(data) {
 }
 
 function pgnTextHasMoves(pgnText) {
-    return typeof pgnText === 'string' && /\b\d+\s*\.(?:\.\.)?\s*\S/.test(pgnText);
+    if (typeof pgnText !== 'string') {
+        return false;
+    }
+    // Headers (especially Date) and comments can look like numbered moves.
+    // Inspect only movetext, and require a move rather than a result marker.
+    var movetext = pgnText.replace(
+        /\[(?:"(?:\\.|[^"\\])*"|[^\]"])*\]|\{[^}]*\}|;[^\r\n]*|^%[^\r\n]*/gm,
+        ' '
+    );
+    return /(?:^|[\s.(])(?:[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=?[QRBNqrbn])?|[O0]-[O0](?:-[O0])?|--)(?=[+#?!\s)$]|$)/.test(movetext);
 }
 
 function forcePosition(fen) {

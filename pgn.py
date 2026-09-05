@@ -958,7 +958,13 @@ class PgnDisplay(DisplayMsg):
             ):
                 # note that neither PGNREPLAY nor PONDER (ANALYSIS) modes overwrite last_game.pgn
                 # we do not have pgn_filename in GAME_ENDS as we have in SAVE_GAME message
-                self._save_and_email_pgn(message)
+                if message.result == dgt.util.GameResult.ABORT and ModeInfo.get_game_ending() != "*":
+                    logger.debug(
+                        "Skipping abort PGN autosave because game already ended with result %s",
+                        ModeInfo.get_game_ending(),
+                    )
+                else:
+                    self._save_and_email_pgn(message)
             elif message.mode == Mode.PGNREPLAY:
                 message.pgn_filename = "last_replay.pgn"
                 self._save_pgn(message)

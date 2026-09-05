@@ -5899,6 +5899,8 @@ async def main() -> None:
                 )
 
             elif isinstance(event, Event.NEW_ENGINE):
+                # Explicit engine selection is also an escape from pending Set Pos.
+                self._clear_set_position_ack()
                 # if we are waiting for an engine move, get rid of that first
                 await self.get_rid_of_engine_move()
                 self.state.best_sent_depth.reset()

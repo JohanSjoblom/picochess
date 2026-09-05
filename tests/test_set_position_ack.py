@@ -10,6 +10,7 @@ import chess
 
 import picochess
 from dgt.util import EBoard, Mode
+from dgt.api import Event
 
 
 class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
@@ -22,7 +23,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
         names = {"_clear_set_position_ack", "_begin_set_position_ack",
-                 "_finish_set_position_ack", "process_fen"}
+                 "_finish_set_position_ack", "process_fen", "process_main_events"}
         methods = [node for node in main_loop.body if getattr(node, "name", None) in names]
         namespace = dict(vars(picochess))
         self.show = AsyncMock()
@@ -48,6 +49,36 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
         self.controller.board_type = EBoard.CERTABO
         self.controller.engine = SimpleNamespace(has_chess960=lambda: False)
         self.controller.reset_setpieces_window_switch = Mock()
+
+    async def test_recovery_events_clear_setup_before_engine_work(self):
+        class EngineWorkFailed(Exception):
+            pass
+
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller.shared = {}
+
+        async def engine_work():
+            self.assertEqual("", self.state.set_position_ack_target_fen)
+            self.assertFalse(self.state.set_position_ack_pending)
+            self.assertFalse(self.state.set_position_ack_ready)
+            self.assertIsNone(self.state.error_fen)
+            self.state.stop_fen_timer.assert_called_once()
+            raise EngineWorkFailed()
+
+        self.controller.get_rid_of_engine_move = AsyncMock(side_effect=engine_work)
+        for event in (Event.NEW_GAME(pos960=518), Event.NEW_ENGINE()):
+            with self.subTest(event=type(event).__name__):
+                self.state.set_position_ack_target_fen = self.target
+                self.state.set_position_ack_pending = True
+                self.state.set_position_ack_ready = True
+                self.state.error_fen = chess.STARTING_BOARD_FEN
+                self.state.stop_fen_timer.reset_mock()
+                with self.assertRaises(EngineWorkFailed):
+                    await self.controller.process_main_events(event)
+                # A failed engine operation must not bring the setup guard back.
+                self.assertEqual("", self.state.set_position_ack_target_fen)
+                await self.controller._finish_set_position_ack(self.target)
+                self.show.assert_not_awaited()
 
     async def test_legal_move_at_ok_is_accepted_and_ack_is_not_repeated(self):
         move = chess.Move.from_uci("e7e5")

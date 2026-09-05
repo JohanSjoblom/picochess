@@ -116,21 +116,23 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("(max-height: 520px) and (orientation: landscape)", stylesheet)
         self.assertIn("transform: translateX(-1.5rem)", stylesheet)
 
-    def test_analysis_toolbar_exposes_mame_history_restore_control(self):
+    def test_first_move_button_restores_relevant_mame_history(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
 
-        self.assertIn('id="restoreMameHistoryBtn"', template)
-        self.assertRegex(template, r'id="restoreMameHistoryBtn"[^>]*\bhidden\b')
-        self.assertIn("btn.hidden = !available", script)
+        self.assertIn('id="startBtn"', template)
+        self.assertNotIn('id="restoreMameHistoryBtn"', template)
         self.assertIn("function mameHistoryRestoreSupportedByCurrentEngine()", script)
         self.assertIn("function shouldOfferMameHistoryRestore()", script)
+        self.assertIn("livePgnTreeActive", script)
         self.assertIn("&& pgnTextHasMoves(preservedMameHistory.pgn)", script)
         self.assertIn("&& mameHistoryRestoreSupportedByCurrentEngine()", script)
         self.assertIn("systemInfo.is_mame", script)
         self.assertIn("&& capabilities.position", script)
         self.assertIn("&& !capabilities.edit", script)
-        self.assertGreaterEqual(script.count("updateMameHistoryRestoreButton();"), 4)
+        self.assertGreaterEqual(script.count("updateMameHistoryStartButton();"), 5)
+        self.assertIn("btn.classList.toggle('btn-warning', available)", script)
+        self.assertIn("btn.classList.toggle('btn-light', !available)", script)
         self.assertIn("function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen)", script)
         self.assertIn("pgn: pgnPrefix", script)
         self.assertNotIn("pgn: getFullGame()", script)
@@ -139,12 +141,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
         self.assertIn("function restorePreservedMameHistoryForReview()", script)
         self.assertNotIn("function restorePreservedMameHistoryInExplore()", script)
+        self.assertIn("if (shouldOfferMameHistoryRestore()) {\n        restorePreservedMameHistoryForReview();", script)
+        self.assertNotIn("$('#restoreMameHistoryBtn').on('click'", script)
         self.assertIn("function findPositionByFen(fen)", script)
         self.assertIn("fields[3] = '-'", script)
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
         self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=14', template)
+        self.assertIn('app.js?v=15', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

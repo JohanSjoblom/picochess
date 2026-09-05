@@ -498,10 +498,11 @@ PGN loading has separate position, history, and mode rules:
   client's temporary history restore. Set Pos must capture the complete
   browser game before submitting its selected prefix; Read Game and recovery
   publish their backend PGN before clearing the stack.
-- Restoring preserved MAME history is browser-local Explore. It must mark the
-  restored tree as non-live, enable Explore, and leave the stackless backend,
-  physical board, Tutor, and MAME engine unchanged. Position -> Set Pos remains
-  the explicit way to promote a selected restored node back into live play.
+- Restoring preserved MAME history is browser-local review. It must mark the
+  restored tree as non-live, preserve the current Explore state, and leave the
+  stackless backend, physical board, Tutor, and MAME engine unchanged. Position
+  -> Set Pos remains the explicit way to promote a selected restored node back
+  into live play.
 - An unfinished loaded PGN (`*`, `?`, or no result) returns to the previous
   playing mode when possible, otherwise `Mode.NORMAL`, and must update
   `game_started`. A valid custom FEN does not override unfinished status.

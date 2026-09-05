@@ -320,10 +320,11 @@ explicitly requires it.
   the last real move highlight/arrow and discarding explorer-only highlights.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
-- The Analyses toolbar MAME-history restore control is another browser-local
-  Explore entry point. It restores the latest PGN preserved before a
-  `pos`-without-`edit` MAME rebase, sets `livePgnTreeActive=false`, and enables
-  Explore without sending a backend action.
+- When useful MAME history was preserved before a `pos`-without-`edit` rebase,
+  highlight the board's First Move control. It restores that non-live PGN
+  before navigating to its root, preserves the current Explore state, and does
+  not send a backend action. A FEN-only snapshot has no move history to restore
+  and must not highlight the control.
 - Set Pos preservation must serialize the complete displayed browser game
   before posting the selected PGN prefix. Read Game and engine recovery receive
   equivalent snapshots from the backend. An accepted physical-board Scan with

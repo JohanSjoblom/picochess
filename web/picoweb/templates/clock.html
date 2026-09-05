@@ -749,12 +749,7 @@
                                                     </span>
                                                     <span class="analysis-control-set">
                                                         <span class="analysis-control-label">Explore</span>
-                                                        <span class="explore-history-controls">
-                                                            <button id="webExploreToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Temporarily explore moves on the web board">OFF</button>
-                                                            <button id="restoreMameHistoryBtn" class="btn btn-sm btn-secondary analysis-toolbar-btn" title="Restore preserved MAME game in Explore" aria-label="Restore preserved MAME game in Explore" disabled hidden>
-                                                                <i class="fa fa-history" aria-hidden="true"></i>
-                                                            </button>
-                                                        </span>
+                                                        <button id="webExploreToggleBtn" class="btn btn-sm btn-primary analysis-toolbar-btn" title="Temporarily explore moves on the web board">OFF</button>
                                                     </span>
                                                 </div>
 
@@ -862,7 +857,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=14"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=15"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos

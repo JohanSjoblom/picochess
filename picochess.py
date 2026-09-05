@@ -78,7 +78,14 @@ from utilities import (
 )
 from utilities import AsyncRepeatingTimer
 from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations, pgn_variation_review_points
-from server import WebDisplay, WebServer, WebVr, EventHandler, publish_preserved_mame_history
+from server import (
+    WebDisplay,
+    WebServer,
+    WebVr,
+    EventHandler,
+    clear_preserved_mame_history,
+    publish_preserved_mame_history,
+)
 from picotalker import PicoTalkerDisplay
 from dispatcher import Dispatcher
 
@@ -1324,11 +1331,6 @@ def mame_history_snapshot_pgn(game_or_board, headers: dict | None = None) -> str
     return snapshot_game.accept(
         chess.pgn.StringExporter(headers=True, comments=True, variations=True)
     )
-
-
-def mame_scan_history_snapshot_pgn(board: chess.Board, headers: dict | None = None) -> str:
-    """Serialize a scanned position as a move-free original-position root."""
-    return mame_history_snapshot_pgn(board.copy(stack=False), headers)
 
 
 def should_preserve_loaded_pgn_history(
@@ -2625,17 +2627,6 @@ async def main() -> None:
                 publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
             except Exception:
                 logger.exception("failed to preserve MAME history for web Explore: reason=%s", reason)
-
-        def preserve_mame_scan_history_for_web(self, board, selected_fen: str) -> None:
-            """Publish a scanned FEN as a move-free browser restore root."""
-            try:
-                pgn_text = mame_scan_history_snapshot_pgn(
-                    board,
-                    self.shared.get("headers", {}),
-                )
-                publish_preserved_mame_history(self.shared, pgn_text, selected_fen, "scan_board")
-            except Exception:
-                logger.exception("failed to preserve scanned MAME position for web Explore")
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -6227,6 +6218,8 @@ async def main() -> None:
                     preserve_history=preserve_history,
                 )
                 setup_fen = self.state.game.fen()
+                if getattr(event, "from_scan", False):
+                    clear_preserved_mame_history(self.shared)
 
                 # Reset variant boards if active (new position = new state)
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
@@ -6262,18 +6255,6 @@ async def main() -> None:
                     self.state.engine_board_copy(),
                     send_position_to_mame=True,
                 )
-                if (
-                    getattr(event, "from_scan", False)
-                    and mame_requires_fresh_fen_root(
-                        self.engine.is_mame_engine(),
-                        mame_capabilities.position,
-                        mame_capabilities.edit,
-                    )
-                ):
-                    self.preserve_mame_scan_history_for_web(
-                        self.state.game,
-                        setup_fen,
-                    )
                 self.state.best_sent_depth.reset()
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()

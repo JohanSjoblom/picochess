@@ -327,11 +327,12 @@ explicitly requires it.
   and must not highlight the control.
 - Set Pos preservation must serialize the complete displayed browser game
   before posting the selected PGN prefix. Read Game and engine recovery receive
-  equivalent snapshots from the backend. An accepted physical-board Scan with
-  a `pos`-without-`edit` MAME preserves its FEN-only root as the initial problem
-  anchor. Keep one latest snapshot in memory and `sessionStorage`; a backend
-  cache lets clients connecting later receive the latest snapshot. Do not clear
-  it merely because the rebase publishes a new live game.
+  equivalent snapshots from the backend. An accepted physical-board Scan is a
+  fresh root and clears any older snapshot rather than preserving a FEN-only
+  restore anchor. Keep one latest snapshot in memory and `sessionStorage`; a
+  backend cache lets clients connecting later receive the latest snapshot. Do
+  not clear it merely because a Set Pos, Read Game, or recovery rebase publishes
+  a new live game.
 
 ## Temporary ANALYSIS Return
 

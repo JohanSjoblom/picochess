@@ -37,6 +37,7 @@ from server import (
     _engine_menu_payload,
     _apply_engine_menu_sort,
     _mode_text,
+    clear_preserved_mame_history,
     mame_history_will_be_rebased,
     _orient_scanned_board_fen,
     publish_preserved_mame_history,
@@ -143,12 +144,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertNotIn("function restorePreservedMameHistoryInExplore()", script)
         self.assertIn("if (shouldOfferMameHistoryRestore()) {\n        restorePreservedMameHistoryForReview();", script)
         self.assertNotIn("$('#restoreMameHistoryBtn').on('click'", script)
+        self.assertIn("function clearPreservedMameHistory()", script)
+        self.assertIn("window.sessionStorage.removeItem(PRESERVED_MAME_HISTORY_KEY)", script)
         self.assertIn("function findPositionByFen(fen)", script)
         self.assertIn("fields[3] = '-'", script)
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
         self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=15', template)
+        self.assertIn('app.js?v=16', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -204,6 +207,14 @@ class TestServerEventHandler(unittest.TestCase):
 
         self.assertIn(snapshot, client.messages)
 
+    def test_open_clears_stale_browser_history_when_cache_is_empty(self):
+        client = self.Client({})
+
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+
+        self.assertIn({"event": "MameHistory", "pgn": ""}, client.messages)
+
 
 class TestMameHistoryPreservation(unittest.TestCase):
     def test_rebase_requires_pos_only_mame(self):
@@ -238,6 +249,16 @@ class TestMameHistoryPreservation(unittest.TestCase):
         self.assertEqual("MameHistory", shared["preserved_mame_history"]["event"])
         self.assertEqual("read_game", shared["preserved_mame_history"]["reason"])
         write_to_clients.assert_called_once_with(shared["preserved_mame_history"])
+
+    @patch("server.EventHandler.write_to_clients")
+    def test_clear_discards_and_broadcasts_empty_snapshot(self, write_to_clients):
+        shared = {"preserved_mame_history": {"event": "MameHistory", "pgn": "old"}}
+
+        removed = clear_preserved_mame_history(shared)
+
+        self.assertTrue(removed)
+        self.assertNotIn("preserved_mame_history", shared)
+        write_to_clients.assert_called_once_with({"event": "MameHistory", "pgn": ""})
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):

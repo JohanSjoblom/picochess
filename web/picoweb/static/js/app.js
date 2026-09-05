@@ -753,7 +753,6 @@ function updateWebExploreButton() {
 
 function mameHistoryReasonLabel(reason) {
     var labels = {
-        scan_board: 'Scan',
         set_position: 'Set Pos',
         read_game: 'Read Game',
         engine_recovery: 'Engine recovery'
@@ -806,6 +805,16 @@ function loadPreservedMameHistory() {
         }
     } catch (error) {
         console.warn('Could not load preserved MAME history:', error);
+    }
+    updateMameHistoryStartButton();
+}
+
+function clearPreservedMameHistory() {
+    preservedMameHistory = null;
+    try {
+        window.sessionStorage.removeItem(PRESERVED_MAME_HISTORY_KEY);
+    } catch (error) {
+        console.warn('Could not clear preserved MAME history:', error);
     }
     updateMameHistoryStartButton();
 }
@@ -1728,7 +1737,7 @@ function loadGame(pgn_lines, options) {
 
     // A PGN containing only a custom root position has no move through which
     // addNewMove() can initialize fenHash. Make the root a first-class node so
-    // restored Scan snapshots can be selected and promoted with Set Pos.
+    // it can still be selected and promoted with Set Pos.
     current_position.fen = setupBoardFen;
     fenHash['first'] = current_position;
     fenHash[setupBoardFen] = current_position;
@@ -3737,7 +3746,11 @@ $(function () {
                 var data = JSON.parse(e.data);
                 switch (data.event) {
                     case 'MameHistory':
-                        storePreservedMameHistory(data);
+                        if (data.pgn) {
+                            storePreservedMameHistory(data);
+                        } else {
+                            clearPreservedMameHistory();
+                        }
                         break;
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing

@@ -2649,6 +2649,8 @@ async def main() -> None:
                 return
             self.state.set_position_ack_ready = False
             self.state.set_position_ack_pending = False
+            # Release physical input before announcing OK or yielding to another event.
+            self.state.set_position_ack_target_fen = ""
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.position_mode = False
@@ -2656,8 +2658,6 @@ async def main() -> None:
                 Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
             )
             await asyncio.sleep(1)
-            if target_fen == self.state.set_position_ack_target_fen:
-                self.state.set_position_ack_target_fen = ""
 
         def switch_artwork_window(self):
             if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:

@@ -45,6 +45,7 @@ except Exception as exc:  # pragma: no cover - missing native deps
 
 import chess  # type: ignore
 from utilities import DisplayMsg
+from audio_volume import set_system_volume
 from dgt.api import Message
 from dgt.util import GameResult, PlayMode, Voice, EBoard
 
@@ -126,6 +127,7 @@ class PicoTalkerDisplay(DisplayMsg):
         computer_voice: str,
         speed_factor: int,
         audio_backend: str,
+        volume_factor_getter: Callable[[], int],
         web_audio_backend_remote: bool,
         web_audio_emitter: Optional[Callable[[dict], None]],
         web_audio_should_emit: Optional[Callable[[], bool]],
@@ -197,6 +199,7 @@ class PicoTalkerDisplay(DisplayMsg):
         self.sample_beeper_level = sample_beeper_level
 
         self.audio_backend = (audio_backend or "sox").lower()
+        self.volume_factor_getter = volume_factor_getter
         self.web_audio_backend_remote = bool(web_audio_backend_remote)
         self.web_audio_emitter = web_audio_emitter
         self.web_audio_should_emit = web_audio_should_emit
@@ -358,6 +361,10 @@ class PicoTalkerDisplay(DisplayMsg):
                         self.native_stream.write(prime)
                 self.native_stream_samplerate = samplerate
                 self.native_stream_channels = channels
+                # The system service can start before the user's PipeWire sink
+                # is ready. Reapply the configured volume after the native
+                # stream has made the active output available.
+                set_system_volume(self.volume_factor_getter())
                 return True
             except Exception as exc:
                 logger.warning("native audio stream init failed: %s", exc)

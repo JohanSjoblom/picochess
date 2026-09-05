@@ -1226,16 +1226,6 @@ class ChannelHandler(ServerRequestHandler):
                 fischer_val = 0
             tournament_str = self.get_argument("tournament", "") or ""
 
-            _mode_map = {
-                0: TimeMode.FIXED,
-                1: TimeMode.BLITZ,
-                2: TimeMode.FISCHER,
-                3: TimeMode.TOURN,
-                4: TimeMode.DEPTH,
-                5: TimeMode.NODE,
-            }
-            tc_mode = _mode_map.get(mode_id, TimeMode.FIXED)
-
             if mode_id == 3 and tournament_str:  # tournament: "moves_to_go blitz blitz2 fischer"
                 parts = tournament_str.split()
                 _mtg = int(parts[0]) if len(parts) > 0 else 0

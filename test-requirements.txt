@@ -4,3 +4,5 @@ mock
 pylama
 pyflakes
 pytest
+# Pylama 8.4.1 imports pkg_resources, which newer isolated tox environments omit.
+setuptools<81

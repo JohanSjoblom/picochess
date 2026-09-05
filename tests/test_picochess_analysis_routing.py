@@ -9,7 +9,6 @@ from dgt.util import Mode
 from picochess import (
     RK_STARTING_BOARD_FEN,
     loaded_pgn_interaction_mode,
-    mame_history_snapshot_pgn,
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
     pending_set_position_fen_action,

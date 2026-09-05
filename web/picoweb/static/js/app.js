@@ -770,16 +770,21 @@ function mameHistoryRestoreSupportedByCurrentEngine() {
     );
 }
 
+function shouldOfferMameHistoryRestore() {
+    return Boolean(
+        livePgnTreeActive
+        && preservedMameHistory
+        && pgnTextHasMoves(preservedMameHistory.pgn)
+        && mameHistoryRestoreSupportedByCurrentEngine()
+    );
+}
+
 function updateMameHistoryRestoreButton() {
     var btn = document.getElementById('restoreMameHistoryBtn');
     if (!btn) {
         return;
     }
-    var available = Boolean(
-        preservedMameHistory
-        && preservedMameHistory.pgn
-        && mameHistoryRestoreSupportedByCurrentEngine()
-    );
+    var available = shouldOfferMameHistoryRestore();
     btn.hidden = !available;
     btn.disabled = !available;
     btn.classList.toggle('btn-warning', available);
@@ -847,9 +852,9 @@ function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen) {
     });
 }
 
-function restorePreservedMameHistoryInExplore() {
-    if (!preservedMameHistory || !preservedMameHistory.pgn) {
-        return;
+function restorePreservedMameHistoryForReview() {
+    if (!shouldOfferMameHistoryRestore()) {
+        return false;
     }
     loadGame(preservedMameHistory.pgn.split('\n'), { livePgnTree: false });
     if (!preservedMameHistory.fen
@@ -857,11 +862,12 @@ function restorePreservedMameHistoryInExplore() {
         currentPosition = (fenHash && fenHash.last) || gameHistory;
     }
     setLivePgnTreeActive(false);
-    startWebExploreFromCurrentPosition(false);
+    syncWebExploreFromCurrentPosition(false);
     removeHighlights();
     removeArrow();
     updateChessGround();
     updateStatus();
+    return true;
 }
 
 function fenWithoutEnPassant(fen) {
@@ -4016,7 +4022,7 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
-    $('#restoreMameHistoryBtn').on('click', restorePreservedMameHistoryInExplore);
+    $('#restoreMameHistoryBtn').on('click', restorePreservedMameHistoryForReview);
     loadPreservedMameHistory();
     applyPgnVariationVisibility();
     updateWebExploreButton();

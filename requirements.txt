@@ -4,6 +4,7 @@ ConfigArgParse==1.7.1
 Flask==3.1.2
 paramiko==3.5.1
 pyserial==3.5
+pyserial-asyncio==0.6
 chess==1.11.2
 pyOpenSSL==25.3.0
 requests==2.32.5

@@ -96,6 +96,7 @@ manual/html/
 
 # Config file
 picochess.ini
+picochess.ini.backup
 picochess.uci
 *.swp
 .venv/

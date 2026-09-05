@@ -1307,6 +1307,20 @@ def setup_position_game(
     return chess.Board(fen, chess960=uci960)
 
 
+def set_position_new_game_code(fen: str, uci960: bool, variant: str) -> int | None:
+    """Return the New Game code when a Set Pos target is a starting layout."""
+    board_fen = str(fen or "").split()[0]
+    if variant == "racingkings" and board_fen == RK_STARTING_BOARD_FEN:
+        return 518
+    try:
+        position = chess.Board(f"{board_fen} w - - 0 1").chess960_pos(ignore_castling=True)
+    except (TypeError, ValueError):
+        return None
+    if position == 518 or (uci960 and position is not None):
+        return position
+    return None
+
+
 def should_load_pgn_moves(stop_at_halfmove: int | None) -> bool:
     """Return whether mainline moves should be applied while loading a PGN."""
     return stop_at_halfmove != 0
@@ -6177,6 +6191,15 @@ async def main() -> None:
                     await self._set_ponder_turn(ponder_turn)
 
             elif isinstance(event, Event.SETUP_POSITION):
+                new_game_code = set_position_new_game_code(
+                    event.fen,
+                    event.uci960,
+                    self.state.variant,
+                )
+                if not getattr(event, "from_scan", False) and new_game_code is not None:
+                    logger.info("Set Pos selected a starting position; routing to New Game")
+                    await Observable.fire(Event.NEW_GAME(pos960=new_game_code))
+                    return
                 logger.debug("setting up custom fen: %s", event.fen)
                 if self.state.interaction_mode != Mode.PONDER:
                     self._clear_position_checkpoint()

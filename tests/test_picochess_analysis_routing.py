@@ -7,6 +7,7 @@ import chess
 from dgt.api import Message
 from dgt.util import Mode
 from picochess import (
+    RK_STARTING_BOARD_FEN,
     loaded_pgn_interaction_mode,
     mame_history_snapshot_pgn,
     mame_requires_fresh_fen_root,
@@ -15,6 +16,7 @@ from picochess import (
     rollback_picotutor_for_alternative,
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
+    set_position_new_game_code,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
@@ -318,6 +320,37 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertEqual(fen, live_game.fen())
         self.assertEqual([], live_game.move_stack)
         self.assertEqual(fen, live_game.root().fen())
+
+    def test_standard_start_set_position_routes_to_new_game(self):
+        self.assertEqual(
+            518,
+            set_position_new_game_code(chess.STARTING_FEN, uci960=False, variant="chess"),
+        )
+
+    def test_chess960_start_set_position_routes_to_its_new_game(self):
+        board = chess.Board.from_chess960_pos(0)
+
+        self.assertEqual(
+            0,
+            set_position_new_game_code(board.fen(), uci960=True, variant="chess"),
+        )
+        self.assertIsNone(
+            set_position_new_game_code(board.fen(), uci960=False, variant="chess"),
+        )
+
+    def test_racing_kings_start_set_position_routes_to_new_game(self):
+        fen = f"{RK_STARTING_BOARD_FEN} w - - 0 1"
+
+        self.assertEqual(518, set_position_new_game_code(fen, uci960=False, variant="racingkings"))
+
+    def test_non_start_set_position_remains_a_setup(self):
+        self.assertIsNone(
+            set_position_new_game_code(
+                "8/8/8/8/8/8/4K3/7k w - - 0 1",
+                uci960=False,
+                variant="chess",
+            )
+        )
 
     def test_user_move_opening_is_queued_before_engine_search(self):
         board = chess.Board()

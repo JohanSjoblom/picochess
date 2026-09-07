@@ -8395,9 +8395,17 @@ async def main() -> None:
             if self.shutdown_requested.is_set():
                 logger.debug("Shutdown already in progress; ignoring signal %s", signum)
                 return
-            self.shutdown_requested.set()
             logger.debug("Received kill signal, shutting down")
-            self.shutdown_task = asyncio.create_task(self._exit_async())
+            # Queue all asyncio state changes through the loop's signal-safe
+            # callback entry point.
+            self.loop.call_soon_threadsafe(self._start_shutdown_task)
+
+        def _start_shutdown_task(self) -> None:
+            """Create the shutdown task from the event loop itself."""
+            if self.shutdown_task is None:
+                self.shutdown_requested.set()
+                logger.debug("Starting shutdown task on event loop")
+                self.shutdown_task = self.loop.create_task(self._exit_async())
 
         async def _exit_async(self):
             """Async function to handle systemctl stop signal"""

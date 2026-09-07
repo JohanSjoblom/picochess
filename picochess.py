@@ -34,7 +34,7 @@ import math
 import traceback
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any
 import asyncio
 from pathlib import Path
 import platform
@@ -483,7 +483,7 @@ class AlternativeMover:
     def __init__(self):
         self._excludedmoves = set()
 
-    def all(self, game: chess.Board) -> Set[chess.Move]:
+    def all(self, game: chess.Board) -> set[chess.Move]:
         """Get all remaining legal moves from game position."""
         searchmoves = set(game.legal_moves) - self._excludedmoves
         if not searchmoves:
@@ -631,10 +631,10 @@ class PicochessState:
         self.game_declared = False  # User declared resignation or draw
         self.game_started = False  # Lifecycle flag: true once play has started, even after takeback to move 0.
         self.interaction_mode = Mode.NORMAL
-        self.last_legal_fens: List[Any] = []
+        self.last_legal_fens: list[Any] = []
         self.last_move = None
-        self.legal_fens: List[Any] = []
-        self.legal_fens_after_cmove: List[Any] = []
+        self.legal_fens: list[Any] = []
+        self.legal_fens_after_cmove: list[Any] = []
         self.max_guess = 0
         self.max_guess_black = 0
         self.max_guess_white = 0
@@ -1342,7 +1342,7 @@ def read_online_result():
     return (str(result_line), str(winner))
 
 
-def read_online_user_info() -> Tuple[str, str, str, str, int, int]:
+def read_online_user_info() -> tuple[str, str, str, str, int, int]:
     own_user, opp_user = "unknown", "unknown"
     login, own_color = "failed", ""
     game_time, fischer_inc = 0, 0
@@ -1749,7 +1749,7 @@ async def main() -> None:
 
     # collect all tasks for later cancellation at exit, shutdown, or reboot
     # except the main_loop task which we terminate by sending a None into the async queue
-    non_main_tasks: Set[asyncio.Task] = set()
+    non_main_tasks: set[asyncio.Task] = set()
     shutdown_requested = asyncio.Event()
     shutdown_complete = asyncio.Event()
 
@@ -1959,7 +1959,7 @@ async def main() -> None:
             loop: asyncio.AbstractEventLoop,
             args,
             shared: dict,
-            non_main_tasks: Set[asyncio.Task],
+            non_main_tasks: set[asyncio.Task],
             shutdown_requested: asyncio.Event,
             shutdown_complete: asyncio.Event,
         ):
@@ -7254,8 +7254,8 @@ async def main() -> None:
                                 result_str, winner = read_online_result()
                                 logger.debug("molli result_str:%s", result_str)
                                 logger.debug("molli winner:%s", winner)
-                                gameresult_tmp: Optional[GameResult] = None
-                                gameresult_tmp2: Optional[GameResult] = None
+                                gameresult_tmp: GameResult | None = None
+                                gameresult_tmp2: GameResult | None = None
 
                                 if "Checkmate" in result_str or "checkmate" in result_str or "mate" in result_str:
                                     gameresult_tmp = GameResult.MATE

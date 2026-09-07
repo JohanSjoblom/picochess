@@ -2801,17 +2801,16 @@ async def main() -> None:
             self.state.setpieces_switch_anchor_fen = ""
             self.state.setpieces_switch_armed = False
 
-        def switch_artwork_window(self):
+        async def switch_artwork_window(self):
             if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                 cmd = get_window_command("switch_window")
                 if cmd:
-                    subprocess.run(
+                    process = await asyncio.create_subprocess_shell(
                         cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True,
-                        shell=True,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
                     )
+                    await process.communicate()
 
         def calc_engine_mame_par(self):
             return get_engine_mame_par(
@@ -3404,10 +3403,10 @@ async def main() -> None:
                             await self.state.start_clock()
                     await DisplayMsg.show(Message.EXIT_MENU())
                     if setpieces_switch_pending:
-                        self.switch_artwork_window()
+                        await self.switch_artwork_window()
                 elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
                     # switch windows/tasks
-                    self.switch_artwork_window()
+                    await self.switch_artwork_window()
                 self.reset_setpieces_window_switch()
             # Check if we have to undo a previous move (sliding)
             elif fen in self.state.last_legal_fens:
@@ -5112,7 +5111,7 @@ async def main() -> None:
                         if external_fen == self.state.setpieces_switch_anchor_fen:
                             if self.state.setpieces_switch_armed:
                                 self.state.setpieces_switch_armed = False
-                                self.switch_artwork_window()
+                                await self.switch_artwork_window()
                         else:
                             self.state.setpieces_switch_armed = True
 

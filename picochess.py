@@ -3987,7 +3987,7 @@ async def main() -> None:
                     else:
                         # tutor not replacing engine analysis, so try normal engine analysis
                         info_result = await self.engine.get_analysis(self.state.game)
-                        info_list: list[InfoDict] = info_result.get("info")
+                        info_list: list[InfoDict] | None = info_result.get("info")
                         analysed_fen = info_result.get("fen")
                     if info_list:
                         info = info_list[0]  # pv first
@@ -4785,7 +4785,7 @@ async def main() -> None:
             if source_action == AnalysisSourceAction.TUTOR_PRIMARY:
                 # here picotutor engine replaces playing engine analysis to save cpu
                 result = await self.state.picotutor.get_analysis()
-                info_list: list[InfoDict] = result.get("info")
+                info_list = result.get("info")
                 info_list_source = "tutor"
                 analysed_fen = result.get("fen", "")
                 web_tutor_snapshot = WebAnalysisSnapshot(info_list, analysed_fen)
@@ -4797,7 +4797,7 @@ async def main() -> None:
             elif source_action == AnalysisSourceAction.ENGINE_NON_PLAYING:
                 # we need to analyse both sides without tutor - use engine analyser
                 result = await self.engine.get_analysis(self.state.game)
-                info_list: list[InfoDict] = result.get("info")
+                info_list = result.get("info")
                 info_list_source = "engine"
                 analysed_fen = result.get("fen", "")
                 web_engine_snapshot = WebAnalysisSnapshot(info_list, analysed_fen)
@@ -4809,7 +4809,7 @@ async def main() -> None:
                 # Issue #109 and #49 before that - how to get engine thinking
                 if source_action == AnalysisSourceAction.ENGINE_THINKING:
                     result = await self.engine.get_thinking_analysis(self.state.game)
-                    info_list: list[InfoDict] = result.get("info")
+                    info_list = result.get("info")
                     info_list_source = "engine-thinking"
                     analysed_fen = result.get("fen", "")
                     web_engine_snapshot = WebAnalysisSnapshot(info_list, analysed_fen)
@@ -4819,14 +4819,14 @@ async def main() -> None:
                     # not start or poll a second deep analyser merely to
                     # refresh the web Engine line.
                     result = await self.state.picotutor.get_analysis()
-                    info_candidate_list: list[InfoDict] = result.get("info")
+                    info_candidate_list: list[InfoDict] | None = result.get("info")
                     web_tutor_snapshot = WebAnalysisSnapshot(
                         info_candidate_list, result.get("fen", "")
                     )
                 elif source_action == AnalysisSourceAction.ENGINE_CURRENT:
                     analysis_board = self.state.get_move_check_board()
                     result = await self.engine.get_analysis(analysis_board)
-                    info_list: list[InfoDict] = result.get("info")
+                    info_list = result.get("info")
                     info_list_source = "engine"
                     analysed_fen = result.get("fen", "")
                     web_engine_snapshot = WebAnalysisSnapshot(info_list, analysed_fen)

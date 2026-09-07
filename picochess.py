@@ -4161,8 +4161,6 @@ async def main() -> None:
                             await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             await self.think(msg)
                         elif self.emulation_mode():
-                            logger.info("molli: starting mame_endgame()")
-                            self.mame_endgame()
                             await DisplayMsg.show(msg)
                             await self._deliver_picotutor_messages(pending_picotutor_msgs)
                             self.game_end_event()
@@ -4376,17 +4374,6 @@ async def main() -> None:
             self.state.fen_timer.start()
             self.state.fen_timer_running = True
 
-        async def mame_endgame(self):
-            """
-            Start a new search on the current game.
-
-            If a move is found in the opening book, fire an event in a few seconds.
-            """
-
-            while not self.engine.is_waiting():
-                logger.warning("engine is still not waiting")
-            # @ todo - check how to do this in new chess library
-            # self.engine.position(copy.deepcopy(game))
         # Analysis routing has four main cases.
         # IMPORTANT: `analyse()` has two outputs:
         # 1) clock/DGT output via send_analyse() (depth-gated by best_sent_depth)

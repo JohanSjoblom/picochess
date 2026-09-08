@@ -854,7 +854,10 @@ function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen) {
         return null;
     }
     return storePreservedMameHistory({
-        pgn: pgnPrefix,
+        // The selected prefix becomes the new live backend game. Preserve the
+        // complete browser tree separately so First Move can restore the game
+        // that existed before a pos-without-edit MAME rebase.
+        pgn: getFullGame(),
         fen: selectedFen || currentPosition.fen || '',
         reason: 'set_position'
     });

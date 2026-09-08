@@ -101,6 +101,38 @@ def mame_history_will_be_rebased(shared: dict) -> bool:
     )
 
 
+def mame_set_position_is_engine_turn(shared: dict) -> bool:
+    """Return whether web Set Pos must wait for the selected MAME engine."""
+    system_info = shared.get("system_info") or {}
+    if not system_info.get("is_mame"):
+        return False
+
+    interaction_mode = system_info.get("interaction_mode")
+    if isinstance(interaction_mode, Mode):
+        interaction_mode = interaction_mode.name.lower()
+    else:
+        interaction_mode = str(interaction_mode or "").lower()
+    if interaction_mode not in ("normal", "brain", "training"):
+        return False
+
+    play_mode = system_info.get("play_mode")
+    if isinstance(play_mode, PlayMode):
+        play_mode = "user_white" if play_mode == PlayMode.USER_WHITE else "user_black"
+    else:
+        play_mode = str(play_mode or "").lower()
+    if play_mode not in ("user_white", "user_black"):
+        return False
+
+    live_fen = ((shared.get("last_dgt_move_msg") or {}).get("fen") or "").strip()
+    try:
+        side_to_move = chess.Board(live_fen).turn
+    except (TypeError, ValueError):
+        return False
+
+    user_side = chess.WHITE if play_mode == "user_white" else chess.BLACK
+    return side_to_move != user_side
+
+
 def publish_preserved_mame_history(shared: dict, pgn_text: str, selected_fen: str, reason: str) -> bool:
     """Cache and publish a PGN that is about to be rebased for a pos-only MAME."""
     pgn_text = str(pgn_text or "").strip()
@@ -1070,6 +1102,18 @@ class ChannelHandler(ServerRequestHandler):
                 result = GameResult.WIN_BLACK
             await Observable.fire(Event.DRAWRESIGN(result=result))
         elif action == "set_position":
+            if mame_set_position_is_engine_turn(self.shared):
+                pending_engine_move = bool(
+                    (self.shared.get("system_info") or {}).get("pending_engine_move")
+                )
+                if not pending_engine_move:
+                    # PAUSE_RESUME means "move now" while the engine is thinking.
+                    await Observable.fire(Event.PAUSE_RESUME())
+                logger.warning("rejecting MAME Set Pos during engine turn")
+                self.set_status(409)
+                self.write({"success": False, "error": "Set Pos is only for your turn"})
+                return
+
             try:
                 fen = self.get_argument("fen").strip()
                 pgn_prefix = self.get_argument("pgn", "").strip()

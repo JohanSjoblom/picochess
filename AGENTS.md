@@ -444,6 +444,13 @@ also honoring the timing-sensitive setup sequence required by MAME.
   batch-replay history.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
+- As a temporary safety guard, browser Set Pos is rejected for a MAME engine
+  while it is the engine's turn in a playing mode. The request returns `Set Pos
+  is only for your turn` and requests the current engine move when the engine is
+  still thinking. If an announced engine move is already pending on the
+  physical board, reject Set Pos without requesting an alternative. This guard
+  may be removed only after MAME setup explicitly cancels and awaits the old
+  playing search without emitting a stale engine-failure result.
 - An accepted Scan establishes a fresh root with no earlier history to restore.
   Clear any cached browser MAME-history snapshot instead of preserving the
   scanned FEN as a restore anchor.

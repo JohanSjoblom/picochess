@@ -37,6 +37,7 @@ from server import (
     _engine_menu_payload,
     _apply_engine_menu_sort,
     _mode_text,
+    mame_set_position_is_engine_turn,
     clear_preserved_mame_history,
     mame_history_will_be_rebased,
     _orient_scanned_board_fen,
@@ -258,6 +259,70 @@ class TestMameHistoryPreservation(unittest.TestCase):
         self.assertTrue(removed)
         self.assertNotIn("preserved_mame_history", shared)
         write_to_clients.assert_called_once_with({"event": "MameHistory", "pgn": ""})
+
+
+class TestMameSetPositionTurnGuard(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def shared(turn="b", play_mode="user_white", **system_overrides):
+        system_info = {
+            "is_mame": True,
+            "interaction_mode": "normal",
+            "play_mode": play_mode,
+            "pending_engine_move": False,
+        }
+        system_info.update(system_overrides)
+        return {
+            "system_info": system_info,
+            "last_dgt_move_msg": {
+                "fen": f"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR {turn} KQkq - 0 1"
+            },
+        }
+
+    def test_guard_uses_live_side_to_move_and_user_color(self):
+        self.assertTrue(mame_set_position_is_engine_turn(self.shared()))
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(turn="w")))
+        self.assertTrue(
+            mame_set_position_is_engine_turn(self.shared(turn="w", play_mode="user_black"))
+        )
+        self.assertFalse(
+            mame_set_position_is_engine_turn(self.shared(turn="b", play_mode="user_black"))
+        )
+
+    def test_guard_is_limited_to_mame_playing_modes(self):
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(is_mame=False)))
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(interaction_mode="ponder")))
+        shared = self.shared()
+        shared["last_dgt_move_msg"]["fen"] = "not a fen"
+        self.assertFalse(mame_set_position_is_engine_turn(shared))
+
+    async def test_rejected_set_position_requests_current_engine_move(self):
+        handler = Mock()
+        handler.shared = self.shared()
+        handler.get_argument.return_value = "set_position"
+
+        with patch("server.Observable.fire", new_callable=AsyncMock) as fire:
+            await ChannelHandler.post(handler)
+
+        fire.assert_awaited_once()
+        self.assertEqual(EventApi.PAUSE_RESUME, repr(fire.await_args.args[0]))
+        handler.set_status.assert_called_once_with(409)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "Set Pos is only for your turn"}
+        )
+
+    async def test_pending_engine_move_is_rejected_without_requesting_alternative(self):
+        handler = Mock()
+        handler.shared = self.shared(pending_engine_move=True)
+        handler.get_argument.return_value = "set_position"
+
+        with patch("server.Observable.fire", new_callable=AsyncMock) as fire:
+            await ChannelHandler.post(handler)
+
+        fire.assert_not_awaited()
+        handler.set_status.assert_called_once_with(409)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "Set Pos is only for your turn"}
+        )
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):

@@ -1252,12 +1252,16 @@ function exportGame(root_node, exporter, include_comments, include_variations, _
         _board = new Chess(root_node.fen, chessGameType);
     }
 
-    // append fullmove number
-    if (root_node.variations && root_node.variations.length > 0) {
-        _board.fullmove_number = Math.ceil(root_node.variations[0].half_move_num / 2);
+    var fenFields = _board.fen().split(/\s+/);
+    _board.fullmove_number = parseInt(fenFields[5], 10) || 1;
 
+    // Keep the fullmove counter from the root FEN. Relative tree indexes start
+    // at one for both colors and therefore cannot supply PGN move numbers for
+    // a custom root, especially when Black is first to move.
+    if (root_node.variations && root_node.variations.length > 0) {
         var main_variation = root_node.variations[0];
-        exporter.put_fullmove_number(_board.turn(), _board.fullmove_number, _after_variation);
+        var startsWithBlack = !root_node.previous && _board.turn() === 'b';
+        exporter.put_fullmove_number(_board.turn(), _board.fullmove_number, _after_variation || startsWithBlack);
         exporter.put_move(_board, main_variation.move);
         if (include_comments) {
             exporter.put_nags(main_variation.nags);

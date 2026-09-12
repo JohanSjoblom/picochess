@@ -27,7 +27,7 @@ class TestUtilities(unittest.TestCase):
     @patch("utilities.is_wayland_session", return_value=True)
     def test_get_window_command_wayland_ydotool(self, _, __):
         self.assertEqual(
-            "ydotool key 56:1 15:1 15:0 56:0",
+            "ydotool key 56:1 15:1 15:0; sleep 0.2; ydotool key 56:0",
             get_window_command("switch_window"),
         )
 
@@ -36,7 +36,8 @@ class TestUtilities(unittest.TestCase):
     @patch.dict("utilities.os.environ", {"YDOTOOL_SOCKET": "/home/pi/.ydotool_socket"}, clear=False)
     def test_get_window_command_wayland_ydotool_with_socket(self, _, __):
         self.assertEqual(
-            "YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:1 15:1 15:0 56:0",
+            "YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:1 15:1 15:0; "
+            "sleep 0.2; YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:0",
             get_window_command("switch_window"),
         )
 

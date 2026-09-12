@@ -530,7 +530,12 @@ def _get_ydotool_prefix() -> str:
 def _get_wayland_ydotool_commands() -> dict[str, str]:
     # evdev keycodes used by ydotool key injection.
     ydotool_prefix = _get_ydotool_prefix()
-    ydotool_alt_tab = f"{ydotool_prefix} key 56:1 15:1 15:0 56:0"
+    # Keep Alt pressed briefly after releasing Tab.  labwc may miss an
+    # instantaneous chord, while this mirrors the proven X11 timing above.
+    ydotool_alt_tab = (
+        f"{ydotool_prefix} key 56:1 15:1 15:0; "
+        f"sleep 0.2; {ydotool_prefix} key 56:0"
+    )
     ydotool_alt_f11 = f"{ydotool_prefix} key 56:1 87:1 87:0 56:0"
     return {
         "toggle_fullscreen": ydotool_alt_f11,

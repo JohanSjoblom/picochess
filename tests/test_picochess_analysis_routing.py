@@ -24,6 +24,7 @@ from picochess import (
     localize_web_san,
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
+    previous_position_matching_board_fen,
     remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
     selected_engine_analysis_depth,
@@ -44,6 +45,29 @@ from picochess import (
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):
+    def test_takeback_scan_returns_nearest_earlier_repeated_position(self):
+        game = chess.Board()
+        knight_cycle = ("g1f3", "g8f6", "f3g1", "f6g8")
+        for move in knight_cycle * 2:
+            game.push_uci(move)
+
+        previous = previous_position_matching_board_fen(game, chess.STARTING_BOARD_FEN)
+
+        self.assertIsNotNone(previous)
+        self.assertEqual(4, len(previous.move_stack))
+        self.assertEqual(chess.STARTING_BOARD_FEN, previous.board_fen())
+
+    def test_takeback_scan_does_not_match_current_or_unknown_position(self):
+        game = chess.Board()
+        game.push_uci("e2e4")
+
+        self.assertIsNone(
+            previous_position_matching_board_fen(game, game.board_fen())
+        )
+        self.assertIsNone(
+            previous_position_matching_board_fen(game, "8/8/8/8/8/8/8/8")
+        )
+
     def test_depth_gate_passes_first_line_and_preserves_the_original_list(self):
         best_seen_depth = Mock()
         best_seen_depth.is_better.return_value = True

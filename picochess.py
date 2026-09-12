@@ -1444,6 +1444,18 @@ def compute_legal_fens(game: chess.Board, variant_board=None):
     return fens
 
 
+def previous_position_matching_board_fen(
+    game: chess.Board, board_fen: str
+) -> chess.Board | None:
+    """Return the nearest earlier game position with the requested piece placement."""
+    previous = game.copy(stack=True)
+    while previous.move_stack:
+        previous.pop()
+        if previous.board_fen() == board_fen:
+            return previous
+    return None
+
+
 def boards_match_position_and_history(first: chess.Board, second: chess.Board) -> bool:
     """Return whether two boards have the same position and recorded move stack."""
     return first.fen() == second.fen() and tuple(first.move_stack) == tuple(second.move_stack)
@@ -3817,20 +3829,20 @@ async def main() -> None:
                     handled_fen = False
                 else:
                     handled_fen = False
-                    game_copy = copy.deepcopy(self.state.game)
-                    while game_copy.move_stack:
-                        game_copy.pop()
-                        if game_copy.board_fen() == fen:
-                            # Racing Kings: if all moves have been popped we are back
-                            # at the RK starting position.  Treat this as a NEW GAME,
-                            # not a takeback, so that Event.NEW_GAME fires below.
-                            if (
-                                not game_copy.move_stack
-                                and self.state.variant == "racingkings"
-                                and fen == RK_STARTING_BOARD_FEN
-                            ):
-                                logger.info("racingkings: takeback reached starting position – treating as new game")
-                                break  # handled_fen stays False → falls through to NEW_GAME
+                    game_copy = previous_position_matching_board_fen(
+                        self.state.game, fen
+                    )
+                    if game_copy is not None:
+                        # Racing Kings: if all moves have been popped we are back
+                        # at the RK starting position.  Treat this as a NEW GAME,
+                        # not a takeback, so that Event.NEW_GAME fires below.
+                        if (
+                            not game_copy.move_stack
+                            and self.state.variant == "racingkings"
+                            and fen == RK_STARTING_BOARD_FEN
+                        ):
+                            logger.info("racingkings: takeback reached starting position – treating as new game")
+                        else:
                             handled_fen = True
                             logger.info("current game fen      : %s", self.state.game.fen())
                             logger.info("undoing game until fen: %s", fen)
@@ -3853,8 +3865,6 @@ async def main() -> None:
                             await self.set_wait_state(
                                 Message.TAKE_BACK(game=self.state.game.copy())
                             )  # new: force stop no matter if picochess turn
-
-                            break
 
                     if self.pgn_mode():  # molli pgn
                         log_pgn(self.state)

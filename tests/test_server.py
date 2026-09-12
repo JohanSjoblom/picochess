@@ -325,6 +325,35 @@ class TestMameSetPositionTurnGuard(unittest.IsolatedAsyncioTestCase):
             {"success": False, "error": "Set Pos is only for your turn"}
         )
 
+    async def test_root_set_position_clears_stale_mame_history(self):
+        root_fen = "8/8/8/8/8/8/4K3/7k w - - 0 1"
+        root_pgn = f'[SetUp "1"]\n[FEN "{root_fen}"]\n[Result "*"]\n\n*'
+        handler = Mock()
+        handler.shared = self.shared(
+            turn="w",
+            mame_capabilities={"position": True, "edit": False},
+        )
+        arguments = {
+            "action": "set_position",
+            "fen": root_fen,
+            "pgn": root_pgn,
+            "preserved_pgn": "",
+            "uci960": "false",
+        }
+        handler.get_argument.side_effect = lambda name, default=None: arguments.get(name, default)
+
+        with (
+            patch("server.clear_preserved_mame_history") as clear_history,
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        clear_history.assert_called_once_with(handler.shared)
+        fire.assert_awaited_once()
+        handler.write.assert_called_once_with(
+            {"success": True, "fen": root_fen, "uci960": False}
+        )
+
 
 class TestServerDisplayTextHelpers(unittest.TestCase):
     def setUp(self):

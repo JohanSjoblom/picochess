@@ -1127,13 +1127,19 @@ class ChannelHandler(ServerRequestHandler):
                     event_game = None
 
                 logger.info("Setting position from web client: %s", bit_board.fen())
-                if preserved_pgn and mame_history_will_be_rebased(self.shared):
-                    publish_preserved_mame_history(
-                        self.shared,
-                        preserved_pgn,
-                        fen,
-                        "set_position",
-                    )
+                if mame_history_will_be_rebased(self.shared):
+                    if preserved_pgn:
+                        publish_preserved_mame_history(
+                            self.shared,
+                            preserved_pgn,
+                            fen,
+                            "set_position",
+                        )
+                    elif pgn_prefix and not bit_board.move_stack:
+                        # Set Pos from the restored root starts a genuinely new
+                        # line. Do not let First Move resurrect the abandoned
+                        # history after moves have been played from that root.
+                        clear_preserved_mame_history(self.shared)
                 await Observable.fire(
                     Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled, game=event_game)
                 )

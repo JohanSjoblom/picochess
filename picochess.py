@@ -2402,7 +2402,7 @@ async def main() -> None:
                     parts = self.state._threecheck_board.fen().split()
                     book_lookup_board = chess.Board(f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} {parts[5]} {parts[6]}")
                 else:
-                    book_lookup_board = self.state.game.copy()
+                    book_lookup_board = self.state.game.copy(stack=False)
                 book_res = self.state.searchmoves.book(self.bookreader, book_lookup_board)
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
@@ -2691,7 +2691,9 @@ async def main() -> None:
             best_move = None
             if self.bookreader:
                 try:
-                    best_move = self.bookreader.weighted_choice(self.state.game.copy()).move
+                    best_move = self.bookreader.weighted_choice(
+                        self.state.game.copy(stack=False)
+                    ).move
                     logger.debug("Brain and hand: book hint move %s", best_move)
                 except IndexError:
                     pass

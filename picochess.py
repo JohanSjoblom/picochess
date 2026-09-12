@@ -2145,13 +2145,12 @@ async def main() -> None:
                 # is controlled by MAME -window/-nowindow parameters.
                 cmd = get_window_command("toggle_fullscreen")
                 if cmd:
-                    subprocess.run(
+                    process = await asyncio.create_subprocess_shell(
                         cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        universal_newlines=True,
-                        shell=True,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
                     )
+                    await process.communicate()
 
             # Startup - external
             self.state.engine_level = self.args.engine_level

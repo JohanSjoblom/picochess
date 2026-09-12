@@ -136,7 +136,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("btn.classList.toggle('btn-warning', available)", script)
         self.assertIn("btn.classList.toggle('btn-light', !available)", script)
         self.assertIn("function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen)", script)
-        self.assertIn("pgn: getFullGame()", script)
+        self.assertIn("pgn: pgnPrefix", script)
+        self.assertNotIn("pgn: getFullGame()", script)
         self.assertIn("preserveCurrentMameHistoryForSetPosition(pgnPrefix, fen)", script)
         self.assertIn("preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : ''", script)
         self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
@@ -151,7 +152,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
         self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=19', template)
+        self.assertIn('app.js?v=20', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

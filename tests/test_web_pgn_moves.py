@@ -97,3 +97,55 @@ console.log(JSON.stringify(cases));
             ["1. e4 e5 2. Nf3", "1... Nc6 2. Nf3 Nf6", "23... Nc6 24. Nf3"],
             json.loads(result.stdout),
         )
+
+    def test_set_position_prefix_stops_at_selected_node(self):
+        root = Path(__file__).parents[1]
+        app = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        chess = (root / "web/picoweb/static/js/chess960.min.js").read_text(encoding="utf-8")
+        exporter_start = app.index("function PgnExporter(")
+        exporter_end = app.index("function writeVariationTree(", exporter_start)
+        prefix_code = app[exporter_start:exporter_end]
+        program = chess + "\n" + prefix_code + r"""
+var chessGameType = 0;
+var START_FEN = new Chess().fen();
+var setupBoardFen = START_FEN;
+var gameHistory = {
+    fen: START_FEN,
+    previous: null,
+    variations: [],
+    originalHeader: {Result: '*'}
+};
+function getPgnGameHeader(headers) {
+    var result = '';
+    Object.keys(headers).forEach(function (key) {
+        result += '[' + key + ' "' + headers[key] + '"]\n';
+    });
+    return result + '\n';
+}
+var board = new Chess();
+var parent = gameHistory;
+var nodes = [];
+['e2e4', 'e7e5', 'g1f3', 'b8c6'].forEach(function (uci, index) {
+    var move = board.move({from: uci.slice(0, 2), to: uci.slice(2, 4)});
+    var node = {
+        move: move,
+        previous: parent,
+        variations: [],
+        nags: [],
+        half_move_num: index + 1,
+        fen: board.fen()
+    };
+    parent.variations = [node];
+    parent = node;
+    nodes.push(node);
+});
+console.log(JSON.stringify(buildPgnPrefixForNode(nodes[1])));
+"""
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+        prefix = json.loads(result.stdout)
+        self.assertIn("1. e4 e5", prefix)
+        self.assertNotIn("Nf3", prefix)
+        self.assertNotIn("Nc6", prefix)
+        self.assertTrue(prefix.endswith("*"))

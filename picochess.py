@@ -4051,7 +4051,9 @@ async def main() -> None:
                 # Remember game_before user move for picotutor thread
                 # And for sending USER_MOVE_DONE below
                 #
-                game_before = self.state.game.copy()
+                # Tutor feedback needs the complete position before the move,
+                # but none of the preceding move history.
+                game_before = self.state.game.copy(stack=False)
                 self.state.push_move(move)  # this is where user move is made
                 self._set_game_started(True)
                 self._update_variant_shared()

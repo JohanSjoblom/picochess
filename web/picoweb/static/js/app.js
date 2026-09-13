@@ -1424,7 +1424,7 @@ var updateStatus = function () {
 
     var moveColor = 'White';
     var tmpGame = createGamePointer();
-    var fen = tmpGame.fen();
+    var fen = authoritativeDisplayFen(currentPosition, tmpGame);
 
     var strippedFen = stripFen(fen);
 
@@ -1592,8 +1592,17 @@ async function getMove(game, source, target) {
     });
 }
 
+function authoritativeDisplayFen(position, fallbackGame) {
+    return position && position.fen ? position.fen : fallbackGame.fen();
+}
+
 function updateChessGround() {
     var tmpGame = createGamePointer();
+    // Terminal variant positions can be invalid under standard chess rules.
+    // For example, Atomic has no losing king after it explodes. Chess.js then
+    // falls back to its starting position, while Chessground can display the
+    // authoritative server FEN directly.
+    var displayFen = authoritativeDisplayFen(currentPosition, tmpGame);
     var turnColor = toColor(tmpGame);
     var movableColor;
 
@@ -1608,7 +1617,7 @@ function updateChessGround() {
     }
 
     chessground1.set({
-        fen: tmpGame.fen(),
+        fen: displayFen,
         turnColor: turnColor,
         movable: {
             color: movableColor,
@@ -1860,7 +1869,7 @@ function loadGame(pgn_lines, options) {
     if (isDefinitiveResult(game_result_token) || !isDefinitiveResult(game_headers['Result'])) {
         game_headers['Result'] = game_result_token || game_headers['Result'] || '*';
     }
-    if (lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
+    if (options.announceLastMove !== false && lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
         var tmp_board = new Chess(currentPosition.fen, chessGameType);
         saymove(lastmove, tmp_board); // announce user move
     }
@@ -2663,7 +2672,7 @@ function updateDGTPosition(data) {
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"));
+        loadGame(data['pgn'].split("\n"), { announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
@@ -2674,7 +2683,7 @@ function updateDGTPosition(data) {
         loadGame(data.pgn.split("\n"));
     }
     if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
-        loadGame(data['pgn'].split("\n"));
+        loadGame(data['pgn'].split("\n"), { announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
             // FEN than the server sent.  Force the board to show the server's FEN.
@@ -3814,6 +3823,17 @@ $(function () {
                         // New board = no moves played yet
                         if (window.setPicoGameActive) window.setPicoGameActive(false);
                         if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
+                        break;
+                    case 'GameEnd':
+                        if (data.result === '1-0') {
+                            talk('Game over. White wins.');
+                        } else if (data.result === '0-1') {
+                            talk('Game over. Black wins.');
+                        } else if (data.result === '1/2-1/2') {
+                            talk('Game over. Draw.');
+                        } else {
+                            talk('Game over.');
+                        }
                         break;
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);

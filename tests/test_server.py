@@ -560,9 +560,10 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         calls = [call.args[0] for call in write_to_clients.call_args_list]
         self.assertEqual({"event": "SystemInfo", "msg": {"game_started": False}}, calls[0])
         self.assertEqual("0-1", shared["headers"]["Result"])
-        self.assertEqual("Fen", calls[-1]["event"])
-        self.assertEqual("reload", calls[-1]["play"])
-        self.assertIn("0-1", calls[-1]["pgn"])
+        self.assertEqual("Fen", calls[-2]["event"])
+        self.assertEqual("reload", calls[-2]["play"])
+        self.assertIn("0-1", calls[-2]["pgn"])
+        self.assertEqual({"event": "GameEnd", "result": "0-1"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
 
 

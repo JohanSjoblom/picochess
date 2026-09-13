@@ -3915,6 +3915,9 @@ class WebDisplay(DisplayMsg):
             _attach_variant_info(end_msg)
             self.shared["last_dgt_move_msg"] = end_msg
             EventHandler.write_to_clients(end_msg)
+            # Announce the result only as a live event. Reconnecting clients
+            # receive last_dgt_move_msg, but must not repeat an old result.
+            EventHandler.write_to_clients({"event": "GameEnd", "result": WebDisplay.result_sav})
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

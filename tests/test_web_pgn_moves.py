@@ -9,6 +9,21 @@ import unittest
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser JavaScript tests")
 class TestWebPgnMoves(unittest.TestCase):
+    def test_terminal_variant_display_uses_authoritative_server_fen(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function authoritativeDisplayFen(")
+        end = script.index("\n}", start) + 2
+        atomic_terminal_fen = "r1bq3r/p1ppp1pp/1pn5/8/8/8/PPPPPPPP/RNBQKB1R b KQ - 0 3"
+        program = script[start:end] + "\n" + (
+            f"console.log(authoritativeDisplayFen({{fen: {json.dumps(atomic_terminal_fen)}}}, "
+            "{fen: () => 'startpos'}));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual(atomic_terminal_fen, result.stdout.strip())
+
     def test_web_exporter_marks_black_move_number_after_variation(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function WebExporter(")

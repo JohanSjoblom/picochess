@@ -342,6 +342,15 @@ def should_reject_user_move_after_game_end(
     return bool(game_declared) or (game_ending or "*") != "*"
 
 
+def should_resume_game_after_takeback(
+    game_over: bool, game_declared: bool, game_ending: str | None
+) -> bool:
+    """Return whether takeback has reopened a previously ended game."""
+    return not game_over and (
+        bool(game_declared) or (game_ending or "*") != "*"
+    )
+
+
 @dataclass(frozen=True)
 class GameEndAnalysisContext:
     """Inputs that determine whether a completed game stops deep analysis."""
@@ -3192,6 +3201,7 @@ async def main() -> None:
                 logger.debug("takeback not possible!")
             if not l_error:
                 self._update_variant_shared()  # Update check counts after takeback
+                self._resume_game_after_takeback()
                 if self.picotutor_mode():
                     if self.state.best_move_posted:
                         await self.state.picotutor.pop_last_move(self.state.game)
@@ -3862,6 +3872,7 @@ async def main() -> None:
                             self.state.searchmoves.reset()
                             self.state.takeback_active = True
                             self._update_variant_shared()  # sync check counts etc. after multi-pop
+                            self._resume_game_after_takeback()
                             await self.set_wait_state(
                                 Message.TAKE_BACK(game=self.state.game.copy())
                             )  # new: force stop no matter if picochess turn
@@ -5915,6 +5926,21 @@ async def main() -> None:
             self._set_pgn_replay_autoplay(False)  # prevent autoplay starting for next pgn read
             if self.state.interaction_mode != Mode.PONDER:
                 self._clear_position_checkpoint()
+
+        def _resume_game_after_takeback(self) -> None:
+            """Restore active-game lifecycle after leaving a terminal position."""
+            if not should_resume_game_after_takeback(
+                game_over=self.state.game.is_game_over(),
+                game_declared=self.state.game_declared,
+                game_ending=ModeInfo.get_game_ending(),
+            ):
+                return
+            logger.info("takeback reopened ended game")
+            ModeInfo.set_game_ending(result="*")
+            self.state.game_declared = False
+            self.state.flag_pgn_game_over = False
+            self.is_out_of_time_already = False
+            self._set_game_started(True)
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
             self.state.pgn_engine_games = []

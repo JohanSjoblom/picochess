@@ -32,6 +32,7 @@ from picochess import (
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
+    should_resume_game_after_takeback,
     should_load_pgn_moves,
     should_preserve_loaded_pgn_history,
     should_preserve_set_position_history,
@@ -718,6 +719,38 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertFalse(
             should_reject_user_move_after_game_end(
                 interaction_mode=Mode.NORMAL,
+                game_declared=False,
+                game_ending="*",
+            )
+        )
+
+    def test_takeback_reopens_a_finished_game_at_a_playable_position(self):
+        self.assertTrue(
+            should_resume_game_after_takeback(
+                game_over=False,
+                game_declared=False,
+                game_ending="1-0",
+            )
+        )
+        self.assertTrue(
+            should_resume_game_after_takeback(
+                game_over=False,
+                game_declared=True,
+                game_ending="*",
+            )
+        )
+
+    def test_takeback_does_not_reopen_a_terminal_or_active_game(self):
+        self.assertFalse(
+            should_resume_game_after_takeback(
+                game_over=True,
+                game_declared=False,
+                game_ending="1-0",
+            )
+        )
+        self.assertFalse(
+            should_resume_game_after_takeback(
+                game_over=False,
                 game_declared=False,
                 game_ending="*",
             )

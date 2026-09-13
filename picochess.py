@@ -168,6 +168,14 @@ def track_event_task(task: asyncio.Task, event_tasks: set[asyncio.Task]) -> None
     task.add_done_callback(event_task_done)
 
 
+async def process_queued_event(event, handler, queue: asyncio.Queue) -> None:
+    """Process one queued event and complete its queue bookkeeping afterwards."""
+    try:
+        await handler(event)
+    finally:
+        queue.task_done()
+
+
 def selected_engine_analysis_depth(engine_plays: bool) -> int:
     """Return the selected main-engine ContinuousAnalysis depth limit."""
     if platform.machine().lower() == "aarch64" and not engine_plays:
@@ -5772,13 +5780,15 @@ async def main() -> None:
                     if event is None:
                         # this is the signal to stop the main loop
                         logger.debug("evt_queue received None, stopping main loop")
+                        evt_queue.task_done()
                         break
                     # issue #45 still let main loop create tasks
                     # @todo check if this should not do create_task either
                     # create_task should make program more responsive to user tasks
-                    event_task = asyncio.create_task(self.process_main_events(event))
+                    event_task = asyncio.create_task(
+                        process_queued_event(event, self.process_main_events, evt_queue)
+                    )
                     track_event_task(event_task, self.event_tasks)
-                    evt_queue.task_done()
                     await asyncio.sleep(0.05)  # balancing message queues
             except asyncio.CancelledError:
                 logger.debug("evt_queue cancelled")

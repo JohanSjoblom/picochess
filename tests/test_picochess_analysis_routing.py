@@ -1171,3 +1171,58 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(started)
         self.controller.think.assert_not_awaited()
+
+
+class TestAlternativeMovePendingState(unittest.TestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "_clear_pending_engine_move"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "AlternativeMoveController",
+            (),
+            {"_clear_pending_engine_move": namespace["_clear_pending_engine_move"]},
+        )
+        self.controller = controller_type()
+        self.controller.state = SimpleNamespace(
+            done_computer_fen="pending engine position",
+            done_move=chess.Move.from_uci("e7e5"),
+        )
+
+    def test_clearing_pending_move_allows_replacement_result(self):
+        self.controller._clear_pending_engine_move()
+
+        self.assertIsNone(self.controller.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.controller.state.done_move)
+        self.assertTrue(
+            engine_move_event_matches_state(
+                "replacement position",
+                "replacement position",
+                2,
+                2,
+                self.controller.state.done_computer_fen,
+            )
+        )
+
+    def test_both_alternative_move_paths_clear_pending_state(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        process_events = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_main_events"
+        )
+        clear_calls = [
+            node for node in ast.walk(process_events)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_clear_pending_engine_move"
+        ]
+
+        self.assertEqual(2, len(clear_calls))

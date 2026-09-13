@@ -4182,6 +4182,11 @@ async def main() -> None:
             )
             return True
 
+        def _clear_pending_engine_move(self) -> None:
+            """Release an announced move before requesting its replacement."""
+            self.state.done_computer_fen = None
+            self.state.done_move = chess.Move.null()
+
         async def user_move(self, move: chess.Move, sliding: bool) -> bool:
             """Handle an user move."""
 
@@ -7221,6 +7226,7 @@ async def main() -> None:
                         # e-board: engine move still pending on the board; allow user to request another move
                         # (when go() sees searchlist=True it removes already-played moves from the root list)
                         if not self.state.check_game_state():
+                            self._clear_pending_engine_move()
                             if self.picotutor_mode():
                                 await rollback_picotutor_for_alternative(
                                     self.state.picotutor,
@@ -7270,8 +7276,7 @@ async def main() -> None:
 
             elif isinstance(event, Event.ALTERNATIVE_MOVE):
                 if self.state.done_computer_fen and not self.emulation_mode():
-                    self.state.done_computer_fen = None
-                    self.state.done_move = chess.Move.null()
+                    self._clear_pending_engine_move()
                     if self.eng_plays():
                         # @todo handle Mode.REMOTE too
                         if self.state.time_control.mode == TimeMode.FIXED:

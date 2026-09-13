@@ -500,18 +500,18 @@ PGN loading has separate position, history, and mode rules:
   from the current final FEN and rebase the live game at the automatic-takeback
   completion or, as a fallback, immediately before the next search. This lets
   the takeback transaction consume its expected move before history is cleared.
-- Whenever Set Pos, Read Game, or MAME recovery must discard history for a
-  `pos`-without-`edit` interface, preserve the pre-rebase PGN for the web
-  client's temporary history restore. Set Pos must capture the complete
-  browser game before submitting its selected prefix; Read Game and recovery
-  publish their backend PGN before clearing the stack.
-- Restoring preserved MAME history is browser-local review. It must mark the
-  restored tree as non-live, preserve the current Explore state, and leave the
-  stackless backend, physical board, Tutor, and MAME engine unchanged. Position
-  -> Set Pos remains the explicit way to promote a selected restored node back
-  into live play.
-- New Game is an authoritative fresh start and clears any preserved MAME
-  history snapshot from the backend and browser clients.
+- For pos-without-edit MAME, preserve the selected prefix on the server when
+  Set Pos installs its validated board. Read Game truncates at its selected
+  position; recovery composes any existing prefix before rebasing again.
+- `web_history.py` projects that prefix plus the raw live PGN for browser
+  transport only. Scope (game identity and rebase revision), matching root,
+  variant and legal PGN validation guard the join. Keep backend caches raw.
+- The browser receives one live presentation tree. Only its current endpoint
+  permits live move entry under the existing board authority rules; historical
+  navigation remains review and Set Pos explicitly promotes a selected node.
+- New Game, Scan, root Set Pos and successful engine selection clear the prefix.
+  Read Game establishes a new history scope. Engine recovery retains history.
+- Server-side PGN saving, Tutor and engine boards do not use the projection.
 - A successful explicit engine selection also clears preserved MAME history.
   A failed selection that falls back to the existing engine and automatic MAME
   crash recovery retain it.

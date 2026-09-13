@@ -320,24 +320,20 @@ explicitly requires it.
   the last real move highlight/arrow and discarding explorer-only highlights.
 - Avoid rebuilding a complex Explore state machine. Prefer preserving current
   user intent, explicit user toggles, and the small set of defensive OFF resets.
-- When useful MAME history was preserved before a `pos`-without-`edit` rebase,
-  highlight the board's First Move control. It restores that non-live PGN
-  before navigating to its root, preserves the current Explore state, and does
-  not send a backend action. A FEN-only snapshot has no move history to restore
-  and must not highlight the control.
-- Set Pos preservation must serialize the complete displayed browser game
-  before posting the selected PGN prefix. Read Game and engine recovery receive
-  equivalent snapshots from the backend. An accepted physical-board Scan is a
-  fresh root and clears any older snapshot rather than preserving a FEN-only
-  restore anchor. Keep one latest snapshot in memory and `sessionStorage`; a
-  backend cache lets clients connecting later receive the latest snapshot. Do
-  not clear it merely because a Set Pos, Read Game, or recovery rebase publishes
-  a new live game.
-- New Game clears the backend snapshot and every browser's in-memory and
-  `sessionStorage` copies because no earlier session history remains relevant.
-- A successful explicit engine selection clears those snapshots as well. Do
-  not clear them for a failed selection that falls back to the current engine
-  or for automatic MAME crash recovery.
+- Pos-without-edit MAME history is composed on the server for every browser
+  position transport, including Sync and reconnect. Keep the backend cache raw
+  and project only copies; never feed the composed PGN to Tutor or the engine.
+- First Move is ordinary browser navigation with no recovery or highlighting.
+  Sync must load a composed PGN even when its event says `play=newgame`.
+- Set Pos posts its selected prefix. The backend installs the preservation
+  snapshot when it accepts that position, not in the HTTP request handler.
+  Root Set Pos clears preservation. Read Game starts a new scope; recovery
+  incorporates the preceding prefix before creating its replacement snapshot.
+- Preserve the composed root FEN in browser headers when subsequent backend
+  header updates refer to the backend's later root. WATCHER receives explicit
+  relative navigation targets for the composed tree.
+- New Game, Scan and successful engine selection clear preserved history;
+  failed engine selection and automatic recovery must not discard it.
 
 ## Temporary ANALYSIS Return
 

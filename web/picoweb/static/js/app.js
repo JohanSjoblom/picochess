@@ -314,9 +314,8 @@ var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
 var webExploreBoardPolicyInitialized = false;
-var PRESERVED_MAME_HISTORY_KEY = 'picochess.preservedMameHistory.v1';
-var preservedMameHistory = null;
 var livePgnTreeActive = true;
+var webHistoryMerged = false;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
 var webAnalysisStopReasserted = false;
@@ -699,7 +698,6 @@ function updateSyncButtonAttention() {
 function setLivePgnTreeActive(active) {
     livePgnTreeActive = Boolean(active);
     updateSyncButtonAttention();
-    updateMameHistoryStartButton();
 }
 
 function syncToCurrentPicoLivePosition() {
@@ -751,135 +749,6 @@ function updateWebExploreButton() {
     updateSyncButtonAttention();
 }
 
-function mameHistoryReasonLabel(reason) {
-    var labels = {
-        set_position: 'Set Pos',
-        read_game: 'Read Game',
-        engine_recovery: 'Engine recovery'
-    };
-    return labels[reason] || 'MAME position setup';
-}
-
-function mameHistoryRestoreSupportedByCurrentEngine() {
-    var systemInfo = window._picoSystemInfo || {};
-    var capabilities = systemInfo.mame_capabilities || {};
-    return Boolean(
-        systemInfo.is_mame
-        && capabilities.position
-        && !capabilities.edit
-    );
-}
-
-function shouldOfferMameHistoryRestore() {
-    return Boolean(
-        livePgnTreeActive
-        && preservedMameHistory
-        && pgnTextHasMoves(preservedMameHistory.pgn)
-        && mameHistoryRestoreSupportedByCurrentEngine()
-    );
-}
-
-function updateMameHistoryStartButton() {
-    var btn = document.getElementById('startBtn');
-    if (!btn) {
-        return;
-    }
-    var available = shouldOfferMameHistoryRestore();
-    btn.classList.toggle('btn-warning', available);
-    btn.classList.toggle('btn-light', !available);
-    var title = available
-        ? 'Restore ' + mameHistoryReasonLabel(preservedMameHistory.reason) + ' history and go to first move'
-        : 'First move';
-    btn.title = title;
-    btn.setAttribute('aria-label', title);
-}
-
-function loadPreservedMameHistory() {
-    try {
-        var stored = window.sessionStorage.getItem(PRESERVED_MAME_HISTORY_KEY);
-        if (stored) {
-            var snapshot = JSON.parse(stored);
-            if (snapshot && snapshot.pgn) {
-                preservedMameHistory = snapshot;
-            }
-        }
-    } catch (error) {
-        console.warn('Could not load preserved MAME history:', error);
-    }
-    updateMameHistoryStartButton();
-}
-
-function clearPreservedMameHistory() {
-    preservedMameHistory = null;
-    try {
-        window.sessionStorage.removeItem(PRESERVED_MAME_HISTORY_KEY);
-    } catch (error) {
-        console.warn('Could not clear preserved MAME history:', error);
-    }
-    updateMameHistoryStartButton();
-}
-
-function storePreservedMameHistory(snapshot) {
-    if (!snapshot || !snapshot.pgn) {
-        return null;
-    }
-    preservedMameHistory = {
-        pgn: String(snapshot.pgn),
-        fen: String(snapshot.fen || ''),
-        reason: String(snapshot.reason || 'mame_rebase'),
-        savedAt: snapshot.savedAt || new Date().toISOString()
-    };
-    try {
-        window.sessionStorage.setItem(
-            PRESERVED_MAME_HISTORY_KEY,
-            JSON.stringify(preservedMameHistory)
-        );
-    } catch (error) {
-        // Keep the in-memory copy usable even when browser storage is unavailable.
-        console.warn('Could not persist preserved MAME history:', error);
-    }
-    updateMameHistoryStartButton();
-    return preservedMameHistory;
-}
-
-function shouldPreserveMameHistoryForSetPosition() {
-    return mameHistoryRestoreSupportedByCurrentEngine();
-}
-
-function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen) {
-    if (!shouldPreserveMameHistoryForSetPosition()
-        || !currentPosition
-        || !currentPosition.previous
-        || !pgnPrefix) {
-        return null;
-    }
-    return storePreservedMameHistory({
-        // Preserve only the line promoted by Set Pos. Moves after the selected
-        // node belong to the abandoned continuation and must not reappear when
-        // the browser restores this history for review.
-        pgn: pgnPrefix,
-        fen: selectedFen || currentPosition.fen || '',
-        reason: 'set_position'
-    });
-}
-
-function restorePreservedMameHistoryForReview() {
-    if (!shouldOfferMameHistoryRestore()) {
-        return false;
-    }
-    loadGame(preservedMameHistory.pgn.split('\n'), { livePgnTree: false });
-    if (!preservedMameHistory.fen
-        || !goToPosition(preservedMameHistory.fen, { redraw: false })) {
-        currentPosition = (fenHash && fenHash.last) || gameHistory;
-    }
-    setLivePgnTreeActive(false);
-    syncWebExploreFromCurrentPosition(false);
-    removeHighlights();
-    removeArrow();
-    updateChessGround();
-    updateStatus();
-    return true;
-}
 
 function fenWithoutEnPassant(fen) {
     var fields = String(fen || '').trim().split(/\s+/);
@@ -1687,6 +1556,7 @@ function addNewMove(m, current_position, fen, props) {
 
 function loadGame(pgn_lines, options) {
     options = options || {};
+    webHistoryMerged = Boolean(options.historyMerged);
     setLivePgnTreeActive(options.livePgnTree !== false);
     fenHash = {};
 
@@ -1938,6 +1808,7 @@ function download() {
 }
 
 function newBoard(fen) {
+    webHistoryMerged = false;
     setLivePgnTreeActive(true);
     resetWebExploreForPlayablePosition();
     stopAnalysis();
@@ -2087,13 +1958,11 @@ function setPositionFromCurrentPgn() {
     }
     var fen = node.fen;
     var pgnPrefix = buildPgnPrefixForNode(node);
-    var preservedSnapshot = preserveCurrentMameHistoryForSetPosition(pgnPrefix, fen);
     console.log('Setting position to FEN:', fen);
     return $.post('/channel', {
         action: 'set_position',
         fen: fen,
         pgn: pgnPrefix,
-        preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : '',
         uci960: chessGameType === 1 ? 'true' : 'false'
     }, function (data) {
         console.log('Position set response:', data);
@@ -2107,9 +1976,6 @@ function setPositionFromCurrentPgn() {
 window.setPicoPositionFromCurrentPgn = setPositionFromCurrentPgn;
 
 function goToStart() {
-    if (shouldOfferMameHistoryRestore()) {
-        restorePreservedMameHistoryForReview();
-    }
     removeHighlights();
     stopAnalysis();
     currentPosition = gameHistory;
@@ -2670,7 +2536,7 @@ function updateDGTPosition(data) {
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"));
+        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
@@ -2678,10 +2544,10 @@ function updateDGTPosition(data) {
         return;
     }
     if (data.pgn && !isSameGameAsPgn(data.pgn)) {
-        loadGame(data.pgn.split("\n"));
+        loadGame(data.pgn.split("\n"), { historyMerged: data.history_merged });
     }
     if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
-        loadGame(data['pgn'].split("\n"));
+        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
             // FEN than the server sent.  Force the board to show the server's FEN.
@@ -3426,7 +3292,7 @@ function goToDGTFen() {
     stopWebExploreMode(false);
     $.get('/dgt', { action: 'get_last_move' }, function (data) {
         if (data && data.fen) {
-            if (data.play === 'newgame') {
+            if (data.play === 'newgame' && !pgnTextHasMoves(data.pgn)) {
                 // Server is at a fresh game — reset board and move list together,
                 // same as the 'Game' WebSocket event handler does.
                 var savedHeader = gameHistory.gameHeader || '';
@@ -3470,6 +3336,18 @@ function setTitle(data) {
 
 // copied from loadGame()
 function setHeaders(data) {
+    // Backend header updates describe its fresh root. The displayed PGN keeps
+    // the original root of the composed history, including on reconnect.
+    if (data && webHistoryMerged) {
+        data = Object.assign({}, data);
+        if (setupBoardFen !== START_FEN) {
+            data.SetUp = '1';
+            data.FEN = setupBoardFen;
+        } else {
+            delete data.SetUp;
+            delete data.FEN;
+        }
+    }
     // Validar que data sea un objeto válido
     if (!data || typeof data !== 'object') {
         console.debug('setHeaders: data is not a valid object', data);
@@ -3514,7 +3392,6 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
-        updateMameHistoryStartButton();
         applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
@@ -3761,13 +3638,6 @@ $(function () {
             ws.onmessage = function (e) {
                 var data = JSON.parse(e.data);
                 switch (data.event) {
-                    case 'MameHistory':
-                        if (data.pgn) {
-                            storePreservedMameHistory(data);
-                        } else {
-                            clearPreservedMameHistory();
-                        }
-                        break;
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing
                         clearBrainHint();
@@ -3804,7 +3674,7 @@ $(function () {
                         clearBrainHint();
                         stopAnalysisClock();
                         if (pgnTextHasMoves(data.pgn)) {
-                            loadGame(data.pgn.split("\n"));
+                            loadGame(data.pgn.split("\n"), { historyMerged: data.history_merged });
                             if (!goToPosition(data.fen)) {
                                 forcePosition(data.fen);
                             }
@@ -3935,7 +3805,6 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
-                        updateMameHistoryStartButton();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
@@ -4053,7 +3922,6 @@ $(function () {
     });
     $('#sf18ToggleBtn').on('click', analyzePressed);
     $('#webExploreToggleBtn').on('click', toggleWebExploreMode);
-    loadPreservedMameHistory();
     applyPgnVariationVisibility();
     updateWebExploreButton();
 

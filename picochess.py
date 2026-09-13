@@ -2609,7 +2609,7 @@ async def main() -> None:
                 if t_best_mate:
                     l_mate = int(t_best_mate)
                     if t_best_move != chess.Move.null():
-                        game_tutor = self.state.game.copy()
+                        game_tutor = self.state.game.copy(stack=False)
                         san_move = game_tutor.san(t_best_move)
                         game_tutor.push(t_best_move)  # for picotalker (last move spoken)
                         tutor_str = "BEST" + san_move
@@ -2633,7 +2633,7 @@ async def main() -> None:
                     for alt_move in t_alt_best_moves:
                         l_max = l_max + 1
                         if l_max <= 3:
-                            game_tutor = self.state.game.copy()
+                            game_tutor = self.state.game.copy(stack=False)
                             san_move = game_tutor.san(alt_move)
                             game_tutor.push(alt_move)  # for picotalker (last move spoken)
 
@@ -2674,7 +2674,7 @@ async def main() -> None:
             self.state.last_hand_coach_move = best_move
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_" + piece_name))
             await asyncio.sleep(2)
-            game_tutor = self.state.game.copy()
+            game_tutor = self.state.game.copy(stack=False)
             san_move = game_tutor.san(best_move)
             game_tutor.push(best_move)
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor))
@@ -4134,7 +4134,7 @@ async def main() -> None:
                                 threat_move = chess.Move.null()
 
                             if threat_move != chess.Move.null():
-                                game_tutor = game_before.copy()
+                                game_tutor = game_before.copy(stack=False)
                                 game_tutor.push(move)
                                 san_move = game_tutor.san(threat_move)
                                 game_tutor.push(t_pv_user_move[1])  # 1st counter move
@@ -4144,7 +4144,7 @@ async def main() -> None:
                                 pending_picotutor_msgs.append((msg, 5.0))
 
                             if t_hint_move != chess.Move.null():
-                                game_tutor = game_before.copy()
+                                game_tutor = game_before.copy(stack=False)
                                 san_move = game_tutor.san(t_hint_move)
                                 game_tutor.push(t_hint_move)
                                 tutor_str = "HINT" + san_move

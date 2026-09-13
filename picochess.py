@@ -2422,6 +2422,7 @@ async def main() -> None:
                 await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
+            search_fen = self.state.get_fen()
             book_res = None
             if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
                 # Skip opening book for atomic/racingkings/antichess - non-standard rules
@@ -2436,7 +2437,14 @@ async def main() -> None:
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
             ):
-                await Observable.fire(Event.BEST_MOVE(move=book_res.move, ponder=book_res.ponder, inbook=True))
+                await Observable.fire(
+                    Event.BEST_MOVE(
+                        move=book_res.move,
+                        ponder=book_res.ponder,
+                        inbook=True,
+                        fen=search_fen,
+                    )
+                )
             else:
                 while not self.engine.is_waiting():
                     await asyncio.sleep(0.05)
@@ -2508,15 +2516,26 @@ async def main() -> None:
                                 # engine (Stockfish) finishes its move, so do it right here while
                                 # the info is fresh.
                                 await self.send_web_analysis([info], analysed_fen, "engine")
-                            await Observable.fire(Event.BEST_MOVE(move=move, ponder=ponder_move, inbook=False))
+                            await Observable.fire(
+                                Event.BEST_MOVE(
+                                    move=move,
+                                    ponder=ponder_move,
+                                    inbook=False,
+                                    fen=analysed_fen or search_fen,
+                                )
+                            )
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await self._cache_engine_abort_result()
-                        await Observable.fire(Event.BEST_MOVE(move=None, ponder=None, inbook=False))
+                        await Observable.fire(
+                            Event.BEST_MOVE(move=None, ponder=None, inbook=False, fen=search_fen)
+                        )
                 except Exception as e:
                     # most likely never reached, engine exceptions in UciEngine return None above
                     logger.error("fatal - engine failed to make a move %s", e)
-                    await Observable.fire(Event.BEST_MOVE(move=None, ponder=None, inbook=False))
+                    await Observable.fire(
+                        Event.BEST_MOVE(move=None, ponder=None, inbook=False, fen=search_fen)
+                    )
             # set state variables wait for computer move
             # @todo: should we add set self.state.done_computer_fen = None
             self.state.automatic_takeback = False
@@ -7267,6 +7286,16 @@ async def main() -> None:
                         )
 
             elif isinstance(event, Event.BEST_MOVE):
+                event_fen = getattr(event, "fen", None)
+                current_fen = self.state.get_fen()
+                if not analysis_event_matches_position(event_fen, current_fen):
+                    logger.info(
+                        "ignoring stale engine move [%s] for fen %s; live fen is %s",
+                        event.move,
+                        event_fen,
+                        current_fen,
+                    )
+                    return
                 self.state.flag_startup = False
                 self.state.take_back_locked = False
                 self.state.best_move_posted = False

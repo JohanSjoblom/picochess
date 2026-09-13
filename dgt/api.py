@@ -392,7 +392,9 @@ class Event:
     KEYBOARD_BUTTON = ClassFactory(EventApi.KEYBOARD_BUTTON, ["button", "dev"])
     KEYBOARD_FEN = ClassFactory(EventApi.KEYBOARD_FEN, ["fen"])
     # Engine events
-    BEST_MOVE = ClassFactory(EventApi.BEST_MOVE, ["move", "ponder", "inbook"])
+    # ``fen`` is optional for backward compatibility with older producers.
+    # Picochess supplies it so delayed engine results can be rejected safely.
+    BEST_MOVE = ClassFactory(EventApi.BEST_MOVE, ["move", "ponder", "inbook", "fen"])
     # ``fen`` is optional for backward compatibility with older producers.
     # Picochess supplies it so delayed analysis events can be rejected safely.
     NEW_PV = ClassFactory(EventApi.NEW_PV, ["pv", "fen"])

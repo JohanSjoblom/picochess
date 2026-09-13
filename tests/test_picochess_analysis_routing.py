@@ -127,6 +127,26 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 self.assertFalse(hasattr(event, "fen"))
                 self.assertTrue(analysis_event_matches_position(getattr(event, "fen", None), "current"))
 
+    def test_position_tagged_best_move_rejects_stale_position(self):
+        event = Event.BEST_MOVE(
+            move=chess.Move.from_uci("e7e5"),
+            ponder=None,
+            inbook=False,
+            fen="previous",
+        )
+
+        self.assertFalse(analysis_event_matches_position(event.fen, "current"))
+
+    def test_legacy_untagged_best_move_remains_compatible(self):
+        event = Event.BEST_MOVE(
+            move=chess.Move.from_uci("e7e5"),
+            ponder=None,
+            inbook=False,
+        )
+
+        self.assertFalse(hasattr(event, "fen"))
+        self.assertTrue(analysis_event_matches_position(getattr(event, "fen", None), "current"))
+
     def test_analysis_cycle_action_preserves_early_exit_side_effect_boundaries(self):
         cases = (
             (False, False, AnalysisCycleAction.CONTINUE),

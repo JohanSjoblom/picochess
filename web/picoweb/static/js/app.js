@@ -1094,7 +1094,7 @@ function WebExporter(columns) {
             this.write_token(String(fullmove_number) + ". ");
         }
         else if (variation_start) {
-            this.write_token(String(fullmove_number) + "... ");
+            this.write_token('<span class="variationResumeMoveNumber">' + String(fullmove_number) + '... </span>');
         }
     };
 

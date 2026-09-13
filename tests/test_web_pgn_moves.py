@@ -9,6 +9,29 @@ import unittest
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser JavaScript tests")
 class TestWebPgnMoves(unittest.TestCase):
+    def test_web_exporter_marks_black_move_number_after_variation(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function WebExporter(")
+        end = script.index("\nfunction PgnExporter(", start)
+        program = script[start:end] + "\nconst exporter = new WebExporter();\n" + (
+            "exporter.put_fullmove_number('b', 47, true);\n"
+            "console.log(exporter.toString());"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual(
+            '<span class="variationResumeMoveNumber">47... </span>',
+            result.stdout.strip(),
+        )
+
+        css = (Path(__file__).parents[1] / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
+        self.assertIn(
+            "#pgn.pgn-variations-hidden .variationResumeMoveNumber",
+            css,
+        )
+
     def test_move_detection_ignores_headers_and_comments(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function pgnTextHasMoves(")

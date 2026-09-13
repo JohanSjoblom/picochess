@@ -34,7 +34,8 @@ body {
 }
 
 #pgn.pgn-variations-hidden .gameVariation,
-#pgn.pgn-variations-hidden .gameComment {
+#pgn.pgn-variations-hidden .gameComment,
+#pgn.pgn-variations-hidden .variationResumeMoveNumber {
     display: none;
 }
 

@@ -3390,9 +3390,7 @@ async def main() -> None:
                 if self.state.set_position_ack_pending:
                     self.state.set_position_ack_pending = False
                     if not (self.state.position_mode and self.state.delay_fen_error == 1):
-                        await DisplayMsg.show(
-                            Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
-                        )
+                        await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="POSOK"))
                         await asyncio.sleep(1)
                 # molli: Chess tutor
                 if (
@@ -3418,7 +3416,7 @@ async def main() -> None:
                     if self.state.delay_fen_error == 1:
                         # position finally alright!
                         tutor_str = "POSOK"
-                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
+                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str)
                         await DisplayMsg.show(msg)
                         self.state.delay_fen_error = 4
                         await asyncio.sleep(1)
@@ -3897,7 +3895,7 @@ async def main() -> None:
                 self.reset_setpieces_window_switch()
                 if self.state.position_mode and self.state.delay_fen_error == 1:
                     tutor_str = "POSOK"
-                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
+                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str)
                     await DisplayMsg.show(msg)
                     await asyncio.sleep(1)
                     if not self.state.done_computer_fen:
@@ -3911,7 +3909,7 @@ async def main() -> None:
                     self.reset_setpieces_window_switch()
                     if self.state.position_mode and self.state.delay_fen_error == 1:
                         tutor_str = "POSOK"
-                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
+                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str)
                         await DisplayMsg.show(msg)
                         if not self.state.done_computer_fen:
                             await self.state.start_clock()
@@ -4547,9 +4545,7 @@ async def main() -> None:
                 self.state.fen_error_occured = False
                 self.state.position_mode = False
                 self.state.delay_fen_error = 4
-                await DisplayMsg.show(
-                    Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
-                )
+                await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="POSOK"))
                 await asyncio.sleep(1)
                 await DisplayMsg.show(Message.EXIT_MENU())
                 self.state.position_checkpoint_restore_pending = False
@@ -6558,7 +6554,7 @@ async def main() -> None:
                     await DisplayMsg.show(Message.WRONG_FEN())
                 else:
                     tutor_str = "POSOK"
-                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=self.state.game.copy())
+                    msg = Message.PICOTUTOR_MSG(eval_str=tutor_str)
                     await DisplayMsg.show(msg)
                     await asyncio.sleep(1)
 

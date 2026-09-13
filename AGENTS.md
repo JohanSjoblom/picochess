@@ -490,7 +490,9 @@ PGN loading has separate position, history, and mode rules:
 - Read Game applies the selected mainline moves for modern engines and MAME
   engines that report `edit`. For MAME with `pos` but without `edit`, it first
   calculates the requested final position and then makes that FEN a fresh live
-  root, keeping the backend, web client, Tutor, and engine stackless together.
+  root, keeping the backend, Tutor, and engine stackless together. The browser
+  may still receive the preserved prefix through the presentation-only history
+  projection described below.
 - Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
   readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
   normal python-chess-controlled command path.
@@ -506,6 +508,14 @@ PGN loading has separate position, history, and mode rules:
 - `web_history.py` projects that prefix plus the raw live PGN for browser
   transport only. Scope (game identity and rebase revision), matching root,
   variant and legal PGN validation guard the join. Keep backend caches raw.
+- Activate that projection only when the selected engine is MAME, supports
+  `pos`, lacks `edit`, and has a preserved snapshot in the current history
+  scope. For modern engines, edit-capable MAME engines, missing snapshots, or
+  stale game identity/revision, return the original raw message unchanged.
+- Treat the projected PGN as a browser presentation model only. The backend
+  starting position and move stack remain authoritative and must exactly match
+  the engine; never alter either one merely to reproduce the longer browser
+  history or its displayed move numbers.
 - The browser receives one live presentation tree. Only its current endpoint
   permits live move entry under the existing board authority rules; historical
   navigation remains review and Set Pos explicitly promotes a selected node.

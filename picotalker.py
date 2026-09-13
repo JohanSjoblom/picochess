@@ -54,6 +54,26 @@ NATIVE_STREAM_STARTUP_WAIT = 0.3
 SOX_PLAY_TIMEOUT = 12.0
 SOX_PLAY_KILL_TIMEOUT = 1.0
 REPLAYGAIN_TRACK_GAIN_RE = re.compile(rb"REPLAYGAIN_TRACK_GAIN=([+-]?\d+(?:\.\d+)?)\s*dB", re.IGNORECASE)
+WHITE_WIN_RESULTS = frozenset(
+    {
+        GameResult.WIN_WHITE,
+        GameResult.THREE_CHECK_WHITE,
+        GameResult.KOTH_WHITE,
+        GameResult.ATOMIC_WHITE,
+        GameResult.RK_WHITE,
+        GameResult.ANTICHESS_WHITE,
+    }
+)
+BLACK_WIN_RESULTS = frozenset(
+    {
+        GameResult.WIN_BLACK,
+        GameResult.THREE_CHECK_BLACK,
+        GameResult.KOTH_BLACK,
+        GameResult.ATOMIC_BLACK,
+        GameResult.RK_BLACK,
+        GameResult.ANTICHESS_BLACK,
+    }
+)
 
 
 class PicoTalker(object):
@@ -1038,14 +1058,14 @@ class PicoTalkerDisplay(DisplayMsg):
                 logger.debug("announcing GAME_ENDS/DRAW")
                 await self.talk(["draw.ogg"])
                 await self.comment("draw")
-            elif message.result == GameResult.WIN_WHITE:
+            elif message.result in WHITE_WIN_RESULTS:
                 logger.debug("announcing GAME_ENDS/WHITE_WIN")
                 await self.talk(["whitewins.ogg"])
                 if self.play_mode == PlayMode.USER_WHITE:
                     await self.comment("uwin")
                 else:
                     await self.comment("uloose")
-            elif message.result == GameResult.WIN_BLACK:
+            elif message.result in BLACK_WIN_RESULTS:
                 logger.debug("announcing GAME_ENDS/BLACK_WIN")
                 await self.talk(["blackwins.ogg"])
                 if self.play_mode == PlayMode.USER_BLACK:

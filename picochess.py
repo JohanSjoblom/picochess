@@ -492,6 +492,49 @@ def remote_move_matches_current_position(move: chess.Move, posted_fen: str | Non
     return posted_board_fen == expected.board_fen()
 
 
+def user_move_task_matches_position(
+    move: chess.Move,
+    expected_fen: str,
+    expected_revision: int,
+    board: chess.Board,
+    current_fen: str,
+    current_revision: int,
+    done_computer_fen: str | None,
+) -> bool:
+    """Return whether a delayed user-move handler still owns the live position."""
+    return bool(
+        done_computer_fen is None
+        and expected_revision == current_revision
+        and expected_fen == current_fen
+        and board.move_stack
+        and board.peek() == move
+    )
+
+
+def engine_move_event_matches_state(
+    event_fen: str | None,
+    current_fen: str,
+    event_search_revision: int | None,
+    current_search_revision: int,
+    done_computer_fen: str | None,
+) -> bool:
+    """Return whether an engine result still owns an unannounced live position."""
+    return bool(
+        done_computer_fen is None
+        and analysis_event_matches_position(event_fen, current_fen)
+        and (event_search_revision is None or event_search_revision == current_search_revision)
+    )
+
+
+def should_resume_clock_after_rejected_engine_move(
+    clock_was_running: bool,
+    clock_is_running: bool,
+    done_computer_fen: str | None,
+) -> bool:
+    """Resume only a clock this handler stopped and no newer announced move owns."""
+    return clock_was_running and not clock_is_running and done_computer_fen is None
+
+
 def user_move_pre_search_messages(
     user_move_message: Message,
     tutor_reveal_move: chess.Move | None = None,
@@ -657,9 +700,11 @@ class PicochessState:
         self.flag_startup = False
         self.game = None or chess.Board()
         self.engine_move_was_book = False
+        self.engine_search_revision = 0
         self.game_declared = False  # User declared resignation or draw
         self.game_started = False  # Lifecycle flag: true once play has started, even after takeback to move 0.
         self.interaction_mode = Mode.NORMAL
+        self.user_move_revision = 0
         self.last_legal_fens: list[Any] = []
         self.last_move = None
         self.legal_fens: list[Any] = []
@@ -2458,6 +2503,7 @@ async def main() -> None:
             msg: Message | None,
             searchlist=False,
             tutor_reveal_move: chess.Move | None = None,
+            user_move_owner: tuple[chess.Move, str, int] | None = None,
         ):
             """
             Start a new search on the current game.
@@ -2467,14 +2513,38 @@ async def main() -> None:
             ``msg`` may be None when the caller already emitted the move and any
             related pre-search display messages.
             """
+            self.state.engine_search_revision += 1
+            search_revision = self.state.engine_search_revision
             await self._apply_pending_mame_recovery_rebase()
+            if search_revision != self.state.engine_search_revision:
+                logger.info("skipping superseded engine search revision %s", search_revision)
+                return
             self._set_game_started(True)
             if msg is not None:
                 await DisplayMsg.show(msg)
             if tutor_reveal_move is not None:
                 await DisplayMsg.show(Message.TUTOR_MOVE_REVEAL(move=tutor_reveal_move))
+            if search_revision != self.state.engine_search_revision:
+                logger.info("skipping superseded engine search revision %s", search_revision)
+                return
+            if user_move_owner is not None:
+                owner_move, owner_fen, owner_revision = user_move_owner
+                if not user_move_task_matches_position(
+                    owner_move,
+                    owner_fen,
+                    owner_revision,
+                    self.state.game,
+                    self.state.get_fen(),
+                    self.state.user_move_revision,
+                    self.state.done_computer_fen,
+                ):
+                    logger.info("skipping obsolete search after user move [%s]", owner_move)
+                    return
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 await self.state.start_clock()
+            if search_revision != self.state.engine_search_revision:
+                logger.info("skipping superseded engine search revision %s", search_revision)
+                return
             search_fen = self.state.get_fen()
             book_res = None
             if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
@@ -2490,12 +2560,16 @@ async def main() -> None:
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
             ):
+                if search_revision != self.state.engine_search_revision:
+                    logger.info("skipping superseded book search revision %s", search_revision)
+                    return
                 await Observable.fire(
                     Event.BEST_MOVE(
                         move=book_res.move,
                         ponder=book_res.ponder,
                         inbook=True,
                         fen=search_fen,
+                        search_revision=search_revision,
                     )
                 )
             else:
@@ -2523,6 +2597,9 @@ async def main() -> None:
                         variant_board = self.state._racingkings_board.copy()
                     elif self.state.variant == "antichess" and self.state._antichess_board is not None:
                         variant_board = self.state._antichess_board.copy()
+                    if search_revision != self.state.engine_search_revision:
+                        logger.info("skipping superseded engine search revision %s", search_revision)
+                        return
                     await self.engine.go(
                         time_dict=uci_dict,
                         game=self.state.game,
@@ -2575,19 +2652,32 @@ async def main() -> None:
                                     ponder=ponder_move,
                                     inbook=False,
                                     fen=analysed_fen or search_fen,
+                                    search_revision=search_revision,
                                 )
                             )
                     else:
                         logger.error("Engine returned Exception when asked to make a move")
                         await self._cache_engine_abort_result()
                         await Observable.fire(
-                            Event.BEST_MOVE(move=None, ponder=None, inbook=False, fen=search_fen)
+                            Event.BEST_MOVE(
+                                move=None,
+                                ponder=None,
+                                inbook=False,
+                                fen=search_fen,
+                                search_revision=search_revision,
+                            )
                         )
                 except Exception as e:
                     # most likely never reached, engine exceptions in UciEngine return None above
                     logger.error("fatal - engine failed to make a move %s", e)
                     await Observable.fire(
-                        Event.BEST_MOVE(move=None, ponder=None, inbook=False, fen=search_fen)
+                        Event.BEST_MOVE(
+                            move=None,
+                            ponder=None,
+                            inbook=False,
+                            fen=search_fen,
+                            search_revision=search_revision,
+                        )
                     )
             # set state variables wait for computer move
             # @todo: should we add set self.state.done_computer_fen = None
@@ -4067,6 +4157,31 @@ async def main() -> None:
                     self.state.error_fen = fen
                     self.start_fen_timer()
 
+        async def _think_after_current_user_move(
+            self,
+            move: chess.Move,
+            expected_fen: str,
+            expected_revision: int,
+            message: Message | None,
+        ) -> bool:
+            """Start a search only while the requesting user-move task still owns the position."""
+            if not user_move_task_matches_position(
+                move,
+                expected_fen,
+                expected_revision,
+                self.state.game,
+                self.state.get_fen(),
+                self.state.user_move_revision,
+                self.state.done_computer_fen,
+            ):
+                logger.info("skipping obsolete search after user move [%s]", move)
+                return False
+            await self.think(
+                message,
+                user_move_owner=(move, expected_fen, expected_revision),
+            )
+            return True
+
         async def user_move(self, move: chess.Move, sliding: bool) -> bool:
             """Handle an user move."""
 
@@ -4210,6 +4325,9 @@ async def main() -> None:
                 # but none of the preceding move history.
                 game_before = self.state.game.copy(stack=False)
                 self.state.push_move(move)  # this is where user move is made
+                self.state.user_move_revision += 1
+                user_move_revision = self.state.user_move_revision
+                user_move_fen = self.state.get_fen()
                 self._set_game_started(True)
                 self._update_variant_shared()
                 logger.debug("user did a move for user")
@@ -4326,7 +4444,9 @@ async def main() -> None:
                         if self.online_mode():
                             logger.info("starting think()")
                             await self._deliver_picotutor_messages(pending_picotutor_msgs)
-                            await self.think(msg)
+                            await self._think_after_current_user_move(
+                                move, user_move_fen, user_move_revision, msg
+                            )
                         elif self.emulation_mode():
                             await DisplayMsg.show(msg)
                             await self._deliver_picotutor_messages(pending_picotutor_msgs)
@@ -4365,7 +4485,9 @@ async def main() -> None:
                                             msg, tutor_reveal_move
                                         )
                                         await self._deliver_picotutor_messages(pending_picotutor_msgs)
-                                        await self.think(None)
+                                        await self._think_after_current_user_move(
+                                            move, user_move_fen, user_move_revision, None
+                                        )
                                     else:
                                         logger.debug("skipping think() after takeback debounce: user turn")
                         else:
@@ -4379,7 +4501,9 @@ async def main() -> None:
                                     msg, tutor_reveal_move
                                 )
                                 await self._deliver_picotutor_messages(pending_picotutor_msgs)
-                                await self.think(None)
+                                await self._think_after_current_user_move(
+                                    move, user_move_fen, user_move_revision, None
+                                )
                             else:
                                 logger.debug("skipping think() after takeback debounce: user turn")
 
@@ -7460,10 +7584,17 @@ async def main() -> None:
 
             elif isinstance(event, Event.BEST_MOVE):
                 event_fen = getattr(event, "fen", None)
+                event_search_revision = getattr(event, "search_revision", None)
                 current_fen = self.state.get_fen()
-                if not analysis_event_matches_position(event_fen, current_fen):
+                if not engine_move_event_matches_state(
+                    event_fen,
+                    current_fen,
+                    event_search_revision,
+                    self.state.engine_search_revision,
+                    self.state.done_computer_fen,
+                ):
                     logger.info(
-                        "ignoring stale engine move [%s] for fen %s; live fen is %s",
+                        "ignoring stale or duplicate engine move [%s] for fen %s; live fen is %s",
                         event.move,
                         event_fen,
                         current_fen,
@@ -7478,7 +7609,23 @@ async def main() -> None:
                 if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     if self.state.is_not_user_turn():
                         # clock must be stopped BEFORE the "book_move" event cause SetNRun resets the clock display
+                        clock_was_running = self.state.time_control.internal_running()
                         await self.state.stop_clock()
+                        if not engine_move_event_matches_state(
+                            event_fen,
+                            self.state.get_fen(),
+                            event_search_revision,
+                            self.state.engine_search_revision,
+                            self.state.done_computer_fen,
+                        ):
+                            logger.info("engine move [%s] became stale while stopping the clock", event.move)
+                            if should_resume_clock_after_rejected_engine_move(
+                                clock_was_running,
+                                self.state.time_control.internal_running(),
+                                self.state.done_computer_fen,
+                            ):
+                                await self.state.start_clock()
+                            return
                         self.state.best_move_posted = True
                         # @todo 8/8/R6P/1R6/7k/2B2K1p/8/8 and sliding Ra6 over a5 to a4 - handle this in correct way!!
                         if self.state.game.is_game_over() and not self.online_mode():
@@ -7784,6 +7931,21 @@ async def main() -> None:
                             )
                         else:
                             # normal computer move
+                            if not engine_move_event_matches_state(
+                                event_fen,
+                                self.state.get_fen(),
+                                event_search_revision,
+                                self.state.engine_search_revision,
+                                self.state.done_computer_fen,
+                            ):
+                                logger.info("engine move [%s] became stale before publication", event.move)
+                                if should_resume_clock_after_rejected_engine_move(
+                                    clock_was_running,
+                                    self.state.time_control.internal_running(),
+                                    self.state.done_computer_fen,
+                                ):
+                                    await self.state.start_clock()
+                                return
                             if event.inbook:
                                 await DisplayMsg.show(Message.BOOK_MOVE())
                             self.state.searchmoves.exclude(event.move)

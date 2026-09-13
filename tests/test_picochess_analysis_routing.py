@@ -1,10 +1,14 @@
+import ast
 import unittest
 from itertools import product
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 import chess.variant
+
+import picochess
 
 from dgt.api import Event, Message
 from dgt.util import Mode
@@ -22,6 +26,7 @@ from picochess import (
     decide_game_end_analysis_stop,
     decide_tutor_analysis,
     depth_gated_analysis_info,
+    engine_move_event_matches_state,
     loaded_pgn_interaction_mode,
     localize_web_san,
     mame_requires_fresh_fen_root,
@@ -39,6 +44,7 @@ from picochess import (
     should_reject_user_move_after_game_end,
     should_process_sliding_move,
     should_resume_game_after_takeback,
+    should_resume_clock_after_rejected_engine_move,
     should_load_pgn_moves,
     should_preserve_loaded_pgn_history,
     should_preserve_set_position_history,
@@ -47,6 +53,7 @@ from picochess import (
     setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
+    user_move_task_matches_position,
     web_analysis_payload,
 )
 
@@ -160,9 +167,11 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
             ponder=None,
             inbook=False,
             fen="previous",
+            search_revision=3,
         )
 
         self.assertFalse(analysis_event_matches_position(event.fen, "current"))
+        self.assertEqual(3, event.search_revision)
 
     def test_legacy_untagged_best_move_remains_compatible(self):
         event = Event.BEST_MOVE(
@@ -172,7 +181,44 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         )
 
         self.assertFalse(hasattr(event, "fen"))
+        self.assertFalse(hasattr(event, "search_revision"))
         self.assertTrue(analysis_event_matches_position(getattr(event, "fen", None), "current"))
+
+    def test_user_move_task_requires_position_revision_and_no_pending_engine_move(self):
+        board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        board.push(move)
+        current_fen = board.fen()
+
+        self.assertTrue(
+            user_move_task_matches_position(move, current_fen, 1, board, current_fen, 1, None)
+        )
+        self.assertFalse(
+            user_move_task_matches_position(move, current_fen, 1, board, current_fen, 2, None)
+        )
+        self.assertFalse(
+            user_move_task_matches_position(move, current_fen, 1, board, current_fen, 1, "pending")
+        )
+
+        board.pop()
+        board.push(move)
+        self.assertFalse(user_move_task_matches_position(move, current_fen, 1, board, board.fen(), 2, None))
+
+    def test_engine_move_event_requires_latest_search_and_no_pending_move(self):
+        self.assertTrue(engine_move_event_matches_state("current", "current", 4, 4, None))
+        self.assertFalse(engine_move_event_matches_state("current", "current", 3, 4, None))
+        self.assertFalse(engine_move_event_matches_state("previous", "current", 4, 4, None))
+        self.assertFalse(engine_move_event_matches_state("current", "current", 4, 4, "pending"))
+
+    def test_legacy_engine_move_revision_remains_compatible(self):
+        self.assertTrue(engine_move_event_matches_state(None, "current", None, 4, None))
+
+    def test_rejected_engine_move_only_resumes_unclaimed_stopped_clock(self):
+        self.assertTrue(should_resume_clock_after_rejected_engine_move(True, False, None))
+        self.assertFalse(should_resume_clock_after_rejected_engine_move(False, False, None))
+        self.assertFalse(should_resume_clock_after_rejected_engine_move(True, True, None))
+        self.assertFalse(should_resume_clock_after_rejected_engine_move(True, False, "pending"))
+
 
     def test_analysis_cycle_action_preserves_early_exit_side_effect_boundaries(self):
         cases = (
@@ -1061,3 +1107,68 @@ class TestPicochessAlternativeTutorRollback(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(valid)
         picotutor.pop_last_move.assert_awaited_once_with(board)
         resync.assert_awaited_once_with()
+
+
+class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "_think_after_current_user_move"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "SearchOwnerController",
+            (),
+            {"_think_after_current_user_move": namespace["_think_after_current_user_move"]},
+        )
+        self.controller = controller_type()
+        self.controller.think = AsyncMock()
+        self.board = chess.Board()
+        self.move = chess.Move.from_uci("e2e4")
+        self.board.push(self.move)
+        self.controller.state = SimpleNamespace(
+            game=self.board,
+            get_fen=self.board.fen,
+            user_move_revision=1,
+            done_computer_fen=None,
+        )
+
+    async def test_current_user_move_starts_exactly_one_search(self):
+        started = await self.controller._think_after_current_user_move(
+            self.move, self.board.fen(), 1, None
+        )
+
+        self.assertTrue(started)
+        self.controller.think.assert_awaited_once_with(
+            None,
+            user_move_owner=(self.move, self.board.fen(), 1),
+        )
+
+    async def test_replayed_same_move_invalidates_old_task(self):
+        original_fen = self.board.fen()
+        self.board.pop()
+        self.board.push(self.move)
+        self.controller.state.user_move_revision = 2
+
+        started = await self.controller._think_after_current_user_move(
+            self.move, original_fen, 1, None
+        )
+
+        self.assertFalse(started)
+        self.controller.think.assert_not_awaited()
+
+    async def test_pending_engine_move_invalidates_delayed_user_task(self):
+        self.controller.state.done_computer_fen = "pending"
+
+        started = await self.controller._think_after_current_user_move(
+            self.move, self.board.fen(), 1, None
+        )
+
+        self.assertFalse(started)
+        self.controller.think.assert_not_awaited()

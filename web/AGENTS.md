@@ -323,6 +323,11 @@ explicitly requires it.
 - Pos-without-edit MAME history is composed on the server for every browser
   position transport, including Sync and reconnect. Keep the backend cache raw
   and project only copies; never feed the composed PGN to Tutor or the engine.
+- Require all projection guards together: the selected engine is MAME with
+  `pos` and without `edit`, a preserved snapshot exists, and its game identity
+  and rebase revision match the current history scope. Otherwise deliver the
+  original raw PGN unchanged so modern and edit-capable engine behavior cannot
+  be affected by this feature.
 - First Move is ordinary browser navigation with no recovery or highlighting.
   Sync must load a composed PGN even when its event says `play=newgame`.
 - Set Pos posts its selected prefix. The backend installs the preservation

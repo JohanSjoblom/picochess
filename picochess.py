@@ -1472,16 +1472,11 @@ def compute_legal_fens(game: chess.Board, variant_board=None):
     return fens
 
 
-def stackless_board_after_move(board: chess.Board, move: chess.Move) -> chess.Board:
-    """Return a same-type board advanced one move without earlier history."""
-    preview = board.copy(stack=False)
-    preview.push(move)
-    return preview
-
-
 def board_fen_after_move(board: chess.Board, move: chess.Move) -> str:
     """Return the piece placement after a move without copying move history."""
-    return stackless_board_after_move(board, move).board_fen()
+    preview = board.copy(stack=False)
+    preview.push(move)
+    return preview.board_fen()
 
 
 def previous_position_matching_board_fen(
@@ -3129,7 +3124,8 @@ async def main() -> None:
             vb = self.state.get_variant_board()
             vb_after = None
             if vb is not None:
-                vb_after = stackless_board_after_move(vb, move)
+                vb_after = vb.copy()
+                vb_after.push(move)
             self.state.done_computer_fen = vb_after.board_fen() if vb_after is not None else game_copy.board_fen()
             self.state.done_move = move
             self.state.pb_move = pb_move
@@ -5960,10 +5956,14 @@ async def main() -> None:
                     )
                 )
                 # set state variables as waiting for the move to be done on the eboard
-                self.state.done_computer_fen = board_fen_after_move(
-                    self.state.get_move_check_board(),
-                    next_move,
-                )
+                game_copy.push(next_move)
+                # For atomic variant, use atomic board to get FEN with explosions applied
+                if self.state.variant == "atomic" and self.state._atomic_board is not None:
+                    atomic_copy = self.state._atomic_board.copy()
+                    atomic_copy.push(next_move)
+                    self.state.done_computer_fen = atomic_copy.board_fen()
+                else:
+                    self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
                 self.state.done_move = next_move  # expected move
 
         def game_end_event(self):

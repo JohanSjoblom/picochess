@@ -33,7 +33,6 @@ from picochess import (
     selected_engine_analysis_multipv,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
-    stackless_board_after_move,
     should_reject_user_move_after_game_end,
     should_process_sliding_move,
     should_resume_game_after_takeback,
@@ -139,21 +138,6 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertEqual(expected.board_fen(), board_fen_after_move(game, move))
         self.assertEqual([], game.move_stack)
-
-    def test_variant_move_preview_preserves_type_and_only_preview_move(self):
-        game = chess.variant.ThreeCheckBoard()
-        game.push_uci("e2e4")
-        game.push_uci("e7e5")
-        move = chess.Move.from_uci("g1f3")
-        expected = game.copy(stack=True)
-        expected.push(move)
-
-        preview = stackless_board_after_move(game, move)
-
-        self.assertIsInstance(preview, chess.variant.ThreeCheckBoard)
-        self.assertEqual(expected.fen(), preview.fen())
-        self.assertEqual([move], preview.move_stack)
-        self.assertEqual(2, len(game.move_stack))
 
     def test_legacy_untagged_analysis_events_remain_compatible(self):
         legacy_events = (

@@ -2934,9 +2934,7 @@ async def main() -> None:
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.position_mode = False
-            await DisplayMsg.show(
-                Message.PICOTUTOR_MSG(eval_str="POSOK", game=self.state.game.copy())
-            )
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="POSOK"))
             await asyncio.sleep(1)
 
         async def switch_artwork_window(self):

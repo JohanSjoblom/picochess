@@ -93,6 +93,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
 
         async def on_ok(message):
             self.assertEqual("POSOK", message.eval_str)
+            self.assertFalse(hasattr(message, "game"))
             await self.controller.process_fen(moved.board_fen(), self.state)
             await self.controller._finish_set_position_ack(self.target)
 

@@ -150,8 +150,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("fields[3] = '-'", script)
         self.assertIn("current_position.fen = setupBoardFen", script)
         self.assertIn("fenHash[setupBoardFen] = current_position", script)
-        self.assertIn('base.css?v=11', template)
-        self.assertIn('app.js?v=17', template)
+        self.assertIn('base.css?v=12', template)
+        self.assertIn('app.js?v=18', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

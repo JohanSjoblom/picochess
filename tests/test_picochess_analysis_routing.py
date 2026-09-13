@@ -219,7 +219,6 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertFalse(should_resume_clock_after_rejected_engine_move(True, True, None))
         self.assertFalse(should_resume_clock_after_rejected_engine_move(True, False, "pending"))
 
-
     def test_analysis_cycle_action_preserves_early_exit_side_effect_boundaries(self):
         cases = (
             (False, False, AnalysisCycleAction.CONTINUE),

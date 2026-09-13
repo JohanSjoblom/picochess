@@ -32,6 +32,7 @@ from picochess import (
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
+    should_process_sliding_move,
     should_resume_game_after_takeback,
     should_load_pgn_moves,
     should_preserve_loaded_pgn_history,
@@ -741,6 +742,33 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 interaction_mode=Mode.NORMAL,
                 game_declared=False,
                 game_ending="*",
+            )
+        )
+
+    def test_sliding_move_cannot_mutate_ended_playing_game(self):
+        self.assertFalse(
+            should_process_sliding_move(
+                interaction_mode=Mode.NORMAL,
+                game_declared=False,
+                game_ending="1-0",
+            )
+        )
+
+    def test_sliding_move_remains_available_during_active_game(self):
+        self.assertTrue(
+            should_process_sliding_move(
+                interaction_mode=Mode.NORMAL,
+                game_declared=False,
+                game_ending="*",
+            )
+        )
+
+    def test_non_playing_mode_keeps_sliding_after_game_end(self):
+        self.assertTrue(
+            should_process_sliding_move(
+                interaction_mode=Mode.ANALYSIS,
+                game_declared=True,
+                game_ending="1-0",
             )
         )
 

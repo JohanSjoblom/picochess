@@ -350,6 +350,17 @@ def should_reject_user_move_after_game_end(
     return bool(game_declared) or (game_ending or "*") != "*"
 
 
+def should_process_sliding_move(
+    interaction_mode: Mode, game_declared: bool, game_ending: str | None
+) -> bool:
+    """Return whether sliding detection may alter the current game."""
+    return not should_reject_user_move_after_game_end(
+        interaction_mode,
+        game_declared,
+        game_ending,
+    )
+
+
 def should_resume_game_after_takeback(
     game_over: bool, game_declared: bool, game_ending: str | None
 ) -> bool:
@@ -3457,7 +3468,11 @@ async def main() -> None:
                     await self.switch_artwork_window()
                 self.reset_setpieces_window_switch()
             # Check if we have to undo a previous move (sliding)
-            elif fen in self.state.last_legal_fens:
+            elif fen in self.state.last_legal_fens and should_process_sliding_move(
+                self.state.interaction_mode,
+                self.state.game_declared,
+                ModeInfo.get_game_ending(),
+            ):
                 logger.info("sliding move detected")
                 if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                     if self.state.is_not_user_turn():

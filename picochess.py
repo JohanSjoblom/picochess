@@ -2613,7 +2613,7 @@ async def main() -> None:
                         san_move = game_tutor.san(t_best_move)
                         game_tutor.push(t_best_move)  # for picotalker (last move spoken)
                         tutor_str = "BEST" + san_move
-                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
+                        msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                         await DisplayMsg.show(msg)
                         await asyncio.sleep(5)
                 else:
@@ -2638,7 +2638,7 @@ async def main() -> None:
                             game_tutor.push(alt_move)  # for picotalker (last move spoken)
 
                             tutor_str = "BEST" + san_move
-                            msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
+                            msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                             await DisplayMsg.show(msg)
                             await asyncio.sleep(5)
                         else:
@@ -2677,7 +2677,7 @@ async def main() -> None:
             game_tutor = self.state.game.copy()
             san_move = game_tutor.san(best_move)
             game_tutor.push(best_move)
-            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor.copy()))
+            await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor))
 
         def _piece_type_name(self, piece_type: chess.PieceType | None) -> str:
             return {
@@ -4140,7 +4140,7 @@ async def main() -> None:
                                 game_tutor.push(t_pv_user_move[1])  # 1st counter move
 
                                 tutor_str = "THREAT" + san_move
-                                msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
+                                msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                                 pending_picotutor_msgs.append((msg, 5.0))
 
                             if t_hint_move != chess.Move.null():
@@ -4148,7 +4148,7 @@ async def main() -> None:
                                 san_move = game_tutor.san(t_hint_move)
                                 game_tutor.push(t_hint_move)
                                 tutor_str = "HINT" + san_move
-                                msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor.copy())
+                                msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                                 pending_picotutor_msgs.append((msg, 5.0))
 
                     if self.state.game.fullmove_number < 1:

@@ -87,6 +87,7 @@ from server import (
     publish_preserved_mame_history,
 )
 from picotalker import PicoTalkerDisplay
+from web_history import history_scope
 from dispatcher import Dispatcher
 
 from dgt.api import Message, Event
@@ -2687,7 +2688,7 @@ async def main() -> None:
                 )
 
         def preserve_mame_history_for_web(self, game_or_board, selected_fen: str, reason: str) -> None:
-            """Publish a pos-only MAME recovery point for browser Explore."""
+            """Preserve the prefix used to compose outgoing browser history."""
             try:
                 pgn_text = mame_history_snapshot_pgn(
                     game_or_board,
@@ -2695,7 +2696,7 @@ async def main() -> None:
                 )
                 publish_preserved_mame_history(self.shared, pgn_text, selected_fen, reason)
             except Exception:
-                logger.exception("failed to preserve MAME history for web Explore: reason=%s", reason)
+                logger.exception("failed to preserve MAME browser history: reason=%s", reason)
 
         def pgn_mode(self):
             if "pgn_" in self.state.engine_file:
@@ -5156,6 +5157,7 @@ async def main() -> None:
             if l_game_pgn is None:
                 logger.warning("No PGN game found in %s", l_filename)
                 return
+            clear_preserved_mame_history(self.shared)
             loaded_pgn_has_variations = pgn_has_variations(l_game_pgn)
             self.state.loaded_pgn_has_variations = loaded_pgn_has_variations
             replay_regeneration_override = self.state.pgn_replay_tutor_regeneration_override
@@ -5466,6 +5468,7 @@ async def main() -> None:
                     "play": "reload",
                     "variant": self.shared.get("variant", "chess"),
                     "mistakes": pgn_variation_review_points(l_game_pgn),
+                    "history_scope": dict(history_scope(self.shared)),
                 }
                 self.shared["last_dgt_move_msg"] = result
                 EventHandler.write_to_clients(result)
@@ -6341,6 +6344,13 @@ async def main() -> None:
                 )
                 if not preserve_history:
                     logger.info("MAME Set Pos: edit unsupported; using selected FEN as a fresh game root")
+                # Install presentation history only when the setup transaction
+                # actually installs its board, never while the HTTP request is
+                # merely queued. The validated event prefix is authoritative.
+                if not preserve_history and event_game is not None and event_game.move_stack:
+                    self.preserve_mame_history_for_web(event_game, event.fen, "set_position")
+                else:
+                    clear_preserved_mame_history(self.shared)
                 self.state.game = setup_position_game(
                     event.fen,
                     uci960,

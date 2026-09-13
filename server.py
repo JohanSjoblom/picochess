@@ -31,6 +31,7 @@ from collections import OrderedDict
 from typing import Set
 import asyncio
 import platform
+from web_history import history_scope, reset_history, preserve, project_message
 
 import chess  # type: ignore
 import chess.pgn as pgn  # type: ignore
@@ -134,26 +135,24 @@ def mame_set_position_is_engine_turn(shared: dict) -> bool:
 
 
 def publish_preserved_mame_history(shared: dict, pgn_text: str, selected_fen: str, reason: str) -> bool:
-    """Cache and publish a PGN that is about to be rebased for a pos-only MAME."""
+    """Install a prefix for outgoing browser PGNs before a pos-only MAME rebase."""
     pgn_text = str(pgn_text or "").strip()
     if not pgn_text:
         return False
-    snapshot = {
-        "event": "MameHistory",
-        "pgn": pgn_text,
-        "fen": str(selected_fen or "").strip(),
-        "reason": str(reason or "mame_rebase"),
-    }
-    shared["preserved_mame_history"] = snapshot
-    logger.info("preserving MAME history for web Explore restore: reason=%s", snapshot["reason"])
-    EventHandler.write_to_clients(snapshot)
+    try:
+        snapshot = preserve(shared, pgn_text, selected_fen, reason)
+    except (ValueError, TypeError):
+        logger.warning("invalid MAME history snapshot: reason=%s", reason)
+        reset_history(shared)
+        return False
+    logger.info("preserving MAME history for browser PGNs: reason=%s", snapshot["reason"])
     return True
 
 
 def clear_preserved_mame_history(shared: dict) -> bool:
-    """Discard obsolete browser restore history and notify every client."""
-    removed = shared.pop("preserved_mame_history", None) is not None
-    EventHandler.write_to_clients({"event": "MameHistory", "pgn": ""})
+    """Discard obsolete presentation history and invalidate the previous scope."""
+    removed = "preserved_mame_history" in shared
+    reset_history(shared)
     return removed
 
 
@@ -1117,7 +1116,6 @@ class ChannelHandler(ServerRequestHandler):
             try:
                 fen = self.get_argument("fen").strip()
                 pgn_prefix = self.get_argument("pgn", "").strip()
-                preserved_pgn = self.get_argument("preserved_pgn", "").strip()
                 uci960_hint = _truthy_web_arg(self.get_argument("uci960", "false"))
                 if pgn_prefix:
                     bit_board, uci960_enabled = _board_from_web_pgn_prefix(pgn_prefix, fen, uci960_hint)
@@ -1127,19 +1125,6 @@ class ChannelHandler(ServerRequestHandler):
                     event_game = None
 
                 logger.info("Setting position from web client: %s", bit_board.fen())
-                if mame_history_will_be_rebased(self.shared):
-                    if preserved_pgn:
-                        publish_preserved_mame_history(
-                            self.shared,
-                            preserved_pgn,
-                            fen,
-                            "set_position",
-                        )
-                    elif pgn_prefix and not bit_board.move_stack:
-                        # Set Pos from the restored root starts a genuinely new
-                        # line. Do not let First Move resurrect the abandoned
-                        # history after moves have been played from that root.
-                        clear_preserved_mame_history(self.shared)
                 await Observable.fire(
                     Event.SETUP_POSITION(fen=bit_board.fen(), uci960=uci960_enabled, game=event_game)
                 )
@@ -1803,7 +1788,7 @@ class EventHandler(WebSocketHandler):
         # Sync newly connected client with last known board state, if available.
         if self.shared and "last_dgt_move_msg" in self.shared:
             try:
-                self.write_message(self.shared["last_dgt_move_msg"])
+                self.write_message(project_message(self.shared, self.shared["last_dgt_move_msg"]))
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync board state to client: %s", exc)
         # The cached board message may contain PGN headers from before an engine
@@ -1814,14 +1799,6 @@ class EventHandler(WebSocketHandler):
                 self.write_message({"event": "Header", "headers": dict(self.shared["headers"])})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync headers to client: %s", exc)
-        if self.shared is not None:
-            try:
-                snapshot = self.shared.get("preserved_mame_history")
-                self.write_message(
-                    dict(snapshot) if snapshot else {"event": "MameHistory", "pgn": ""}
-                )
-            except Exception as exc:  # pragma: no cover - websocket errors
-                logger.warning("failed to sync preserved MAME history to client: %s", exc)
         # If the engine has suggested a move not yet confirmed on the board, send the
         # arrow so this new client shows the same hint as already-connected clients.
         if self.shared and "pending_computer_move" in self.shared:
@@ -1865,7 +1842,7 @@ class EventHandler(WebSocketHandler):
     def write_to_clients(cls, msg):
         """This is the main event loop message producer for WebDisplay and WebVR"""
         for client in cls.clients:
-            client.write_message(msg)
+            client.write_message(project_message(client.shared or {}, msg))
 
 
 class DGTHandler(ServerRequestHandler):
@@ -1881,7 +1858,7 @@ class DGTHandler(ServerRequestHandler):
                         result["mistakes"] = picotutor.get_eval_mistakes()
                     except Exception as exc:  # pragma: no cover - defensive for UI
                         logger.debug("failed to collect tutor mistakes: %s", exc)
-                self.write(result)
+                self.write(project_message(self.shared, result))
             else:
                 self.write({})
 
@@ -3226,6 +3203,7 @@ class WebDisplay(DisplayMsg):
 
     async def task(self, message):
         """Message task consumer for WebDisplay messages"""
+        message_history_scope = dict(history_scope(self.shared))
 
         def _set_normal_pgn():
             if self.shared["system_info"].get("old_engine", "") != "":
@@ -3328,6 +3306,7 @@ class WebDisplay(DisplayMsg):
             """Attach 3check variant info to result dict for web clients."""
             variant = self.shared.get("variant", "chess")
             result["variant"] = variant
+            result.setdefault("history_scope", message_history_scope)
             if variant == "3check":
                 result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
 

@@ -3,6 +3,6 @@ mypy
 mock
 pylama
 pyflakes
-# Pylama still imports pkg_resources; keep that legacy API available until the
-# lint tooling is upgraded.
+pytest
+# Pylama 8.4.1 imports pkg_resources; keep that legacy API available.
 setuptools<81

@@ -37,6 +37,7 @@ from server import (
     _engine_menu_payload,
     _apply_engine_menu_sort,
     _mode_text,
+    mame_set_position_is_engine_turn,
     clear_preserved_mame_history,
     mame_history_will_be_rebased,
     _orient_scanned_board_fen,
@@ -117,41 +118,13 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("(max-height: 520px) and (orientation: landscape)", stylesheet)
         self.assertIn("transform: translateX(-1.5rem)", stylesheet)
 
-    def test_first_move_button_restores_relevant_mame_history(self):
-        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
-        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
-
-        self.assertIn('id="startBtn"', template)
-        self.assertNotIn('id="restoreMameHistoryBtn"', template)
-        self.assertIn("function mameHistoryRestoreSupportedByCurrentEngine()", script)
-        self.assertIn("function shouldOfferMameHistoryRestore()", script)
-        self.assertIn("livePgnTreeActive", script)
-        self.assertIn("&& pgnTextHasMoves(preservedMameHistory.pgn)", script)
-        self.assertIn("&& mameHistoryRestoreSupportedByCurrentEngine()", script)
-        self.assertIn("systemInfo.is_mame", script)
-        self.assertIn("&& capabilities.position", script)
-        self.assertIn("&& !capabilities.edit", script)
-        self.assertGreaterEqual(script.count("updateMameHistoryStartButton();"), 5)
-        self.assertIn("btn.classList.toggle('btn-warning', available)", script)
-        self.assertIn("btn.classList.toggle('btn-light', !available)", script)
-        self.assertIn("function preserveCurrentMameHistoryForSetPosition(pgnPrefix, selectedFen)", script)
-        self.assertIn("pgn: pgnPrefix", script)
-        self.assertNotIn("pgn: getFullGame()", script)
-        self.assertIn("preserveCurrentMameHistoryForSetPosition(pgnPrefix, fen)", script)
-        self.assertIn("preserved_pgn: preservedSnapshot ? preservedSnapshot.pgn : ''", script)
-        self.assertIn("loadGame(preservedMameHistory.pgn.split('\\n'), { livePgnTree: false })", script)
-        self.assertIn("function restorePreservedMameHistoryForReview()", script)
-        self.assertNotIn("function restorePreservedMameHistoryInExplore()", script)
-        self.assertIn("if (shouldOfferMameHistoryRestore()) {\n        restorePreservedMameHistoryForReview();", script)
-        self.assertNotIn("$('#restoreMameHistoryBtn').on('click'", script)
-        self.assertIn("function clearPreservedMameHistory()", script)
-        self.assertIn("window.sessionStorage.removeItem(PRESERVED_MAME_HISTORY_KEY)", script)
-        self.assertIn("function findPositionByFen(fen)", script)
-        self.assertIn("fields[3] = '-'", script)
-        self.assertIn("current_position.fen = setupBoardFen", script)
-        self.assertIn("fenHash[setupBoardFen] = current_position", script)
-        self.assertIn('base.css?v=12', template)
-        self.assertIn('app.js?v=18', template)
+    def test_first_move_button_is_plain_navigation(self):
+        root = Path(__file__).parents[1]
+        script = (root / "web/picoweb/static/js/app.js").read_text()
+        template = (root / "web/picoweb/templates/clock.html").read_text()
+        self.assertNotIn("preservedMameHistory", script)
+        self.assertIn("$('#startBtn').on('click', goToStart)", script)
+        self.assertIn('app.js?v=22', template)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -193,7 +166,7 @@ class TestServerEventHandler(unittest.TestCase):
         self.assertEqual(cached, client.messages[0])
         self.assertEqual({"event": "Header", "headers": headers}, client.messages[1])
 
-    def test_open_sends_cached_preserved_mame_history(self):
+    def test_open_does_not_send_separate_history_snapshot(self):
         snapshot = {
             "event": "MameHistory",
             "pgn": '[Result "*"]\n\n1. e4 *',
@@ -205,15 +178,15 @@ class TestServerEventHandler(unittest.TestCase):
         with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
             EventHandler.open(client)
 
-        self.assertIn(snapshot, client.messages)
+        self.assertNotIn(snapshot, client.messages)
 
-    def test_open_clears_stale_browser_history_when_cache_is_empty(self):
+    def test_open_does_not_send_legacy_history_clear(self):
         client = self.Client({})
 
         with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
             EventHandler.open(client)
 
-        self.assertIn({"event": "MameHistory", "pgn": ""}, client.messages)
+        self.assertEqual([], client.messages)
 
 
 class TestMameHistoryPreservation(unittest.TestCase):
@@ -235,7 +208,7 @@ class TestMameHistoryPreservation(unittest.TestCase):
         self.assertFalse(mame_history_will_be_rebased(shared))
 
     @patch("server.EventHandler.write_to_clients")
-    def test_publish_caches_and_broadcasts_snapshot(self, write_to_clients):
+    def test_preservation_is_server_owned(self, write_to_clients):
         shared = {}
 
         published = publish_preserved_mame_history(
@@ -246,19 +219,112 @@ class TestMameHistoryPreservation(unittest.TestCase):
         )
 
         self.assertTrue(published)
-        self.assertEqual("MameHistory", shared["preserved_mame_history"]["event"])
+        self.assertIn("scope", shared["preserved_mame_history"])
         self.assertEqual("read_game", shared["preserved_mame_history"]["reason"])
-        write_to_clients.assert_called_once_with(shared["preserved_mame_history"])
+        write_to_clients.assert_not_called()
 
     @patch("server.EventHandler.write_to_clients")
-    def test_clear_discards_and_broadcasts_empty_snapshot(self, write_to_clients):
+    def test_clear_discards_server_snapshot(self, write_to_clients):
         shared = {"preserved_mame_history": {"event": "MameHistory", "pgn": "old"}}
 
         removed = clear_preserved_mame_history(shared)
 
         self.assertTrue(removed)
         self.assertNotIn("preserved_mame_history", shared)
-        write_to_clients.assert_called_once_with({"event": "MameHistory", "pgn": ""})
+        write_to_clients.assert_not_called()
+
+
+class TestMameSetPositionTurnGuard(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def shared(turn="b", play_mode="user_white", **system_overrides):
+        system_info = {
+            "is_mame": True,
+            "interaction_mode": "normal",
+            "play_mode": play_mode,
+            "pending_engine_move": False,
+        }
+        system_info.update(system_overrides)
+        return {
+            "system_info": system_info,
+            "last_dgt_move_msg": {
+                "fen": f"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR {turn} KQkq - 0 1"
+            },
+        }
+
+    def test_guard_uses_live_side_to_move_and_user_color(self):
+        self.assertTrue(mame_set_position_is_engine_turn(self.shared()))
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(turn="w")))
+        self.assertTrue(
+            mame_set_position_is_engine_turn(self.shared(turn="w", play_mode="user_black"))
+        )
+        self.assertFalse(
+            mame_set_position_is_engine_turn(self.shared(turn="b", play_mode="user_black"))
+        )
+
+    def test_guard_is_limited_to_mame_playing_modes(self):
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(is_mame=False)))
+        self.assertFalse(mame_set_position_is_engine_turn(self.shared(interaction_mode="ponder")))
+        shared = self.shared()
+        shared["last_dgt_move_msg"]["fen"] = "not a fen"
+        self.assertFalse(mame_set_position_is_engine_turn(shared))
+
+    async def test_rejected_set_position_requests_current_engine_move(self):
+        handler = Mock()
+        handler.shared = self.shared()
+        handler.get_argument.return_value = "set_position"
+
+        with patch("server.Observable.fire", new_callable=AsyncMock) as fire:
+            await ChannelHandler.post(handler)
+
+        fire.assert_awaited_once()
+        self.assertEqual(EventApi.PAUSE_RESUME, repr(fire.await_args.args[0]))
+        handler.set_status.assert_called_once_with(409)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "Set Pos is only for your turn"}
+        )
+
+    async def test_pending_engine_move_is_rejected_without_requesting_alternative(self):
+        handler = Mock()
+        handler.shared = self.shared(pending_engine_move=True)
+        handler.get_argument.return_value = "set_position"
+
+        with patch("server.Observable.fire", new_callable=AsyncMock) as fire:
+            await ChannelHandler.post(handler)
+
+        fire.assert_not_awaited()
+        handler.set_status.assert_called_once_with(409)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "Set Pos is only for your turn"}
+        )
+
+    async def test_root_set_position_defers_history_change_until_backend_accepts(self):
+        root_fen = "8/8/8/8/8/8/4K3/7k w - - 0 1"
+        root_pgn = f'[SetUp "1"]\n[FEN "{root_fen}"]\n[Result "*"]\n\n*'
+        handler = Mock()
+        handler.shared = self.shared(
+            turn="w",
+            mame_capabilities={"position": True, "edit": False},
+        )
+        arguments = {
+            "action": "set_position",
+            "fen": root_fen,
+            "pgn": root_pgn,
+            "preserved_pgn": "",
+            "uci960": "false",
+        }
+        handler.get_argument.side_effect = lambda name, default=None: arguments.get(name, default)
+
+        with (
+            patch("server.clear_preserved_mame_history") as clear_history,
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        clear_history.assert_not_called()
+        fire.assert_awaited_once()
+        handler.write.assert_called_once_with(
+            {"success": True, "fen": root_fen, "uci960": False}
+        )
 
 
 class TestServerDisplayTextHelpers(unittest.TestCase):

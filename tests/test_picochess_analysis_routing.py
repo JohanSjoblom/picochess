@@ -27,10 +27,13 @@ from picochess import (
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
     previous_position_matching_board_fen,
+    RK_STARTING_BOARD_FEN,
+    pending_set_position_fen_action,
     remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
+    set_position_new_game_code,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
@@ -549,6 +552,81 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertEqual(fen, live_game.fen())
         self.assertEqual([], live_game.move_stack)
         self.assertEqual(fen, live_game.root().fen())
+
+    def test_standard_start_set_position_routes_to_new_game(self):
+        self.assertEqual(
+            518,
+            set_position_new_game_code(chess.STARTING_FEN, uci960=False, variant="chess"),
+        )
+
+    def test_chess960_start_set_position_routes_to_its_new_game(self):
+        board = chess.Board.from_chess960_pos(0)
+
+        self.assertEqual(
+            0,
+            set_position_new_game_code(board.fen(), uci960=True, variant="chess"),
+        )
+        self.assertIsNone(
+            set_position_new_game_code(board.fen(), uci960=False, variant="chess"),
+        )
+
+    def test_racing_kings_start_set_position_routes_to_new_game(self):
+        fen = f"{RK_STARTING_BOARD_FEN} w - - 0 1"
+
+        self.assertEqual(518, set_position_new_game_code(fen, uci960=False, variant="racingkings"))
+
+    def test_non_start_set_position_remains_a_setup(self):
+        self.assertIsNone(
+            set_position_new_game_code(
+                "8/8/8/8/8/8/4K3/7k w - - 0 1",
+                uci960=False,
+                variant="chess",
+            )
+        )
+
+    def test_pending_set_position_treats_start_as_new_game(self):
+        action, new_game_code = pending_set_position_fen_action(
+            chess.STARTING_BOARD_FEN,
+            chess.STARTING_BOARD_FEN,
+            allow_chess960=False,
+            variant="chess",
+        )
+
+        self.assertEqual("new_game", action)
+        self.assertEqual(518, new_game_code)
+
+    def test_pending_set_position_accepts_only_its_target(self):
+        target = "8/8/8/8/8/8/4K3/7k"
+
+        self.assertEqual(
+            ("target", None),
+            pending_set_position_fen_action(
+                target,
+                target,
+                allow_chess960=False,
+                variant="chess",
+            ),
+        )
+
+    def test_pending_set_position_waits_on_move_or_takeback_positions(self):
+        target = chess.Board()
+        target.push_uci("e2e4")
+        historical_position = target.board_fen()
+        target.push_uci("e7e5")
+        move_position = target.copy()
+        move_position.push_uci("g1f3")
+
+        for intermediate_fen in (move_position.board_fen(), historical_position):
+            with self.subTest(fen=intermediate_fen):
+                self.assertEqual(
+                    ("wait", None),
+                    pending_set_position_fen_action(
+                        intermediate_fen,
+                        target.board_fen(),
+                        allow_chess960=False,
+                        variant="chess",
+                    ),
+                )
 
     def test_user_move_opening_is_queued_before_engine_search(self):
         board = chess.Board()

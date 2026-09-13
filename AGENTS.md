@@ -444,6 +444,13 @@ also honoring the timing-sensitive setup sequence required by MAME.
   batch-replay history.
 - Scan and Set Pos with MAME use the eager setup sequence documented in
   `uci/AGENTS.md`; do not defer that position setup to the first search.
+- As a temporary safety guard, browser Set Pos is rejected for a MAME engine
+  while it is the engine's turn in a playing mode. The request returns `Set Pos
+  is only for your turn` and requests the current engine move when the engine is
+  still thinking. If an announced engine move is already pending on the
+  physical board, reject Set Pos without requesting an alternative. This guard
+  may be removed only after MAME setup explicitly cancels and awaits the old
+  playing search without emitting a stale engine-failure result.
 - An accepted Scan establishes a fresh root with no earlier history to restore.
   Clear any cached browser MAME-history snapshot instead of preserving the
   scanned FEN as a restore anchor.
@@ -483,7 +490,9 @@ PGN loading has separate position, history, and mode rules:
 - Read Game applies the selected mainline moves for modern engines and MAME
   engines that report `edit`. For MAME with `pos` but without `edit`, it first
   calculates the requested final position and then makes that FEN a fresh live
-  root, keeping the backend, web client, Tutor, and engine stackless together.
+  root, keeping the backend, Tutor, and engine stackless together. The browser
+  may still receive the preserved prefix through the presentation-only history
+  projection described below.
 - Normal Read Game with MAME uses the same eager `ucinewgame`, position, and
   readiness synchronization as Scan and Set Pos. Non-MAME loading keeps the
   normal python-chess-controlled command path.
@@ -493,18 +502,26 @@ PGN loading has separate position, history, and mode rules:
   from the current final FEN and rebase the live game at the automatic-takeback
   completion or, as a fallback, immediately before the next search. This lets
   the takeback transaction consume its expected move before history is cleared.
-- Whenever Set Pos, Read Game, or MAME recovery must discard history for a
-  `pos`-without-`edit` interface, preserve the pre-rebase PGN for the web
-  client's temporary history restore. Set Pos must capture the complete
-  browser game before submitting its selected prefix; Read Game and recovery
-  publish their backend PGN before clearing the stack.
-- Restoring preserved MAME history is browser-local review. It must mark the
-  restored tree as non-live, preserve the current Explore state, and leave the
-  stackless backend, physical board, Tutor, and MAME engine unchanged. Position
-  -> Set Pos remains the explicit way to promote a selected restored node back
-  into live play.
-- New Game is an authoritative fresh start and clears any preserved MAME
-  history snapshot from the backend and browser clients.
+- For pos-without-edit MAME, preserve the selected prefix on the server when
+  Set Pos installs its validated board. Read Game truncates at its selected
+  position; recovery composes any existing prefix before rebasing again.
+- `web_history.py` projects that prefix plus the raw live PGN for browser
+  transport only. Scope (game identity and rebase revision), matching root,
+  variant and legal PGN validation guard the join. Keep backend caches raw.
+- Activate that projection only when the selected engine is MAME, supports
+  `pos`, lacks `edit`, and has a preserved snapshot in the current history
+  scope. For modern engines, edit-capable MAME engines, missing snapshots, or
+  stale game identity/revision, return the original raw message unchanged.
+- Treat the projected PGN as a browser presentation model only. The backend
+  starting position and move stack remain authoritative and must exactly match
+  the engine; never alter either one merely to reproduce the longer browser
+  history or its displayed move numbers.
+- The browser receives one live presentation tree. Only its current endpoint
+  permits live move entry under the existing board authority rules; historical
+  navigation remains review and Set Pos explicitly promotes a selected node.
+- New Game, Scan, root Set Pos and successful engine selection clear the prefix.
+  Read Game establishes a new history scope. Engine recovery retains history.
+- Server-side PGN saving, Tutor and engine boards do not use the projection.
 - A successful explicit engine selection also clears preserved MAME history.
   A failed selection that falls back to the existing engine and automatic MAME
   crash recovery retain it.

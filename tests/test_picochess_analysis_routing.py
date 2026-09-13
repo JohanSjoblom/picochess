@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
+import chess.variant
 
 from dgt.api import Event, Message
 from dgt.util import Mode
@@ -15,6 +16,7 @@ from picochess import (
     GameEndAnalysisContext,
     TutorAnalysisContext,
     analysis_event_matches_position,
+    board_fen_after_move,
     decide_analysis_cycle_action,
     decide_analysis_source,
     decide_game_end_analysis_stop,
@@ -115,6 +117,27 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
     def test_position_tagged_analysis_events_reject_stale_positions(self):
         self.assertTrue(analysis_event_matches_position("current", "current"))
         self.assertFalse(analysis_event_matches_position("previous", "current"))
+
+    def test_keyboard_preview_matches_full_history_copy_without_mutating_game(self):
+        game = chess.Board()
+        game.push_uci("e2e4")
+        game.push_uci("e7e5")
+        history = tuple(game.move_stack)
+        move = chess.Move.from_uci("g1f3")
+        expected = game.copy(stack=True)
+        expected.push(move)
+
+        self.assertEqual(expected.board_fen(), board_fen_after_move(game, move))
+        self.assertEqual(history, tuple(game.move_stack))
+
+    def test_keyboard_preview_preserves_atomic_capture_effects(self):
+        game = chess.variant.AtomicBoard("7k/8/8/3p4/4P3/8/8/K7 w - - 0 1")
+        move = chess.Move.from_uci("e4d5")
+        expected = game.copy(stack=True)
+        expected.push(move)
+
+        self.assertEqual(expected.board_fen(), board_fen_after_move(game, move))
+        self.assertEqual([], game.move_stack)
 
     def test_legacy_untagged_analysis_events_remain_compatible(self):
         legacy_events = (

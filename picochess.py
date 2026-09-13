@@ -1472,6 +1472,13 @@ def compute_legal_fens(game: chess.Board, variant_board=None):
     return fens
 
 
+def board_fen_after_move(board: chess.Board, move: chess.Move) -> str:
+    """Return the piece placement after a move without copying move history."""
+    preview = board.copy(stack=False)
+    preview.push(move)
+    return preview.board_fen()
+
+
 def previous_position_matching_board_fen(
     game: chess.Board, board_fen: str
 ) -> chess.Board | None:
@@ -6066,15 +6073,9 @@ async def main() -> None:
                     if move not in _check_board.legal_moves:
                         logger.warning("illegal move. fen: [%s]", self.state.game.fen())
                     else:
-                        game_copy = self.state.game.copy()
-                        game_copy.push(move)
-                        # For atomic variant, use atomic board to get FEN with explosions applied
-                        if self.state.variant == "atomic" and self.state._atomic_board is not None:
-                            atomic_copy = self.state._atomic_board.copy()
-                            atomic_copy.push(move)
-                            fen = atomic_copy.board_fen()
-                        else:
-                            fen = game_copy.board_fen()
+                        # The move-check board also preserves variant-specific effects,
+                        # including atomic capture explosions.
+                        fen = board_fen_after_move(_check_board, move)
                         await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=False))
 
             elif isinstance(event, Event.LEVEL):

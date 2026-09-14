@@ -66,6 +66,37 @@ class TestWebHistory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(old_scope["gameid"], history_scope(self.shared)["gameid"])
         self.assertGreater(history_scope(self.shared)["revision"], old_scope["revision"])
 
+    def test_repeated_set_position_preserves_selection_after_previous_midpoint(self):
+        # The first Set Pos snapshot ends after 2...Nc6. Play beyond that root,
+        # then select 3...Nf6 from the composed browser line for another Set Pos.
+        for move in ("Bc4", "Nf6", "d3", "Be7"):
+            self.live.push_san(move)
+        first_projection = project_message(self.shared, self.message())
+        combined = read_game(first_projection["pgn"])
+        selected = list(combined.mainline())[5]
+        selected_board = selected.board()
+        selected.variations = []
+        old_scope = dict(history_scope(self.shared))
+
+        # This is the complete original-to-selected prefix posted by the web
+        # client. The backend and engine are then rebased at 3...Nf6.
+        preserve(self.shared, str(combined), selected_board.fen(), "set_position")
+        second_live = selected_board.copy(stack=False)
+        second_live.push_san("d4")
+        second_live.push_san("exd4")
+
+        raw = self.message(second_live)
+        result = project_message(self.shared, raw)
+        self.assertEqual(["d2d4", "e5d4"], self.moves(raw))
+        self.assertEqual(
+            ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "g8f6", "d2d4", "e5d4"],
+            self.moves(result),
+        )
+        self.assertNotIn("d2d3", self.moves(result))
+        self.assertNotIn("f8e7", self.moves(result))
+        self.assertEqual(old_scope["gameid"], history_scope(self.shared)["gameid"])
+        self.assertGreater(history_scope(self.shared)["revision"], old_scope["revision"])
+
     def test_recovery_keeps_previous_prefix(self):
         self.live.push_san("Bc4")
         preserve(self.shared, self.message()["pgn"], self.live.fen(), "engine_recovery")

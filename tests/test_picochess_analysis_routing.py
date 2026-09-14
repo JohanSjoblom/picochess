@@ -1226,3 +1226,76 @@ class TestAlternativeMovePendingState(unittest.TestCase):
         ]
 
         self.assertEqual(2, len(clear_calls))
+
+
+class TestUserMoveLegalFenPublication(unittest.TestCase):
+    def setUp(self):
+        self.source_text = Path(picochess.__file__).read_text(encoding="utf-8")
+        source = ast.parse(self.source_text)
+        self.main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "_publish_user_move_legal_fens"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "LegalFenPublicationController",
+            (),
+            {"_publish_user_move_legal_fens": namespace["_publish_user_move_legal_fens"]},
+        )
+        self.controller = controller_type()
+        self.controller.state = SimpleNamespace(
+            interaction_mode=Mode.NORMAL,
+            last_legal_fens=[],
+            legal_fens=["stale"],
+            game=chess.Board(),
+            get_variant_board=lambda: None,
+        )
+
+    def test_playing_mode_publishes_replacement_positions_and_clears_current_cache(self):
+        previous_legal_fens = ["position after Ke1", "position after Kg2"]
+
+        self.controller._publish_user_move_legal_fens(previous_legal_fens)
+
+        self.assertEqual(previous_legal_fens, self.controller.state.last_legal_fens)
+        self.assertEqual([], self.controller.state.legal_fens)
+
+    def test_analysis_mode_refreshes_current_position_alternatives(self):
+        self.controller.state.interaction_mode = Mode.ANALYSIS
+        previous_legal_fens = ["previous position"]
+
+        self.controller._publish_user_move_legal_fens(previous_legal_fens)
+
+        self.assertEqual(previous_legal_fens, self.controller.state.last_legal_fens)
+        self.assertEqual(
+            picochess.compute_legal_fens(self.controller.state.game),
+            self.controller.state.legal_fens,
+        )
+
+    def test_publication_occurs_after_push_and_before_tutor_await(self):
+        user_move = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "user_move"
+        )
+        calls = [node for node in ast.walk(user_move) if isinstance(node, ast.Call)]
+        state_push = next(
+            node for node in calls
+            if ast.get_source_segment(self.source_text, node.func) == "self.state.push_move"
+        )
+        publication = next(
+            node for node in calls
+            if ast.get_source_segment(self.source_text, node.func)
+            == "self._publish_user_move_legal_fens"
+        )
+        tutor_push = next(
+            node for node in calls
+            if ast.get_source_segment(self.source_text, node.func)
+            == "self.state.picotutor.push_move"
+        )
+
+        self.assertLess(state_push.lineno, publication.lineno)
+        self.assertLess(publication.lineno, tutor_push.lineno)

@@ -3740,13 +3740,12 @@ async def main() -> None:
                     logger.info("wrong color move -> sliding, reverting to: %s", self.state.game.fen())
                 legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[state.last_legal_fens.index(fen)]
-                ok = await self.user_move(move, sliding=True)
-                if ok:
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                else:
+                ok = await self.user_move(
+                    move,
+                    sliding=True,
+                    legal_fens_before_move=list(self.state.last_legal_fens),
+                )
+                if not ok:
                     handled_fen = False
 
             # allow playing/correcting moves for pico's side in TRAINING mode:
@@ -3781,14 +3780,12 @@ async def main() -> None:
                             await asyncio.sleep(2)
                 logger.debug("user move did a move for pico")
 
-                ok = await self.user_move(move, sliding=False)
-                if ok:
-                    self.state.last_legal_fens = self.state.legal_fens
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                else:
+                ok = await self.user_move(
+                    move,
+                    sliding=False,
+                    legal_fens_before_move=list(self.state.legal_fens),
+                )
+                if not ok:
                     handled_fen = False
 
             # standard legal move
@@ -3812,14 +3809,12 @@ async def main() -> None:
                     self.state.newgame_happened = False
                     legal_moves = list(_move_board.legal_moves)
                     move = legal_moves[legal_fens_pico.index(fen)]
-                    ok = await self.user_move(move, sliding=False)
-                    if ok:
-                        self.state.last_legal_fens = self.state.legal_fens
-                        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE):
-                            self.state.legal_fens = []
-                        else:
-                            self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                    else:
+                    ok = await self.user_move(
+                        move,
+                        sliding=False,
+                        legal_fens_before_move=list(self.state.legal_fens),
+                    )
+                    if not ok:
                         handled_fen = False
 
             # molli: allow direct play of an alternative move for pico
@@ -4050,14 +4045,13 @@ async def main() -> None:
                 # standard user move handling
                 legal_moves = list(_move_board.legal_moves)
                 move = legal_moves[state.legal_fens.index(fen)]
-                ok = await self.user_move(move, sliding=False)
+                ok = await self.user_move(
+                    move,
+                    sliding=False,
+                    legal_fens_before_move=list(self.state.legal_fens),
+                )
                 if ok:
-                    self.state.last_legal_fens = self.state.legal_fens
                     self.state.newgame_happened = False
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
-                        self.state.legal_fens = []
-                    else:
-                        self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                 else:
                     handled_fen = False
 
@@ -4187,7 +4181,28 @@ async def main() -> None:
             self.state.done_computer_fen = None
             self.state.done_move = chess.Move.null()
 
-        async def user_move(self, move: chess.Move, sliding: bool) -> bool:
+        def _publish_user_move_legal_fens(self, legal_fens_before_move: list[Any]) -> None:
+            """Make replacement positions available as soon as a user move is pushed."""
+            self.state.last_legal_fens = legal_fens_before_move
+            if self.state.interaction_mode in (
+                Mode.NORMAL,
+                Mode.BRAIN,
+                Mode.REMOTE,
+                Mode.TRAINING,
+            ):
+                self.state.legal_fens = []
+            else:
+                self.state.legal_fens = compute_legal_fens(
+                    self.state.game,
+                    self.state.get_variant_board(),
+                )
+
+        async def user_move(
+            self,
+            move: chess.Move,
+            sliding: bool,
+            legal_fens_before_move: list[Any] | None = None,
+        ) -> bool:
             """Handle an user move."""
 
             eval_str = ""
@@ -4330,6 +4345,12 @@ async def main() -> None:
                 # but none of the preceding move history.
                 game_before = self.state.game.copy(stack=False)
                 self.state.push_move(move)  # this is where user move is made
+                if legal_fens_before_move is not None:
+                    # Publish the previous position's alternatives immediately.
+                    # A DGT replacement move may arrive while Tutor feedback is
+                    # awaiting display; delayed process_fen cleanup must not leave
+                    # that event looking like a stale current-position move.
+                    self._publish_user_move_legal_fens(legal_fens_before_move)
                 self.state.user_move_revision += 1
                 user_move_revision = self.state.user_move_revision
                 user_move_fen = self.state.get_fen()

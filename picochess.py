@@ -4354,6 +4354,7 @@ async def main() -> None:
                 self.state.user_move_revision += 1
                 user_move_revision = self.state.user_move_revision
                 user_move_fen = self.state.get_fen()
+                user_move_owner = (move, user_move_fen, user_move_revision)
                 self._set_game_started(True)
                 self._update_variant_shared()
                 logger.debug("user did a move for user")
@@ -4469,19 +4470,25 @@ async def main() -> None:
                         # molli: for online/emulation mode we have to publish this move as well to the engine
                         if self.online_mode():
                             logger.info("starting think()")
-                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                            await self._deliver_picotutor_messages(
+                                pending_picotutor_msgs, user_move_owner
+                            )
                             await self._think_after_current_user_move(
                                 move, user_move_fen, user_move_revision, msg
                             )
                         elif self.emulation_mode():
                             await DisplayMsg.show(msg)
-                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                            await self._deliver_picotutor_messages(
+                                pending_picotutor_msgs, user_move_owner
+                            )
                             self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
                         else:
                             await DisplayMsg.show(msg)
-                            await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                            await self._deliver_picotutor_messages(
+                                pending_picotutor_msgs, user_move_owner
+                            )
                             self.game_end_event()
                             await DisplayMsg.show(game_end)
                             self.state.legal_fens_after_cmove = []  # molli
@@ -4491,7 +4498,9 @@ async def main() -> None:
                                 # molli: automatic takeback of blunder moves for mame engines
                                 if self.emulation_mode() and eval_str == "??" and self.state.last_move != move:
                                     # Ensure tutor feedback is shown before takeback prompt/move display.
-                                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                                    await self._deliver_picotutor_messages(
+                                        pending_picotutor_msgs, user_move_owner
+                                    )
                                     # molli: do not send move to engine
                                     # wait for take back or lever button in case of no takeback
                                     if self.board_type == dgt.util.EBoard.NOEBOARD:
@@ -4510,7 +4519,9 @@ async def main() -> None:
                                         opening_handled_before_search = await self._announce_user_move_before_search(
                                             msg, tutor_reveal_move
                                         )
-                                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                                        await self._deliver_picotutor_messages(
+                                            pending_picotutor_msgs, user_move_owner
+                                        )
                                         await self._think_after_current_user_move(
                                             move, user_move_fen, user_move_revision, None
                                         )
@@ -4526,7 +4537,9 @@ async def main() -> None:
                                 opening_handled_before_search = await self._announce_user_move_before_search(
                                     msg, tutor_reveal_move
                                 )
-                                await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                                await self._deliver_picotutor_messages(
+                                    pending_picotutor_msgs, user_move_owner
+                                )
                                 await self._think_after_current_user_move(
                                     move, user_move_fen, user_move_revision, None
                                 )
@@ -4540,7 +4553,9 @@ async def main() -> None:
                     )
                     game_end = self.state.check_game_state()
                     await DisplayMsg.show(msg)
-                    await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                    await self._deliver_picotutor_messages(
+                        pending_picotutor_msgs, user_move_owner
+                    )
                     if game_end:
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
@@ -4553,12 +4568,16 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
-                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                        await self._deliver_picotutor_messages(
+                            pending_picotutor_msgs, user_move_owner
+                        )
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
-                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                        await self._deliver_picotutor_messages(
+                            pending_picotutor_msgs, user_move_owner
+                        )
                         await self.observe()
                 else:  # self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
                     msg = Message.REVIEW_MOVE_DONE(
@@ -4567,15 +4586,21 @@ async def main() -> None:
                     game_end = self.state.check_game_state()
                     if game_end:
                         await DisplayMsg.show(msg)
-                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                        await self._deliver_picotutor_messages(
+                            pending_picotutor_msgs, user_move_owner
+                        )
                         self.game_end_event()
                         await DisplayMsg.show(game_end)
                     else:
                         await DisplayMsg.show(msg)
-                        await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                        await self._deliver_picotutor_messages(
+                            pending_picotutor_msgs, user_move_owner
+                        )
                         await self.analyse()
 
-                await self._deliver_picotutor_messages(pending_picotutor_msgs)
+                await self._deliver_picotutor_messages(
+                    pending_picotutor_msgs, user_move_owner
+                )
 
                 #
                 # More picotutor logic (eval above)
@@ -4638,11 +4663,28 @@ async def main() -> None:
                 await DisplayMsg.show(message)
             return opening_handled
 
-        async def _deliver_picotutor_messages(self, pending_messages: list[tuple[Message, float | None]]) -> None:
-            """Send queued picotutor messages after the move announcement."""
+        async def _deliver_picotutor_messages(
+            self,
+            pending_messages: list[tuple[Message, float | None]],
+            user_move_owner: tuple[chess.Move, str, int] | None = None,
+        ) -> None:
+            """Send queued feedback while its user move still owns the position."""
             if not pending_messages:
                 return
             for message, delay in pending_messages:
+                if user_move_owner is not None and not user_move_task_matches_position(
+                    *user_move_owner,
+                    self.state.game,
+                    self.state.get_fen(),
+                    self.state.user_move_revision,
+                    self.state.done_computer_fen,
+                ):
+                    logger.info(
+                        "discarding obsolete Tutor messages after user move [%s]",
+                        user_move_owner[0],
+                    )
+                    pending_messages.clear()
+                    return
                 await DisplayMsg.show(message)
                 if delay and delay > 0:
                     await asyncio.sleep(delay)

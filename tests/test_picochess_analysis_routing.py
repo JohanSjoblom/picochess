@@ -3,7 +3,7 @@ import unittest
 from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import chess
 import chess.variant
@@ -1171,6 +1171,66 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(started)
         self.controller.think.assert_not_awaited()
+
+
+class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "_deliver_picotutor_messages"
+        )
+        self.show = AsyncMock()
+        self.sleep = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
+        namespace["asyncio"] = SimpleNamespace(sleep=self.sleep)
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "TutorMessageOwnerController",
+            (),
+            {"_deliver_picotutor_messages": namespace["_deliver_picotutor_messages"]},
+        )
+        self.controller = controller_type()
+        self.board = chess.Board()
+        self.move = chess.Move.from_uci("e2e4")
+        self.board.push(self.move)
+        self.controller.state = SimpleNamespace(
+            game=self.board,
+            get_fen=self.board.fen,
+            user_move_revision=1,
+            done_computer_fen=None,
+        )
+        self.owner = (self.move, self.board.fen(), 1)
+
+    async def test_current_move_delivers_all_tutor_messages(self):
+        messages = [("warning", 3.0), ("hint", None)]
+
+        await self.controller._deliver_picotutor_messages(messages, self.owner)
+
+        self.assertEqual(
+            [call("warning"), call("hint")],
+            self.show.await_args_list,
+        )
+        self.sleep.assert_awaited_once_with(3.0)
+        self.assertEqual([], messages)
+
+    async def test_replacement_move_discards_remaining_tutor_messages(self):
+        async def replace_move(_delay):
+            self.controller.state.user_move_revision = 2
+
+        self.sleep.side_effect = replace_move
+        messages = [("warning", 3.0), ("threat", 5.0), ("hint", None)]
+
+        await self.controller._deliver_picotutor_messages(messages, self.owner)
+
+        self.show.assert_awaited_once_with("warning")
+        self.sleep.assert_awaited_once_with(3.0)
+        self.assertEqual([], messages)
 
 
 class TestAlternativeMovePendingState(unittest.TestCase):

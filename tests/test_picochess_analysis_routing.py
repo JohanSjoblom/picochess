@@ -1233,6 +1233,78 @@ class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], messages)
 
 
+class TestEarlyUserMoveInvalidation(unittest.TestCase):
+    def setUp(self):
+        self.source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        self.main_loop = next(
+            node for node in ast.walk(self.source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "_invalidate_user_move_tasks"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "UserMoveInvalidationController",
+            (),
+            {"_invalidate_user_move_tasks": namespace["_invalidate_user_move_tasks"]},
+        )
+        self.controller = controller_type()
+        self.controller.state = SimpleNamespace(user_move_revision=7)
+
+    def test_invalidation_advances_the_owner_revision(self):
+        revision = self.controller._invalidate_user_move_tasks()
+
+        self.assertEqual(8, revision)
+        self.assertEqual(8, self.controller.state.user_move_revision)
+
+    def test_user_move_invalidates_before_waiting_for_engine_and_clock(self):
+        user_move = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "user_move"
+        )
+        invalidate = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_invalidate_user_move_tasks"
+        )
+        stop = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "stop_search_and_clock"
+        )
+
+        self.assertLess(invalidate.lineno, stop.lineno)
+
+    def test_takeback_paths_invalidate_before_waiting_for_engine_and_clock(self):
+        for method_name in ("takeback", "process_fen"):
+            with self.subTest(method=method_name):
+                method = next(
+                    node for node in self.main_loop.body
+                    if getattr(node, "name", None) == method_name
+                )
+                invalidations = [
+                    node for node in ast.walk(method)
+                    if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "_invalidate_user_move_tasks"
+                ]
+                stops = [
+                    node for node in ast.walk(method)
+                    if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "stop_search_and_clock"
+                ]
+
+                self.assertTrue(
+                    any(stop.lineno == invalidate.lineno + 1 for invalidate in invalidations for stop in stops)
+                )
+
+
 class TestAlternativeMovePendingState(unittest.TestCase):
     def setUp(self):
         source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))

@@ -3395,6 +3395,8 @@ async def main() -> None:
             await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
         async def takeback(self):
+            if self.state.game.move_stack:
+                self._invalidate_user_move_tasks()
             await self.stop_search_and_clock()
             l_error = False
             try:
@@ -4084,6 +4086,7 @@ async def main() -> None:
                             handled_fen = True
                             logger.info("current game fen      : %s", self.state.game.fen())
                             logger.info("undoing game until fen: %s", fen)
+                            self._invalidate_user_move_tasks()
                             await self.stop_search_and_clock()
                             while len(game_copy.move_stack) < len(self.state.game.move_stack):
                                 self.state.pop_move()
@@ -4176,6 +4179,11 @@ async def main() -> None:
             )
             return True
 
+        def _invalidate_user_move_tasks(self) -> int:
+            """Invalidate delayed feedback and searches owned by an earlier user move."""
+            self.state.user_move_revision += 1
+            return self.state.user_move_revision
+
         def _clear_pending_engine_move(self) -> None:
             """Release an announced move before requesting its replacement."""
             self.state.done_computer_fen = None
@@ -4253,6 +4261,7 @@ async def main() -> None:
                         )
                         return False
 
+                user_move_revision = self._invalidate_user_move_tasks()
                 self.cancel_brain_hint_timer(preserve_best_move=True, resume_paused_clock=False)
                 self.state.brain_required_piece_type = None
                 if self.state.hand_coach_task and not self.state.hand_coach_task.done():
@@ -4351,8 +4360,6 @@ async def main() -> None:
                     # awaiting display; delayed process_fen cleanup must not leave
                     # that event looking like a stale current-position move.
                     self._publish_user_move_legal_fens(legal_fens_before_move)
-                self.state.user_move_revision += 1
-                user_move_revision = self.state.user_move_revision
                 user_move_fen = self.state.get_fen()
                 user_move_owner = (move, user_move_fen, user_move_revision)
                 self._set_game_started(True)

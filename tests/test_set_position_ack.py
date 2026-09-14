@@ -84,8 +84,9 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
         move = chess.Move.from_uci("e7e5")
         moved = self.board.copy()
         moved.push(move)
+        legal_fens_before_move = list(self.state.legal_fens)
 
-        async def accept_move(move, sliding):
+        async def accept_move(move, sliding, legal_fens_before_move):
             self.board.push(move)
             return True
 
@@ -100,7 +101,11 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
         self.show.side_effect = on_ok
         await self.controller._finish_set_position_ack(self.target)
 
-        self.controller.user_move.assert_awaited_once_with(move, sliding=False)
+        self.controller.user_move.assert_awaited_once_with(
+            move,
+            sliding=False,
+            legal_fens_before_move=legal_fens_before_move,
+        )
         self.assertEqual(moved.fen(), self.board.fen())
         self.assertEqual(moved.move_stack, self.board.move_stack)
         self.show.assert_awaited_once()

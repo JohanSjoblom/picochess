@@ -6,10 +6,12 @@ import io
 import os
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from dgt.api import Message
-from dgt.util import Mode, PlayMode
+from dgt.util import GameResult, Mode, PlayMode
 from pgn import (
+    ModeInfo,
     PgnDisplay,
     add_picotutor_variations_to_game,
     pgn_has_variations,
@@ -62,6 +64,8 @@ class TestPgnDisplay(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.testee = PgnDisplay("test", None, {}, self.loop)
+        ModeInfo.set_game_ending(result="*")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
 
     def test_generate_pgn(self):
         game = chess.Board()
@@ -277,6 +281,39 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertIn('[SetUp "1"]', saved_text)
         self.assertIn('[FEN "4k3/8/8/8/8/8/P7/4K3 w - - 0 7"]', saved_text)
         self.assertTrue(saved_text.rstrip().endswith("*"))
+
+    def test_shutdown_abort_does_not_resave_game_with_definitive_result(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        message = Message.GAME_ENDS(
+            tc_init={"internal_time": {chess.WHITE: 0, chess.BLACK: 0}},
+            result=GameResult.ABORT,
+            play_mode=PlayMode.USER_WHITE,
+            game=board,
+            mode=Mode.NORMAL,
+        )
+        self.testee._save_and_email_pgn = Mock()
+        ModeInfo.set_game_ending(result="1/2-1/2")
+
+        self.loop.run_until_complete(self.testee._process_message(message))
+
+        self.testee._save_and_email_pgn.assert_not_called()
+
+    def test_abort_still_autosaves_unfinished_game(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        message = Message.GAME_ENDS(
+            tc_init={"internal_time": {chess.WHITE: 0, chess.BLACK: 0}},
+            result=GameResult.ABORT,
+            play_mode=PlayMode.USER_WHITE,
+            game=board,
+            mode=Mode.NORMAL,
+        )
+        self.testee._save_and_email_pgn = Mock()
+
+        self.loop.run_until_complete(self.testee._process_message(message))
+
+        self.testee._save_and_email_pgn.assert_called_once_with(message)
 
     def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
         user_move = chess.Move.from_uci("e2e4")

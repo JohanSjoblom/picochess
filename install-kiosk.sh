@@ -98,15 +98,16 @@ else
     echo "Warning: $REPO_DIR/etc/pico-kiosk.desktop not found" >&2
 fi
 
-# Copy kiosk script into user home (allow user overrides)
+# Copy or refresh the kiosk script in the user home. A user can protect a
+# customized copy by adding an exact '# no update' comment line.
 if [ -f "$REPO_DIR/kiosk.sh" ]; then
-    if [ -f "$INSTALL_USER_HOME/kiosk.sh" ]; then
-        echo "kiosk.sh already exists in $INSTALL_USER_HOME - leaving it unchanged"
-    else
-        cp "$REPO_DIR/kiosk.sh" "$INSTALL_USER_HOME/kiosk.sh"
-        chown "$INSTALL_USER:$INSTALL_USER" "$INSTALL_USER_HOME/kiosk.sh"
-        chmod +x "$INSTALL_USER_HOME/kiosk.sh" 2>/dev/null || true
-    fi
+    # shellcheck source=install-managed-files.sh
+    . "$REPO_DIR/install-managed-files.sh"
+    replace_managed_file \
+        "$REPO_DIR/kiosk.sh" \
+        "$INSTALL_USER_HOME/kiosk.sh" \
+        "$INSTALL_USER_HOME/kiosk.sh.backup" \
+        true true "$INSTALL_USER"
 else
     echo "Warning: $REPO_DIR/kiosk.sh not found" >&2
 fi

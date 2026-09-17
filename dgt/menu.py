@@ -16,6 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import subprocess
 import logging
 import dgt.util
 import asyncio
@@ -285,6 +286,7 @@ class DgtMenu(object):
         brain_hint_display: int = 0,
         brain_reveal_text: bool = True,
         brain_hint_countdown: bool = False,
+        audio_backend: str = "sox",
     ):
         super(DgtMenu, self).__init__()
 
@@ -398,7 +400,8 @@ class DgtMenu(object):
 
         self.menu_system_voice_speedfactor = speed_voice
         self.menu_system_voice_volumefactor = volume_voice
-        self._set_volume_voice(volume_voice)
+        self.res_system_voice_volumefactor = volume_voice
+        self.audio_backend = audio_backend
 
         self.current_board_type = board_type
         self.menu_system_eboard_type = board_type
@@ -767,6 +770,7 @@ class DgtMenu(object):
 
     def set_voice_volume(self, factor: int) -> None:
         self.menu_system_voice_volumefactor = factor
+        self.res_system_voice_volumefactor = factor
 
     def set_ponder_interval(self, interval: int) -> None:
         self.menu_system_display_ponderinterval = self.res_system_display_ponderinterval = interval
@@ -1038,7 +1042,7 @@ class DgtMenu(object):
         return self.res_picotutor_picocomment_prob
 
     def get_voice_volume(self) -> int:
-        return self.menu_system_voice_volumefactor
+        return self.res_system_voice_volumefactor
 
     def get_engine_rwindow(self):
         """Get the flag."""
@@ -2075,7 +2079,7 @@ class DgtMenu(object):
 
     def _set_volume_voice(self, volume_factor):
         """Set the Volume-Voice."""
-        return set_system_volume(volume_factor)
+        return set_system_volume(volume_factor, self.audio_backend)
 
     def enter_sys_disp_menu(self):
         """Set the menu state."""
@@ -3567,6 +3571,7 @@ class DgtMenu(object):
         elif self.state == MenuState.SYS_VOICE_VOLUME_FACTOR:
             assert self.menu_system_voice == Voice.VOLUME, "menu item is not Voice.VOLUME: %s" % self.menu_system_voice
             write_picochess_ini("volume-voice", str(self.menu_system_voice_volumefactor))
+            self.set_voice_volume(self.menu_system_voice_volumefactor)
             await asyncio.to_thread(self._set_volume_voice, self.menu_system_voice_volumefactor)
             event = Event.SET_VOICE(
                 type=self.menu_system_voice,

@@ -28,6 +28,7 @@ import subprocess
 import signal
 import threading
 import re
+import time
 from typing import Callable, Optional
 
 try:
@@ -200,6 +201,7 @@ class PicoTalkerDisplay(DisplayMsg):
 
         self.audio_backend = (audio_backend or "sox").lower()
         self.volume_factor_getter = volume_factor_getter
+        self.playback_volume_state = {}
         self.web_audio_backend_remote = bool(web_audio_backend_remote)
         self.web_audio_emitter = web_audio_emitter
         self.web_audio_should_emit = web_audio_should_emit
@@ -337,6 +339,24 @@ class PicoTalkerDisplay(DisplayMsg):
             self.native_stream_samplerate = None
             self.native_stream_channels = None
 
+    def _apply_playback_volume(self, backend: str, force: bool = False):
+        """Retry failed volume setup on later clips, with at most 30s backoff.
+
+        Runs only in the existing playback worker, never on the asyncio loop.
+        A changed committed setting or a reopened stream gets an immediate try.
+        """
+        factor = self.volume_factor_getter()
+        previous_factor, applied, retry_at, delay = self.playback_volume_state.get(backend, (None, False, 0, 1))
+        now = time.monotonic()
+        if not force and previous_factor == factor and (applied or now < retry_at):
+            return
+        if force or previous_factor != factor:
+            delay = 1
+        applied = set_system_volume(factor, backend)
+        self.playback_volume_state[backend] = (factor, applied, time.monotonic() + delay, min(delay * 2, 30))
+        if not applied:
+            logger.warning("could not apply %s voice volume; will retry on a later clip", backend)
+
     def _ensure_native_stream(self, samplerate: int, channels: int) -> bool:
         with self.native_stream_lock:
             if self.native_stream is not None:
@@ -345,6 +365,7 @@ class PicoTalkerDisplay(DisplayMsg):
                     and self.native_stream_channels == channels
                     and self.native_stream.active
                 ):
+                    self._apply_playback_volume("native")
                     return True
                 self._close_native_stream()
             try:
@@ -364,7 +385,7 @@ class PicoTalkerDisplay(DisplayMsg):
                 # The system service can start before the user's PipeWire sink
                 # is ready. Reapply the configured volume after the native
                 # stream has made the active output available.
-                set_system_volume(self.volume_factor_getter())
+                self._apply_playback_volume("native", force=True)
                 return True
             except Exception as exc:
                 logger.warning("native audio stream init failed: %s", exc)
@@ -441,6 +462,7 @@ class PicoTalkerDisplay(DisplayMsg):
     def pico3_sound_player(self, voice_file) -> bool:
         """Speak out the sound part by using sox play.
         return True if sound was played, False if not."""
+        self._apply_playback_volume("sox")
         command = ["play", voice_file, "tempo", str(self.speed_factor)]
         process = None
         try:

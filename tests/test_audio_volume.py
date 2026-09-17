@@ -13,7 +13,7 @@ class TestAudioVolume(unittest.TestCase):
     def test_pipewire_default_sink_is_preferred(self, _which, run):
         run.return_value = Mock(returncode=0, stdout="", stderr="")
 
-        applied = set_system_volume(10)
+        applied = set_system_volume(10, "native")
 
         self.assertTrue(applied)
         run.assert_called_once_with(
@@ -33,7 +33,7 @@ class TestAudioVolume(unittest.TestCase):
             *[Mock(returncode=0, stdout="", stderr="") for _ in ALSA_VOLUME_CHANNELS],
         ]
 
-        applied = set_system_volume(7)
+        applied = set_system_volume(7, "native")
 
         self.assertTrue(applied)
         self.assertEqual(
@@ -69,6 +69,23 @@ class TestAudioVolume(unittest.TestCase):
         set_system_volume(99)
 
         self.assertTrue(all(command.args[0][-1] == "100%" for command in run.call_args_list))
+
+    @patch("audio_volume.subprocess.run")
+    @patch("audio_volume.shutil.which", return_value="/usr/bin/wpctl")
+    def test_sox_preserves_alsa_controls_with_running_pipewire(self, _which, run):
+        run.return_value = Mock(returncode=0, stdout="", stderr="")
+
+        self.assertTrue(set_system_volume(10, "sox"))
+
+        commands = [entry.args[0] for entry in run.call_args_list]
+        self.assertEqual(commands[:-1], [["amixer", "-M", "sset", ch, "50%"] for ch in ALSA_VOLUME_CHANNELS])
+        self.assertEqual(commands[-1], ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "50%"])
+
+    @patch("audio_volume.subprocess.run", side_effect=subprocess.TimeoutExpired("volume", 3))
+    @patch("audio_volume.shutil.which", return_value="/usr/bin/wpctl")
+    def test_timeouts_report_failure_for_retry(self, _which, run):
+        self.assertFalse(set_system_volume(10, "native"))
+        self.assertEqual(run.call_count, 5)
 
 
 if __name__ == "__main__":

@@ -11,10 +11,17 @@ ALSA_VOLUME_CHANNELS = ("Headphone", "Master", "HDMI", "PCM")
 VOLUME_COMMAND_TIMEOUT = 3.0
 
 
-def set_system_volume(volume_factor: int) -> bool:
+def set_system_volume(volume_factor: int, audio_backend: str = "sox") -> bool:
     """Apply PicoChess's 0..20 voice-volume factor to the active output."""
     bounded_factor = max(0, min(20, int(volume_factor)))
     percent = bounded_factor * 5
+
+    applied = False
+    # SoX can use ALSA directly even when a desktop PipeWire server is running.
+    # Preserve its hardware mixer controls; wpctl success alone proves nothing
+    # about that playback route. Apply PipeWire last if both are available.
+    if audio_backend != "native":
+        applied = _set_alsa_volume(percent)
 
     if shutil.which("wpctl"):
         result = _run_volume_command(
@@ -24,6 +31,12 @@ def set_system_volume(volume_factor: int) -> bool:
         if result:
             return True
 
+    if audio_backend == "native":
+        applied = _set_alsa_volume(percent)
+    return applied
+
+
+def _set_alsa_volume(percent: int) -> bool:
     applied = False
     for channel in ALSA_VOLUME_CHANNELS:
         applied = (

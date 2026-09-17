@@ -2079,7 +2079,7 @@ class DgtMenu(object):
 
     def _set_volume_voice(self, volume_factor):
         """Set the Volume-Voice."""
-        return set_system_volume(volume_factor, self.audio_backend)
+        return set_system_volume(volume_factor, self.audio_backend, self.get_voice_volume)
 
     def enter_sys_disp_menu(self):
         """Set the menu state."""

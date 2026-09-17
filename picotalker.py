@@ -352,7 +352,7 @@ class PicoTalkerDisplay(DisplayMsg):
             return
         if force or previous_factor != factor:
             delay = 1
-        applied = set_system_volume(factor, backend)
+        applied = set_system_volume(factor, backend, self.volume_factor_getter)
         self.playback_volume_state[backend] = (factor, applied, time.monotonic() + delay, min(delay * 2, 30))
         if not applied:
             logger.warning("could not apply %s voice volume; will retry on a later clip", backend)

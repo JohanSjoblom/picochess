@@ -1697,8 +1697,10 @@ class ChannelHandler(ServerRequestHandler):
             if dgtmenu:
                 dgtmenu.set_voice_volume(vol_factor)
             write_picochess_ini("volume-voice", str(vol_factor))
-            backend = dgtmenu.audio_backend if dgtmenu else "sox"
-            await asyncio.to_thread(set_system_volume, vol_factor, backend)
+            if dgtmenu:
+                await asyncio.to_thread(dgtmenu._set_volume_voice, vol_factor)
+            else:
+                await asyncio.to_thread(set_system_volume, vol_factor, "sox")
             dgttranslate = self.shared.get("dgttranslate")
             lang = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
             await Observable.fire(Event.SET_VOICE(type=Voice.VOLUME, lang=lang, speaker="mute", speed=speed_factor))

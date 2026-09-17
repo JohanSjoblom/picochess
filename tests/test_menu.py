@@ -90,12 +90,14 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             "dgt.menu.set_system_volume", return_value=True
         ) as set_volume, patch("dgt.menu.Observable.fire", new_callable=AsyncMock), patch(
             "dgt.menu.DispatchDgt.fire", new_callable=AsyncMock
+        ), patch(
+            "dgt.menu.asyncio.to_thread", new_callable=AsyncMock, side_effect=lambda func, *args: func(*args)
         ):
             await menu.main_down()
 
         self.assertEqual(menu.get_voice_volume(), 11)
         write_ini.assert_called_once_with("volume-voice", "11")
-        set_volume.assert_called_once_with(11, "sox")
+        set_volume.assert_called_once_with(11, "sox", menu.get_voice_volume)
 
     @patch("platform.machine")
     async def test_persistent_web_settings_update_live_menu_state(self, machine_mock):

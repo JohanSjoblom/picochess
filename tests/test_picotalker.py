@@ -120,7 +120,7 @@ class TestPicoTalkerNativeVolume(unittest.TestCase):
             nonlocal started
             started = True
 
-        def require_started(_volume_factor, _backend):
+        def require_started(_volume_factor, _backend, _volume_factor_getter):
             self.assertTrue(started)
             return True
 
@@ -133,7 +133,7 @@ class TestPicoTalkerNativeVolume(unittest.TestCase):
 
         self.assertTrue(ready)
         stream.start.assert_called_once_with()
-        set_volume.assert_called_once_with(10, "native")
+        set_volume.assert_called_once_with(10, "native", talker.volume_factor_getter)
 
     @patch("picotalker.time.monotonic", return_value=0)
     @patch("picotalker.set_system_volume", side_effect=[False, True])
@@ -166,7 +166,7 @@ class TestPicoTalkerNativeVolume(unittest.TestCase):
         menu.menu_system_voice_volumefactor = 11  # menu edit, not confirmed
         talker._ensure_native_stream(22050, 1)
         self.assertEqual(set_volume.call_count, 2)
-        set_volume.assert_called_with(10, "native")
+        set_volume.assert_called_with(10, "native", talker.volume_factor_getter)
 
     @patch("picotalker.time.monotonic", return_value=0)
     @patch("picotalker.set_system_volume", side_effect=[False, True])
@@ -180,7 +180,7 @@ class TestPicoTalkerNativeVolume(unittest.TestCase):
         now.return_value = 1
         self.assertTrue(talker.pico3_sound_player("check.ogg"))
         self.assertEqual(set_volume.call_count, 2)
-        set_volume.assert_called_with(10, "sox")
+        set_volume.assert_called_with(10, "sox", talker.volume_factor_getter)
 
 
 if __name__ == "__main__":

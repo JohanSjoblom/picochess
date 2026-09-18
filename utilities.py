@@ -271,6 +271,9 @@ def checkout_tag(tag):
 
 def update_pico_engines():
     """Update picochess engines from github resource (asset) files"""
+    if platform.system() != "Linux":
+        logging.warning("engine updates are supported only on Linux")
+        return
     script_path = "/opt/picochess/move-engines-to-backup.sh"
 
     try:
@@ -287,6 +290,9 @@ def update_pico_engines():
 
 def update_pico_v4(reason: Optional[str] = None):
     """use the picochess-update.service and update on next boot"""
+    if platform.system() != "Linux":
+        logging.warning("PicoChess updates are supported only on Linux")
+        return
     # Path to the update trigger flag
     flag_path = Path.home() / "run_picochess_update.flag"
     flag_reason = reason if reason else "pico"
@@ -307,6 +313,10 @@ def update_picochess_now():
     After both passes, chromium (kiosk) is killed so it reconnects to the fresh
     server, and PicoChess is restarted via systemctl (no full reboot required).
     """
+    if platform.system() != "Linux":
+        logging.warning("immediate PicoChess updates are supported only on Linux")
+        return
+
     script = "/opt/picochess/install-picochess.sh"
     logfile = "/var/log/picochess-update.log"
     cmd = (
@@ -359,8 +369,11 @@ def shutdown(dgtpi: bool, dev: str):
     """Shutdown picochess."""
     logging.debug("shutting down system requested by (%s)", dev)
 
-    if platform.system() == "Windows":
+    system_name = platform.system()
+    if system_name == "Windows":
         os.system("shutdown /s")
+    elif system_name != "Linux":
+        logging.warning("system shutdown is not supported on %s", system_name)
     elif dgtpi:
         shutdown_dgtpi()
         os.system("sudo shutdown -h now")
@@ -407,9 +420,12 @@ def exit_pico(dgtpi: bool, dev: str):
     """exit picochess."""
     logging.debug("exit picochess requested by (%s)", dev)
 
-    if platform.system() == "Windows":
+    system_name = platform.system()
+    if system_name == "Windows":
         os.system("sudo pkill -f chromium")
         os.system("sudo systemctl stop picochess")
+    elif system_name != "Linux":
+        logging.info("no host exit command configured for %s", system_name)
     elif dgtpi:
         shutdown_dgtpi()
         os.system("sudo pkill -f chromium")
@@ -426,8 +442,11 @@ def reboot(dgtpi: bool, dev: str):
     """Reboot picochess."""
     logging.debug("rebooting system requested by (%s)", dev)
 
-    if platform.system() == "Windows":
+    system_name = platform.system()
+    if system_name == "Windows":
         os.system("shutdown /r")
+    elif system_name != "Linux":
+        logging.warning("system reboot is not supported on %s", system_name)
     elif dgtpi:
         os.system("sudo reboot")
     else:

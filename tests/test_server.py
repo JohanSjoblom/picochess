@@ -46,6 +46,7 @@ from server import (
     _resolve_web_theme,
     _select_engine_book,
     _select_web_book,
+    _supports_linux_host_integration,
     _time_control_text,
     _update_web_book_selection,
     _validate_setup_position_fen,
@@ -818,6 +819,11 @@ class TestServerClockState(unittest.TestCase):
 
 
 class TestServerChannelAuth(unittest.TestCase):
+    def test_linux_host_integration_is_disabled_on_desktop_ports(self):
+        self.assertTrue(_supports_linux_host_integration("Linux"))
+        self.assertFalse(_supports_linux_host_integration("Darwin"))
+        self.assertFalse(_supports_linux_host_integration("Windows"))
+
     def test_high_impact_channel_actions_require_remote_auth(self):
         for action in (
             "new_engine",
@@ -851,6 +857,26 @@ class TestServerChannelAuth(unittest.TestCase):
             "set_position_side",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)
+
+
+class TestServerUnsupportedHostActions(unittest.IsolatedAsyncioTestCase):
+    async def test_macos_rejects_linux_system_action(self):
+        handler = Mock()
+        handler.shared = {}
+        handler.get_argument.return_value = "sys_shutdown"
+
+        with (
+            patch("server._require_auth_if_remote", return_value=True),
+            patch("server._supports_linux_host_integration", return_value=False),
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        fire.assert_not_awaited()
+        handler.set_status.assert_called_once_with(501)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "This system action is available only on Linux"}
+        )
 
 
 class TestServerSetPositionFromPgn(unittest.TestCase):

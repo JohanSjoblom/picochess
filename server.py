@@ -42,7 +42,12 @@ import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
-if platform.system() != "Windows":
+def _supports_linux_host_integration(system_name: str | None = None) -> bool:
+    """Return whether optional Linux host-management features are available."""
+    return (system_name or platform.system()) == "Linux"
+
+
+if _supports_linux_host_integration():
     import pam
     from upload_pgn import UploadHandler
 else:
@@ -193,6 +198,18 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "rwindow",
         "phone_speaker",
         "audio_backend",
+    }
+)
+
+LINUX_ONLY_CHANNEL_ACTIONS = frozenset(
+    {
+        "sys_shutdown",
+        "sys_reboot",
+        "sys_update",
+        "sys_update_engines",
+        "wifi_hotspot",
+        "bt_toggle",
+        "bt_fix",
     }
 )
 
@@ -1017,6 +1034,10 @@ class ChannelHandler(ServerRequestHandler):
         if _channel_action_requires_remote_auth(action):
             if not _require_auth_if_remote(self, "Control"):
                 return
+        if action in LINUX_ONLY_CHANNEL_ACTIONS and not _supports_linux_host_integration():
+            self.set_status(501)
+            self.write({"success": False, "error": "This system action is available only on Linux"})
+            return
 
         if action == "broadcast":
             if not _require_auth_if_remote(self, "Broadcast"):
@@ -2794,12 +2815,17 @@ class WebServer:
                 (r"/settings", SettingsPageHandler, dict(theme=theme)),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
-                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
-                (r"/onboard", WifiSetupPageHandler),
-                (r"/onboard/wifi", WifiSetupHandler),
-                (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
             ]
         )
+        if _supports_linux_host_integration():
+            handlers.extend(
+                [
+                    (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
+                    (r"/onboard", WifiSetupPageHandler),
+                    (r"/onboard/wifi", WifiSetupHandler),
+                ]
+            )
+        handlers.append((r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}))
         return tornado.web.Application(handlers)
 
 

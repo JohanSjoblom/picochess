@@ -16,16 +16,23 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import os
 import platform
 import struct
 import logging
 import subprocess
 from threading import Lock
-from fcntl import fcntl, F_GETFL, F_SETFL
-from os import O_NONBLOCK, read, path, listdir
+from os import read, path, listdir
 from serial import Serial, SerialException, STOPBITS_ONE, PARITY_NONE, EIGHTBITS  # type: ignore
 import time
 from typing import List, Optional, Tuple
+
+try:
+    from fcntl import fcntl, F_GETFL, F_SETFL
+except ImportError:
+    fcntl = F_GETFL = F_SETFL = None
+
+O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
 
 from eboard.eboard import EBoard
 from dgt.util import DgtAck, DgtClk, DgtCmd, DgtMsg, ClockIcons, ClockSide, enum
@@ -693,6 +700,7 @@ class DgtBoard(EBoard):
                 )
 
                 # set the O_NONBLOCK flag of file descriptor:
+                assert fcntl is not None and F_GETFL is not None and F_SETFL is not None
                 flags = fcntl(self.btctl.stdout, F_GETFL)  # get current flags
                 fcntl(self.btctl.stdout, F_SETFL, flags | O_NONBLOCK)
 

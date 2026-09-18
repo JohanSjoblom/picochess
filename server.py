@@ -38,10 +38,16 @@ import chess.pgn as pgn  # type: ignore
 import chess.polyglot  # type: ignore
 import chess.variant  # type: ignore
 
-import pam
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
+
+if platform.system() != "Windows":
+    import pam
+    from upload_pgn import UploadHandler
+else:
+    pam = None
+    UploadHandler = None
 
 from utilities import (
     Observable,
@@ -54,7 +60,6 @@ from utilities import (
     write_picochess_ini,
     version as pico_version,
 )
-from upload_pgn import UploadHandler
 from audio_volume import set_system_volume
 from web.picoweb import picoweb as pw
 from web.menu_translate import get_menu_catalog, get_menu_source_map, get_menu_text
@@ -827,6 +832,10 @@ def _channel_action_requires_remote_auth(action: str) -> bool:
 def _require_auth_if_remote(handler, realm: str) -> bool:
     if _is_local_request(handler.request):
         return True
+    if pam is None:
+        handler.set_status(503)
+        handler.finish("Remote authentication is unavailable on this platform")
+        return False
     auth_header = handler.request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Basic "):
         handler.set_status(401)
@@ -2751,8 +2760,7 @@ class WebServer:
     ) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
-        return tornado.web.Application(
-            [
+        handlers = [
                 (
                     r"/",
                     ChessBoardHandler,
@@ -2773,8 +2781,16 @@ class WebServer:
                 (r"/manual/?", ManualHandler),
                 (r"/manual/user-manual-en-GB.html", ManualHandler),
                 (r"/channel", ChannelHandler, dict(shared=shared)),
-                (r"/upload-pgn", UploadHandler),
-                (r"/upload", UploadPageHandler),
+        ]
+        if UploadHandler is not None:
+            handlers.extend(
+                [
+                    (r"/upload-pgn", UploadHandler),
+                    (r"/upload", UploadPageHandler),
+                ]
+            )
+        handlers.extend(
+            [
                 (r"/settings", SettingsPageHandler, dict(theme=theme)),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
@@ -2784,6 +2800,7 @@ class WebServer:
                 (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
             ]
         )
+        return tornado.web.Application(handlers)
 
 
 class WebVr(DgtIface):

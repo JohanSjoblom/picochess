@@ -833,6 +833,10 @@ class DgtBoard(EBoard):
             if self.bt_state == 6:
                 # now try rfcomm
                 self.bt_state = 7
+                # Keep the pairing usable across reboots and transient rfcomm
+                # failures.  Trust is idempotent for an already-trusted board.
+                self.btctl.stdin.write("trust " + self.bt_mac_list[self.bt_current_device] + "\n")
+                self.btctl.stdin.flush()
                 self.bt_rfcomm = subprocess.Popen(
                     "sudo rfcomm connect 123 " + self.bt_mac_list[self.bt_current_device],
                     stdin=subprocess.PIPE,
@@ -856,26 +860,27 @@ class DgtBoard(EBoard):
                         return True
                 # rfcomm failed
                 if self.bt_rfcomm.poll() is not None:
-                    logger.debug("BT rfcomm failed")
-                    self.btctl.stdin.write("remove " + self.bt_mac_list[self.bt_current_device] + "\n")
-                    if self.bt_current_device > 0:
-                        logger.debug(
-                            "Removing device from list: %s %s",
-                            self.bt_mac_list[self.bt_current_device],
-                            self.bt_name_list[self.bt_current_device],
-                        )
-                        self.bt_mac_list.remove(self.bt_mac_list[self.bt_current_device])
-                        self.bt_name_list.remove(self.bt_name_list[self.bt_current_device])
-                        self.bt_current_device -= 1
-                    else:
-                        self.btctl.stdin.write("quit\n")
-                        self.btctl.stdin.flush()
-                        self.bt_state = -1
-                        self.bt_mac_list = []
-                        self.bt_name_list = []
-                        time.sleep(0.5)
-                        logger.debug("Restarting bluetoothctl")
+                    self._reset_bluetooth_after_rfcomm_failure()
         return False
+
+    def _reset_bluetooth_after_rfcomm_failure(self):
+        """Retry Bluetooth without deleting the persistent BlueZ pairing."""
+        logger.debug("BT rfcomm failed; preserving pairing and retrying")
+        try:
+            self.btctl.stdin.write("quit\n")
+            self.btctl.stdin.flush()
+        except (AttributeError, BrokenPipeError, OSError):
+            pass
+        self.bt_state = -1
+        self.bt_current_device = -1
+        self.bt_mac_list = []
+        self.bt_name_list = []
+        self.bt_line = ""
+        self.bt_rfcomm = None
+        # The board may still be completing its link-layer connection after
+        # boot.  Avoid immediately starting another rfcomm attempt.
+        time.sleep(2)
+        logger.debug("Restarting bluetoothctl")
 
     def _queue_no_board_spinner(self):
         """Schedule a non-blocking spinner update on the async loop."""

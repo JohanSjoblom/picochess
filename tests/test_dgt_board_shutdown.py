@@ -2,6 +2,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
+from dgt.api import DgtCmd
 from dgt.board import DgtBoard
 
 
@@ -122,6 +123,32 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
             await board._watchdog()
 
         to_thread.assert_called_once_with(board._watchdog_blocking)
+
+    async def test_watchdog_does_not_write_during_shutdown(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.write_command = Mock()
+        board.stop_requested.set()
+
+        board._watchdog_blocking()
+
+        board.write_command.assert_not_called()
+
+    async def test_write_tolerates_serial_closed_during_lock_acquisition(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.serial = Mock()
+
+        class DisconnectingLock:
+            def __enter__(self):
+                board.serial = None
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        board.lock = DisconnectingLock()
+
+        self.assertTrue(board.write_command([DgtCmd.DGT_RETURN_SERIALNR]))
 
     async def test_overlapping_serial_startup_is_skipped(self):
         loop = asyncio.get_running_loop()

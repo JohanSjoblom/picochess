@@ -246,22 +246,29 @@ class DgtBoard(EBoard):
                 return False
 
         while True:
+            if self.stop_requested.is_set():
+                return False
             if self.serial:
                 with self.lock:
-                    try:
-                        self.serial.write(bytearray(array))
-                        break
-                    except ValueError:
-                        logger.error("invalid bytes sent %s", message)
-                        return False
-                    except SerialException as write_expection:
-                        logger.error(write_expection)
-                        self.serial.close()
-                        self._on_disconnect()
-                    except IOError as write_expection:
-                        logger.error(write_expection)
-                        self.serial.close()
-                        self._on_disconnect()
+                    serial = self.serial
+                    if serial is not None:
+                        try:
+                            serial.write(bytearray(array))
+                            break
+                        except ValueError:
+                            logger.error("invalid bytes sent %s", message)
+                            return False
+                        except (OSError, SerialException, TypeError) as write_expection:
+                            logger.error(write_expection)
+                            try:
+                                serial.close()
+                            except (OSError, SerialException, TypeError):
+                                logger.debug("error while closing failed serial connection", exc_info=True)
+                            if self.serial is serial:
+                                if self.stop_requested.is_set():
+                                    self.serial = None
+                                else:
+                                    self._on_disconnect()
             if mes == DgtCmd.DGT_RETURN_SERIALNR:
                 break
             time.sleep(0.1)
@@ -668,6 +675,8 @@ class DgtBoard(EBoard):
 
     def _watchdog_blocking(self):
         """Perform one potentially blocking serial keepalive."""
+        if self.stop_requested.is_set():
+            return
         logger.debug("running watchdog")
         if self.clock_lock and not self.is_pi:
             age = time.time() - self.clock_lock

@@ -85,6 +85,24 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertEqual(2, template.count("_applyPonderPositionSide();"))
         self.assertNotIn("_applyScannedPositionSide", template)
 
+    def test_position_scan_status_uses_menu_translations(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        for key in (
+            "position.scanning",
+            "common.please_wait",
+            "position.invalid",
+            "position.invalid_position",
+            "position.check_board_retry",
+            "position.scan_failed",
+            "position.check_connection",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(f"menuKey('{key}')", template)
+
+        self.assertNotIn("Invalid position</strong>", template)
+        self.assertNotIn("'⚠ Invalid'", template)
+
     def test_retro_clock_preserves_clock_menu_when_returning(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
 

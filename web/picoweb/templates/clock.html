@@ -2004,8 +2004,8 @@
                 if (tileEl) {
                     var lEl = tileEl.querySelector('.pico-sub-tile-label');
                     var sEl = tileEl.querySelector('.pico-sub-tile-sub');
-                    if (lEl) lEl.textContent = '⏳ Scanning…';
-                    if (sEl) sEl.textContent = 'Please wait';
+                    if (lEl) lEl.textContent = '⏳ ' + menuKey('position.scanning');
+                    if (sEl) sEl.textContent = menuKey('common.please_wait');
                     tileEl.disabled = true;
                 }
                 var c = _positionSettings.castling;
@@ -2034,8 +2034,8 @@
                         if (tileEl) {
                             var lEl = tileEl.querySelector('.pico-sub-tile-label');
                             var sEl = tileEl.querySelector('.pico-sub-tile-sub');
-                            if (lEl) lEl.textContent = '⚠ Invalid';
-                            if (sEl) sEl.textContent = 'Check board & retry';
+                            if (lEl) lEl.textContent = '⚠ ' + menuKey('position.invalid');
+                            if (sEl) sEl.textContent = menuKey('position.check_board_retry');
                             tileEl.disabled = false;
                             setTimeout(function() { renderPositionTiles(); }, 2500);
                         }
@@ -2045,8 +2045,8 @@
                     if (tileEl) {
                         var lEl = tileEl.querySelector('.pico-sub-tile-label');
                         var sEl = tileEl.querySelector('.pico-sub-tile-sub');
-                        if (lEl) lEl.textContent = '⚠ Scan failed';
-                        if (sEl) sEl.textContent = 'Check connection';
+                        if (lEl) lEl.textContent = '⚠ ' + menuKey('position.scan_failed');
+                        if (sEl) sEl.textContent = menuKey('position.check_connection');
                         tileEl.disabled = false;
                         setTimeout(function() { renderPositionTiles(); }, 2500);
                     }
@@ -4011,7 +4011,7 @@
                 if (posScanBtn) {
                     var scanBtn = document.getElementById('ovl-pos-scan-btn');
                     var origHtml = scanBtn ? scanBtn.innerHTML : '';
-                    if (scanBtn) scanBtn.innerHTML = '<strong>⏳ Scanning…</strong><span class="picker-sub">Please wait</span>';
+                    if (scanBtn) scanBtn.innerHTML = '<strong>⏳ ' + menuKey('position.scanning') + '</strong><span class="picker-sub">' + menuKey('common.please_wait') + '</span>';
                     var c = _positionSettings.castling;
                     fetch('/channel', {
                         method: 'POST',
@@ -4035,12 +4035,12 @@
                             if (sub) sub.textContent = _positionSubLabel() + ' · ' + menuKey('common.set');
                             close();
                         } else {
-                            if (scanBtn) scanBtn.innerHTML = '<strong>⚠ Invalid position</strong><span class="picker-sub">Check board &amp; retry</span>';
+                            if (scanBtn) scanBtn.innerHTML = '<strong>⚠ ' + menuKey('position.invalid_position') + '</strong><span class="picker-sub">' + menuKey('position.check_board_retry') + '</span>';
                             setTimeout(function() { if (scanBtn) scanBtn.innerHTML = origHtml; }, 2500);
                         }
                     })
                     .catch(function() {
-                        if (scanBtn) scanBtn.innerHTML = '<strong>⚠ Scan failed</strong><span class="picker-sub">Check connection</span>';
+                        if (scanBtn) scanBtn.innerHTML = '<strong>⚠ ' + menuKey('position.scan_failed') + '</strong><span class="picker-sub">' + menuKey('position.check_connection') + '</span>';
                         setTimeout(function() { if (scanBtn) scanBtn.innerHTML = origHtml; }, 2500);
                     });
                     return;

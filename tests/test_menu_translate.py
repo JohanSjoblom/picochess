@@ -33,6 +33,10 @@ class TestWebMenuTranslate(unittest.TestCase):
     def test_browser_labels_are_not_truncated(self):
         self.assertEqual("Zwei Spieler online", get_menu_text("de", "mode.remote"))
 
+    def test_position_scan_status_is_localized(self):
+        self.assertEqual("Ongeldige stelling", get_menu_text("nl", "position.invalid_position"))
+        self.assertEqual("Brett prüfen und erneut versuchen", get_menu_text("de", "position.check_board_retry"))
+
     def test_source_map_supports_legacy_english_fallback_strings(self):
         source_map = get_menu_source_map("es")
         self.assertEqual("Jugar", source_map["Play"])

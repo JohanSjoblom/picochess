@@ -69,16 +69,17 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("['🕘 Time',  'time']", template)
         self.assertIn("if (val === 'auto' || val === 'time')", template)
 
-    def test_local_kiosk_hides_cursor_without_affecting_remote_clients(self):
+    def test_wayland_kiosk_hides_labwc_cursor(self):
         root = Path(__file__).parents[1]
         template = (root / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
         kiosk_script = (root / "kiosk.sh").read_text(encoding="utf-8")
+        installer = (root / "install-kiosk.sh").read_text(encoding="utf-8")
 
-        self.assertIn('PICOCHESS_URL="${PICOCHESS_URL}?kiosk=1"', kiosk_script)
-        self.assertIn("new URLSearchParams(window.location.search).get('kiosk') === '1'", template)
-        self.assertIn("document.documentElement.classList.add('pico-kiosk')", template)
-        self.assertIn("html.pico-kiosk *", template)
-        self.assertNotIn("document.documentElement.classList.add('pico-kiosk');\n        } else", template)
+        self.assertIn("ydotool key 56:1 125:1 35:1 35:0 125:0 56:0", kiosk_script)
+        self.assertIn("hide_wayland_cursor", kiosk_script)
+        self.assertIn('action name="HideCursor"', installer)
+        self.assertIn('key="A-W-h"', installer)
+        self.assertNotIn("pico-kiosk", template)
 
     def test_game_settings_are_persistent_toggles(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")

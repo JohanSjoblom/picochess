@@ -4,6 +4,17 @@ is_wayland() {
   [ "${XDG_SESSION_TYPE:-}" = "wayland" ] || [ -n "${WAYLAND_DISPLAY:-}" ]
 }
 
+hide_wayland_cursor() {
+  # Chromium's CSS cursor hiding does not hide labwc's compositor cursor.
+  # install-kiosk.sh binds Alt+Super+H to labwc's HideCursor action.
+  if command -v ydotool >/dev/null 2>&1; then
+    (
+      sleep 1
+      ydotool key 56:1 125:1 35:1 35:0 125:0 56:0 >/dev/null 2>&1
+    ) &
+  fi
+}
+
 if is_wayland; then
   echo "kiosk.sh: Wayland session detected"
 else
@@ -148,11 +159,9 @@ while true; do
   if [ $? -eq 0 ]; then
     close_update_terminal
     PICOCHESS_URL="$(picochess_url)"
-    # Mark only the local touchscreen session as kiosk.  The web client uses
-    # this flag to hide the cursor on Wayland, where X11 unclutter cannot run.
-    PICOCHESS_URL="${PICOCHESS_URL}?kiosk=1"
     if is_wayland; then
       /usr/bin/chromium --password-store=basic --kiosk "$PICOCHESS_URL" &
+      hide_wayland_cursor
     else
       /usr/bin/chromium --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk "$PICOCHESS_URL" &
     fi

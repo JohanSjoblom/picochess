@@ -80,7 +80,28 @@ dependencies, and start PicoChess from PowerShell in the repository root::
 
 Then open ``http://localhost:8080``. This experimental path targets web-only
 play against a native engine. PGN upload authentication, host updates,
-Wi-Fi/Bluetooth setup, shutdown, and reboot remain Linux-only integrations.
+PicoChess-managed Wi-Fi/Bluetooth setup, shutdown, and reboot remain Linux-only
+integrations.
+
+Windows can use a DGT Bluetooth e-Board through a virtual COM port. Pair and
+configure it as follows:
+
+1. Turn on the Windows Bluetooth adapter and the DGT Bluetooth e-Board.
+2. Open ``Control Panel > Hardware and Sound > Devices and Printers`` and
+    select ``Add a device``.
+3. Select ``DGT_BT_XXXXX``, choose to enter the device pairing code, and enter
+    ``0000`` (four zeros).
+4. Find the COM port assigned to the paired board in Windows Device Manager.
+5. Configure PicoChess with that port, for example::
+
+         board-type = dgt
+         dgt-port = COM7
+
+The Windows COM-port name can also be supplied on the command line with
+``--dgt-port COM7``. RabbitPlugin is a Fritz-facing integration and is not
+needed by PicoChess, which communicates with the board directly through the
+COM port. Do not run Fritz/RabbitPlugin and PicoChess against the same COM port
+at the same time.
 
 Experimental macOS arm64 setup
 ==============================

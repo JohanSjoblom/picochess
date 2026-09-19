@@ -2790,20 +2790,30 @@ async def main() -> None:
         async def call_pico_coach(self):
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return
-            if self.state.coach_triggered:
+            claimed_position_mode = self.state.coach_triggered
+            if claimed_position_mode:
                 self.state.position_mode = True
+            coach_fen = self.state.get_fen()
+            coach_board_fen = self.state.get_board_fen()
+            coach_revision = self.state.user_move_revision
             if (
                 (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
                 or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
             ) and not (self.state.game.is_checkmate() or self.state.game.is_stalemate()):
                 await self.state.stop_clock()
                 await asyncio.sleep(0.5)
+                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    return
                 self.state.stop_fen_timer()
                 await asyncio.sleep(0.5)
+                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    return
                 eval_str = "ANALYSIS"
                 msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(2)
+                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    return
 
                 (
                     t_best_move,
@@ -2818,11 +2828,15 @@ async def main() -> None:
                     t_best_mate,
                     len(t_alt_best_moves),
                 )
+                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    return
 
                 tutor_str = "POS" + str(t_best_score)
                 msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, score=t_best_score)
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(5)
+                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    return
 
                 if t_best_mate:
                     l_mate = int(t_best_mate)
@@ -2834,6 +2848,8 @@ async def main() -> None:
                         msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                         await DisplayMsg.show(msg)
                         await asyncio.sleep(5)
+                        if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                            return
                 else:
                     l_mate = 0
                 if l_mate > 0:
@@ -2841,11 +2857,15 @@ async def main() -> None:
                     msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
                     await DisplayMsg.show(msg)
                     await asyncio.sleep(5)
+                    if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                        return
                 elif l_mate < 0:
                     eval_str = "USRMATE_" + str(abs(l_mate))
                     msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
                     await DisplayMsg.show(msg)
                     await asyncio.sleep(5)
+                    if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                        return
                 else:
                     l_max = 0
                     for alt_move in t_alt_best_moves:
@@ -2859,9 +2879,38 @@ async def main() -> None:
                             msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                             await DisplayMsg.show(msg)
                             await asyncio.sleep(5)
+                            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                                return
                         else:
                             break
+                if claimed_position_mode:
+                    self.state.position_mode = False
+                    self.state.coach_triggered = False
+                    self.state.error_fen = None
                 await self.state.start_clock()
+
+        def _coach_call_is_current(
+            self,
+            expected_fen: str,
+            expected_board_fen: str,
+            expected_revision: int,
+        ) -> bool:
+            """Keep Coach output tied to the position that requested it."""
+            if (
+                self.state.user_move_revision != expected_revision
+                or self.state.get_fen() != expected_fen
+            ):
+                return False
+            if self.board_type == dgt.util.EBoard.NOEBOARD:
+                return True
+            return self.state.dgtmenu.get_dgt_fen() == expected_board_fen
+
+        def _release_coach_position_mode_for_move(self) -> None:
+            """Let a confirmed legal move enter Tutor while an old Coach display winds down."""
+            if self.state.position_mode and self.state.coach_triggered:
+                logger.info("ending Coach position mode for confirmed user move")
+                self.state.position_mode = False
+                self.state.coach_triggered = False
 
         async def call_hand_coach(self, piece_type: chess.PieceType | None):
             """Experimental Brain and hand: suggest the best move for a lifted piece type."""
@@ -4309,6 +4358,7 @@ async def main() -> None:
                         )
                         return False
 
+                self._release_coach_position_mode_for_move()
                 user_move_revision = self._invalidate_user_move_tasks()
                 self.cancel_brain_hint_timer(preserve_best_move=True, resume_paused_clock=False)
                 self.state.brain_required_piece_type = None

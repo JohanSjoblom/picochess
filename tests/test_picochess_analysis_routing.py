@@ -1573,6 +1573,121 @@ class TestEarlyUserMoveInvalidation(unittest.TestCase):
                 )
 
 
+class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        self.main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        methods = {
+            node.name: node
+            for node in self.main_loop.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in {
+                "call_pico_coach",
+                "_coach_call_is_current",
+                "_release_coach_position_mode_for_move",
+            }
+        }
+        self.show = AsyncMock()
+        self.sleep = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
+        namespace["asyncio"] = SimpleNamespace(sleep=self.sleep)
+        exec(
+            compile(ast.Module(body=list(methods.values()), type_ignores=[]), picochess.__file__, "exec"),
+            namespace,
+        )
+        controller_type = type(
+            "CoachPositionController",
+            (),
+            {name: namespace[name] for name in methods},
+        )
+        self.controller = controller_type()
+        self.board = chess.Board()
+        self.dgtmenu = SimpleNamespace(get_dgt_fen=Mock(return_value=self.board.board_fen()))
+        self.controller.board_type = picochess.dgt.util.EBoard.NOEBOARD
+        self.controller.state = SimpleNamespace(
+            interaction_mode=Mode.NORMAL,
+            play_mode=picochess.PlayMode.USER_WHITE,
+            game=self.board,
+            get_fen=self.board.fen,
+            get_board_fen=self.board.board_fen,
+            user_move_revision=4,
+            coach_triggered=True,
+            position_mode=False,
+            error_fen="transient",
+            dgtmenu=self.dgtmenu,
+            stop_clock=AsyncMock(),
+            start_clock=AsyncMock(),
+            stop_fen_timer=Mock(),
+            picotutor=SimpleNamespace(
+                get_pos_analysis=AsyncMock(
+                    return_value=(chess.Move.null(), 25, 0, [])
+                )
+            ),
+        )
+
+    async def test_completed_coach_releases_position_mode_and_restarts_clock(self):
+        await self.controller.call_pico_coach()
+
+        self.assertFalse(self.controller.state.position_mode)
+        self.assertFalse(self.controller.state.coach_triggered)
+        self.assertIsNone(self.controller.state.error_fen)
+        self.controller.state.start_clock.assert_awaited_once_with()
+
+    async def test_physical_position_change_stops_coach_and_keeps_correction_mode(self):
+        self.controller.board_type = picochess.dgt.util.EBoard.DGT
+        self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"
+
+        await self.controller.call_pico_coach()
+
+        self.assertTrue(self.controller.state.position_mode)
+        self.controller.state.start_clock.assert_not_awaited()
+        self.show.assert_not_awaited()
+
+    async def test_move_during_coach_stops_old_output_and_does_not_restart_clock(self):
+        async def advance_revision(delay):
+            if delay == 2:
+                self.controller._release_coach_position_mode_for_move()
+                self.controller.state.user_move_revision += 1
+
+        self.sleep.side_effect = advance_revision
+
+        await self.controller.call_pico_coach()
+
+        self.assertFalse(self.controller.state.position_mode)
+        self.assertFalse(self.controller.state.coach_triggered)
+        self.controller.state.start_clock.assert_not_awaited()
+        self.assertEqual(1, self.show.await_count)
+
+    def test_confirmed_move_releases_coach_mode_before_invalidating_old_tasks(self):
+        self.controller.state.position_mode = True
+        self.controller._release_coach_position_mode_for_move()
+
+        self.assertFalse(self.controller.state.position_mode)
+        self.assertFalse(self.controller.state.coach_triggered)
+
+        user_move = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "user_move"
+        )
+        release = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_release_coach_position_mode_for_move"
+        )
+        invalidate = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_invalidate_user_move_tasks"
+        )
+        self.assertLess(release.lineno, invalidate.lineno)
+
+
 class TestAlternativeMovePendingState(unittest.TestCase):
     def setUp(self):
         source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))

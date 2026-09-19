@@ -102,6 +102,7 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
             position_checkpoint_restore_pending=False,
             stop_clock=AsyncMock(),
         )
+
     async def test_each_local_flag_fall_is_reported(self):
         event = Event.OUT_OF_TIME(color=chess.WHITE)
 

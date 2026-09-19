@@ -603,7 +603,13 @@ class DgtBoard(EBoard):
                         return self._read_board_message(byte)
                     message += data
                 else:
-                    logger.warning("timeout in data reading")
+                    logger.warning(
+                        "timeout reading message 0x%x - discard %i collected bytes, %i missing",
+                        message_id,
+                        len(message),
+                        counter,
+                    )
+                    return message
             except struct.error:
                 logger.warning("struct error => maybe a reconnected board?")
 

@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from dgt.board import DgtBoard
-from dgt.util import DgtCmd
+from dgt.util import DgtCmd, DgtMsg
 
 
 class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
@@ -149,6 +149,18 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board.lock = DisconnectingLock()
 
         self.assertTrue(board.write_command([DgtCmd.DGT_RETURN_SERIALNR]))
+
+    async def test_incomplete_board_message_is_discarded_after_one_timeout(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board._read_serial = Mock(side_effect=[bytes([0, 5]), b""])
+        board._process_board_message = Mock()
+
+        message = board._read_board_message(bytes([DgtMsg.DGT_MSG_VERSION.value]))
+
+        self.assertEqual(message, ())
+        self.assertEqual(board._read_serial.call_count, 2)
+        board._process_board_message.assert_not_called()
 
     async def test_overlapping_serial_startup_is_skipped(self):
         loop = asyncio.get_running_loop()

@@ -105,6 +105,7 @@ class DgtBoard(EBoard):
 
         self.serial = None
         self.lock = Lock()  # lock the serial write
+        self.startup_lock = Lock()  # keep reconnect retries from duplicating the serial handshake
         self.incoming_board_task: Optional[asyncio.Task] = None
         self.stop_requested = Event()
         self.lever_pos: Optional[int] = None
@@ -649,10 +650,17 @@ class DgtBoard(EBoard):
             self.version_timer.start()
 
     def _startup_serial_board(self):
-        self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
-        self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
-        if not self.connected:
-            self.handshake_pending = True
+        if not self.startup_lock.acquire(blocking=False):
+            logger.debug("serial board startup already in progress")
+            return False
+        try:
+            self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
+            self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
+            if not self.connected:
+                self.handshake_pending = True
+            return True
+        finally:
+            self.startup_lock.release()
 
     def _watchdog(self):
         """callback by repeated timer"""
@@ -885,8 +893,12 @@ class DgtBoard(EBoard):
         self.last_clock_command = []
         self.clock_resend_attempts = 0
 
-    def _retry_handshake(self):
-        """Keep requesting version info until the board replies."""
+    async def _retry_handshake(self):
+        """Keep requesting version info without blocking the shared event loop."""
+        await asyncio.to_thread(self._retry_handshake_blocking)
+
+    def _retry_handshake_blocking(self):
+        """Perform one potentially blocking serial reconnect attempt."""
         if not self.handshake_pending:
             if self.version_timer.is_running():
                 self.version_timer.stop()

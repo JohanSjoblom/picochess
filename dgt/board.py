@@ -123,6 +123,7 @@ class DgtBoard(EBoard):
         self.bt_state = -1
         self.bt_line = ""
         self.bt_current_device = -1
+        self.bt_retry_after = 0.0
         self.bt_mac_list: List[str] = []
         self.bt_name_list: List[str] = []
         self.bt_name = ""
@@ -699,6 +700,12 @@ class DgtBoard(EBoard):
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
 
     def _open_bluetooth(self):
+        if self.bt_state == 8:
+            if time.monotonic() < self.bt_retry_after:
+                return False
+            # Continue with the next known candidate.  With one board this
+            # naturally wraps around and retries that same board.
+            self.bt_state = 4
         if self.bt_state == -1:
             # only for jessie upwards
             if path.exists("/usr/bin/bluetoothctl"):
@@ -860,27 +867,15 @@ class DgtBoard(EBoard):
                         return True
                 # rfcomm failed
                 if self.bt_rfcomm.poll() is not None:
-                    self._reset_bluetooth_after_rfcomm_failure()
+                    self._defer_bluetooth_after_rfcomm_failure()
         return False
 
-    def _reset_bluetooth_after_rfcomm_failure(self):
-        """Retry Bluetooth without deleting the persistent BlueZ pairing."""
+    def _defer_bluetooth_after_rfcomm_failure(self):
+        """Retry another candidate later without deleting BlueZ pairings."""
         logger.debug("BT rfcomm failed; preserving pairing and retrying")
-        try:
-            self.btctl.stdin.write("quit\n")
-            self.btctl.stdin.flush()
-        except (AttributeError, BrokenPipeError, OSError):
-            pass
-        self.bt_state = -1
-        self.bt_current_device = -1
-        self.bt_mac_list = []
-        self.bt_name_list = []
-        self.bt_line = ""
+        self.bt_state = 8
+        self.bt_retry_after = time.monotonic() + 2
         self.bt_rfcomm = None
-        # The board may still be completing its link-layer connection after
-        # boot.  Avoid immediately starting another rfcomm attempt.
-        time.sleep(2)
-        logger.debug("Restarting bluetoothctl")
 
     def _queue_no_board_spinner(self):
         """Schedule a non-blocking spinner update on the async loop."""

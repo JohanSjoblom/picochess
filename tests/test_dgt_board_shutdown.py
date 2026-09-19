@@ -196,19 +196,43 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board.bt_line = "stale output"
         board.bt_rfcomm = Mock()
 
-        with patch("dgt.board.time.sleep") as sleep:
-            board._reset_bluetooth_after_rfcomm_failure()
+        with patch("dgt.board.time.monotonic", return_value=100):
+            board._defer_bluetooth_after_rfcomm_failure()
 
-        board.btctl.stdin.write.assert_called_once_with("quit\n")
-        board.btctl.stdin.flush.assert_called_once_with()
-        self.assertNotIn("remove", "".join(call.args[0] for call in board.btctl.stdin.write.call_args_list))
-        self.assertEqual(board.bt_state, -1)
-        self.assertEqual(board.bt_current_device, -1)
-        self.assertEqual(board.bt_mac_list, [])
-        self.assertEqual(board.bt_name_list, [])
-        self.assertEqual(board.bt_line, "")
+        board.btctl.stdin.write.assert_not_called()
+        self.assertEqual(board.bt_state, 8)
+        self.assertEqual(board.bt_retry_after, 102)
+        self.assertEqual(board.bt_current_device, 0)
+        self.assertEqual(board.bt_mac_list, ["00:06:66:64:C4:07"])
+        self.assertEqual(board.bt_name_list, ["DGT_BT_21704"])
+        self.assertEqual(board.bt_line, "stale output")
         self.assertIsNone(board.bt_rfcomm)
-        sleep.assert_called_once_with(2)
+
+    async def test_rfcomm_retry_waits_then_tries_next_candidate(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("", False, True, False, loop)
+        board.btctl = Mock()
+        board.btctl.stdout.fileno.return_value = 42
+        board.bt_state = 8
+        board.bt_retry_after = 100
+        board.bt_current_device = 0
+        board.bt_mac_list = ["00:06:66:64:C4:07", "00:06:66:64:C4:08"]
+        board.bt_name_list = ["DGT_BT_21704", "DGT_BT_21705"]
+
+        with patch("dgt.board.time.monotonic", return_value=99):
+            self.assertFalse(board._open_bluetooth())
+        board.btctl.stdin.write.assert_not_called()
+
+        with (
+            patch("dgt.board.time.monotonic", return_value=101),
+            patch("dgt.board.read", return_value=b""),
+        ):
+            self.assertFalse(board._open_bluetooth())
+
+        board.btctl.stdin.write.assert_called_once_with("pair 00:06:66:64:C4:08\n")
+        board.btctl.stdin.flush.assert_called_once_with()
+        self.assertEqual(board.bt_current_device, 1)
+        self.assertEqual(board.bt_state, 5)
 
     async def test_paired_board_is_trusted_before_rfcomm_connect(self):
         loop = asyncio.get_running_loop()

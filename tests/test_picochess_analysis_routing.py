@@ -81,6 +81,9 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
         self.show = AsyncMock()
         namespace = dict(vars(picochess))
         namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
+        namespace["ModeInfo"] = SimpleNamespace(
+            get_online_mode=Mock(return_value=False)
+        )
         exec(
             compile(
                 ast.Module(body=[method], type_ignores=[]),
@@ -99,8 +102,6 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
             position_checkpoint_restore_pending=False,
             stop_clock=AsyncMock(),
         )
-        self.controller.online_mode = Mock(return_value=False)
-
     async def test_each_local_flag_fall_is_reported(self):
         event = Event.OUT_OF_TIME(color=chess.WHITE)
 

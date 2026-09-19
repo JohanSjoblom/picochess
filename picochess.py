@@ -8738,7 +8738,7 @@ async def main() -> None:
                 # Local timeout is a soft warning: Picochess historically allows
                 # casual play to continue after the clock flag falls. A new clock
                 # period may start after play resumes, so report every new flag fall.
-                if should_report_local_timeout(self.online_mode()):
+                if should_report_local_timeout(ModeInfo.get_online_mode()):
                     await self.state.stop_clock()
                     await DisplayMsg.show(Message.LOST_ON_TIME())
 

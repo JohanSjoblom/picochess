@@ -626,7 +626,7 @@ class DgtBoard(EBoard):
             else:
                 counter = (counter + 1) % 10
                 if counter == 0 and not self.watchdog_timer.is_running():
-                    self._watchdog()  # issue 150 - check for alive connection, so write something to the board
+                    self._watchdog_blocking()  # issue 150 - check for alive connection, so write something to the board
                 time.sleep(0.1)
 
     def ask_battery_status(self):
@@ -662,8 +662,12 @@ class DgtBoard(EBoard):
         finally:
             self.startup_lock.release()
 
-    def _watchdog(self):
-        """callback by repeated timer"""
+    async def _watchdog(self):
+        """Run the serial keepalive without blocking the shared event loop."""
+        await asyncio.to_thread(self._watchdog_blocking)
+
+    def _watchdog_blocking(self):
+        """Perform one potentially blocking serial keepalive."""
         logger.debug("running watchdog")
         if self.clock_lock and not self.is_pi:
             age = time.time() - self.clock_lock

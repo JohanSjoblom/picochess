@@ -148,6 +148,9 @@ while true; do
   if [ $? -eq 0 ]; then
     close_update_terminal
     PICOCHESS_URL="$(picochess_url)"
+    # Mark only the local touchscreen session as kiosk.  The web client uses
+    # this flag to hide the cursor on Wayland, where X11 unclutter cannot run.
+    PICOCHESS_URL="${PICOCHESS_URL}?kiosk=1"
     if is_wayland; then
       /usr/bin/chromium --password-store=basic --kiosk "$PICOCHESS_URL" &
     else

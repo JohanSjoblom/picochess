@@ -5,6 +5,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Picochess Webserver</title>
+    <script>
+        if (new URLSearchParams(window.location.search).get('kiosk') === '1') {
+            document.documentElement.classList.add('pico-kiosk');
+        }
+    </script>
     <link rel="shortcut icon" type="image/x-icon" href="/static/img/favicon.ico">
     <link rel="stylesheet" href="/static/css/bootstrap-5.5.2.min.css" />
     <link rel="stylesheet" href="/static/css/chessground/chessground.css" />
@@ -28,6 +33,11 @@
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
+        html.pico-kiosk,
+        html.pico-kiosk * {
+            cursor: none !important;
+        }
+
         /* Let the page own vertical scrolling in portrait mode.
            Keeping a separate .scroll-portrait scrollbar leaves the footer
            outside the scrolled area and creates double vertical scrollbars. */

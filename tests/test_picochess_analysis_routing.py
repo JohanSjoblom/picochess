@@ -60,12 +60,61 @@ from picochess import (
 
 
 class TestLocalTimeoutPolicy(unittest.TestCase):
-    def test_each_local_timeout_is_reported(self):
-        self.assertTrue(should_report_local_timeout(False))
+    def test_local_timeout_is_reported(self):
         self.assertTrue(should_report_local_timeout(False))
 
     def test_online_timeout_is_left_to_server(self):
         self.assertFalse(should_report_local_timeout(True))
+
+
+class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "process_main_events"
+        )
+        self.show = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
+        exec(
+            compile(
+                ast.Module(body=[method], type_ignores=[]),
+                picochess.__file__,
+                "exec",
+            ),
+            namespace,
+        )
+        controller_type = type(
+            "TimeoutController",
+            (),
+            {"process_main_events": namespace["process_main_events"]},
+        )
+        self.controller = controller_type()
+        self.controller.state = SimpleNamespace(
+            position_checkpoint_restore_pending=False,
+            stop_clock=AsyncMock(),
+        )
+        self.controller.online_mode = Mock(return_value=False)
+
+    async def test_each_local_flag_fall_is_reported(self):
+        event = Event.OUT_OF_TIME(color=chess.WHITE)
+
+        await self.controller.process_main_events(event)
+        await self.controller.process_main_events(event)
+
+        self.assertEqual(2, self.controller.state.stop_clock.await_count)
+        self.assertEqual(2, self.show.await_count)
+        self.assertTrue(
+            all(
+                isinstance(args[0], Message.LOST_ON_TIME)
+                for args, _ in self.show.await_args_list
+            )
+        )
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):

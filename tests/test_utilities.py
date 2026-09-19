@@ -72,6 +72,27 @@ class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         self.assertFalse(timer.is_running())
 
+    async def test_repeating_timer_survives_callback_exception(self):
+        loop = asyncio.get_running_loop()
+        succeeded = asyncio.Event()
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("transient callback failure")
+            succeeded.set()
+
+        timer = AsyncRepeatingTimer(0.01, callback, loop)
+        timer.start()
+        try:
+            await asyncio.wait_for(succeeded.wait(), timeout=1)
+        finally:
+            timer.stop()
+
+        self.assertGreaterEqual(call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

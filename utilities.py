@@ -158,10 +158,15 @@ class AsyncRepeatingTimer:
             except asyncio.CancelledError:
                 # Timer cancelled during shutdown; exit quietly.
                 break
-            if asyncio.iscoroutinefunction(self.callback):
-                await self.callback(*self.args, **self.kwargs)
-            else:
-                self.callback(*self.args, **self.kwargs)  # sync callback
+            try:
+                if asyncio.iscoroutinefunction(self.callback):
+                    await self.callback(*self.args, **self.kwargs)
+                else:
+                    self.callback(*self.args, **self.kwargs)  # sync callback
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logging.exception("repeating timer callback failed")
             if not self.repeating:
                 self._running = False
 

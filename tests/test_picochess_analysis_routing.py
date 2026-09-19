@@ -45,6 +45,7 @@ from picochess import (
     should_process_sliding_move,
     should_resume_game_after_takeback,
     should_resume_clock_after_rejected_engine_move,
+    should_report_local_timeout,
     should_load_pgn_moves,
     should_preserve_loaded_pgn_history,
     should_preserve_set_position_history,
@@ -56,6 +57,15 @@ from picochess import (
     user_move_task_matches_position,
     web_analysis_payload,
 )
+
+
+class TestLocalTimeoutPolicy(unittest.TestCase):
+    def test_each_local_timeout_is_reported(self):
+        self.assertTrue(should_report_local_timeout(False))
+        self.assertTrue(should_report_local_timeout(False))
+
+    def test_online_timeout_is_left_to_server(self):
+        self.assertFalse(should_report_local_timeout(True))
 
 
 class TestPicochessAnalysisRouting(unittest.TestCase):

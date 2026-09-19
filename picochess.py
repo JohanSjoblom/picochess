@@ -477,6 +477,11 @@ def should_stop_analysis_after_game_end(
     )
 
 
+def should_report_local_timeout(online_mode: bool) -> bool:
+    """Report each local flag fall; online servers own their timeout policy."""
+    return not online_mode
+
+
 def remote_move_matches_current_position(move: chess.Move, posted_fen: str | None, board: chess.Board) -> bool:
     """Return true when a web move's posted resulting FEN matches the live board."""
     if not posted_fen:
@@ -8738,13 +8743,11 @@ async def main() -> None:
                     logger.debug("ignore clock time - too low prio: %s", event.dev)
             elif isinstance(event, Event.OUT_OF_TIME):
                 # Local timeout is a soft warning: Picochess historically allows
-                # casual play to continue after the clock flag falls.
-                if (
-                    not self.is_out_of_time_already and not self.online_mode()
-                ):  # molli in online mode the server decides
+                # casual play to continue after the clock flag falls. A new clock
+                # period may start after play resumes, so report every new flag fall.
+                if should_report_local_timeout(self.online_mode()):
                     await self.state.stop_clock()
                     await DisplayMsg.show(Message.LOST_ON_TIME())
-                    self.is_out_of_time_already = True
 
             elif isinstance(event, Event.SHUTDOWN):
                 await self.get_rid_of_engine_move()

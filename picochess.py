@@ -2169,7 +2169,6 @@ async def main() -> None:
             if self.state.dgtmenu and self.state.engine_file:
                 self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
 
-            self.is_out_of_time_already = False  # molli: out of time message only once
             self.all_books = get_opening_books()
             if not self.all_books:
                 logger.error("no opening books available; continuing without book support")
@@ -6298,7 +6297,6 @@ async def main() -> None:
             ModeInfo.set_game_ending(result="*")
             self.state.game_declared = False
             self.state.flag_pgn_game_over = False
-            self.is_out_of_time_already = False
             self._set_game_started(True)
 
         def _load_pgn_engine_games(self, pgn_file: str) -> None:
@@ -6611,7 +6609,6 @@ async def main() -> None:
                     self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
-                    self.is_out_of_time_already = False
                     starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
                     real_new_game = game_fen != starting_fen
                     msg = self.state.new_game_msg(newgame=real_new_game)
@@ -6906,7 +6903,6 @@ async def main() -> None:
                 self.state.done_computer_fen = None
                 self.state.done_move = self.state.pb_move = chess.Move.null()
                 self.state.legal_fens_after_cmove = []
-                self.is_out_of_time_already = False
                 self.state.time_control.reset()
                 self.state.searchmoves.reset()
                 self.state.game_declared = False
@@ -7108,7 +7104,6 @@ async def main() -> None:
                     self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
-                    self.is_out_of_time_already = False
                     if self.pgn_mode():
                         if self.state.max_guess > 0:
                             self.state.max_guess_white = self.state.max_guess
@@ -7200,7 +7195,6 @@ async def main() -> None:
                         self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                         self.state.last_legal_fens = []
                         self.state.legal_fens_after_cmove = []
-                        self.is_out_of_time_already = False
                         self.state.game_declared = False
                         if self.state.picotutor is not None:
                             await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
@@ -8611,7 +8605,6 @@ async def main() -> None:
                     self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                     self.state.last_legal_fens = []
                     self.state.legal_fens_after_cmove = []
-                    self.is_out_of_time_already = False
                     await self.engine_mode()
                     await DisplayMsg.show(Message.RSPEED(rspeed=event.rspeed))
                     await self.update_elo_display()

@@ -2,7 +2,7 @@ import asyncio
 import os
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
@@ -216,6 +216,17 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         await display._process_message(message)
 
         dispatch_fire.assert_awaited_once_with(message.text)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_lost_on_time_remains_until_next_display_action(self, dispatch_fire):
+        display = self.create_display()
+        text = SimpleNamespace(maxtime=1)
+        display.dgttranslate.text = Mock(return_value=text)
+
+        await display._process_message(Message.LOST_ON_TIME())
+
+        self.assertEqual(0, text.maxtime)
+        dispatch_fire.assert_awaited_once_with(text)
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_loaded_mame_capabilities_are_shown_as_timed_retro_info(self, dispatch_fire):

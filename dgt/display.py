@@ -1737,7 +1737,9 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text("C10_noopponent"))
 
         elif isinstance(message, Message.LOST_ON_TIME):
-            await DispatchDgt.fire(self.dgttranslate.text("C10_gameresult_time"))
+            text = self.dgttranslate.text("C10_gameresult_time")
+            text.maxtime = 0
+            await DispatchDgt.fire(text)
 
         elif isinstance(message, Message.SET_NOBOOK):
             self.dgtmenu.set_book(message.book_index)  # molli for emulation, online & pgn modes

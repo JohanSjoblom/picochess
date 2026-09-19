@@ -10,7 +10,14 @@ hide_wayland_cursor() {
   if command -v ydotool >/dev/null 2>&1; then
     (
       sleep 1
-      ydotool key 56:1 125:1 35:1 35:0 125:0 56:0 >/dev/null 2>&1
+      if [ -n "${YDOTOOL_SOCKET:-}" ]; then
+        cursor_output=$(YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool key 56:1 125:1 35:1 35:0 125:0 56:0 2>&1) || cursor_status=$?
+      else
+        cursor_output=$(ydotool key 56:1 125:1 35:1 35:0 125:0 56:0 2>&1) || cursor_status=$?
+      fi
+      if [ -n "${cursor_status:-}" ]; then
+        logger -t picochess-kiosk "Unable to hide Wayland cursor with ydotool: ${cursor_output:-exit $cursor_status}"
+      fi
     ) &
   fi
 }

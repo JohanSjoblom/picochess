@@ -76,9 +76,13 @@ class TestSettingsTemplate(unittest.TestCase):
         installer = (root / "install-kiosk.sh").read_text(encoding="utf-8")
 
         self.assertIn("ydotool key 56:1 125:1 35:1 35:0 125:0 56:0", kiosk_script)
+        self.assertIn('YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool', kiosk_script)
+        self.assertIn("Unable to hide Wayland cursor with ydotool", kiosk_script)
         self.assertIn("hide_wayland_cursor", kiosk_script)
         self.assertIn('action name="HideCursor"', installer)
         self.assertIn('key="A-W-h"', installer)
+        self.assertIn("cp /etc/xdg/labwc/rc.xml", installer)
+        self.assertIn("no labwc configuration found", installer)
         self.assertNotIn("pico-kiosk", template)
 
     def test_game_settings_are_persistent_toggles(self):

@@ -2,8 +2,8 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from dgt.api import DgtCmd
 from dgt.board import DgtBoard
+from dgt.util import DgtCmd
 
 
 class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):

@@ -3593,7 +3593,7 @@ async def main() -> None:
                     color = own_color
 
                 logger.debug("molli switch_online start timecontrol")
-                self.state.set_online_tctrl(game_time, fischer_inc)
+                await self.state.set_online_tctrl(game_time, fischer_inc)
                 self.state.time_control.reset_start_time()
 
                 logger.debug("molli switch_online new_color: %s", color)

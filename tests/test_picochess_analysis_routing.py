@@ -1699,6 +1699,76 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
         self.assertLess(release.lineno, invalidate.lineno)
 
 
+class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        state_class = next(
+            node for node in source.body
+            if isinstance(node, ast.ClassDef) and node.name == "PicochessState"
+        )
+        method = next(
+            node for node in state_class.body
+            if getattr(node, "name", None) == "set_online_tctrl"
+        )
+        self.show = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
+        exec(
+            compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"),
+            namespace,
+        )
+        state_type = type(
+            "OnlineTimeControlState",
+            (),
+            {"set_online_tctrl": namespace["set_online_tctrl"]},
+        )
+        self.state = state_type()
+        self.state.stop_clock = AsyncMock()
+        self.state.stop_fen_timer = Mock()
+        self.state.dgttranslate = SimpleNamespace(text=Mock(return_value="ok"))
+        self.state.time_control = Mock()
+
+    async def test_online_time_control_replaces_old_clock_and_publishes_it(self):
+        old_time_control = self.state.time_control
+
+        await self.state.set_online_tctrl("5", "3")
+
+        self.state.stop_clock.assert_awaited_once_with()
+        old_time_control.stop_internal.assert_called_once_with(log=False)
+        parameters = self.state.time_control.get_parameters()
+        self.assertEqual(picochess.TimeMode.FISCHER, parameters["mode"])
+        self.assertEqual(5, parameters["blitz"])
+        self.assertEqual(3, parameters["fischer"])
+        self.assertEqual(
+            {chess.WHITE: 303, chess.BLACK: 303},
+            parameters["internal_time"],
+        )
+        self.show.assert_awaited_once()
+        self.state.stop_fen_timer.assert_called_once_with()
+
+    def test_switch_online_awaits_time_control_before_resetting_start_time(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        switch_online = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "switch_online"
+        )
+        set_tctrl_await = next(
+            node for node in ast.walk(switch_online)
+            if isinstance(node, ast.Await)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Attribute)
+            and node.value.func.attr == "set_online_tctrl"
+        )
+        reset_call = next(
+            node for node in ast.walk(switch_online)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "reset_start_time"
+        )
+
+        self.assertLess(set_tctrl_await.lineno, reset_call.lineno)
+
+
 class TestAlternativeMovePendingState(unittest.TestCase):
     def setUp(self):
         source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))

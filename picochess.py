@@ -677,14 +677,19 @@ def depth_gated_analysis_info(
 class PicochessState:
     """Class to keep track of state in Picochess."""
 
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        dgttranslate: DgtTranslate,
+        dgtmenu: DgtMenu,
+    ):
         self.automatic_takeback = False
         self.best_move_displayed = None  # temporary copy of done_computer_fen? should be cleaned out
         self.best_move_posted = False  # True when "extra" computer move already posted to Picotutor
         self.book_in_use = ""
         self.comment_file = ""
-        self.dgtmenu = None
-        self.dgttranslate = None
+        self.dgtmenu = dgtmenu
+        self.dgttranslate = dgttranslate
         self.done_computer_fen = None  # FEN of last done computer move when not yet pushed to game board
         self.done_move = chess.Move.null()  # last done move by computer, not yet pushed to game board
         self.engine_file = ""
@@ -1769,7 +1774,6 @@ async def main() -> None:
     AsyncIOMainLoop().install()
     main_loop = asyncio.get_event_loop()
 
-    state = PicochessState(main_loop)
     own_user = ""
     opp_user = ""
     game_time = 0
@@ -1814,11 +1818,6 @@ async def main() -> None:
     EngineProvider.init(args.engine_menu_sort)
 
     Rev2Info.set_dgtpi(args.dgtpi)
-    state.flag_flexible_ponder = args.flexible_analysis
-    state.flag_premove = args.premove
-    state.set_location = args.location
-    state.online_decrement = args.online_decrement
-
     try:
         board_type = dgt.util.EBoard[args.board_type.upper()]
     except KeyError:
@@ -1838,8 +1837,8 @@ async def main() -> None:
         dgtboard = DgtBoard(
             args.dgt_port, args.disable_revelation_leds, args.dgtpi, args.disable_et, main_loop, args.slow_slide
         )
-    state.dgttranslate = DgtTranslate(args.beep_config, args.beep_some_level, args.language, version)
-    state.dgtmenu = DgtMenu(
+    dgttranslate = DgtTranslate(args.beep_config, args.beep_some_level, args.language, version)
+    dgtmenu = DgtMenu(
         args.clockside,
         args.disable_confirm_message,
         args.ponder_interval,
@@ -1867,12 +1866,17 @@ async def main() -> None:
         args.comment_factor,
         args.continue_game,
         args.alt_move,
-        state.dgttranslate,
+        dgttranslate,
         brain_hint_display=args.tutor_brain_hint_display,
         brain_reveal_text=args.tutor_brain_reveal_text == "on",
         brain_hint_countdown=args.countdown_during_brain_display,
         audio_backend=args.audio_backend,
     )
+    state = PicochessState(main_loop, dgttranslate, dgtmenu)
+    state.flag_flexible_ponder = args.flexible_analysis
+    state.flag_premove = args.premove
+    state.set_location = args.location
+    state.online_decrement = args.online_decrement
     await asyncio.to_thread(state.dgtmenu._set_volume_voice, state.dgtmenu.get_voice_volume())
 
     dgtdispatcher = Dispatcher(state.dgtmenu, main_loop)

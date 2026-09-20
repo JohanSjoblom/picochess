@@ -1,10 +1,13 @@
 import asyncio
 import unittest
+from unittest.mock import Mock
 
 import chess
 import chess.variant
 
 from dgt.util import Mode, PlayMode, TimeMode
+from dgt.menu import DgtMenu
+from dgt.translate import DgtTranslate
 from picochess import PicochessState, boards_match_position_and_history
 from timecontrol import TimeControl
 
@@ -13,7 +16,11 @@ class TestPositionCheckpoint(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.new_event_loop()
         self.addCleanup(self.loop.close)
-        self.state = PicochessState(self.loop)
+        self.state = PicochessState(
+            self.loop,
+            Mock(spec=DgtTranslate),
+            Mock(spec=DgtMenu),
+        )
 
     def test_checkpoint_restores_exact_position_and_move_history(self):
         anchor_moves = [

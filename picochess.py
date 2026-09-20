@@ -2790,16 +2790,16 @@ async def main() -> None:
         async def call_pico_coach(self):
             if not tutor_analysis_allowed_in_mode(self.state.interaction_mode):
                 return
-            claimed_position_mode = self.state.coach_triggered
-            if claimed_position_mode:
-                self.state.position_mode = True
-            coach_fen = self.state.get_fen()
-            coach_board_fen = self.state.get_board_fen()
-            coach_revision = self.state.user_move_revision
             if (
                 (self.state.game.turn == chess.WHITE and self.state.play_mode == PlayMode.USER_WHITE)
                 or (self.state.game.turn == chess.BLACK and self.state.play_mode == PlayMode.USER_BLACK)
             ) and not (self.state.game.is_checkmate() or self.state.game.is_stalemate()):
+                claimed_position_mode = self.state.coach_triggered
+                if claimed_position_mode:
+                    self.state.position_mode = True
+                coach_fen = self.state.get_fen()
+                coach_board_fen = self.state.get_board_fen()
+                coach_revision = self.state.user_move_revision
                 await self.state.stop_clock()
                 await asyncio.sleep(0.5)
                 if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):

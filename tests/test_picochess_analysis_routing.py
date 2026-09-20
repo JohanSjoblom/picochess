@@ -1637,6 +1637,17 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.controller.state.error_fen)
         self.controller.state.start_clock.assert_awaited_once_with()
 
+    async def test_coach_does_not_claim_position_mode_during_engine_turn(self):
+        self.controller.state.game.turn = chess.BLACK
+
+        await self.controller.call_pico_coach()
+
+        self.assertFalse(self.controller.state.position_mode)
+        self.assertTrue(self.controller.state.coach_triggered)
+        self.controller.state.stop_clock.assert_not_awaited()
+        self.controller.state.start_clock.assert_not_awaited()
+        self.show.assert_not_awaited()
+
     async def test_physical_position_change_stops_coach_and_keeps_correction_mode(self):
         self.controller.board_type = picochess.dgt.util.EBoard.DGT
         self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"

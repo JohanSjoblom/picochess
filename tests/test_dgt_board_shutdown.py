@@ -167,6 +167,26 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
 
         board.write_command.assert_called_once_with([DgtCmd.DGT_RETURN_SERIALNR])
 
+    async def test_battery_request_is_marked_before_serial_write(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.connected = True
+        board.channel = "BT"
+        commands = []
+
+        def write_command(command):
+            commands.append(command)
+            if command == [DgtCmd.DGT_SEND_BATTERY_STATUS]:
+                board._watchdog_blocking()
+            return True
+
+        board.write_command = write_command
+        with patch("dgt.board.time.monotonic", return_value=400.0):
+            board.ask_battery_status()
+
+        self.assertEqual(1, commands.count([DgtCmd.DGT_SEND_BATTERY_STATUS]))
+        self.assertEqual(400.0, board.last_battery_request)
+
     async def test_write_tolerates_serial_closed_during_lock_acquisition(self):
         loop = asyncio.get_running_loop()
         board = DgtBoard("/dev/test", False, False, False, loop)

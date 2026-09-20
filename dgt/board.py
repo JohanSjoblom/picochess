@@ -646,8 +646,11 @@ class DgtBoard(EBoard):
 
     def ask_battery_status(self):
         """Ask the BT board for the battery status."""
-        if self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS]):
-            self.last_battery_request = time.monotonic()
+        # Record the attempt before write_command yields to the board.  The
+        # watchdog runs independently and must not submit the same request in
+        # that short window.
+        self.last_battery_request = time.monotonic()
+        self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS])
 
     def startup_serial_clock(self):
         """Ask the clock for its version."""

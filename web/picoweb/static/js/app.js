@@ -318,6 +318,47 @@ var livePgnTreeActive = true;
 var webHistoryMerged = false;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
+var dgtBoardConnected = false;
+
+function dgtBatteryPresentation(rawBattery, connected) {
+    var match = /^(\d+)%$/.exec(String(rawBattery || 'N/A'));
+    if (!connected || !match) {
+        return {
+            percentage: 0,
+            text: '—',
+            className: '',
+            title: connected ? 'DGT battery unavailable' : 'DGT board disconnected'
+        };
+    }
+    var percentage = Math.max(0, Math.min(Number(match[1]), 99));
+    return {
+        percentage: percentage,
+        text: percentage + '%',
+        className: percentage <= 10 ? 'footer-battery-low' :
+            (percentage <= 20 ? 'footer-battery-medium' : 'footer-battery-good'),
+        title: 'DGT battery: ' + percentage + '%'
+    };
+}
+
+function updateDgtBatteryStatus() {
+    var batteryEl = document.getElementById('picoFooterBattery');
+    if (!batteryEl) { return; }
+    var sysInfo = window._picoSystemInfo || {};
+    if (!Object.prototype.hasOwnProperty.call(sysInfo, 'battery')) {
+        batteryEl.hidden = true;
+        return;
+    }
+    batteryEl.hidden = false;
+    batteryEl.classList.remove('footer-battery-good', 'footer-battery-medium', 'footer-battery-low');
+    var batteryText = batteryEl.querySelector('.footer-battery-text');
+    var presentation = dgtBatteryPresentation(sysInfo.battery, dgtBoardConnected);
+    batteryEl.style.setProperty('--battery-level', presentation.percentage + '%');
+    batteryText.textContent = presentation.text;
+    batteryEl.title = presentation.title;
+    if (presentation.className) {
+        batteryEl.classList.add(presentation.className);
+    }
+}
 var webAnalysisStopReasserted = false;
 var webAnalysisPendingRequest = null;
 
@@ -3401,6 +3442,7 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
+        updateDgtBatteryStatus();
         applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
@@ -3754,10 +3796,13 @@ $(function () {
                         if (dgtEl) {
                             if (data.eboard === 'connected') {
                                 dgtEl.classList.add('footer-connected');
+                                dgtBoardConnected = true;
                             } else if (data.eboard === 'error' || data.eboard === 'noeboard') {
                                 dgtEl.classList.remove('footer-connected');
+                                dgtBoardConnected = false;
                             }
                         }
+                        updateDgtBatteryStatus();
                         break;
                     case 'TutorWatch':
                         if (data.settings && window.setTutorSettings) {
@@ -3830,6 +3875,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
+                        updateDgtBatteryStatus();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.

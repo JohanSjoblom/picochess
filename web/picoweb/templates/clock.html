@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css?v=12" />
+    <link rel="stylesheet" href="/static/css/base.css?v=13" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -857,7 +857,7 @@
             window.picoWebConfig.tutorWatchActive = {{ "true" if tutor_watch_active else "false" }};
             window.picoWebConfig.tutorSettings = {% raw tutor_settings_json %};
         </script>
-        <script type="text/javascript" src="/static/js/app.js?v=23"></script>
+        <script type="text/javascript" src="/static/js/app.js?v=24"></script>
         <script>
             document.addEventListener('DOMContentLoaded', function () {
                 // Script del input de movimientos
@@ -4631,7 +4631,15 @@
     </div><!-- #pico-menu-overlay -->
 
     <footer id="pico-footer">
-        <span id="picoFooterDgt" class="footer-status">{{ eboard_name }}</span>
+        <span class="footer-board-status">
+            <span id="picoFooterDgt" class="footer-status">{{ eboard_name }}</span>
+            <span id="picoFooterBattery" class="footer-battery" hidden>
+                <span class="footer-battery-body" aria-hidden="true">
+                    <span class="footer-battery-level"></span>
+                </span>
+                <span class="footer-battery-text">—</span>
+            </span>
+        </span>
         <span class="footer-version">PicoChess {{ pico_version }}</span>
     </footer>
 </body>

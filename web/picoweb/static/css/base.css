@@ -1501,6 +1501,72 @@ piece {
     opacity: 0.9;
 }
 
+.footer-board-status,
+.footer-battery {
+    display: inline-flex;
+    align-items: center;
+}
+
+.footer-board-status {
+    gap: 0.65rem;
+}
+
+.footer-battery {
+    gap: 0.3rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.footer-battery[hidden] {
+    display: none;
+}
+
+.footer-battery-body {
+    position: relative;
+    display: inline-block;
+    width: 1.35rem;
+    height: 0.65rem;
+    padding: 0.08rem;
+    border: 1px solid currentColor;
+    border-radius: 0.12rem;
+    color: #6c757d;
+}
+
+.footer-battery-body::after {
+    content: "";
+    position: absolute;
+    top: 0.14rem;
+    right: -0.22rem;
+    width: 0.14rem;
+    height: 0.27rem;
+    border-radius: 0 0.08rem 0.08rem 0;
+    background: currentColor;
+}
+
+.footer-battery-level {
+    display: block;
+    width: var(--battery-level, 0%);
+    height: 100%;
+    border-radius: 0.04rem;
+    background: currentColor;
+}
+
+.footer-battery-text {
+    min-width: 2.2rem;
+    font-size: 0.75rem;
+}
+
+.footer-battery-good .footer-battery-body {
+    color: #28a745;
+}
+
+.footer-battery-medium .footer-battery-body {
+    color: #e69500;
+}
+
+.footer-battery-low .footer-battery-body {
+    color: #dc3545;
+}
+
 #picoFooterDgt::before {
     content: "●";
     margin-right: 0.3em;
@@ -2343,6 +2409,7 @@ html[data-theme="dark"] #pico-footer {
 }
 
 html[data-theme="dark"] .footer-status,
+html[data-theme="dark"] .footer-battery,
 html[data-theme="dark"] .footer-version {
     color: rgba(255, 255, 255, 0.82);
 }

@@ -158,7 +158,7 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=23', template)
+        self.assertIn('app.js?v=24', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
 

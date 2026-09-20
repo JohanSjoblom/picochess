@@ -17,6 +17,7 @@ Windows as a virtual COM port.
 | Area | Status | Notes |
 | --- | --- | --- |
 | Python imports and CLI startup | Validated | CPython 3.13.15 x64 |
+| PowerShell environment installer | Implemented, validation path tested | Reuses/clones repo, creates `venv`, installs dependencies and portable resources; downloads not exercised locally, no engines or services |
 | Web interface with `noeboard` | Validated baseline | Native Windows engine and local catalogs must be supplied |
 | Local Windows UCI engines | Implemented | Catalog is read from `engines/AMD64` |
 | DGT board over Bluetooth COM port | Code-supported, hardware-unvalidated | Pair in Windows and pass `COMx` explicitly |
@@ -219,7 +220,7 @@ Windows until each path is audited and tested:
 - PAM-authenticated PGN upload
 - PipeWire, PulseAudio, and ALSA volume commands
 - X11/Wayland artwork switching through `xdotool`, `ydotool`, or `swaymsg`
-- installer and maintenance shell scripts
+- Linux `.sh` installer and maintenance scripts (use `install-picochess-windows.ps1` for the Windows environment)
 - ChessLink, Certabo, Chessnut, iChessOne, and other board transports without
   an explicit Windows validation record
 
@@ -232,6 +233,7 @@ do not introduce threads for normal transport work.
 Use the repository virtual environment, not the system Python:
 
 ```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-picochess-windows.ps1 -ValidateOnly
 venv\Scripts\python.exe -c "from dgt.board import DgtBoard; print('dgt.board import OK')"
 venv\Scripts\python.exe -c "import server; print('server import OK')"
 venv\Scripts\python.exe picochess.py --help

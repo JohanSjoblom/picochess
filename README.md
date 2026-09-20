@@ -174,6 +174,16 @@ The book selector in the web client is independent from the engine opening book;
 The web book tab also includes an `obooksrv` entry; selecting it shows statistics from the local `opening.data` dataset, while other entries use the selected polyglot `.bin` book.
 To add a custom book, place the `.bin` file in `books/` and add a matching entry in `books/books.ini`.
 
+Windows installation
+--------------------
+The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses the Python 3.13 virtual environment and installs books, opening data, and games database data, but deliberately installs no chess engines or Windows services:
+
+```powershell
+.\install-picochess-windows.ps1
+```
+
+Windows users must supply a native UCI engine under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations.
+
 Installation with more detailed info
 ------------------------------------
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.

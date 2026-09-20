@@ -29,7 +29,12 @@ import signal
 import threading
 import re
 import time
+from types import SimpleNamespace
 from typing import Callable, Optional
+
+# Keep the optional sounddevice patch point available when another native-audio
+# dependency fails first during import (for example on headless CI systems).
+sd = SimpleNamespace(OutputStream=None)
 
 try:
     import numpy as np  # type: ignore

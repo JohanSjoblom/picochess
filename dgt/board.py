@@ -117,6 +117,7 @@ class DgtBoard(EBoard):
             None  # None = "unknown status" False="only board found" True="clock also found"
         )
         self.watchdog_timer = AsyncRepeatingTimer(1, self._watchdog, self.loop)
+        self.last_battery_request = 0.0
         # bluetooth vars for Jessie upwards & autoconnect
         self.btctl = None
         self.bt_rfcomm = None
@@ -645,7 +646,8 @@ class DgtBoard(EBoard):
 
     def ask_battery_status(self):
         """Ask the BT board for the battery status."""
-        self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS])  # Get battery status
+        if self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS]):
+            self.last_battery_request = time.monotonic()
 
     def startup_serial_clock(self):
         """Ask the clock for its version."""
@@ -698,6 +700,12 @@ class DgtBoard(EBoard):
                     self.clock_lock = 0.0
                     self.last_clock_command = []
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        if (
+            self.connected
+            and self.channel == "BT"
+            and time.monotonic() - self.last_battery_request >= 300
+        ):
+            self.ask_battery_status()
 
     def _open_bluetooth(self):
         if self.bt_state == 8:

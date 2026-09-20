@@ -3466,9 +3466,13 @@ class WebDisplay(DisplayMsg):
             self._create_system_info()
             pct = message.percent
             if pct == 0x7F:
-                self.shared["system_info"]["battery"] = "N/A"
+                battery = "N/A"
+                logger.info("DGT battery status unavailable")
             else:
-                self.shared["system_info"]["battery"] = "{}%".format(min(pct, 99))
+                battery = "{}%".format(min(max(pct, 0), 99))
+                logger.info("DGT battery status: %s", battery)
+            self.shared["system_info"]["battery"] = battery
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"battery": battery}})
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()

@@ -691,6 +691,32 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(shared["system_info"]["game_started"])
 
 
+class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
+    async def test_battery_update_is_cached_and_pushed_to_clients(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.BATTERY(percent=42))
+
+        self.assertEqual("42%", shared["system_info"]["battery"])
+        write_to_clients.assert_called_once_with(
+            {"event": "SystemInfo", "msg": {"battery": "42%"}}
+        )
+
+    async def test_unavailable_battery_is_cached_and_pushed_to_clients(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.BATTERY(percent=0x7F))
+
+        self.assertEqual("N/A", shared["system_info"]["battery"])
+        write_to_clients.assert_called_once_with(
+            {"event": "SystemInfo", "msg": {"battery": "N/A"}}
+        )
+
+
 class TestServerWebBookSelection(unittest.TestCase):
     def test_web_book_choices_include_obooksrv_first(self):
         books = _web_book_choices()

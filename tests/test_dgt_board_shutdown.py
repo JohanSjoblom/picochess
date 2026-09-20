@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from dgt.board import DgtBoard
 from dgt.util import DgtCmd, DgtMsg
@@ -133,6 +133,39 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board._watchdog_blocking()
 
         board.write_command.assert_not_called()
+
+    async def test_watchdog_requests_bluetooth_battery_every_five_minutes(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.connected = True
+        board.channel = "BT"
+        board.last_battery_request = 100.0
+        board.write_command = Mock(return_value=True)
+
+        with patch("dgt.board.time.monotonic", return_value=400.0):
+            board._watchdog_blocking()
+
+        self.assertEqual(
+            [
+                call([DgtCmd.DGT_RETURN_SERIALNR]),
+                call([DgtCmd.DGT_SEND_BATTERY_STATUS]),
+            ],
+            board.write_command.call_args_list,
+        )
+        self.assertEqual(400.0, board.last_battery_request)
+
+    async def test_watchdog_does_not_request_battery_for_usb_board(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.connected = True
+        board.channel = "USB"
+        board.last_battery_request = 100.0
+        board.write_command = Mock(return_value=True)
+
+        with patch("dgt.board.time.monotonic", return_value=400.0):
+            board._watchdog_blocking()
+
+        board.write_command.assert_called_once_with([DgtCmd.DGT_RETURN_SERIALNR])
 
     async def test_write_tolerates_serial_closed_during_lock_acquisition(self):
         loop = asyncio.get_running_loop()

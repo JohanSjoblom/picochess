@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, call, patch
 
 from dgt.board import DgtBoard
-from dgt.util import DgtCmd, DgtMsg
+from dgt.util import DgtClk, DgtCmd, DgtMsg
 
 
 class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
@@ -133,6 +133,74 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board._watchdog_blocking()
 
         board.write_command.assert_not_called()
+
+    async def test_watchdog_gives_up_after_three_clock_resends(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.serial = Mock()
+        clock_command = [
+            DgtCmd.DGT_CLOCK_MESSAGE,
+            0x03,
+            DgtClk.DGT_CMD_CLOCK_START_MESSAGE,
+            DgtClk.DGT_CMD_CLOCK_VERSION,
+            DgtClk.DGT_CMD_CLOCK_END_MESSAGE,
+        ]
+
+        with patch("dgt.board.time.time", return_value=100.0):
+            board.write_command(clock_command)
+        clock_times = [103.0, 103.0, 106.0, 106.0, 109.0, 109.0, 112.0]
+        with (
+            patch("dgt.board.time.time", side_effect=clock_times),
+            patch("dgt.board.logger.warning") as log_warning,
+        ):
+            board._watchdog_blocking()
+            board._watchdog_blocking()
+            board._watchdog_blocking()
+            board._watchdog_blocking()
+
+        self.assertEqual(0.0, board.clock_lock)
+        self.assertEqual([], board.last_clock_command)
+        self.assertEqual(0, board.clock_resend_attempts)
+        self.assertEqual(8, board.serial.write.call_count)
+        log_warning.assert_called_once()
+
+        writes_after_giveup = board.serial.write.call_count
+        with patch("dgt.board.time.time", return_value=115.0):
+            board._watchdog_blocking()
+        self.assertEqual(writes_after_giveup + 1, board.serial.write.call_count)
+
+    async def test_new_clock_command_gets_fresh_resend_budget(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.serial = Mock()
+        board.clock_resend_attempts = 3
+        clock_command = [
+            DgtCmd.DGT_CLOCK_MESSAGE,
+            0x03,
+            DgtClk.DGT_CMD_CLOCK_START_MESSAGE,
+            DgtClk.DGT_CMD_CLOCK_VERSION,
+            DgtClk.DGT_CMD_CLOCK_END_MESSAGE,
+        ]
+
+        with patch("dgt.board.time.time", return_value=200.0):
+            board.write_command(clock_command)
+
+        self.assertEqual(0, board.clock_resend_attempts)
+        self.assertEqual(200.0, board.clock_lock)
+        self.assertEqual(clock_command, board.last_clock_command)
+
+    async def test_clock_response_clears_resend_budget(self):
+        loop = asyncio.get_running_loop()
+        board = DgtBoard("/dev/test", False, False, False, loop)
+        board.clock_lock = 100.0
+        board.clock_resend_attempts = 2
+        board._queue_display = Mock()
+
+        with patch("dgt.board.time.time", return_value=101.0):
+            board._process_board_message(DgtMsg.DGT_MSG_BWTIME, (0, 0, 0, 0, 0, 0, 0), 7)
+
+        self.assertEqual(0.0, board.clock_lock)
+        self.assertEqual(0, board.clock_resend_attempts)
 
     async def test_watchdog_requests_bluetooth_battery_every_minute(self):
         loop = asyncio.get_running_loop()

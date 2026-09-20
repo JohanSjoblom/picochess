@@ -175,7 +175,7 @@ class DgtBoard(EBoard):
         self.field_timer.start()
         self.field_timer_running = True
 
-    def write_command(self, message: list):
+    def write_command(self, message: list, clock_retry: bool = False):
         """Write the message list to the dgt board."""
         if not self.serial:
             return False
@@ -285,7 +285,8 @@ class DgtBoard(EBoard):
             else:
                 logger.debug("(ser) clock is locked now")
             self.clock_lock = time.time()
-            self.clock_resend_attempts = 0
+            if not clock_retry:
+                self.clock_resend_attempts = 0
         elif mes != DgtCmd.DGT_RETURN_SERIALNR:
             time.sleep(0.1)  # give the board some time to process the command
         return True
@@ -698,11 +699,12 @@ class DgtBoard(EBoard):
                     logger.debug("(ser) clock is locked over 2secs (attempt %s) - resending last message", self.clock_resend_attempts + 1)
                     self.clock_resend_attempts += 1
                     self.clock_lock = 0.0
-                    self.write_command(self.last_clock_command)
+                    self.write_command(self.last_clock_command, clock_retry=True)
                 else:
                     logger.warning("(ser) clock locked for %.1f secs, giving up and clearing lock", age)
                     self.clock_lock = 0.0
                     self.last_clock_command = []
+                    self.clock_resend_attempts = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
         if (
             self.connected

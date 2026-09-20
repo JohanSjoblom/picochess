@@ -694,6 +694,15 @@ def _clock_event(shared: dict, text, running: bool = False):
     }
 
 
+def _eboard_status_event(shared: dict, eboard: str, msg: str | None = None):
+    """Cache the physical-board status so reconnecting clients can recover it."""
+    payload = {"event": "Status", "eboard": eboard}
+    if msg is not None:
+        payload["msg"] = msg
+    shared["eboard_status"] = payload
+    return payload
+
+
 def _clock_menu_active(shared: dict) -> bool:
     """Return whether the physical-clock menu is currently being shown."""
     dgtmenu = shared.get("dgtmenu")
@@ -1833,6 +1842,23 @@ class EventHandler(WebSocketHandler):
                 self.write_message({"event": "TutorSettings", "settings": _tutor_settings_from_shared(self.shared)})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync tutor settings to client: %s", exc)
+        if self.shared and "clock_text" in self.shared:
+            try:
+                self.write_message(
+                    {
+                        "event": "Clock",
+                        "msg": self.shared["clock_text"],
+                        "running": bool(self.shared.get("clock_running", False)),
+                        "menu_active": _clock_menu_active(self.shared),
+                    }
+                )
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync clock state to client: %s", exc)
+        if self.shared and "eboard_status" in self.shared:
+            try:
+                self.write_message(dict(self.shared["eboard_status"]))
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync eboard status to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -3737,10 +3763,10 @@ class WebDisplay(DisplayMsg):
             # Serial number confirms the physical board is present on the bus.
             # Turn the footer dot green regardless of whether a clock is attached.
             if message.number:
-                EventHandler.write_to_clients({"event": "Status", "eboard": "connected"})
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, "connected"))
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
-            EventHandler.write_to_clients({"event": "Status", "eboard": "error"})
+            EventHandler.write_to_clients(_eboard_status_event(self.shared, "error"))
 
         elif isinstance(message, Message.DGT_CLOCK_VERSION):
             if message.dev == "ser":
@@ -3750,11 +3776,11 @@ class WebDisplay(DisplayMsg):
             else:
                 attached = "server"
             connected = attached != "server"  # physical board, not web-only
-            result = {
-                "event": "Status",
-                "msg": "Ok clock " + attached,
-                "eboard": "connected" if connected else "noeboard",
-            }
+            result = _eboard_status_event(
+                self.shared,
+                "connected" if connected else "noeboard",
+                "Ok clock " + attached,
+            )
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.COMPUTER_MOVE):

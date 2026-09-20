@@ -158,7 +158,9 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=22', template)
+        self.assertIn('app.js?v=23', template)
+        self.assertIn("ws.onopen = function ()", script)
+        self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -221,6 +223,28 @@ class TestServerEventHandler(unittest.TestCase):
             EventHandler.open(client)
 
         self.assertEqual([], client.messages)
+
+    def test_open_restores_clock_and_eboard_status(self):
+        shared = {
+            "clock_text": "Texel 1.11",
+            "clock_running": True,
+            "eboard_status": {"event": "Status", "eboard": "connected"},
+        }
+        client = self.Client(shared)
+
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+
+        self.assertIn(
+            {
+                "event": "Clock",
+                "msg": "Texel 1.11",
+                "running": True,
+                "menu_active": False,
+            },
+            client.messages,
+        )
+        self.assertIn({"event": "Status", "eboard": "connected"}, client.messages)
 
 
 class TestMameHistoryPreservation(unittest.TestCase):

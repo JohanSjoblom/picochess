@@ -3637,6 +3637,11 @@ $(function () {
             ws.onopen = function () {
                 // Reset backoff on successful connection.
                 wsReconnectDelay = 2000;
+                // A server restart creates a fresh websocket while this page
+                // keeps its old HTTP-derived clock, engine and menu state.
+                // Refresh those snapshots; the board itself is restored by
+                // EventHandler.open without changing browser Explore state.
+                getAllInfo();
                 stopAnalysisClock();
                 // Ensure placeholders are visible while waiting for first messages.
                 setEngineLinePlaceholder();

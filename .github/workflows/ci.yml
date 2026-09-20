@@ -18,7 +18,7 @@ jobs:
       run: tox -e lint
         
   mypy:
-    if: false  # disable the job
+    continue-on-error: true  # informational baseline; not a required CI gate yet
     runs-on: ubuntu-22.04
    
     steps:

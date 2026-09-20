@@ -2,6 +2,7 @@
 
 import subprocess
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -38,6 +39,7 @@ class TestPicoTalkerSoxBackend(unittest.TestCase):
     def _talker(self):
         talker = PicoTalkerDisplay.__new__(PicoTalkerDisplay)
         talker.speed_factor = 1.15
+        talker._apply_playback_volume = Mock()
         return talker
 
     @patch("picotalker.subprocess.Popen")
@@ -118,6 +120,90 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
         adjusted = PicoTalkerDisplay._apply_replaygain_track_gain(samples, None)
 
         self.assertIs(adjusted, samples)
+
+
+class TestPicoTalkerNativeVolume(unittest.TestCase):
+    def _talker(self):
+        talker = PicoTalkerDisplay.__new__(PicoTalkerDisplay)
+        talker.native_stream = None
+        talker.native_stream_samplerate = None
+        talker.native_stream_channels = None
+        talker.native_stream_lock = threading.RLock()
+        talker.volume_factor_getter = lambda: 10
+        talker.playback_volume_state = {}
+        return talker
+
+    @patch("picotalker.set_system_volume")
+    @patch("picotalker.sd.OutputStream")
+    def test_native_stream_reapplies_volume_after_start(self, output_stream, set_volume):
+        stream = Mock(active=True)
+        started = False
+
+        def mark_started():
+            nonlocal started
+            started = True
+
+        def require_started(_volume_factor, _backend, _volume_factor_getter):
+            self.assertTrue(started)
+            return True
+
+        stream.start.side_effect = mark_started
+        set_volume.side_effect = require_started
+        output_stream.return_value = stream
+        talker = self._talker()
+
+        ready = talker._ensure_native_stream(16000, 1)
+
+        self.assertTrue(ready)
+        stream.start.assert_called_once_with()
+        set_volume.assert_called_once_with(10, "native", talker.volume_factor_getter)
+
+    @patch("picotalker.time.monotonic", return_value=0)
+    @patch("picotalker.set_system_volume", side_effect=[False, True])
+    @patch("picotalker.sd.OutputStream", return_value=Mock(active=True))
+    def test_failed_volume_retries_without_reopening_stream(self, output_stream, set_volume, now):
+        talker = self._talker()
+        with self.assertLogs("picotalker", level="WARNING"):
+            self.assertTrue(talker._ensure_native_stream(16000, 1))
+        now.return_value = 0.5
+        talker._ensure_native_stream(16000, 1)
+        self.assertEqual(set_volume.call_count, 1)
+        now.return_value = 1
+        talker._ensure_native_stream(16000, 1)
+        self.assertEqual(set_volume.call_count, 2)
+        now.return_value = 100
+        talker._ensure_native_stream(16000, 1)
+        self.assertEqual(set_volume.call_count, 2)
+        output_stream.assert_called_once()
+
+    @patch("picotalker.set_system_volume", return_value=True)
+    @patch("picotalker.sd.OutputStream", return_value=Mock(active=True))
+    def test_format_change_reapplies_committed_volume(self, _output_stream, set_volume):
+        from dgt.menu import DgtMenu
+
+        menu = DgtMenu.__new__(DgtMenu)
+        menu.set_voice_volume(10)
+        talker = self._talker()
+        talker.volume_factor_getter = menu.get_voice_volume
+        talker._ensure_native_stream(16000, 1)
+        menu.menu_system_voice_volumefactor = 11  # menu edit, not confirmed
+        talker._ensure_native_stream(22050, 1)
+        self.assertEqual(set_volume.call_count, 2)
+        set_volume.assert_called_with(10, "native", talker.volume_factor_getter)
+
+    @patch("picotalker.time.monotonic", return_value=0)
+    @patch("picotalker.set_system_volume", side_effect=[False, True])
+    @patch("picotalker.subprocess.Popen")
+    def test_sox_retries_volume_before_later_playback(self, popen, set_volume, now):
+        popen.return_value.wait.return_value = 0
+        talker = self._talker()
+        talker.speed_factor = 1.0
+        with self.assertLogs("picotalker", level="WARNING"):
+            self.assertTrue(talker.pico3_sound_player("check.ogg"))
+        now.return_value = 1
+        self.assertTrue(talker.pico3_sound_player("check.ogg"))
+        self.assertEqual(set_volume.call_count, 2)
+        set_volume.assert_called_with(10, "sox", talker.volume_factor_getter)
 
 
 if __name__ == "__main__":

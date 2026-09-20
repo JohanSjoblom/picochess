@@ -77,6 +77,29 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(menu.get_engine_rdisplay())
 
     @patch("platform.machine")
+    async def test_volume_edits_are_committed_only_on_confirmation(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        menu.set_voice_volume(10)
+        menu.state = MenuState.SYS_VOICE_VOLUME_FACTOR
+        menu.menu_system_voice = Voice.VOLUME
+        menu.main_right()
+        self.assertEqual(menu.menu_system_voice_volumefactor, 11)
+        self.assertEqual(menu.get_voice_volume(), 10)
+
+        with patch("dgt.menu.write_picochess_ini") as write_ini, patch(
+            "dgt.menu.set_system_volume", return_value=True
+        ) as set_volume, patch("dgt.menu.Observable.fire", new_callable=AsyncMock), patch(
+            "dgt.menu.DispatchDgt.fire", new_callable=AsyncMock
+        ), patch(
+            "dgt.menu.asyncio.to_thread", new_callable=AsyncMock, side_effect=lambda func, *args: func(*args)
+        ):
+            await menu.main_down()
+
+        self.assertEqual(menu.get_voice_volume(), 11)
+        write_ini.assert_called_once_with("volume-voice", "11")
+        set_volume.assert_called_once_with(11, "sox", menu.get_voice_volume)
+
+    @patch("platform.machine")
     async def test_persistent_web_settings_update_live_menu_state(self, machine_mock):
         menu = self.create_menu(machine_mock)
 
@@ -112,6 +135,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(menu.menu_system_voice_comp_active)
         self.assertEqual(4, menu.menu_system_voice_speedfactor)
         self.assertEqual(12, menu.menu_system_voice_volumefactor)
+        self.assertEqual(12, menu.get_voice_volume())
         self.assertEqual(7, menu.get_ponderinterval())
         self.assertTrue(menu.dgttranslate.capital)
         self.assertTrue(menu.get_confirm())

@@ -127,6 +127,57 @@ function Get-TcscidExecutable {
     return $null
 }
 
+function Enable-Tcl85GamesCompatibility {
+    param([string]$GamesDirectory)
+
+    $wappPath = Join-Path $GamesDirectory "wapp.tcl"
+    if (-not (Test-Path -LiteralPath $wappPath -PathType Leaf)) {
+        return
+    }
+
+    $content = [IO.File]::ReadAllText($wappPath)
+    if (-not $content.Contains("package require Tcl 8.6")) {
+        return
+    }
+
+    $encodeExpression = "binary encode hex [encoding convertto utf-8 `$c]"
+    $decodeThreeExpression = "binary decode hex \1\2\3"
+    $decodeTwoExpression = "binary decode hex \1\2"
+    if (-not $content.Contains($encodeExpression) -or
+        -not $content.Contains($decodeThreeExpression) -or
+        -not $content.Contains($decodeTwoExpression)) {
+        Write-Warning "The Games resource uses an unrecognized Tcl 8.6-only wapp.tcl; tcscid from Scid vs. PC may not be compatible."
+        return
+    }
+
+    $compatibilityHeader = @'
+package require Tcl 8.5
+
+# Scid vs. PC 4.27 ships a tcscid executable backed by Tcl 8.5 on Windows.
+proc wappInt-binary-encode-hex {value} {
+  if {$::tcl_version>=8.6} {
+    return [binary encode hex $value]
+  }
+  binary scan $value H* result
+  return $result
+}
+proc wappInt-binary-decode-hex {value} {
+  if {$::tcl_version>=8.6} {
+    return [binary decode hex $value]
+  }
+  return [binary format H* $value]
+}
+'@
+
+    $content = $content.Replace("package require Tcl 8.6", $compatibilityHeader)
+    $content = $content.Replace($encodeExpression, "wappInt-binary-encode-hex [encoding convertto utf-8 `$c]")
+    $content = $content.Replace($decodeThreeExpression, "wappInt-binary-decode-hex \1\2\3")
+    $content = $content.Replace($decodeTwoExpression, "wappInt-binary-decode-hex \1\2")
+    $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($wappPath, $content, $utf8WithoutBom)
+    Write-Status "Enabled Tcl 8.5 compatibility for the Windows games helper."
+}
+
 function Start-GamesHelper {
     param(
         [string]$RepositoryPath,
@@ -145,6 +196,8 @@ function Start-GamesHelper {
         Write-Warning "Games data is missing games.si4. The Games resource may be incomplete."
         return $null
     }
+
+    Enable-Tcl85GamesCompatibility -GamesDirectory $gamesDirectory
 
     $logsDirectory = Join-Path $RepositoryPath "logs"
     if (-not (Test-Path -LiteralPath $logsDirectory)) {
@@ -172,6 +225,8 @@ function Start-GamesHelper {
     $deadline = [DateTime]::UtcNow.AddSeconds(8)
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($process.HasExited) {
+            $process.WaitForExit()
+            $process.Refresh()
             Write-Warning "tcscid.exe exited during startup with code $($process.ExitCode)."
             Write-Status "See $stderrLog"
             return $null

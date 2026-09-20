@@ -93,6 +93,10 @@ Scid vs. PC installation directories. An explicit path can also be supplied:
 .\start-picochess-windows.ps1 -TcscidPath "C:\Program Files\Scid vs PC-4.27\bin\tcscid.exe"
 ```
 
+Scid vs. PC 4.27 currently bundles Tcl 8.5 on Windows, while the downloaded
+games resource uses a Wapp script written for Tcl 8.6. The launcher applies the
+small Tcl 8.5 compatibility update to that resource automatically.
+
 When `tcscid.exe` and the games data are available, the launcher runs
 `tcscid.exe get_games.tcl --server 7778`, waits for the port, starts PicoChess,
 and stops only the helper process it created when PicoChess exits. If Scid is

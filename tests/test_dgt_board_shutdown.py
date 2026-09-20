@@ -134,7 +134,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
 
         board.write_command.assert_not_called()
 
-    async def test_watchdog_requests_bluetooth_battery_every_five_minutes(self):
+    async def test_watchdog_requests_bluetooth_battery_every_minute(self):
         loop = asyncio.get_running_loop()
         board = DgtBoard("/dev/test", False, False, False, loop)
         board.connected = True
@@ -142,7 +142,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board.last_battery_request = 100.0
         board.write_command = Mock(return_value=True)
 
-        with patch("dgt.board.time.monotonic", return_value=400.0):
+        with patch("dgt.board.time.monotonic", return_value=160.0):
             board._watchdog_blocking()
 
         self.assertEqual(
@@ -152,7 +152,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
             ],
             board.write_command.call_args_list,
         )
-        self.assertEqual(400.0, board.last_battery_request)
+        self.assertEqual(160.0, board.last_battery_request)
 
     async def test_watchdog_does_not_request_battery_for_usb_board(self):
         loop = asyncio.get_running_loop()

@@ -33,6 +33,7 @@ from dgt.api import Message, Dgt
 from utilities import AsyncRepeatingTimer, DisplayMsg, hms_time
 
 logger = logging.getLogger(__name__)
+BATTERY_STATUS_INTERVAL = 60
 
 
 class Rev2Info:
@@ -706,7 +707,7 @@ class DgtBoard(EBoard):
         if (
             self.connected
             and self.channel == "BT"
-            and time.monotonic() - self.last_battery_request >= 300
+            and time.monotonic() - self.last_battery_request >= BATTERY_STATUS_INTERVAL
         ):
             self.ask_battery_status()
 

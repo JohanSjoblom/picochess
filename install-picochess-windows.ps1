@@ -418,7 +418,8 @@ function Show-Readiness {
     }
 
     if ($selectedResources -contains "Games" -and -not $SkipResources) {
-        Write-Warning "Games database data may be installed, but the Windows tcscid server on port 7778 is not installed or started by this MVP."
+        Write-Status "Games data is installed separately from Scid vs. PC."
+        Write-Status "After installing Scid, start with start-picochess-windows.ps1 to enable the Games tab."
     }
 }
 
@@ -536,7 +537,7 @@ try {
     Show-Readiness -RepositoryPath $targetPath -VenvPython $venvPython
     Write-Host "`nPicoChess Windows environment installation completed." -ForegroundColor Green
     Write-Host "After adding and configuring a native Windows UCI engine, start with:"
-    Write-Host "  & `"$venvPython`" `"$(Join-Path $targetPath 'picochess.py')`""
+    Write-Host "  & `"$(Join-Path $targetPath 'start-picochess-windows.ps1')`""
 } catch {
     Write-Host "`nInstallation failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1

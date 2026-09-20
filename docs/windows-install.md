@@ -75,10 +75,29 @@ content. `-ForceResources` moves existing data to a timestamped backup under
 ### Games database limitation
 
 The games resource pack supplies database data, but the web client's Games tab
-also needs a `tcscid` HTTP server on port 7778. The existing server launcher and
-packaged binaries are Linux-oriented. This first Windows installer deliberately
-does not install or start a Windows service, so installing the games pack alone
-does not enable the Games tab.
+also needs a `tcscid` HTTP server on port 7778. The resource pack contains
+Linux/Raspberry Pi binaries, so the Windows installer does not install Scid.
+
+To try the Games tab on Windows, install the 64-bit Windows version of
+[Scid vs. PC](https://scidvspc.sourceforge.net/) yourself. Then start PicoChess
+with the optional launcher:
+
+```powershell
+.\start-picochess-windows.ps1
+```
+
+The launcher searches for `tcscid.exe` in `PICOCHESS_TCSCID`, `PATH`, and common
+Scid vs. PC installation directories. An explicit path can also be supplied:
+
+```powershell
+.\start-picochess-windows.ps1 -TcscidPath "C:\Program Files\Scid vs PC-4.27\bin\tcscid.exe"
+```
+
+When `tcscid.exe` and the games data are available, the launcher runs
+`tcscid.exe get_games.tcl --server 7778`, waits for the port, starts PicoChess,
+and stops only the helper process it created when PicoChess exits. If Scid is
+missing or fails to start, PicoChess still starts normally and only the Games
+tab lacks database results. No Windows service is installed.
 
 ### MAME limitation
 
@@ -138,10 +157,15 @@ The old environment created by `-RecreateVenv` is retained as
 After installing and configuring a Windows engine, run from the repository root:
 
 ```powershell
-.\venv\Scripts\python.exe .\picochess.py
+.\start-picochess-windows.ps1
+```
+
+To bypass Scid discovery explicitly, use:
+
+```powershell
+.\start-picochess-windows.ps1 -SkipGamesServer
 ```
 
 Then open <http://localhost:8080>. See
 [Windows port status](windows-port-status.md) for currently validated features
 and known Windows limitations.
-

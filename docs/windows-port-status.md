@@ -18,6 +18,7 @@ Windows as a virtual COM port.
 | --- | --- | --- |
 | Python imports and CLI startup | Validated | CPython 3.13.15 x64 |
 | PowerShell environment installer | Implemented, validation path tested | Reuses/clones repo, creates `venv`, installs dependencies and portable resources; downloads not exercised locally, no engines or services |
+| Windows games helper launcher | Implemented, unvalidated with Scid | Detects a user-installed `tcscid.exe`; failure is isolated to the Games tab |
 | Web interface with `noeboard` | Validated baseline | Native Windows engine and local catalogs must be supplied |
 | Local Windows UCI engines | Implemented | Catalog is read from `engines/AMD64` |
 | DGT board over Bluetooth COM port | Code-supported, hardware-unvalidated | Pair in Windows and pass `COMx` explicitly |
@@ -234,6 +235,7 @@ Use the repository virtual environment, not the system Python:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-picochess-windows.ps1 -ValidateOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-picochess-windows.ps1 -SkipGamesServer -PicoChessArguments --help
 venv\Scripts\python.exe -c "from dgt.board import DgtBoard; print('dgt.board import OK')"
 venv\Scripts\python.exe -c "import server; print('server import OK')"
 venv\Scripts\python.exe picochess.py --help

@@ -184,6 +184,8 @@ The experimental native Windows port has a non-administrative PowerShell install
 
 Windows users must supply a native UCI engine under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations.
 
+If the user has separately installed Scid vs. PC for Windows, `start-picochess-windows.ps1` can start its `tcscid.exe` games helper together with PicoChess. Failure to find Scid affects only the optional Games tab.
+
 Installation with more detailed info
 ------------------------------------
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.

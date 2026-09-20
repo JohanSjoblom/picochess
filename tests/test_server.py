@@ -716,6 +716,22 @@ class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
             {"event": "SystemInfo", "msg": {"battery": "N/A"}}
         )
 
+    async def test_unchanged_battery_is_pushed_but_not_logged_again(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with (
+            patch("server.EventHandler.write_to_clients") as write_to_clients,
+            patch("server.logger.info") as log_info,
+        ):
+            await display.task(Message.BATTERY(percent=42))
+            await display.task(Message.BATTERY(percent=42))
+            await display.task(Message.BATTERY(percent=41))
+
+        self.assertEqual(2, log_info.call_count)
+        self.assertEqual(3, write_to_clients.call_count)
+        self.assertEqual("41%", shared["system_info"]["battery"])
+
 
 class TestServerWebBookSelection(unittest.TestCase):
     def test_web_book_choices_include_obooksrv_first(self):

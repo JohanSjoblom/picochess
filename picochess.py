@@ -127,6 +127,8 @@ WEB_ANALYSIS_MULTIPV = 3  # maximum backend analysis lines shown by the web clie
 # ENGINE PLAYING
 # Dont make the following large as it will block engine play go
 FLOAT_MAX_ANALYSE_TIME = 0.1  # asking for hint while not pondering
+ENGINE_SEARCH_IDLE_TIMEOUT = 3.0
+ENGINE_SEARCH_CANCEL_TIMEOUT = 1.0
 ENGINE_SHUTDOWN_IDLE_TIMEOUT = 3.0
 
 ONLINE_PREFIX = "Online"
@@ -2502,6 +2504,43 @@ async def main() -> None:
                     self.state.game.copy(), variant_board=vb.copy() if vb else None
                 )
 
+        async def _prepare_engine_for_search(self, search_revision: int) -> bool | None:
+            """Stop an obsolete playing search without waiting forever."""
+            if search_revision != self.state.engine_search_revision:
+                return None
+            if self.engine.is_waiting():
+                return True
+
+            logger.warning("engine still busy before new search; requesting stop")
+            await self.engine.stop()
+            idle = await self.engine.wait_until_idle(ENGINE_SEARCH_IDLE_TIMEOUT)
+            if search_revision != self.state.engine_search_revision:
+                return None
+            if idle:
+                return True
+
+            logger.error(
+                "engine did not become idle after %.1fs; cancelling old search",
+                ENGINE_SEARCH_IDLE_TIMEOUT,
+            )
+            idle = await self.engine.cancel_playing_search(ENGINE_SEARCH_CANCEL_TIMEOUT)
+            if search_revision != self.state.engine_search_revision:
+                return None
+            return idle
+
+        async def _publish_engine_search_failure(self, search_fen: str, search_revision: int) -> None:
+            """Route a known idle/cancellation failure through normal engine recovery."""
+            self.state.pending_engine_result = "*"
+            await Observable.fire(
+                Event.BEST_MOVE(
+                    move=None,
+                    ponder=None,
+                    inbook=False,
+                    fen=search_fen,
+                    search_revision=search_revision,
+                )
+            )
+
         async def think(
             self,
             msg: Message | None,
@@ -2544,11 +2583,6 @@ async def main() -> None:
                 ):
                     logger.info("skipping obsolete search after user move [%s]", owner_move)
                     return
-            if not self.online_mode() or self.state.game.fullmove_number > 1:
-                await self.state.start_clock()
-            if search_revision != self.state.engine_search_revision:
-                logger.info("skipping superseded engine search revision %s", search_revision)
-                return
             search_fen = self.state.get_fen()
             book_res = None
             if self.bookreader and self.state.variant not in ("atomic", "racingkings", "antichess"):
@@ -2564,6 +2598,8 @@ async def main() -> None:
             if (book_res and not self.emulation_mode() and not self.online_mode() and not self.pgn_mode()) or (
                 book_res and (self.pgn_mode() and self.state.pgn_book_test)
             ):
+                if not self.online_mode() or self.state.game.fullmove_number > 1:
+                    await self.state.start_clock()
                 if search_revision != self.state.engine_search_revision:
                     logger.info("skipping superseded book search revision %s", search_revision)
                     return
@@ -2577,9 +2613,22 @@ async def main() -> None:
                     )
                 )
             else:
-                while not self.engine.is_waiting():
-                    await asyncio.sleep(0.05)
-                    logger.warning("engine is still not waiting")
+                engine_ready = await self._prepare_engine_for_search(search_revision)
+                if engine_ready is None:
+                    logger.info("skipping superseded engine search revision %s", search_revision)
+                    return
+                if not engine_ready:
+                    logger.error("engine remained busy; refusing to start overlapping search")
+                    await self._publish_engine_search_failure(search_fen, search_revision)
+                    return
+                if search_revision != self.state.engine_search_revision:
+                    logger.info("skipping superseded engine search revision %s", search_revision)
+                    return
+                if not self.online_mode() or self.state.game.fullmove_number > 1:
+                    await self.state.start_clock()
+                if search_revision != self.state.engine_search_revision:
+                    logger.info("skipping superseded engine search revision %s", search_revision)
+                    return
                 uci_dict = self.state.time_control.uci()
                 if searchlist:
                     # molli: otherwise might lead to problems with internal books
@@ -2688,7 +2737,7 @@ async def main() -> None:
             self.state.automatic_takeback = False
             self.state.ignore_next_engine_move = False  # dont ignore engine move we now request
 
-        async def stop_search(self, timeout: float | None = None) -> bool:
+        async def stop_search(self, timeout: float = ENGINE_SEARCH_IDLE_TIMEOUT) -> bool:
             """Stop current search."""
             await self.engine.stop()
             if self.engine.consume_forced_analyser_stop():
@@ -2696,14 +2745,9 @@ async def main() -> None:
                 self.state.best_sent_depth.reset()
             if self.emulation_mode():
                 return True
-            if timeout is None:
-                while not self.engine.is_waiting():
-                    await asyncio.sleep(0.05)
-                    logger.debug("engine is still not waiting")
-                return True
             idle = await self.engine.wait_until_idle(timeout)
             if not idle:
-                logger.warning("engine still not idle after %.1fs; continuing shutdown", timeout)
+                logger.warning("engine still not idle after %.1fs", timeout)
             return idle
 
         async def stop_search_and_clock(self, ponder_hit=False):

@@ -10,7 +10,7 @@ import chess.variant
 
 import picochess
 
-from dgt.api import Event, Message
+from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
 from picochess import (
     AnalysisCycleAction,
@@ -1232,6 +1232,146 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(started)
         self.controller.think.assert_not_awaited()
+
+
+class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "_prepare_engine_for_search"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "EngineIdleController",
+            (),
+            {"_prepare_engine_for_search": namespace["_prepare_engine_for_search"]},
+        )
+        self.controller = controller_type()
+        self.controller.engine = Mock()
+        self.controller.engine.stop = AsyncMock()
+        self.controller.engine.wait_until_idle = AsyncMock(return_value=True)
+        self.controller.engine.cancel_playing_search = AsyncMock(return_value=True)
+        self.controller.state = SimpleNamespace(engine_search_revision=7)
+
+    async def test_idle_engine_needs_no_stop(self):
+        self.controller.engine.is_waiting.return_value = True
+
+        self.assertTrue(await self.controller._prepare_engine_for_search(7))
+
+        self.controller.engine.stop.assert_not_awaited()
+        self.controller.engine.wait_until_idle.assert_not_awaited()
+
+    async def test_busy_engine_is_stopped_before_search(self):
+        self.controller.engine.is_waiting.return_value = False
+
+        self.assertTrue(await self.controller._prepare_engine_for_search(7))
+
+        self.controller.engine.stop.assert_awaited_once_with()
+        self.controller.engine.wait_until_idle.assert_awaited_once_with(picochess.ENGINE_SEARCH_IDLE_TIMEOUT)
+        self.controller.engine.cancel_playing_search.assert_not_awaited()
+
+    async def test_stuck_engine_is_cancelled_after_timeout(self):
+        self.controller.engine.is_waiting.return_value = False
+        self.controller.engine.wait_until_idle.return_value = False
+
+        self.assertTrue(await self.controller._prepare_engine_for_search(7))
+
+        self.controller.engine.cancel_playing_search.assert_awaited_once_with(
+            picochess.ENGINE_SEARCH_CANCEL_TIMEOUT
+        )
+
+    async def test_failed_cancellation_refuses_new_search(self):
+        self.controller.engine.is_waiting.return_value = False
+        self.controller.engine.wait_until_idle.return_value = False
+        self.controller.engine.cancel_playing_search.return_value = False
+
+        self.assertFalse(await self.controller._prepare_engine_for_search(7))
+
+    async def test_superseded_wait_does_not_cancel_newer_search(self):
+        self.controller.engine.is_waiting.return_value = False
+
+        async def supersede_search(_timeout):
+            self.controller.state.engine_search_revision = 8
+            return False
+
+        self.controller.engine.wait_until_idle.side_effect = supersede_search
+
+        self.assertIsNone(await self.controller._prepare_engine_for_search(7))
+        self.controller.engine.cancel_playing_search.assert_not_awaited()
+
+
+class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "_publish_engine_search_failure"
+        )
+        self.fire = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["Observable"] = SimpleNamespace(fire=self.fire)
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type(
+            "EngineFailureController",
+            (),
+            {"_publish_engine_search_failure": namespace["_publish_engine_search_failure"]},
+        )
+        self.controller = controller_type()
+        self.controller.state = SimpleNamespace(pending_engine_result=None)
+
+    async def test_idle_failure_uses_existing_best_move_recovery(self):
+        await self.controller._publish_engine_search_failure("test-fen", 12)
+
+        self.assertEqual("*", self.controller.state.pending_engine_result)
+        self.fire.assert_awaited_once()
+        event = self.fire.await_args.args[0]
+        self.assertEqual(EventApi.BEST_MOVE, repr(event))
+        self.assertIsNone(event.move)
+        self.assertEqual("test-fen", event.fen)
+        self.assertEqual(12, event.search_revision)
+
+
+class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "stop_search"
+        )
+        namespace = dict(vars(picochess))
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type("StopSearchController", (), {"stop_search": namespace["stop_search"]})
+        self.controller = controller_type()
+        self.controller.engine = Mock()
+        self.controller.engine.stop = AsyncMock()
+        self.controller.engine.consume_forced_analyser_stop.return_value = False
+        self.controller.engine.wait_until_idle = AsyncMock(return_value=True)
+        self.controller.emulation_mode = Mock(return_value=False)
+
+    async def test_default_wait_is_bounded_and_succeeds(self):
+        self.assertTrue(await self.controller.stop_search())
+        self.controller.engine.wait_until_idle.assert_awaited_once_with(
+            picochess.ENGINE_SEARCH_IDLE_TIMEOUT
+        )
+
+    async def test_timeout_is_reported_to_caller(self):
+        self.controller.engine.wait_until_idle.return_value = False
+
+        self.assertFalse(await self.controller.stop_search())
 
 
 class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):

@@ -120,6 +120,18 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await eng.wait_until_idle(timeout=0.25))
         eng.playing.wait_until_idle.assert_awaited_once_with(0.25)
 
+    async def test_cancel_playing_search_cancels_and_waits_for_cleanup(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = True
+        eng.playing.wait_until_idle = AsyncMock(return_value=True)
+
+        self.assertTrue(await eng.cancel_playing_search(timeout=0.25))
+
+        eng.playing.cancel.assert_called_once_with()
+        eng.playing.abort.assert_called_once_with()
+        eng.playing.wait_until_idle.assert_awaited_once_with(0.25)
+
     async def test_engine_has_rating_as_information_when_not_adaptive(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

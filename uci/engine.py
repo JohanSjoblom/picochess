@@ -1926,6 +1926,14 @@ class UciEngine(object):
             return True
         return await self.playing.wait_until_idle(timeout)
 
+    async def cancel_playing_search(self, timeout: float = 1.0) -> bool:
+        """Cancel a stuck playing search and wait briefly for its cleanup."""
+        if not self.playing or not self.playing.is_waiting_for_move():
+            return True
+        self.playing.cancel()
+        self.playing.abort()
+        return await self.playing.wait_until_idle(timeout)
+
     def is_ready(self):
         """Engine waiting."""
         return True  # should not be needed any more

@@ -1180,7 +1180,9 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
             node for node in main_loop.body
             if getattr(node, "name", None) == "_think_after_current_user_move"
         )
+        self.fire = AsyncMock()
         namespace = dict(vars(picochess))
+        namespace["Observable"] = SimpleNamespace(fire=self.fire)
         exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
         controller_type = type(
             "SearchOwnerController",
@@ -1339,6 +1341,71 @@ class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(event.move)
         self.assertEqual("test-fen", event.fen)
         self.assertEqual(12, event.search_revision)
+
+
+class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        main_loop = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
+        )
+        method = next(
+            node for node in main_loop.body
+            if getattr(node, "name", None) == "think"
+        )
+        self.fire = AsyncMock()
+        namespace = dict(vars(picochess))
+        namespace["Observable"] = SimpleNamespace(fire=self.fire)
+        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
+        controller_type = type("ThinkIdleController", (), {"think": namespace["think"]})
+        self.controller = controller_type()
+        self.controller._apply_pending_mame_recovery_rebase = AsyncMock()
+        self.controller._set_game_started = Mock()
+        self.controller._prepare_engine_for_search = AsyncMock(return_value=True)
+        self.controller._publish_engine_search_failure = AsyncMock()
+        self.controller._cache_engine_abort_result = AsyncMock()
+        self.controller.online_mode = Mock(return_value=False)
+        self.controller.emulation_mode = Mock(return_value=False)
+        self.controller.pgn_mode = Mock(return_value=False)
+        self.controller.bookreader = None
+        self.controller.engine = Mock()
+
+        async def finish_without_move(result_queue, **_kwargs):
+            await result_queue.put(None)
+
+        self.controller.engine.go = AsyncMock(side_effect=finish_without_move)
+        board = chess.Board()
+        self.controller.state = SimpleNamespace(
+            engine_search_revision=0,
+            game=board,
+            get_fen=board.fen,
+            get_variant_board=Mock(return_value=None),
+            start_clock=AsyncMock(),
+            time_control=SimpleNamespace(uci=Mock(return_value={})),
+            searchmoves=SimpleNamespace(all=Mock(return_value=[])),
+            variant="chess",
+            automatic_takeback=True,
+            ignore_next_engine_move=False,
+        )
+
+    async def test_failed_idle_preparation_never_starts_clock_or_engine(self):
+        self.controller._prepare_engine_for_search.return_value = False
+
+        await self.controller.think(None)
+
+        self.controller.state.start_clock.assert_not_awaited()
+        self.controller.engine.go.assert_not_awaited()
+        self.controller._publish_engine_search_failure.assert_awaited_once_with(
+            self.controller.state.game.fen(),
+            1,
+        )
+
+    async def test_ready_engine_starts_clock_and_exactly_one_search(self):
+        await self.controller.think(None)
+
+        self.controller.state.start_clock.assert_awaited_once_with()
+        self.controller.engine.go.assert_awaited_once()
 
 
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):

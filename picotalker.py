@@ -32,10 +32,6 @@ import time
 from types import SimpleNamespace
 from typing import Callable, Optional
 
-# Keep the optional sounddevice patch point available when another native-audio
-# dependency fails first during import (for example on headless CI systems).
-sd = SimpleNamespace(OutputStream=None)
-
 try:
     import numpy as np  # type: ignore
     import sounddevice as sd  # type: ignore
@@ -46,6 +42,9 @@ try:
     NATIVE_AUDIO_AVAILABLE = True
     NATIVE_AUDIO_IMPORT_ERROR = None
 except Exception as exc:  # pragma: no cover - missing native deps
+    # Keep the optional sounddevice patch point available when another native-
+    # audio dependency fails first (for example on headless CI systems).
+    sd = SimpleNamespace(OutputStream=None)
     NATIVE_AUDIO_AVAILABLE = False
     NATIVE_AUDIO_IMPORT_ERROR = exc
 

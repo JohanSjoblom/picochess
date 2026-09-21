@@ -71,8 +71,10 @@ Use the engine for both normal play and PicoTutor in ``picochess.ini``::
     web-server = 8080
     theme = dark
 
-After installing Python, create the virtual environment, install the
-dependencies, and start PicoChess from PowerShell in the repository root::
+After installing CPython 3.11-3.13 for x64/AMD64 (the Windows ``64-bit``
+installer, not the ``ARM64`` installer), create the virtual environment,
+install the dependencies, and start PicoChess from PowerShell in the
+repository root::
 
     python -m venv .venv
     .\.venv\Scripts\python.exe -m pip install -r requirements.txt

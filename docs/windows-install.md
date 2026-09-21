@@ -5,12 +5,16 @@ Windows services, scheduled tasks, drivers, or Linux host integrations. It can
 use an existing repository checkout or clone the repository when the selected
 installation directory is absent or empty.
 
-The currently validated baseline is 64-bit Windows with 64-bit CPython 3.13.
+The supported Python range is CPython 3.11 through 3.13 for x64/AMD64. The
+currently validated baseline is CPython 3.13 on 64-bit Windows.
 
 ## Prerequisites
 
 - 64-bit Windows 10 or Windows 11.
-- 64-bit CPython 3.13 from <https://www.python.org/downloads/windows/>.
+- CPython 3.11, 3.12, or 3.13 from
+  <https://www.python.org/downloads/windows/>. Select **Windows installer
+  (64-bit)** for x64/AMD64, not **Windows installer (ARM64)**. Although both
+  builds are 64-bit, the current Windows dependencies do not support ARM64.
   Enabling the Python launcher (`py.exe`) during installation is recommended.
 - Git for Windows when the repository still needs to be cloned, or when using
   the optional repository-update mode.

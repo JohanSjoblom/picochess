@@ -176,7 +176,7 @@ To add a custom book, place the `.bin` file in `books/` and add a matching entry
 
 Windows installation
 --------------------
-The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses the Python 3.13 virtual environment and installs books, opening data, and games database data, but deliberately installs no chess engines or Windows services:
+The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs books, opening data, and games database data, but deliberately installs no chess engines or Windows services:
 
 ```powershell
 .\install-picochess-windows.ps1

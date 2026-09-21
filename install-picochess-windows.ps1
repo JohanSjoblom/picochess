@@ -4,7 +4,7 @@ Installs the Windows PicoChess Python environment and portable data resources.
 
 .DESCRIPTION
 The installer can use the checkout containing this script or clone PicoChess
-into a user-selected directory. It creates a Python 3.13 virtual environment,
+into a user-selected directory. It creates a Python 3.11-3.13 AMD64 virtual environment,
 installs requirements.txt, initializes writable runtime files, and optionally
 downloads books, opening data, and games database data.
 
@@ -169,23 +169,26 @@ function Get-SupportedPython {
 
     $candidates = @()
     if ($ExistingVenvPython -and (Test-Path -LiteralPath $ExistingVenvPython)) {
-        $candidates += ,@{ File = $ExistingVenvPython; Prefix = @() }
+        $candidates += ,@{ File = $ExistingVenvPython; Prefix = @(); ExistingVenv = $true }
     }
     $launcher = Get-Command "py.exe" -ErrorAction SilentlyContinue
     if ($launcher) {
-        $candidates += ,@{ File = $launcher.Source; Prefix = @("-3.13") }
+        foreach ($version in @("3.13", "3.12", "3.11")) {
+            $candidates += ,@{ File = $launcher.Source; Prefix = @("-$version"); ExistingVenv = $false }
+        }
     }
     $python = Get-Command "python.exe" -ErrorAction SilentlyContinue
     if (-not $python) {
         $python = Get-Command "python" -ErrorAction SilentlyContinue
     }
     if ($python) {
-        $candidates += ,@{ File = $python.Source; Prefix = @() }
+        $candidates += ,@{ File = $python.Source; Prefix = @(); ExistingVenv = $false }
     }
 
     # Use Python single-quoted literals because Windows PowerShell's legacy
     # native argument binder removes embedded double quotes from -c strings.
     $probe = "import platform, struct, sys; print('{}.{}|{}|{}'.format(sys.version_info.major, sys.version_info.minor, struct.calcsize('P') * 8, platform.machine()))"
+    $detectedPythons = @()
     foreach ($candidate in $candidates) {
         $arguments = @($candidate.Prefix) + @("-c", $probe)
         $previousErrorPreference = $ErrorActionPreference
@@ -199,19 +202,32 @@ function Get-SupportedPython {
         } finally {
             $ErrorActionPreference = $previousErrorPreference
         }
+        if ($exitCode -ne 0 -and $candidate.ExistingVenv) {
+            Write-Warning "The existing PicoChess virtual environment could not run its Python interpreter."
+            throw "Rerun this installer with -RecreateVenv after installing CPython 3.11-3.13 x64 (AMD64)."
+        }
         if ($exitCode -eq 0 -and $result.Count -gt 0) {
             $details = [string]$result[-1]
-            if ($details -match '^3\.13\|64\|') {
+            if ($details -match '^3\.(11|12|13)\|64\|AMD64$') {
                 return @{
                     File = [string]$candidate.File
                     Prefix = @($candidate.Prefix)
                     Details = $details
                 }
             }
+            $detectedPythons += $details
+            if ($candidate.ExistingVenv) {
+                Write-Warning "The existing PicoChess virtual environment uses unsupported Python '$details'. PicoChess on Windows requires CPython 3.11-3.13 x64 (AMD64), not ARM64 or 32-bit Python."
+                throw "Rerun this installer with -RecreateVenv after installing a supported x64 (AMD64) Python."
+            }
         }
     }
 
-    throw "64-bit CPython 3.13 was not found. Install it from python.org, enable the Python launcher or PATH option, and rerun this installer."
+    $detectedSummary = (($detectedPythons | Select-Object -Unique) -join ", ")
+    if ($detectedSummary) {
+        Write-Warning "Unsupported Python detected: $detectedSummary. ARM64 and 32-bit Python builds are not supported by the current Windows dependencies."
+    }
+    throw "CPython 3.11-3.13 x64 (AMD64) was not found. Install the Windows '64-bit' build from python.org (not the 'ARM64' build), enable the Python launcher or PATH option, and rerun this installer."
 }
 
 function Ensure-Repository {

@@ -8,9 +8,10 @@ This document is a technical handoff for continuing the PicoChess Windows
 port. It records what is implemented, what has been validated, what is only
 supported by code inspection, and which Linux assumptions remain.
 
-The current target is 64-bit Windows on `AMD64`, using CPython 3.13, a native
-Windows UCI engine, and either the web interface or a DGT e-Board exposed by
-Windows as a virtual COM port.
+The current target is 64-bit Windows on `AMD64`, using CPython 3.11 through
+3.13, a native Windows UCI engine, and either the web interface or a DGT
+e-Board exposed by Windows as a virtual COM port. CPython 3.13 is the currently
+validated baseline.
 
 ## Status Summary
 

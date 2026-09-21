@@ -59,6 +59,12 @@ from picochess import (
 )
 
 
+def start_patch(test_case, target, attribute, replacement):
+    patcher = patch.object(target, attribute, replacement)
+    patcher.start()
+    test_case.addCleanup(patcher.stop)
+
+
 class TestLocalTimeoutPolicy(unittest.TestCase):
     def test_local_timeout_is_reported(self):
         self.assertTrue(should_report_local_timeout(False))
@@ -69,35 +75,15 @@ class TestLocalTimeoutPolicy(unittest.TestCase):
 
 class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "process_main_events"
-        )
         self.show = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
-        namespace["ModeInfo"] = SimpleNamespace(
-            get_online_mode=Mock(return_value=False)
+        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        start_patch(
+            self,
+            picochess.ModeInfo,
+            "get_online_mode",
+            Mock(return_value=False),
         )
-        exec(
-            compile(
-                ast.Module(body=[method], type_ignores=[]),
-                picochess.__file__,
-                "exec",
-            ),
-            namespace,
-        )
-        controller_type = type(
-            "TimeoutController",
-            (),
-            {"process_main_events": namespace["process_main_events"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.state = SimpleNamespace(
             position_checkpoint_restore_pending=False,
             stop_clock=AsyncMock(),
@@ -1171,25 +1157,7 @@ class TestPicochessAlternativeTutorRollback(unittest.IsolatedAsyncioTestCase):
 
 class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "_think_after_current_user_move"
-        )
-        self.fire = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["Observable"] = SimpleNamespace(fire=self.fire)
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "SearchOwnerController",
-            (),
-            {"_think_after_current_user_move": namespace["_think_after_current_user_move"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.think = AsyncMock()
         self.board = chess.Board()
         self.move = chess.Move.from_uci("e2e4")
@@ -1238,23 +1206,7 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
 class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "_prepare_engine_for_search"
-        )
-        namespace = dict(vars(picochess))
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "EngineIdleController",
-            (),
-            {"_prepare_engine_for_search": namespace["_prepare_engine_for_search"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.engine = Mock()
         self.controller.engine.stop = AsyncMock()
         self.controller.engine.wait_until_idle = AsyncMock(return_value=True)
@@ -1310,25 +1262,9 @@ class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
 
 class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "_publish_engine_search_failure"
-        )
         self.fire = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["Observable"] = SimpleNamespace(fire=self.fire)
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "EngineFailureController",
-            (),
-            {"_publish_engine_search_failure": namespace["_publish_engine_search_failure"]},
-        )
-        self.controller = controller_type()
+        start_patch(self, picochess.Observable, "fire", self.fire)
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.state = SimpleNamespace(pending_engine_result=None)
 
     async def test_idle_failure_uses_existing_best_move_recovery(self):
@@ -1345,21 +1281,9 @@ class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
 
 class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "think"
-        )
         self.fire = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["Observable"] = SimpleNamespace(fire=self.fire)
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type("ThinkIdleController", (), {"think": namespace["think"]})
-        self.controller = controller_type()
+        start_patch(self, picochess.Observable, "fire", self.fire)
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller._apply_pending_mame_recovery_rebase = AsyncMock()
         self.controller._set_game_started = Mock()
         self.controller._prepare_engine_for_search = AsyncMock(return_value=True)
@@ -1410,19 +1334,7 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
 
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "stop_search"
-        )
-        namespace = dict(vars(picochess))
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type("StopSearchController", (), {"stop_search": namespace["stop_search"]})
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.engine = Mock()
         self.controller.engine.stop = AsyncMock()
         self.controller.engine.consume_forced_analyser_stop.return_value = False
@@ -1443,27 +1355,11 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
 
 class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "_deliver_picotutor_messages"
-        )
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
-        namespace["asyncio"] = SimpleNamespace(sleep=self.sleep)
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "TutorMessageOwnerController",
-            (),
-            {"_deliver_picotutor_messages": namespace["_deliver_picotutor_messages"]},
-        )
-        self.controller = controller_type()
+        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        start_patch(self, picochess.asyncio, "sleep", self.sleep)
+        self.controller = object.__new__(picochess.MainLoop)
         self.board = chess.Board()
         self.move = chess.Move.from_uci("e2e4")
         self.board.push(self.move)
@@ -1508,18 +1404,7 @@ class TestEarlyUserMoveInvalidation(unittest.TestCase):
             node for node in ast.walk(self.source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
-        method = next(
-            node for node in self.main_loop.body
-            if getattr(node, "name", None) == "_invalidate_user_move_tasks"
-        )
-        namespace = dict(vars(picochess))
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "UserMoveInvalidationController",
-            (),
-            {"_invalidate_user_move_tasks": namespace["_invalidate_user_move_tasks"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.state = SimpleNamespace(user_move_revision=7)
 
     def test_invalidation_advances_the_owner_revision(self):
@@ -1580,31 +1465,11 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
             node for node in ast.walk(source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
-        methods = {
-            node.name: node
-            for node in self.main_loop.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name in {
-                "call_pico_coach",
-                "_coach_call_is_current",
-                "_release_coach_position_mode_for_move",
-            }
-        }
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
-        namespace["asyncio"] = SimpleNamespace(sleep=self.sleep)
-        exec(
-            compile(ast.Module(body=list(methods.values()), type_ignores=[]), picochess.__file__, "exec"),
-            namespace,
-        )
-        controller_type = type(
-            "CoachPositionController",
-            (),
-            {name: namespace[name] for name in methods},
-        )
-        self.controller = controller_type()
+        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        start_patch(self, picochess.asyncio, "sleep", self.sleep)
+        self.controller = object.__new__(picochess.MainLoop)
         self.board = chess.Board()
         self.dgtmenu = SimpleNamespace(get_dgt_fen=Mock(return_value=self.board.board_fen()))
         self.controller.board_type = picochess.dgt.util.EBoard.NOEBOARD
@@ -1701,28 +1566,9 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
 
 class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        state_class = next(
-            node for node in source.body
-            if isinstance(node, ast.ClassDef) and node.name == "PicochessState"
-        )
-        method = next(
-            node for node in state_class.body
-            if getattr(node, "name", None) == "set_online_tctrl"
-        )
         self.show = AsyncMock()
-        namespace = dict(vars(picochess))
-        namespace["DisplayMsg"] = SimpleNamespace(show=self.show)
-        exec(
-            compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"),
-            namespace,
-        )
-        state_type = type(
-            "OnlineTimeControlState",
-            (),
-            {"set_online_tctrl": namespace["set_online_tctrl"]},
-        )
-        self.state = state_type()
+        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        self.state = object.__new__(picochess.PicochessState)
         self.state.stop_clock = AsyncMock()
         self.state.stop_fen_timer = Mock()
         self.state.dgttranslate = SimpleNamespace(text=Mock(return_value="ok"))
@@ -1771,23 +1617,7 @@ class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
 
 class TestAlternativeMovePendingState(unittest.TestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
-        method = next(
-            node for node in main_loop.body
-            if getattr(node, "name", None) == "_clear_pending_engine_move"
-        )
-        namespace = dict(vars(picochess))
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "AlternativeMoveController",
-            (),
-            {"_clear_pending_engine_move": namespace["_clear_pending_engine_move"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.state = SimpleNamespace(
             done_computer_fen="pending engine position",
             done_move=chess.Move.from_uci("e7e5"),
@@ -1832,18 +1662,7 @@ class TestUserMoveLegalFenPublication(unittest.TestCase):
             node for node in ast.walk(source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
-        method = next(
-            node for node in self.main_loop.body
-            if getattr(node, "name", None) == "_publish_user_move_legal_fens"
-        )
-        namespace = dict(vars(picochess))
-        exec(compile(ast.Module(body=[method], type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type(
-            "LegalFenPublicationController",
-            (),
-            {"_publish_user_move_legal_fens": namespace["_publish_user_move_legal_fens"]},
-        )
-        self.controller = controller_type()
+        self.controller = object.__new__(picochess.MainLoop)
         self.controller.state = SimpleNamespace(
             interaction_mode=Mode.NORMAL,
             last_legal_fens=[],

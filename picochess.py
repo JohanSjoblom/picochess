@@ -8710,6 +8710,7 @@ class MainLoop:
         await self._start_or_stop_analysis_as_needed()  # start analysis if needed
         self.background_analyse_timer.start()  # always run background analyser
 
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -9014,7 +9015,6 @@ async def main() -> None:
         update_pico_v4()  # next boot will trigger picochess-update.service
 
     #################################################
-
 
     my_main = MainLoop(
         own_user,

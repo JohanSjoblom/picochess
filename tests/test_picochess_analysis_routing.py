@@ -366,9 +366,9 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
     def test_successful_engine_change_clears_preserved_mame_history(self):
         source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
         success_branch = """else:
-                    clear_preserved_mame_history(self.shared)
-                    self.state.searchmoves.reset()
-                    msg = Message.ENGINE_READY("""
+                clear_preserved_mame_history(self.shared)
+                self.state.searchmoves.reset()
+                msg = Message.ENGINE_READY("""
 
         self.assertIn(success_branch, source)
 

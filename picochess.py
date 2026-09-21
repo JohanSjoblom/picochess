@@ -2096,6 +2096,7 @@ async def main() -> None:
             fischer_inc,
             login,
             state: PicochessState,
+            pgn_display: PgnDisplay,
             pico_talker: PicoTalkerDisplay,
             dgtdispatcher: Dispatcher,
             dgtboard: DgtBoard,
@@ -2115,6 +2116,7 @@ async def main() -> None:
             self.fischer_inc = fischer_inc
             self.login = login
             self.state = state
+            self.pgn_display = pgn_display
             self.engine = None  # placeholder for UciEngine
             self.state.fen_timer = None  # this and next line could be removed?
             self.state.fen_timer_running = False  # already set in picostate init
@@ -2438,7 +2440,7 @@ async def main() -> None:
                 await self.state.picotutor.open_engine()
             if self.shared is not None:
                 self.shared["picotutor"] = self.state.picotutor
-            my_pgn_display.set_picotutor(self.state.picotutor)  # needed for comments in pgn
+            self.pgn_display.set_picotutor(self.state.picotutor)  # needed for comments in pgn
             # set_mode in picotutor init set to False
 
             ModeInfo.set_game_ending(result="*")
@@ -9020,6 +9022,7 @@ async def main() -> None:
         fischer_inc,
         login,
         state,
+        my_pgn_display,
         pico_talker,
         dgtdispatcher,
         dgtboard,

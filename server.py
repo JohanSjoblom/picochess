@@ -3767,6 +3767,14 @@ class WebDisplay(DisplayMsg):
             if message.number:
                 EventHandler.write_to_clients(_eboard_status_event(self.shared, "connected"))
 
+        elif isinstance(message, Message.DGT_NO_EBOARD_ERROR):
+            # Keep both current and reconnecting browsers in sync with the
+            # physical-board state while the board connection is unavailable.
+            # The spinner can arrive twice per second, so publish only the
+            # connection-state transition.
+            if self.shared.get("eboard_status", {}).get("eboard") != "noeboard":
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, "noeboard"))
+
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             EventHandler.write_to_clients(_eboard_status_event(self.shared, "error"))
 

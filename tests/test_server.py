@@ -733,6 +733,23 @@ class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("41%", shared["system_info"]["battery"])
 
 
+class TestServerWebDisplayEboardStatus(unittest.IsolatedAsyncioTestCase):
+    async def test_no_eboard_message_marks_board_disconnected(self):
+        shared = {
+            "eboard_status": {"event": "Status", "eboard": "connected"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        text = Mock()
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
+
+        disconnected = {"event": "Status", "eboard": "noeboard"}
+        self.assertEqual(disconnected, shared["eboard_status"])
+        write_to_clients.assert_called_once_with(disconnected)
+
+
 class TestServerWebBookSelection(unittest.TestCase):
     def test_web_book_choices_include_obooksrv_first(self):
         books = _web_book_choices()

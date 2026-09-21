@@ -1577,6 +1577,10 @@ piece {
     color: #28a745;   /* green: physical board confirmed connected */
 }
 
+#picoFooterDgt.footer-disconnected::before {
+    color: #dc3545;   /* red: physical board connection lost */
+}
+
 .footer-version {
     font-size: 0.78rem;
     opacity: 0.85;

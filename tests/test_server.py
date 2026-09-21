@@ -158,9 +158,20 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=24', template)
+        self.assertIn('app.js?v=25', template)
+        self.assertIn('base.css?v=14', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
+
+    def test_eboard_disconnect_status_is_red(self):
+        root = Path(__file__).parents[1]
+        script = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        stylesheet = (root / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
+
+        self.assertIn("dgtEl.classList.add('footer-disconnected')", script)
+        self.assertIn("dgtEl.classList.remove('footer-disconnected')", script)
+        self.assertIn("#picoFooterDgt.footer-disconnected::before", stylesheet)
+        self.assertIn("color: #dc3545", stylesheet)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

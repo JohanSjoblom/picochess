@@ -3796,9 +3796,11 @@ $(function () {
                         if (dgtEl) {
                             if (data.eboard === 'connected') {
                                 dgtEl.classList.add('footer-connected');
+                                dgtEl.classList.remove('footer-disconnected');
                                 dgtBoardConnected = true;
                             } else if (data.eboard === 'error' || data.eboard === 'noeboard') {
                                 dgtEl.classList.remove('footer-connected');
+                                dgtEl.classList.add('footer-disconnected');
                                 dgtBoardConnected = false;
                             }
                         }

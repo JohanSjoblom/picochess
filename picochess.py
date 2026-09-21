@@ -699,6 +699,7 @@ class PicochessState:
         self.newgame_happened = False
         self.old_engine_level = ""
         self.error_fen = None
+        self.pairing_bridge: pairing_ipc.PairingBridge | None = None
         self.fen_error_occured = False
         self.fen_timer: AsyncRepeatingTimer | None = None
         self.fen_timer_running = False
@@ -1782,7 +1783,7 @@ class MainLoop:
         pgn_display: PgnDisplay,
         pico_talker: PicoTalkerDisplay,
         dgtdispatcher: Dispatcher,
-        dgtboard: DgtBoard,
+        dgtboard: EBoard,
         board_type,
         loop: asyncio.AbstractEventLoop,
         args,
@@ -5968,7 +5969,7 @@ class MainLoop:
         logger.debug("final exit_or_reboot_cleanups")
         if isinstance(self.dgtboard, DgtBoard):
             await self.dgtboard.stop()
-        if getattr(self.state, "pairing_bridge", None):
+        if self.state.pairing_bridge:
             await self.state.pairing_bridge.close()
         if self.pico_talker:
             # close the sound system (this is why final is a separate call)

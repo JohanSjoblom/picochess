@@ -2259,11 +2259,11 @@ async def main() -> None:
             self.state.flag_startup = True
 
             if self.args.pgn_elo and self.args.pgn_elo.isnumeric() and self.args.rating_deviation:
-                self.state.rating = Rating(float(args.pgn_elo), float(args.rating_deviation))
+                self.state.rating = Rating(float(self.args.pgn_elo), float(self.args.rating_deviation))
             self.args.engine_level = None if self.args.engine_level == "None" else self.args.engine_level
             if self.args.engine_level == '""':
                 self.args.engine_level = None
-            engine_opt, level_index = await self.get_engine_level_dict(args.engine_level)
+            engine_opt, level_index = await self.get_engine_level_dict(self.args.engine_level)
             if self.args.engine_level and level_index is None:
                 logger.warning(
                     "configured engine level '%s' not found for engine '%s'; using engine default",
@@ -2326,7 +2326,7 @@ async def main() -> None:
                 ),
                 "user_name": user_name,
                 "user_elo": self.args.pgn_elo,
-                "rspeed": round(float(args.rspeed), 2),
+                "rspeed": round(float(self.args.rspeed), 2),
             }
             if self.git_status:
                 sys_info["git_status"] = self.git_status
@@ -6772,7 +6772,7 @@ async def main() -> None:
                     Mode.TRAINING,
                 ):  # engine isnt started/searching => stop the clock
                     await self.state.stop_clock()
-                self.state.engine_text = state.dgtmenu.get_current_engine_name()
+                self.state.engine_text = self.state.dgtmenu.get_current_engine_name()
                 self.state.dgtmenu.exit_menu()
 
                 self.state.old_engine_level = self.state.new_engine_level
@@ -8928,8 +8928,8 @@ async def main() -> None:
                     suser=self.args.smtp_user,
                     spass=self.args.smtp_pass,
                     sencryption=self.args.smtp_encryption,
-                    sstarttls=args.smtp_starttls,
-                    sport=args.smtp_port,
+                    sstarttls=self.args.smtp_starttls,
+                    sport=self.args.smtp_port,
                     sfrom=self.args.smtp_from,
                 )
                 body = "You probably want to forward this file to a picochess developer ;-)"

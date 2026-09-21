@@ -1,10 +1,8 @@
 """Exercise Set Pos acknowledgement interleavings without starting hardware."""
 
-import ast
-from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
@@ -15,23 +13,21 @@ from dgt.api import Event
 
 class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # MainLoop is local to main(); compile its actual methods without running
-        # application startup or copying their implementation into the test.
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
         names = {"_clear_set_position_ack", "_begin_set_position_ack",
                  "_finish_set_position_ack", "process_fen", "process_main_events"}
-        methods = [node for node in main_loop.body if getattr(node, "name", None) in names]
-        namespace = dict(vars(picochess))
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        namespace.update(DisplayMsg=SimpleNamespace(show=self.show),
-                         asyncio=SimpleNamespace(sleep=self.sleep))
-        exec(compile(ast.Module(body=methods, type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type("AckController", (), {name: namespace[name] for name in names})
+        show_patch = patch.object(picochess.DisplayMsg, "show", self.show)
+        show_patch.start()
+        self.addCleanup(show_patch.stop)
+        sleep_patch = patch.object(picochess.asyncio, "sleep", self.sleep)
+        sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+        controller_type = type(
+            "AckController",
+            (),
+            {name: getattr(picochess.MainLoop, name) for name in names},
+        )
         self.controller = controller_type()
         self.board = chess.Board()
         self.board.push_uci("e2e4")

@@ -1780,18 +1780,6 @@ async def main() -> None:
     fischer_inc = 0
     login = ""
 
-    async def display_ip_info(state: PicochessState):
-        """Fire an IP_INFO message with the IP adr."""
-        location, ext_ip, int_ip = get_location()
-
-        if state.set_location == "auto":
-            pass
-        else:
-            location = state.set_location
-
-        info = {"location": location, "ext_ip": ext_ip, "int_ip": int_ip, "version": version}
-        await DisplayMsg.show(Message.IP_INFO(info=info))
-
     config = Configuration()
     args, unknown = config._args, config.unknown
     set_window_control_backend_preference(args.window_control_backend)
@@ -2210,6 +2198,18 @@ async def main() -> None:
             signal.signal(signal.SIGTERM, self.exit_sigterm)
             signal.signal(signal.SIGINT, self.exit_sigterm)
 
+        async def display_ip_info(self):
+            """Fire an IP_INFO message with the IP adr."""
+            location, ext_ip, int_ip = get_location()
+
+            if self.state.set_location == "auto":
+                pass
+            else:
+                location = self.state.set_location
+
+            info = {"location": location, "ext_ip": ext_ip, "int_ip": int_ip, "version": version}
+            await DisplayMsg.show(Message.IP_INFO(info=info))
+
         async def initialise(self, time_text):
             """Due to use of async some initialisation is moved here"""
 
@@ -2245,7 +2245,7 @@ async def main() -> None:
             if engine_file_to_load != self.state.engine_file:
                 await asyncio.sleep(1)  # mame artwork wait
 
-            await display_ip_info(state)
+            await self.display_ip_info()
             await asyncio.sleep(1.0)
 
             if not self.engine.loaded_ok():

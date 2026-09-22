@@ -35,7 +35,6 @@ from utilities import AsyncRepeatingTimer, DisplayMsg, Observable, hms_time
 logger = logging.getLogger(__name__)
 BATTERY_STATUS_INTERVAL = 60
 BOARD_SILENCE_TIMEOUT = 5  # secs without any board answer before the link counts as lost
-BOARD_WRITE_TIMEOUT = 2.0  # secs before a blocked write counts as a lost link instead of hanging
 
 
 class Rev2Info:
@@ -732,6 +731,7 @@ class DgtBoard(EBoard):
                     self.clock_lock = 0.0
                     self.last_clock_command = []
                     self.clock_resend_attempts = 0
+        self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
         if self._board_went_silent():
             logger.warning(
                 "(ser) no board answer for over %s secs - treating the link as lost", BOARD_SILENCE_TIMEOUT
@@ -739,7 +739,6 @@ class DgtBoard(EBoard):
             self._close_serial_for_shutdown()
             self._on_disconnect()
             return
-        self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
         if (
             self.connected
             and self.channel == "BT"
@@ -986,14 +985,7 @@ class DgtBoard(EBoard):
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial
         try:
-            self.serial = Serial(
-                device,
-                stopbits=STOPBITS_ONE,
-                parity=PARITY_NONE,
-                bytesize=EIGHTBITS,
-                timeout=0.5,
-                write_timeout=BOARD_WRITE_TIMEOUT,
-            )
+            self.serial = Serial(device, stopbits=STOPBITS_ONE, parity=PARITY_NONE, bytesize=EIGHTBITS, timeout=0.5)
         except SerialException:
             return False
         return True

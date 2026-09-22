@@ -34,6 +34,8 @@ from utilities import AsyncRepeatingTimer, DisplayMsg, Observable, hms_time
 
 logger = logging.getLogger(__name__)
 BATTERY_STATUS_INTERVAL = 60
+BOARD_SILENCE_TIMEOUT = 5.0
+BOARD_WRITE_TIMEOUT = 2.0
 
 
 class Rev2Info:
@@ -119,6 +121,7 @@ class DgtBoard(EBoard):
         )
         self.watchdog_timer = AsyncRepeatingTimer(1, self._watchdog, self.loop)
         self.last_battery_request = 0.0
+        self.last_board_message = 0.0
         # bluetooth vars for Jessie upwards & autoconnect
         self.btctl = None
         self.bt_rfcomm = None
@@ -249,33 +252,29 @@ class DgtBoard(EBoard):
                 logger.error("type not supported [%s]", type(item))
                 return False
 
-        while True:
-            if self.stop_requested.is_set():
+        if self.stop_requested.is_set():
+            return False
+        with self.lock:
+            serial = self.serial
+            if serial is None:
                 return False
-            if self.serial:
-                with self.lock:
-                    serial = self.serial
-                    if serial is not None:
-                        try:
-                            serial.write(bytearray(array))
-                            break
-                        except ValueError:
-                            logger.error("invalid bytes sent %s", message)
-                            return False
-                        except (OSError, SerialException, TypeError) as write_expection:
-                            logger.error(write_expection)
-                            try:
-                                serial.close()
-                            except (OSError, SerialException, TypeError):
-                                logger.debug("error while closing failed serial connection", exc_info=True)
-                            if self.serial is serial:
-                                if self.stop_requested.is_set():
-                                    self.serial = None
-                                else:
-                                    self._on_disconnect()
-            if mes == DgtCmd.DGT_RETURN_SERIALNR:
-                break
-            time.sleep(0.1)
+            try:
+                serial.write(bytearray(array))
+            except ValueError:
+                logger.error("invalid bytes sent %s", message)
+                return False
+            except (OSError, SerialException, TypeError) as write_exception:
+                logger.error(write_exception)
+                try:
+                    serial.close()
+                except (OSError, SerialException, TypeError):
+                    logger.debug("error while closing failed serial connection", exc_info=True)
+                if self.serial is serial:
+                    if self.stop_requested.is_set():
+                        self.serial = None
+                    else:
+                        self._on_disconnect()
+                return False
 
         if message[0] == DgtCmd.DGT_SET_LEDS:
             logger.debug("(rev) leds turned %s", "on" if message[2] else "off")
@@ -317,6 +316,8 @@ class DgtBoard(EBoard):
                     text_l, text_m, text_s = "BT e-Board", "BT board", "ok bt"
                 self.channel = "BT"
                 self.ask_battery_status()
+            if self.serial is None or self.stop_requested.is_set():
+                return
             self.bconn_text = Dgt.DISPLAY_TEXT(
                 web_text=text_l,
                 large_text=text_l,
@@ -328,6 +329,8 @@ class DgtBoard(EBoard):
                 devs={"i2c", "web"},
             )  # serial clock lateron
             self.connected = True
+            self.last_board_message = time.monotonic()
+            self.last_battery_request = 0.0
             self._queue_display(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             if self._board_loss_notified and not self.stop_requested.is_set():
                 self._board_loss_notified = False
@@ -335,10 +338,13 @@ class DgtBoard(EBoard):
                     Observable.fire(PicoEvent.BOARD_CONNECTION_RESTORED()), self.loop
                 )
             self.startup_serial_clock()  # now ask the serial clock to answer
+            if not self.connected or self.serial is None or self.stop_requested.is_set():
+                return
             if self.watchdog_timer.is_running():
                 logger.warning("watchdog timer is already running")
             else:
                 logger.debug("watchdog timer is started")
+                self.last_board_message = time.monotonic()
                 self.watchdog_timer.start()
             self.handshake_pending = False
             if self.version_timer.is_running():
@@ -623,7 +629,9 @@ class DgtBoard(EBoard):
             except struct.error:
                 logger.warning("struct error => maybe a reconnected board?")
 
-        self._process_board_message(message_id, message, message_length)
+        if not self.stop_requested.is_set():
+            self.last_board_message = time.monotonic()
+            self._process_board_message(message_id, message, message_length)
         return message
 
     def _process_incoming_board_forever(self):
@@ -712,6 +720,20 @@ class DgtBoard(EBoard):
                     self.last_clock_command = []
                     self.clock_resend_attempts = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        if (
+            not self.stop_requested.is_set()
+            and self.connected
+            and self.serial is not None
+            and not self.handshake_pending
+            and self.last_board_message
+            and time.monotonic() - self.last_board_message > BOARD_SILENCE_TIMEOUT
+        ):
+            logger.warning(
+                "(ser) no board answer for over %.1f secs - treating the link as lost", BOARD_SILENCE_TIMEOUT
+            )
+            self._close_serial_for_shutdown()
+            self._on_disconnect()
+            return
         if (
             self.connected
             and self.channel == "BT"
@@ -958,7 +980,14 @@ class DgtBoard(EBoard):
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial
         try:
-            self.serial = Serial(device, stopbits=STOPBITS_ONE, parity=PARITY_NONE, bytesize=EIGHTBITS, timeout=0.5)
+            self.serial = Serial(
+                device,
+                stopbits=STOPBITS_ONE,
+                parity=PARITY_NONE,
+                bytesize=EIGHTBITS,
+                timeout=0.5,
+                write_timeout=BOARD_WRITE_TIMEOUT,
+            )
         except SerialException:
             return False
         return True

@@ -4,8 +4,10 @@ import threading
 import unittest
 from unittest.mock import AsyncMock, Mock, call, patch
 
+from serial import SerialTimeoutException
+
 from dgt.api import Event
-from dgt.board import DgtBoard
+from dgt.board import BOARD_WRITE_TIMEOUT, DgtBoard
 from dgt.util import DgtClk, DgtCmd, DgtMsg
 
 
@@ -108,6 +110,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, observable_fire.await_count)
         self.assertIsInstance(observable_fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
 
+        board.serial = Mock()  # the reconnect opened a new serial port
         board._process_board_message(DgtMsg.DGT_MSG_VERSION, (3, 10), 2)
         await asyncio.sleep(0.01)
         self.assertEqual(2, observable_fire.await_count)
@@ -204,6 +207,109 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board._watchdog_blocking()
 
         board.write_command.assert_not_called()
+
+    def _connected_board_for_watchdog(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        board.connected = True
+        board.serial = Mock()
+        board.last_board_message = 100.0
+        board.write_command = Mock(return_value=True)
+        board.version_timer = Mock()
+        board.version_timer.is_running.return_value = True
+        return board
+
+    async def test_watchdog_disconnects_after_missing_board_answers(self):
+        board = self._connected_board_for_watchdog()
+        serial = board.serial
+        with (
+            patch("dgt.board.time.monotonic", return_value=106.0),
+            patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            board._watchdog_blocking()
+            board._watchdog_blocking()
+            await asyncio.sleep(0)
+
+        self.assertFalse(board.connected)
+        self.assertIsNone(board.serial)
+        serial.close.assert_called_once_with()
+        self.assertEqual(1, fire.await_count)
+        self.assertIsInstance(fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
+
+    async def test_watchdog_keeps_recent_or_unfinished_connection(self):
+        board = self._connected_board_for_watchdog()
+        with patch("dgt.board.time.monotonic", return_value=104.0):
+            board._watchdog_blocking()
+        self.assertTrue(board.connected)
+
+        board.handshake_pending = True
+        with patch("dgt.board.time.monotonic", return_value=106.0):
+            board._watchdog_blocking()
+        self.assertTrue(board.connected)
+
+        board.handshake_pending = False
+        board.stop_requested.set()
+        with patch("dgt.board.time.monotonic", return_value=106.0):
+            board._watchdog_blocking()
+        self.assertTrue(board.connected)
+
+    async def test_valid_board_message_refreshes_silence_stamp(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        board._read_serial = Mock(side_effect=[bytes([0, 5]), bytes([3]), bytes([10])])
+        board._process_board_message = Mock()
+        with patch("dgt.board.time.monotonic", return_value=250.0):
+            board._read_board_message(bytes([DgtMsg.DGT_MSG_VERSION.value]))
+        self.assertEqual(250.0, board.last_board_message)
+        board._process_board_message.assert_called_once()
+
+    async def test_ee_moves_read_refreshes_stamp_before_watchdog_resumes(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        board.serial = Mock()
+        board._read_serial = Mock(side_effect=[bytes([62, 3]), bytes(0x1F00)])
+        board.watchdog_timer = Mock()
+        with patch("dgt.board.time.monotonic", return_value=250.0):
+            board._read_board_message(bytes([0x8F]))
+        self.assertEqual(250.0, board.last_board_message)
+        board.watchdog_timer.stop.assert_called_once_with()
+        board.watchdog_timer.start.assert_called_once_with()
+
+    async def test_reconnect_refreshes_battery_on_next_watchdog_tick(self):
+        board = self._connected_board_for_watchdog()
+        board.device = "/dev/rfcomm123"
+        board.channel = "BT"
+        board.last_battery_request = 99.0
+        board._queue_display = Mock()
+        board.startup_serial_clock = Mock()
+        board.watchdog_timer = Mock()
+        board.watchdog_timer.is_running.return_value = True
+        with patch("dgt.board.time.monotonic", return_value=100.0):
+            board._process_board_message(DgtMsg.DGT_MSG_VERSION, (3, 10), 2)
+        self.assertEqual(0.0, board.last_battery_request)
+        board.write_command.reset_mock()
+        with patch("dgt.board.time.monotonic", return_value=101.0):
+            board._watchdog_blocking()
+        self.assertEqual(
+            [call([DgtCmd.DGT_RETURN_SERIALNR]), call([DgtCmd.DGT_SEND_BATTERY_STATUS])],
+            board.write_command.call_args_list,
+        )
+
+    async def test_blocked_serial_write_disconnects_promptly(self):
+        board = self._connected_board_for_watchdog()
+        del board.write_command
+        serial = board.serial
+        serial.write.side_effect = SerialTimeoutException("write timed out")
+        with patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire:
+            self.assertFalse(board.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS]))
+            await asyncio.sleep(0)
+        self.assertFalse(board.connected)
+        self.assertEqual(1, serial.write.call_count)
+        serial.close.assert_called_once_with()
+        self.assertEqual(1, fire.await_count)
+
+    async def test_serial_port_has_bounded_write(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        with patch("dgt.board.Serial") as serial_class:
+            self.assertTrue(board._open_serial("/dev/test"))
+        self.assertEqual(BOARD_WRITE_TIMEOUT, serial_class.call_args.kwargs["write_timeout"])
 
     async def test_watchdog_gives_up_after_three_clock_resends(self):
         loop = asyncio.get_running_loop()
@@ -340,7 +446,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
 
         board.lock = DisconnectingLock()
 
-        self.assertTrue(board.write_command([DgtCmd.DGT_RETURN_SERIALNR]))
+        self.assertFalse(board.write_command([DgtCmd.DGT_RETURN_SERIALNR]))
 
     async def test_incomplete_board_message_is_discarded_after_one_timeout(self):
         loop = asyncio.get_running_loop()

@@ -4,6 +4,8 @@ import threading
 import unittest
 from unittest.mock import AsyncMock, Mock, call, patch
 
+from serial import SerialTimeoutException
+
 from dgt.api import Event
 from dgt.board import DgtBoard
 from dgt.util import DgtClk, DgtCmd, DgtMsg
@@ -284,6 +286,29 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board.version_timer = Mock()
         board.version_timer.is_running.return_value = True
         return board
+
+    async def test_serial_port_is_opened_with_a_write_timeout(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+
+        with patch("dgt.board.Serial") as serial_class:
+            self.assertTrue(board._open_serial("/dev/test"))
+
+        self.assertEqual(2.0, serial_class.call_args.kwargs["write_timeout"])
+
+    async def test_blocked_write_drops_the_link(self):
+        board = self._silent_link_board(asyncio.get_running_loop())
+        del board.write_command  # use the real implementation for this one
+        serial = board.serial
+        serial.write.side_effect = SerialTimeoutException("write timed out")
+
+        with patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire:
+            board.write_command([DgtCmd.DGT_RETURN_SERIALNR])
+            await asyncio.sleep(0.01)
+
+        self.assertFalse(board.connected)
+        self.assertIsNone(board.serial)
+        serial.close.assert_called_once_with()
+        self.assertEqual(1, fire.await_count)
 
     async def test_watchdog_drops_link_when_board_stops_answering(self):
         board = self._silent_link_board(asyncio.get_running_loop())

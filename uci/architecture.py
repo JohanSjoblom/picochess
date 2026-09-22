@@ -19,7 +19,15 @@ def engine_platform_name(system_name: str | None = None, machine: str | None = N
     return resolved_machine
 
 
-def local_engine_directory() -> Path:
+def local_engine_directory(system_name: str | None = None, machine: str | None = None) -> Path:
     """Return this checkout's platform-specific engine directory."""
 
-    return Path(__file__).resolve().parent.parent / "engines" / engine_platform_name()
+    return Path(__file__).resolve().parent.parent / "engines" / engine_platform_name(system_name, machine)
+
+
+def local_default_engine_path(system_name: str | None = None, machine: str | None = None) -> Path:
+    """Return the platform-specific path to the guaranteed Stockfish engine."""
+
+    resolved_system = platform.system() if system_name is None else system_name
+    engine_name = "a-stockf.exe" if resolved_system == "Windows" else "a-stockf"
+    return local_engine_directory(resolved_system, machine) / engine_name

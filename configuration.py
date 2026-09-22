@@ -1,7 +1,7 @@
 import configargparse  # type: ignore
 import os
 
-from uci.architecture import local_engine_directory
+from uci.architecture import local_default_engine_path
 from utilities import version
 
 
@@ -334,7 +334,7 @@ class Configuration:
             "-teng",
             "--tutor-engine",
             type=str,
-            default=str(local_engine_directory() / "a-stockf"),
+            default=str(local_default_engine_path()),
             help="engine used for PicoTutor analysis",
         )
         self.parser.add_argument(

@@ -31,7 +31,7 @@ import chess  # type: ignore
 from chess.engine import InfoDict, Limit, PlayResult
 import chess.engine
 import chess.pgn
-from uci.architecture import local_engine_directory
+from uci.architecture import local_default_engine_path, local_engine_directory
 from uci.engine import UciShell, UciEngine
 from dgt.util import PicoComment, PicoCoach
 
@@ -45,7 +45,7 @@ class PicoTutor:
     def __init__(
         self,
         i_ucishell: UciShell,
-        i_engine_path=str(local_engine_directory() / "a-stockf"),
+        i_engine_path=str(local_default_engine_path()),
         i_player_color=chess.WHITE,
         i_fen="",
         i_comment_file="",

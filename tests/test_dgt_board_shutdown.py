@@ -221,12 +221,10 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
     async def test_watchdog_disconnects_after_missing_board_answers(self):
         board = self._connected_board_for_watchdog()
         serial = board.serial
-        with (
-            patch("dgt.board.time.monotonic", return_value=106.0),
-            patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire,
-        ):
-            board._watchdog_blocking()
-            board._watchdog_blocking()
+        with patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire:
+            with patch("dgt.board.time.monotonic", return_value=106.0):
+                board._watchdog_blocking()
+                board._watchdog_blocking()
             await asyncio.sleep(0.01)
 
         self.assertFalse(board.connected)

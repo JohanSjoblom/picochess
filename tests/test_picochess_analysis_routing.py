@@ -23,6 +23,19 @@ from position_setup import (
     should_preserve_loaded_pgn_history,
     should_preserve_set_position_history,
 )
+from move_policy import (
+    analysis_event_matches_position,
+    engine_move_event_matches_state,
+    remote_move_matches_current_position,
+    should_block_takeback,
+    should_process_sliding_move,
+    should_reject_user_move_after_game_end,
+    should_resume_clock_after_rejected_engine_move,
+    should_resume_game_after_takeback,
+    should_show_setpieces_after_lift_timeout,
+    user_move_pre_search_messages,
+    user_move_task_matches_position,
+)
 
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
@@ -33,28 +46,17 @@ from picochess import (
     AnalysisSourceContext,
     GameEndAnalysisContext,
     TutorAnalysisContext,
-    analysis_event_matches_position,
     decide_analysis_cycle_action,
     decide_analysis_source,
     decide_game_end_analysis_stop,
     decide_tutor_analysis,
     depth_gated_analysis_info,
-    engine_move_event_matches_state,
     localize_web_san,
-    remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
-    should_block_takeback,
-    should_show_setpieces_after_lift_timeout,
-    should_reject_user_move_after_game_end,
-    should_process_sliding_move,
-    should_resume_game_after_takeback,
-    should_resume_clock_after_rejected_engine_move,
     should_report_local_timeout,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
     tutor_analysis_allowed_in_mode,
-    user_move_pre_search_messages,
-    user_move_task_matches_position,
     web_analysis_payload,
 )
 

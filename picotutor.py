@@ -719,6 +719,35 @@ class PicoTutor:
         result = self._update_internal_history_after_pop(poped_move=poped_move)
         return result
 
+    async def pop_posted_engine_move(self, game: chess.Board) -> bool:
+        """Remove an announced engine move before a separate game-move takeback.
+
+        The live game may already be one move behind the tutor before its
+        announced engine move is removed. Check the shared history rather than
+        requiring the boards to match after this intermediate pop.
+        """
+        extra_moves = len(self.board.move_stack) - len(game.move_stack)
+        if extra_moves not in (1, 2):
+            logger.warning("cannot pop posted engine move: tutor is %s plies ahead", extra_moves)
+            return False
+        if self.board.move_stack[: len(game.move_stack)] != game.move_stack:
+            logger.warning("cannot pop posted engine move: tutor move history differs")
+            return False
+        common_position = self.board.copy()
+        for _ in range(extra_moves):
+            common_position.pop()
+        if common_position.fen() != game.fen():
+            logger.warning("cannot pop posted engine move: tutor and game have different history")
+            return False
+
+        poped_move = self.board.pop()
+        logger.debug("picotutor pop posted engine move %s", poped_move.uci())
+        if not self._update_internal_state_after_pop(poped_move):
+            logger.warning("picotutor history out of sync after posted engine move")
+            await self._reset_history_vars(game)
+            return False
+        return True
+
     async def pop_last_move(self, game: chess.Board) -> bool:
         """inform picotutor that move takeback has been done
         returns False if tutor board is out of sync

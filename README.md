@@ -186,6 +186,21 @@ Windows users must supply a native UCI engine under `engines\AMD64`. See [the Wi
 
 If the user has separately installed Scid vs. PC for Windows, `start-picochess-windows.ps1` can start its `tcscid.exe` games helper together with PicoChess. Failure to find Scid affects only the optional Games tab.
 
+macOS installation
+------------------
+The native macOS installer follows the same user-local approach. It currently
+supports Apple silicon (`arm64`), creates a native Python 3.11-3.13 virtual
+environment, and installs the portable data resources without installing
+engines or system services:
+
+```bash
+bash ./install-picochess-mac.sh
+```
+
+macOS users must supply a native Apple-silicon UCI engine under
+`engines/arm64`. See the
+[macOS installation guide](docs/mac-install.md) for options and limitations.
+
 Installation with more detailed info
 ------------------------------------
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.

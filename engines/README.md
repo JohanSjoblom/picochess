@@ -136,11 +136,13 @@ The sidecar name is the executable name plus ``.uci``. A minimal level is::
 
 Make the engine executable with ``chmod +x engines/arm64/stockfish`` and select
 that same path for both ``engine`` and ``tutor-engine`` in ``picochess.ini``.
-Create the Python environment and start PicoChess from the repository root::
+The macOS installer creates the Python environment and portable resources::
 
-    python3 -m venv .venv
-    .venv/bin/python -m pip install -r requirements.txt
-    .venv/bin/python picochess.py
+    bash ./install-picochess-mac.sh
+    ./venv/bin/python picochess.py
+
+The macOS installer currently supports Apple silicon only. ``engines/x86_64``
+remains reserved for Linux engines and is not used for macOS installation.
 
 This experimental path targets web-only play against a native engine. PGN
 upload authentication, host updates, Wi-Fi/Bluetooth setup, shutdown, and reboot

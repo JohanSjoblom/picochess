@@ -9,6 +9,7 @@ import chess
 import chess.variant
 
 import picochess
+from analysis_policy import selected_engine_analysis_depth, selected_engine_analysis_multipv
 
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
@@ -36,8 +37,6 @@ from picochess import (
     pending_set_position_fen_action,
     remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
-    selected_engine_analysis_depth,
-    selected_engine_analysis_multipv,
     set_position_new_game_code,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
@@ -392,15 +391,15 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertIn(success_branch, source)
 
-    @patch("picochess.platform.machine", return_value="aarch64")
+    @patch("analysis_policy.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
         self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))
 
-    @patch("picochess.platform.machine", return_value="aarch64")
+    @patch("analysis_policy.platform.machine", return_value="aarch64")
     def test_aarch64_playing_modes_keep_selected_engine_depth(self, _machine):
         self.assertEqual(40, selected_engine_analysis_depth(engine_plays=True))
 
-    @patch("picochess.platform.machine", return_value="x86_64")
+    @patch("analysis_policy.platform.machine", return_value="x86_64")
     def test_desktop_non_playing_modes_keep_selected_engine_depth(self, _machine):
         self.assertEqual(40, selected_engine_analysis_depth(engine_plays=False))
 

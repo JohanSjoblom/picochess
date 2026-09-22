@@ -37,7 +37,6 @@ from enum import Enum
 from typing import Any
 import asyncio
 from pathlib import Path
-import platform
 
 import chess.pgn
 from chess.pgn import Game
@@ -47,6 +46,8 @@ import chess.variant
 from tornado.platform.asyncio import AsyncIOMainLoop
 from chess.engine import InfoDict, Limit, BestMove, PlayResult
 import dgt.util
+
+from analysis_policy import WEB_ANALYSIS_MULTIPV, selected_engine_analysis_depth, selected_engine_analysis_multipv
 
 from configuration import Configuration
 from uci.engine import UciShell, UciEngine
@@ -120,9 +121,6 @@ import pairing_ipc
 FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 # Limit analysis of engine
 # ENGINE WATCHING
-FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 40  # fallback cap for selected main-engine ContinuousAnalysis
-AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH = 30  # lower cap when no engine moves are being played
-WEB_ANALYSIS_MULTIPV = 3  # maximum backend analysis lines shown by the web client
 # since tutor analyses about 50 lines wide it cannot go so deep
 # ENGINE PLAYING
 # Dont make the following large as it will block engine play go
@@ -177,29 +175,6 @@ async def process_queued_event(event, handler, queue: asyncio.Queue) -> None:
         await handler(event)
     finally:
         queue.task_done()
-
-
-def selected_engine_analysis_depth(engine_plays: bool) -> int:
-    """Return the selected main-engine ContinuousAnalysis depth limit."""
-    if platform.machine().lower() == "aarch64" and not engine_plays:
-        return AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH
-    return FLOAT_ENGINE_MAX_ANALYSIS_DEPTH
-
-
-def selected_engine_analysis_multipv(interaction_mode: Mode, engine_options) -> int | None:
-    """Return the supported MultiPV width for selected-engine analysis modes."""
-    multipv_modes = (Mode.PONDER, Mode.ANALYSIS, Mode.KIBITZ, Mode.PGNREPLAY)
-    if interaction_mode not in multipv_modes or not engine_options:
-        return None
-    multipv_option = engine_options.get("MultiPV")
-    if multipv_option is None:
-        return None
-    minimum = getattr(multipv_option, "min", None)
-    maximum = getattr(multipv_option, "max", None)
-    if minimum is not None and minimum > WEB_ANALYSIS_MULTIPV:
-        return None
-    requested = WEB_ANALYSIS_MULTIPV if maximum is None else min(WEB_ANALYSIS_MULTIPV, maximum)
-    return requested if requested > 1 else None
 
 
 WEB_SAN_PIECE_TRANSLATIONS = {

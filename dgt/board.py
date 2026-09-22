@@ -920,10 +920,10 @@ class DgtBoard(EBoard):
         self.bt_retry_after = time.monotonic() + 2
         self.bt_rfcomm = None
 
-    def _queue_no_board_spinner(self):
+    def _queue_no_board_spinner(self, force=False):
         """Schedule a non-blocking spinner update on the async loop."""
         now = time.time()
-        if now - self.last_no_board_display < 0.5:
+        if not force and now - self.last_no_board_display < 0.5:
             return
 
         waitchars = ["/", "-", "\\", "|"]
@@ -950,6 +950,9 @@ class DgtBoard(EBoard):
         self.connected = False
         if was_connected and not self.stop_requested.is_set():
             self._board_loss_notified = True
+            # Show the loss immediately; a Bluetooth reconnect attempt may block
+            # before _setup_serial_port reaches its regular spinner update.
+            self._queue_no_board_spinner(force=True)
             asyncio.run_coroutine_threadsafe(
                 Observable.fire(PicoEvent.BOARD_CONNECTION_LOST()), self.loop
             )

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, call, patch
 
 from serial import SerialTimeoutException
 
-from dgt.api import Event
+from dgt.api import Event, Message
 from dgt.board import BOARD_WRITE_TIMEOUT, DgtBoard
 from dgt.util import DgtClk, DgtCmd, DgtMsg
 
@@ -91,8 +91,9 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(board._setup_serial_port())
         board._open_serial.assert_not_called()
 
+    @patch("dgt.board.DisplayMsg.show", new_callable=AsyncMock)
     @patch("dgt.board.Observable.fire", new_callable=AsyncMock)
-    async def test_board_connection_events_fire_once_per_transition(self, observable_fire):
+    async def test_board_connection_events_fire_once_per_transition(self, observable_fire, display_show):
         board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
         board.connected = True
         board.device = "/dev/rfcomm123"
@@ -109,6 +110,8 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.01)
         self.assertEqual(1, observable_fire.await_count)
         self.assertIsInstance(observable_fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
+        self.assertEqual(1, display_show.await_count)
+        self.assertIsInstance(display_show.await_args.args[0], Message.DGT_NO_EBOARD_ERROR)
 
         board.serial = Mock()  # the reconnect opened a new serial port
         board._process_board_message(DgtMsg.DGT_MSG_VERSION, (3, 10), 2)

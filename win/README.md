@@ -11,6 +11,12 @@ It performs the following steps:
 The app runs as the current user. `winget` may show a Windows elevation prompt if a prerequisite
 installer requires one.
 
+## Download
+
+The self-contained `PicoChessInstaller.exe` will be available as a downloadable asset on the
+project's GitHub Releases page. It includes the required .NET runtime, so end users do not need to
+install .NET before running it. Generated executables remain excluded from the Git repository.
+
 ## Build and run
 
 Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), then run:
@@ -23,11 +29,16 @@ Create a self-contained single-file executable for 64-bit Windows:
 
 ```powershell
 dotnet publish .\win\PicoChess.WindowsInstaller -c Release -r win-x64 `
-  --self-contained true -p:PublishSingleFile=true
+  --self-contained true -p:PublishSingleFile=true `
+  -p:EnableCompressionInSingleFile=true -o .\win\artifacts\self-contained
 ```
 
-The executable is written below
-`win\PicoChess.WindowsInstaller\bin\Release\net10.0-windows\win-x64\publish`.
+The executable is written to `win\artifacts\self-contained`. Build outputs under
+`win\artifacts`, `bin`, and `obj` are deliberately ignored by Git.
+
+The self-contained build is the useful end-user package because it does not require .NET to be
+installed first. A framework-dependent publish is much smaller, but requires the matching .NET 10
+Desktop Runtime on the destination PC.
 
 ## MVP limitations
 

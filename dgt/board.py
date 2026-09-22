@@ -34,6 +34,7 @@ from utilities import AsyncRepeatingTimer, DisplayMsg, Observable, hms_time
 
 logger = logging.getLogger(__name__)
 BATTERY_STATUS_INTERVAL = 60
+BOARD_SILENCE_TIMEOUT = 5  # secs without any board answer before the link counts as lost
 
 
 class Rev2Info:
@@ -119,6 +120,7 @@ class DgtBoard(EBoard):
         )
         self.watchdog_timer = AsyncRepeatingTimer(1, self._watchdog, self.loop)
         self.last_battery_request = 0.0
+        self.last_board_message = 0.0  # monotonic stamp of the last message received from the board
         # bluetooth vars for Jessie upwards & autoconnect
         self.btctl = None
         self.bt_rfcomm = None
@@ -328,6 +330,7 @@ class DgtBoard(EBoard):
                 devs={"i2c", "web"},
             )  # serial clock lateron
             self.connected = True
+            self.last_board_message = time.monotonic()
             self._queue_display(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             if self._board_loss_notified and not self.stop_requested.is_set():
                 self._board_loss_notified = False
@@ -590,6 +593,7 @@ class DgtBoard(EBoard):
                         logger.warning("EE_MOVES needed over 15secs => ignore not readed 0x%x bytes now", counter)
                         break
                 self.watchdog_timer.start()
+                self.last_board_message = time.monotonic()
             else:
                 logger.warning("illegal length in message header 0x%x length: %i", message_id, message_length)
             return message
@@ -600,6 +604,8 @@ class DgtBoard(EBoard):
         except ValueError:
             logger.warning("illegal id in message header 0x%x length: %i", message_id, message_length)
             return message
+
+        self.last_board_message = time.monotonic()
 
         while counter and not self.stop_requested.is_set():
             byte = self._read_serial()
@@ -693,6 +699,20 @@ class DgtBoard(EBoard):
         """Run the serial keepalive without blocking the shared event loop."""
         await asyncio.to_thread(self._watchdog_blocking)
 
+    def _board_went_silent(self) -> bool:
+        """Return whether a connected board stopped answering the keepalive.
+
+        Writes over Bluetooth keep succeeding long after the board is gone,
+        because the bytes disappear into the rfcomm buffer.  The watchdog asks
+        for the serial number every second, so a board that stays silent for
+        several rounds has dropped the link.
+        """
+        if not self.connected or self.handshake_pending:
+            return False
+        if self.serial is None or not self.last_board_message:
+            return False
+        return time.monotonic() - self.last_board_message > BOARD_SILENCE_TIMEOUT
+
     def _watchdog_blocking(self):
         """Perform one potentially blocking serial keepalive."""
         if self.stop_requested.is_set():
@@ -712,6 +732,13 @@ class DgtBoard(EBoard):
                     self.last_clock_command = []
                     self.clock_resend_attempts = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        if self._board_went_silent():
+            logger.warning(
+                "(ser) no board answer for over %s secs - treating the link as lost", BOARD_SILENCE_TIMEOUT
+            )
+            self._close_serial_for_shutdown()
+            self._on_disconnect()
+            return
         if (
             self.connected
             and self.channel == "BT"

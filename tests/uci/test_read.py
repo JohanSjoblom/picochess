@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -70,3 +71,13 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
     @patch("builtins.open", side_effect=PermissionError("catalog is not readable"))
     def test_unreadable_engine_ini_keeps_previous_empty_catalog_fallback(self, _open):
         self.assertEqual([], read_engine_ini(engine_path="/engines", filename="retro.ini"))
+
+    def test_default_catalog_uses_mapped_local_engine_directory(self):
+        with tempfile.TemporaryDirectory() as engine_path:
+            with open(os.path.join(engine_path, "engines.ini"), "w", encoding="utf-8") as ini_file:
+                ini_file.write(ENGINE_SECTION.format(section="stockfish", name="Stockfish"))
+            with patch("uci.read.local_engine_directory", return_value=Path(engine_path)):
+                engines = read_engine_ini(filename="engines.ini")
+
+        self.assertEqual("Stockfish", engines[0]["name"])
+        self.assertEqual(os.path.join(engine_path, "stockfish"), engines[0]["file"])

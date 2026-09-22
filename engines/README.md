@@ -105,8 +105,8 @@ needed by PicoChess, which communicates with the board directly through the
 COM port. Do not run Fritz/RabbitPlugin and PicoChess against the same COM port
 at the same time.
 
-Experimental macOS arm64 setup
-==============================
+Experimental macOS setup
+========================
 
 Apple-silicon Macs report their architecture as ``arm64``. PicoChess therefore
 looks for the local engine catalog in ``engines/arm64``. macOS users must supply
@@ -141,8 +141,10 @@ The macOS installer creates the Python environment and portable resources::
     bash ./install-picochess-mac.sh
     ./venv/bin/python picochess.py
 
-The macOS installer currently supports Apple silicon only. ``engines/x86_64``
-remains reserved for Linux engines and is not used for macOS installation.
+On Intel Macs, use the same layout under ``engines/mac_x86_64``. The
+``mac_x86_64`` exception is intentional because Intel macOS and Linux both
+report ``x86_64`` even though their engine binaries are incompatible.
+``engines/x86_64`` remains reserved for Linux engines.
 
 This experimental path targets web-only play against a native engine. PGN
 upload authentication, host updates, Wi-Fi/Bluetooth setup, shutdown, and reboot

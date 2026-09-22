@@ -39,7 +39,7 @@ Options:
   -h, --help               Show this help.
 
 The installer supports native CPython 3.11 through 3.13 on Apple-silicon
-(`arm64`) Macs. It does not require sudo.
+(`arm64`) and Intel (`x86_64`) Macs. It does not require sudo.
 EOF
 }
 
@@ -108,7 +108,17 @@ done
 [ "$(uname -s)" = "Darwin" ] || fail "This installer supports macOS only."
 
 SYSTEM_ARCH=$(uname -m)
-[ "$SYSTEM_ARCH" = "arm64" ] || fail "Unsupported Mac architecture '$SYSTEM_ARCH'; this installer currently supports Apple arm64 only."
+case "$SYSTEM_ARCH" in
+    arm64)
+        ENGINE_PLATFORM=arm64
+        ;;
+    x86_64)
+        ENGINE_PLATFORM=mac_x86_64
+        ;;
+    *)
+        fail "Unsupported Mac architecture '$SYSTEM_ARCH'; expected arm64 or x86_64."
+        ;;
+esac
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "$INSTALL_DIR" ]; then
@@ -197,21 +207,28 @@ probe_python() {
     "$candidate" -c "import platform, struct, sys; print('{}.{}|{}|{}'.format(sys.version_info.major, sys.version_info.minor, struct.calcsize('P') * 8, platform.machine()))" 2>/dev/null
 }
 
+is_supported_python() {
+    case "$SYSTEM_ARCH:$1" in
+        arm64:3.11\|64\|arm64|arm64:3.12\|64\|arm64|arm64:3.13\|64\|arm64|x86_64:3.11\|64\|x86_64|x86_64:3.12\|64\|x86_64|x86_64:3.13\|64\|x86_64)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 select_python() {
     existing_python=$1
     if [ -n "$existing_python" ] && [ -x "$existing_python" ]; then
         details=$(probe_python "$existing_python" || true)
-        case "$details" in
-            3.11\|64\|arm64|3.12\|64\|arm64|3.13\|64\|arm64)
-                PYTHON_COMMAND=$existing_python
-                PYTHON_DETAILS=$details
-                return
-                ;;
-            *)
-                warn "The existing PicoChess virtual environment uses unsupported Python '$details'."
-                fail "Rerun with --recreate-venv after installing native arm64 CPython 3.11 through 3.13."
-                ;;
-        esac
+        if is_supported_python "$details"; then
+            PYTHON_COMMAND=$existing_python
+            PYTHON_DETAILS=$details
+            return
+        fi
+        warn "The existing PicoChess virtual environment uses unsupported Python '$details'."
+        fail "Rerun with --recreate-venv after installing native $SYSTEM_ARCH CPython 3.11 through 3.13."
     fi
 
     detected=""
@@ -219,18 +236,15 @@ select_python() {
         command -v "$candidate" >/dev/null 2>&1 || continue
         command_path=$(command -v "$candidate")
         details=$(probe_python "$command_path" || true)
-        case "$details" in
-            3.11\|64\|arm64|3.12\|64\|arm64|3.13\|64\|arm64)
-                PYTHON_COMMAND=$command_path
-                PYTHON_DETAILS=$details
-                return
-                ;;
-            "") ;;
-            *) detected="${detected}${detected:+, }$details" ;;
-        esac
+        if is_supported_python "$details"; then
+            PYTHON_COMMAND=$command_path
+            PYTHON_DETAILS=$details
+            return
+        fi
+        [ -z "$details" ] || detected="${detected}${detected:+, }$details"
     done
     [ -z "$detected" ] || warn "Unsupported Python detected: $detected"
-    fail "Native arm64 CPython 3.11 through 3.13 was not found. Install it from python.org or with Homebrew and rerun this installer outside Rosetta."
+    fail "Native $SYSTEM_ARCH CPython 3.11 through 3.13 was not found. Install it from python.org or with Homebrew and rerun this installer."
 }
 
 initialize_runtime_files() {
@@ -336,12 +350,12 @@ show_readiness() {
         status "Virtual environment: not created"
     fi
 
-    engine_dir="$INSTALL_DIR/engines/arm64"
+    engine_dir="$INSTALL_DIR/engines/$ENGINE_PLATFORM"
     if [ -f "$engine_dir/engines.ini" ] && find "$engine_dir" -type f -perm -111 -print -quit 2>/dev/null | grep -q .; then
         status "Engine catalog: found in $engine_dir"
     else
         warn "No complete native macOS engine catalog was found. This is expected before adding an engine."
-        status "Follow engines/README.md and place native macOS engines under engines/arm64."
+        status "Follow engines/README.md and place native macOS engines under engines/$ENGINE_PLATFORM."
     fi
 
     if [ -f "$INSTALL_DIR/picochess.ini" ]; then

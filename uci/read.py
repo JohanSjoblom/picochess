@@ -16,11 +16,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import platform
 import configparser
 import os
 import re
 from dgt.api import Dgt
+from uci.architecture import local_engine_directory
 
 
 logger = logging.getLogger(__name__)
@@ -56,8 +56,7 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
     try:
         if engine_shell is None:
             if not engine_path:
-                program_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-                engine_path = program_path + os.sep + "engines" + os.sep + platform.machine()
+                engine_path = str(local_engine_directory())
             logger.debug("complete path without shell: %s", str(engine_path + os.sep + filename))
             with open(engine_path + os.sep + filename, "r", encoding="utf-8") as file:
                 lines = file.readlines()

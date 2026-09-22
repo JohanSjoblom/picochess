@@ -23,7 +23,6 @@ import asyncio
 from asyncio import CancelledError
 from dataclasses import dataclass
 import os
-import platform
 import re
 import traceback
 from typing import Optional, Iterable, Awaitable, Callable
@@ -40,6 +39,7 @@ import asyncssh  # type: ignore
 import chess.engine  # type: ignore
 from chess.engine import InfoDict, Limit, UciProtocol, AnalysisResult, PlayResult, EngineTerminatedError
 from chess import Board  # type: ignore
+from uci.architecture import local_engine_directory
 from uci.rating import Rating, Result
 from utilities import write_picochess_ini
 
@@ -1140,7 +1140,7 @@ class UciEngine(object):
         # Determine a relative subpath under engines/<arch>/ when possible, even if the file is absolute.
         engine_subpath: str | None = None
         if not self.remote_binary_override:
-            local_engines_root = Path(__file__).resolve().parent.parent / "engines" / platform.machine()
+            local_engines_root = local_engine_directory()
             try:
                 engine_subpath = str(Path(self.file).resolve().relative_to(local_engines_root).as_posix())
             except Exception:

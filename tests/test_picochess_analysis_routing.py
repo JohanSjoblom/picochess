@@ -105,6 +105,32 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
         )
 
 
+class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
+    async def test_new_game_invalidates_preserved_history_before_move_cleanup(self):
+        controller = object.__new__(picochess.MainLoop)
+        old_scope = {"gameid": "old", "revision": 1}
+        controller.shared = {
+            "preserved_mame_history": {"pgn": "1. e4 *"},
+            "web_history_scope": old_scope,
+        }
+        controller.state = SimpleNamespace(position_checkpoint_restore_pending=False)
+        controller._clear_set_position_ack = Mock()
+        controller._clear_position_checkpoint = Mock()
+
+        class StopAfterHistoryCheck(Exception):
+            pass
+
+        async def check_history_before_continuing():
+            self.assertNotIn("preserved_mame_history", controller.shared)
+            self.assertNotEqual(old_scope, controller.shared["web_history_scope"])
+            raise StopAfterHistoryCheck
+
+        controller.get_rid_of_engine_move = check_history_before_continuing
+
+        with self.assertRaises(StopAfterHistoryCheck):
+            await controller.process_main_events(Event.NEW_GAME(pos960=518))
+
+
 class TestPicochessAnalysisRouting(unittest.TestCase):
     def test_takeback_scan_returns_nearest_earlier_repeated_position(self):
         game = chess.Board()
@@ -357,12 +383,6 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertEqual(["Pf3", "Pf6"], payload["pv"])
 
-    def test_new_game_clears_preserved_mame_history(self):
-        source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
-        new_game_handler = source.split("elif isinstance(event, Event.NEW_GAME):", 1)[1]
-
-        self.assertIn("clear_preserved_mame_history(self.shared)", new_game_handler[:500])
-
     def test_successful_engine_change_clears_preserved_mame_history(self):
         source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
         success_branch = """else:
@@ -371,6 +391,7 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 msg = Message.ENGINE_READY("""
 
         self.assertIn(success_branch, source)
+
 
     @patch("picochess.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):

@@ -60,7 +60,6 @@ from analysis_policy import (
     decide_tutor_analysis,
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
-    should_use_tutor_analysis,
     tutor_analysis_allowed_in_mode,
 )
 from board_position import (

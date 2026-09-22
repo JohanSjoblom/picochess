@@ -33,6 +33,7 @@ class TestAlternativeMover(unittest.TestCase):
 
         self.assertEqual(move, choice.move)
         self.assertEqual(reply, choice.ponder)
+        # book() advances the supplied board to find a ponder move; callers pass a throwaway copy.
         self.assertEqual([move], board.move_stack)
         self.assertNotIn(move, mover.all(chess.Board()))
 

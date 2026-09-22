@@ -8,7 +8,6 @@ import chess
 from chess.engine import InfoDict
 
 from analysis_policy import WEB_ANALYSIS_MULTIPV
-from picotutor import PicoTutor
 
 
 @dataclass(frozen=True)
@@ -77,6 +76,9 @@ def web_analysis_payload(
     limited_info = (info_list or [])[:WEB_ANALYSIS_MULTIPV]
     if not limited_info:
         return None
+    # Keep SAN translation importable without loading PicoTutor and its engines.
+    from picotutor import PicoTutor
+
     lines = []
     for index, info in enumerate(limited_info, start=1):
         if not info:

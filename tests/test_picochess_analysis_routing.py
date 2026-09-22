@@ -10,6 +10,7 @@ import chess.variant
 
 import picochess
 from analysis_policy import selected_engine_analysis_depth, selected_engine_analysis_multipv
+from board_position import board_fen_after_move, previous_position_matching_board_fen
 
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
@@ -21,7 +22,6 @@ from picochess import (
     GameEndAnalysisContext,
     TutorAnalysisContext,
     analysis_event_matches_position,
-    board_fen_after_move,
     decide_analysis_cycle_action,
     decide_analysis_source,
     decide_game_end_analysis_stop,
@@ -32,7 +32,6 @@ from picochess import (
     localize_web_san,
     mame_requires_fresh_fen_root,
     pgn_with_board_as_fresh_root,
-    previous_position_matching_board_fen,
     RK_STARTING_BOARD_FEN,
     pending_set_position_fen_action,
     remote_move_matches_current_position,

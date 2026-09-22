@@ -3,7 +3,7 @@ import unittest
 import chess
 import chess.variant
 
-from picochess import compute_legal_fens
+from board_position import compute_legal_fens
 
 
 class TestComputeLegalFens(unittest.TestCase):

@@ -8,7 +8,8 @@ import chess.variant
 from dgt.util import Mode, PlayMode, TimeMode
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
-from picochess import PicochessState, boards_match_position_and_history
+from board_position import boards_match_position_and_history
+from picochess import PicochessState
 from timecontrol import TimeControl
 
 

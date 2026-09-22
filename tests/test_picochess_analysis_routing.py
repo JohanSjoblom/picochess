@@ -11,6 +11,18 @@ import chess.variant
 import picochess
 from analysis_policy import selected_engine_analysis_depth, selected_engine_analysis_multipv
 from board_position import board_fen_after_move, previous_position_matching_board_fen
+from position_setup import (
+    RK_STARTING_BOARD_FEN,
+    loaded_pgn_interaction_mode,
+    mame_requires_fresh_fen_root,
+    pending_set_position_fen_action,
+    pgn_with_board_as_fresh_root,
+    set_position_new_game_code,
+    setup_position_game,
+    should_load_pgn_moves,
+    should_preserve_loaded_pgn_history,
+    should_preserve_set_position_history,
+)
 
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
@@ -28,15 +40,9 @@ from picochess import (
     decide_tutor_analysis,
     depth_gated_analysis_info,
     engine_move_event_matches_state,
-    loaded_pgn_interaction_mode,
     localize_web_san,
-    mame_requires_fresh_fen_root,
-    pgn_with_board_as_fresh_root,
-    RK_STARTING_BOARD_FEN,
-    pending_set_position_fen_action,
     remote_move_matches_current_position,
     rollback_picotutor_for_alternative,
-    set_position_new_game_code,
     should_block_takeback,
     should_show_setpieces_after_lift_timeout,
     should_reject_user_move_after_game_end,
@@ -44,12 +50,8 @@ from picochess import (
     should_resume_game_after_takeback,
     should_resume_clock_after_rejected_engine_move,
     should_report_local_timeout,
-    should_load_pgn_moves,
-    should_preserve_loaded_pgn_history,
-    should_preserve_set_position_history,
     should_stop_analysis_after_game_end,
     should_use_tutor_analysis,
-    setup_position_game,
     tutor_analysis_allowed_in_mode,
     user_move_pre_search_messages,
     user_move_task_matches_position,

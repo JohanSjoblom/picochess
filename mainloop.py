@@ -1725,7 +1725,7 @@ class MainLoop:
             self._resume_game_after_takeback()
             if self.picotutor_mode():
                 if self.state.best_move_posted:
-                    await self.state.picotutor.pop_last_move(self.state.game)
+                    await self.state.picotutor.pop_posted_engine_move(self.state.game)
                     self.state.best_move_posted = False
                 await self.state.picotutor.pop_last_move(self.state.game)
             self.state.done_computer_fen = None
@@ -1991,7 +1991,7 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_last_move(
+                            await self.state.picotutor.pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
@@ -2003,7 +2003,7 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_last_move(
+                            await self.state.picotutor.pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
@@ -2020,7 +2020,7 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_last_move(
+                            await self.state.picotutor.pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
@@ -2032,7 +2032,7 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_last_move(
+                            await self.state.picotutor.pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
@@ -2048,7 +2048,7 @@ class MainLoop:
                 self.state.pop_move()
                 if self.picotutor_mode():
                     if self.state.best_move_posted:
-                        await self.state.picotutor.pop_last_move(self.state.game)  # bestmove already sent to tutor
+                        await self.state.picotutor.pop_posted_engine_move(self.state.game)  # bestmove already sent to tutor
                         self.state.best_move_posted = False
                     await self.state.picotutor.pop_last_move(self.state.game)
                     # just to be sure set fen pos.
@@ -2408,7 +2408,7 @@ class MainLoop:
 
                             if self.picotutor_mode():
                                 if self.state.best_move_posted:  # molli computer move already sent to tutor!
-                                    await self.state.picotutor.pop_last_move(self.state.game)
+                                    await self.state.picotutor.pop_posted_engine_move(self.state.game)
                                     self.state.best_move_posted = False
                                 await self.state.picotutor.pop_last_move(self.state.game)
 

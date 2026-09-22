@@ -9,7 +9,23 @@ import chess
 import chess.variant
 
 import picochess
-from analysis_policy import selected_engine_analysis_depth, selected_engine_analysis_multipv
+from analysis_policy import (
+    AnalysisCycleAction,
+    AnalysisCycleContext,
+    AnalysisSourceAction,
+    AnalysisSourceContext,
+    GameEndAnalysisContext,
+    TutorAnalysisContext,
+    decide_analysis_cycle_action,
+    decide_analysis_source,
+    decide_game_end_analysis_stop,
+    decide_tutor_analysis,
+    selected_engine_analysis_depth,
+    selected_engine_analysis_multipv,
+    should_stop_analysis_after_game_end,
+    should_use_tutor_analysis,
+    tutor_analysis_allowed_in_mode,
+)
 from board_position import board_fen_after_move, previous_position_matching_board_fen
 from position_setup import (
     RK_STARTING_BOARD_FEN,
@@ -40,23 +56,10 @@ from move_policy import (
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
 from picochess import (
-    AnalysisCycleAction,
-    AnalysisCycleContext,
-    AnalysisSourceAction,
-    AnalysisSourceContext,
-    GameEndAnalysisContext,
-    TutorAnalysisContext,
-    decide_analysis_cycle_action,
-    decide_analysis_source,
-    decide_game_end_analysis_stop,
-    decide_tutor_analysis,
     depth_gated_analysis_info,
     localize_web_san,
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
-    should_stop_analysis_after_game_end,
-    should_use_tutor_analysis,
-    tutor_analysis_allowed_in_mode,
     web_analysis_payload,
 )
 

@@ -470,7 +470,7 @@ class PicochessState:
         else:
             logger.warning("wrong function call [start]! mode: %s", self.interaction_mode)
 
-    async def stop_clock(self) -> None:
+    async def stop_clock(self, refund_seconds: float = 0.0) -> None:
         """Stop the clock."""
         if self.interaction_mode in (
             Mode.NORMAL,
@@ -479,7 +479,7 @@ class PicochessState:
             Mode.REMOTE,
             Mode.TRAINING,
         ):
-            self.time_control.stop_internal()
+            self.time_control.stop_internal(refund_seconds=refund_seconds)
             if self.interaction_mode == Mode.TRAINING:
                 pass
             else:

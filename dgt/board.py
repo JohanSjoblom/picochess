@@ -954,7 +954,7 @@ class DgtBoard(EBoard):
             # before _setup_serial_port reaches its regular spinner update.
             self._queue_no_board_spinner(force=True)
             asyncio.run_coroutine_threadsafe(
-                Observable.fire(PicoEvent.BOARD_CONNECTION_LOST()), self.loop
+                Observable.fire(PicoEvent.BOARD_CONNECTION_LOST(last_board_message=self.last_board_message)), self.loop
             )
         self.handshake_pending = True
         if not self.version_timer.is_running():

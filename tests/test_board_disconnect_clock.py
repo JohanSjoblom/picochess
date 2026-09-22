@@ -1,4 +1,5 @@
 import asyncio
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
@@ -31,7 +32,7 @@ class TestBoardDisconnectClock(unittest.IsolatedAsyncioTestCase):
         self.game_ending.start()
         self.addCleanup(self.game_ending.stop)
 
-    async def stop_clock(self):
+    async def stop_clock(self, refund_seconds=0.0):
         self.running = False
 
     async def start_clock(self):
@@ -41,6 +42,16 @@ class TestBoardDisconnectClock(unittest.IsolatedAsyncioTestCase):
         await self.controller._board_connection_lost()
         self.controller.state.stop_clock.assert_awaited_once()
         self.assertTrue(self.controller.state.clock_paused_by_board_loss)
+
+    async def test_refunds_silent_interval_before_pausing(self):
+        last_answer = time.monotonic() - 5.0
+        await self.controller.process_main_events(Event.BOARD_CONNECTION_LOST(last_board_message=last_answer))
+        refund = self.controller.state.stop_clock.await_args.kwargs["refund_seconds"]
+        self.assertAlmostEqual(5.0, refund, delta=0.1)
+
+    async def test_legacy_board_loss_event_gives_no_unmeasured_refund(self):
+        await self.controller._board_connection_lost()
+        self.controller.state.stop_clock.assert_awaited_once_with(refund_seconds=0.0)
 
     async def test_does_not_pause_engine_turn(self):
         self.controller.state.is_not_user_turn.return_value = True

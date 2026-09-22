@@ -411,7 +411,7 @@ class Event:
     # Timecontrol events
     OUT_OF_TIME = ClassFactory(EventApi.OUT_OF_TIME, ["color"])
     CLOCK_TIME = ClassFactory(EventApi.CLOCK_TIME, ["time_white", "time_black", "connect", "dev"])
-    BOARD_CONNECTION_LOST = ClassFactory(EventApi.BOARD_CONNECTION_LOST, [])
+    BOARD_CONNECTION_LOST = ClassFactory(EventApi.BOARD_CONNECTION_LOST, ["last_board_message"])
     BOARD_CONNECTION_RESTORED = ClassFactory(EventApi.BOARD_CONNECTION_RESTORED, [])
     # special events
     EXIT_MENU = ClassFactory(EventApi.EXIT_MENU, [])

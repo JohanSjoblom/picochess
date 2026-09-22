@@ -97,6 +97,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
         board.connected = True
         board.device = "/dev/rfcomm123"
+        board.last_board_message = 100.0
         board._queue_display = Mock()
         board.write_command = Mock(return_value=True)
         board.ask_battery_status = Mock()
@@ -110,6 +111,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.01)
         self.assertEqual(1, observable_fire.await_count)
         self.assertIsInstance(observable_fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
+        self.assertEqual(100.0, observable_fire.await_args.args[0].last_board_message)
         self.assertEqual(1, display_show.await_count)
         self.assertIsInstance(display_show.await_args.args[0], Message.DGT_NO_EBOARD_ERROR)
 

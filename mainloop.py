@@ -4443,15 +4443,16 @@ class MainLoop:
             return False
         return not self.state.is_not_user_turn()
 
-    async def _board_connection_lost(self) -> None:
+    async def _board_connection_lost(self, last_board_message: float = 0.0) -> None:
         async with self._board_clock_transition_lock:
             if (
                 self._can_run_user_clock_after_board_reconnect()
                 and self.state.time_control.internal_running()
             ):
                 self.state.clock_paused_by_board_loss = True
-                await self.state.stop_clock()
-                logger.info("paused user clock after e-board disconnect")
+                silence = max(0.0, time.monotonic() - last_board_message) if last_board_message else 0.0
+                await self.state.stop_clock(refund_seconds=silence)
+                logger.info("paused user clock after e-board disconnect; board silent for %.1f secs", silence)
 
     async def _board_connection_restored(self) -> None:
         async with self._board_clock_transition_lock:
@@ -4715,7 +4716,7 @@ class MainLoop:
                 )
                 return
         if isinstance(event, Event.BOARD_CONNECTION_LOST):
-            await self._board_connection_lost()
+            await self._board_connection_lost(getattr(event, "last_board_message", 0.0))
 
         elif isinstance(event, Event.BOARD_CONNECTION_RESTORED):
             await self._board_connection_restored()

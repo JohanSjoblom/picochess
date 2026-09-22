@@ -57,6 +57,9 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
 $repositoryUrl = "https://github.com/JohanSjoblom/picochess.git"
+# Temporary during Windows beta testing. Remove the explicit branch from the
+# clone commands before merging this feature branch into the default branch.
+$repositoryBranch = "471-port-to-windows"
 $selectedResources = @()
 $resourceDefinitions = @{
     Books = @{
@@ -252,7 +255,7 @@ function Ensure-Repository {
             throw "Git is required to clone PicoChess. Install Git for Windows and rerun the installer."
         }
         Write-Step "Cloning PicoChess"
-        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", $repositoryUrl, $TargetPath)
+        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, "--single-branch", $repositoryUrl, $TargetPath)
     } else {
         if ($ReadOnly) {
             throw "ValidateOnly requires an existing PicoChess checkout: $TargetPath"
@@ -265,7 +268,7 @@ function Ensure-Repository {
             New-Item -ItemType Directory -Path $parent -Force | Out-Null
         }
         Write-Step "Cloning PicoChess"
-        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", $repositoryUrl, $TargetPath)
+        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, "--single-branch", $repositoryUrl, $TargetPath)
     }
 
     if (-not (Test-PicoChessCheckout -Path $TargetPath)) {

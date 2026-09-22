@@ -4,6 +4,9 @@ namespace PicoChess.WindowsInstaller;
 internal sealed class InstallerService
 {
     private const string RepositoryUrl = "https://github.com/JohanSjoblom/picochess.git";
+    // Temporary during Windows beta testing. Remove this explicit branch selection
+    // before merging the Windows port into the default branch.
+    private const string RepositoryBranch = "471-port-to-windows";
     private readonly Action<string> _log;
 
     public InstallerService(Action<string> log) => _log = log;
@@ -113,7 +116,9 @@ internal sealed class InstallerService
         var parent = Directory.GetParent(installDirectory)?.FullName
             ?? throw new InvalidOperationException("Choose an installation folder with a valid parent directory.");
         Directory.CreateDirectory(parent);
-        await RunAsync("git.exe", ["clone", RepositoryUrl, installDirectory], cancellationToken);
+        await RunAsync("git.exe",
+            ["clone", "--branch", RepositoryBranch, "--single-branch", RepositoryUrl, installDirectory],
+            cancellationToken);
     }
 
     private async Task<bool> HasSupportedPythonAsync(CancellationToken cancellationToken)

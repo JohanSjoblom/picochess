@@ -20,6 +20,7 @@ class TestBoardDisconnectClock(unittest.IsolatedAsyncioTestCase):
             interaction_mode=Mode.NORMAL,
             game_declared=False,
             clock_paused_by_board_loss=False,
+            position_checkpoint_restore_pending=False,
             position_mode=False,
             done_computer_fen=None,
             is_not_user_turn=Mock(return_value=False),

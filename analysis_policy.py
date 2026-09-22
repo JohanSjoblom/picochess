@@ -170,23 +170,3 @@ def decide_tutor_analysis(context: TutorAnalysisContext) -> bool:
     # While an engine is playing, its PlayingContinuousAnalysis owns the engine
     # turn. On the user turn PicoTutor replaces selected-engine analysis.
     return not context.engine_is_playing or context.is_user_turn
-
-
-def should_use_tutor_analysis(
-    interaction_mode: Mode,
-    pgn_mode: bool,
-    engine_should_skip_analyser: bool,
-    engine_is_playing: bool,
-    engine_move_was_book: bool,
-    is_user_turn: bool,
-) -> bool:
-    """Compatibility wrapper for the explicit Tutor analysis context."""
-    return decide_tutor_analysis(
-        TutorAnalysisContext(
-            interaction_mode=interaction_mode,
-            pgn_mode=pgn_mode,
-            engine_should_skip_analyser=engine_should_skip_analyser,
-            engine_is_playing=engine_is_playing,
-            is_user_turn=is_user_turn,
-        )
-    )

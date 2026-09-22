@@ -23,7 +23,6 @@ from analysis_policy import (
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
     should_stop_analysis_after_game_end,
-    should_use_tutor_analysis,
     tutor_analysis_allowed_in_mode,
 )
 from board_position import board_fen_after_move, previous_position_matching_board_fen
@@ -790,60 +789,61 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
     def test_tutor_analysis_is_disabled_in_ponder_mode(self):
         self.assertFalse(tutor_analysis_allowed_in_mode(Mode.PONDER))
         self.assertFalse(
-            should_use_tutor_analysis(
-                interaction_mode=Mode.PONDER,
-                pgn_mode=False,
-                engine_should_skip_analyser=False,
-                engine_is_playing=False,
-                engine_move_was_book=False,
-                is_user_turn=True,
+            decide_tutor_analysis(
+                TutorAnalysisContext(
+                    interaction_mode=Mode.PONDER,
+                    pgn_mode=False,
+                    engine_should_skip_analyser=False,
+                    engine_is_playing=False,
+                    is_user_turn=True,
+                )
             )
         )
 
     def test_non_playing_analysis_mode_still_prefers_tutor_when_allowed(self):
         self.assertTrue(tutor_analysis_allowed_in_mode(Mode.ANALYSIS))
         self.assertTrue(
-            should_use_tutor_analysis(
-                interaction_mode=Mode.ANALYSIS,
-                pgn_mode=False,
-                engine_should_skip_analyser=False,
-                engine_is_playing=False,
-                engine_move_was_book=False,
-                is_user_turn=True,
+            decide_tutor_analysis(
+                TutorAnalysisContext(
+                    interaction_mode=Mode.ANALYSIS,
+                    pgn_mode=False,
+                    engine_should_skip_analyser=False,
+                    engine_is_playing=False,
+                    is_user_turn=True,
+                )
             )
         )
 
     def test_playing_user_turn_prefers_tutor_for_cpu_saving(self):
-        for engine_move_was_book in (False, True):
-            with self.subTest(engine_move_was_book=engine_move_was_book):
-                self.assertTrue(
-                    should_use_tutor_analysis(
-                        interaction_mode=Mode.NORMAL,
-                        pgn_mode=False,
-                        engine_should_skip_analyser=False,
-                        engine_is_playing=True,
-                        engine_move_was_book=engine_move_was_book,
-                        is_user_turn=True,
-                    )
+        self.assertTrue(
+            decide_tutor_analysis(
+                TutorAnalysisContext(
+                    interaction_mode=Mode.NORMAL,
+                    pgn_mode=False,
+                    engine_should_skip_analyser=False,
+                    engine_is_playing=True,
+                    is_user_turn=True,
                 )
+            )
+        )
 
     def test_playing_engine_turn_keeps_tutor_out_of_playing_search(self):
         self.assertFalse(
-            should_use_tutor_analysis(
-                interaction_mode=Mode.NORMAL,
-                pgn_mode=False,
-                engine_should_skip_analyser=False,
-                engine_is_playing=True,
-                engine_move_was_book=False,
-                is_user_turn=False,
+            decide_tutor_analysis(
+                TutorAnalysisContext(
+                    interaction_mode=Mode.NORMAL,
+                    pgn_mode=False,
+                    engine_should_skip_analyser=False,
+                    engine_is_playing=True,
+                    is_user_turn=False,
+                )
             )
         )
 
     def test_tutor_analysis_routing_matrix(self):
         """Lock every current input combination before routing is reorganized."""
-        for mode, pgn_mode, skip_engine, engine_plays, book_move, user_turn in product(
+        for mode, pgn_mode, skip_engine, engine_plays, user_turn in product(
             Mode.items(),
-            (False, True),
             (False, True),
             (False, True),
             (False, True),
@@ -857,20 +857,8 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                 pgn_mode=pgn_mode,
                 skip_engine=skip_engine,
                 engine_plays=engine_plays,
-                book_move=book_move,
                 user_turn=user_turn,
             ):
-                self.assertEqual(
-                    expected,
-                    should_use_tutor_analysis(
-                        interaction_mode=mode,
-                        pgn_mode=pgn_mode,
-                        engine_should_skip_analyser=skip_engine,
-                        engine_is_playing=engine_plays,
-                        engine_move_was_book=book_move,
-                        is_user_turn=user_turn,
-                    ),
-                )
                 self.assertEqual(
                     expected,
                     decide_tutor_analysis(

@@ -51,15 +51,14 @@ from analysis_policy import (
     AnalysisCycleContext,
     AnalysisSourceAction,
     AnalysisSourceContext,
-    GameEndAnalysisContext,
     TutorAnalysisContext,
     WebAnalysisSnapshot,
     decide_analysis_cycle_action,
     decide_analysis_source,
-    decide_game_end_analysis_stop,
     decide_tutor_analysis,
     selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
+    should_stop_analysis_after_game_end,
     tutor_analysis_allowed_in_mode,
 )
 from board_position import (
@@ -4156,13 +4155,11 @@ class MainLoop:
 
     def playing_game_analysis_stopped(self) -> bool:
         """Return true when a completed playing-mode game must not analyse."""
-        return decide_game_end_analysis_stop(
-            GameEndAnalysisContext(
-                interaction_mode=self.state.interaction_mode,
-                game_over=self.state.game.is_game_over(),
-                game_declared=self.state.game_declared,
-                game_ending=ModeInfo.get_game_ending(),
-            )
+        return should_stop_analysis_after_game_end(
+            interaction_mode=self.state.interaction_mode,
+            game_over=self.state.game.is_game_over(),
+            game_declared=self.state.game_declared,
+            game_ending=ModeInfo.get_game_ending(),
         )
 
     def _set_game_started(self, started: bool) -> None:

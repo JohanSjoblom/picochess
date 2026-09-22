@@ -121,6 +121,7 @@ class PicochessState:
         self.hand_coach_task: asyncio.Task | None = None
         self.brain_hint_task: asyncio.Task | None = None
         self.brain_hint_clock_paused: bool = False
+        self.clock_paused_by_board_loss: bool = False
         self.brain_required_piece_type: chess.PieceType | None = None
         self.brain_best_move: chess.Move | None = None
         self.coach_triggered_piece_type: chess.PieceType | None = None

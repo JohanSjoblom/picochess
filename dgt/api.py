@@ -96,6 +96,8 @@ class EventApi:
     # Timecontrol events
     OUT_OF_TIME = "EVT_OUT_OF_TIME"  # Clock flag fallen
     CLOCK_TIME = "EVT_CLOCK_TIME"  # Clock sends its time
+    BOARD_CONNECTION_LOST = "EVT_BOARD_CONNECTION_LOST"
+    BOARD_CONNECTION_RESTORED = "EVT_BOARD_CONNECTION_RESTORED"
     # Special events
     EXIT_MENU = "EVT_EXIT_MENU"  # User exists the menu
     UPDATE_PICO = "EVT_UPDATE"  # User wants to upgrade/downgrade picochess
@@ -409,6 +411,8 @@ class Event:
     # Timecontrol events
     OUT_OF_TIME = ClassFactory(EventApi.OUT_OF_TIME, ["color"])
     CLOCK_TIME = ClassFactory(EventApi.CLOCK_TIME, ["time_white", "time_black", "connect", "dev"])
+    BOARD_CONNECTION_LOST = ClassFactory(EventApi.BOARD_CONNECTION_LOST, [])
+    BOARD_CONNECTION_RESTORED = ClassFactory(EventApi.BOARD_CONNECTION_RESTORED, [])
     # special events
     EXIT_MENU = ClassFactory(EventApi.EXIT_MENU, [])
     UPDATE_PICO = ClassFactory(EventApi.UPDATE_PICO, ["tag"])

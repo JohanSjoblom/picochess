@@ -327,6 +327,7 @@ class MainLoop:
         self.shared.setdefault("system_info", {})["game_started"] = self.state.game_started
         self.non_main_tasks = non_main_tasks
         self.event_tasks: set[asyncio.Task] = set()
+        self._board_clock_transition_lock = asyncio.Lock()
         self.shutdown_task: asyncio.Task | None = None
         self.shutdown_requested = shutdown_requested
         self.shutdown_complete = shutdown_complete
@@ -4433,6 +4434,40 @@ class MainLoop:
             if not self.state.game.is_game_over():
                 await self.analyse(triggered_by_timer=True)
 
+    def _can_run_user_clock_after_board_reconnect(self) -> bool:
+        if self.board_type == dgt.util.EBoard.NOEBOARD or self.online_mode():
+            return False
+        if self.state.interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
+            return False
+        if self.state.game_declared or ModeInfo.get_game_ending() != "*":
+            return False
+        return not self.state.is_not_user_turn()
+
+    async def _board_connection_lost(self) -> None:
+        async with self._board_clock_transition_lock:
+            if (
+                self._can_run_user_clock_after_board_reconnect()
+                and self.state.time_control.internal_running()
+            ):
+                self.state.clock_paused_by_board_loss = True
+                await self.state.stop_clock()
+                logger.info("paused user clock after e-board disconnect")
+
+    async def _board_connection_restored(self) -> None:
+        async with self._board_clock_transition_lock:
+            if not self.state.clock_paused_by_board_loss:
+                return
+            self.state.clock_paused_by_board_loss = False
+            if (
+                self._can_run_user_clock_after_board_reconnect()
+                and not self.state.position_mode
+                and self.state.done_computer_fen is None
+                and not self.state.dgtmenu.inside_main_menu()
+                and not self.state.time_control.internal_running()
+            ):
+                await self.state.start_clock()
+                logger.info("resumed user clock after e-board reconnect")
+
     async def event_consumer(self):
         """Event consumer for main"""
         logger.debug("evt_queue ready")
@@ -4679,7 +4714,13 @@ class MainLoop:
                     current_fen,
                 )
                 return
-        if isinstance(event, Event.FEN):
+        if isinstance(event, Event.BOARD_CONNECTION_LOST):
+            await self._board_connection_lost()
+
+        elif isinstance(event, Event.BOARD_CONNECTION_RESTORED):
+            await self._board_connection_restored()
+
+        elif isinstance(event, Event.FEN):
             await self.process_fen(event.fen, self.state)
 
         elif isinstance(event, Event.KEYBOARD_MOVE):

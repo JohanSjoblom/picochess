@@ -29,8 +29,8 @@ from typing import List, Optional, Tuple
 
 from eboard.eboard import EBoard
 from dgt.util import DgtAck, DgtClk, DgtCmd, DgtMsg, ClockIcons, ClockSide, enum
-from dgt.api import Message, Dgt
-from utilities import AsyncRepeatingTimer, DisplayMsg, hms_time
+from dgt.api import Message, Dgt, Event as PicoEvent
+from utilities import AsyncRepeatingTimer, DisplayMsg, Observable, hms_time
 
 logger = logging.getLogger(__name__)
 BATTERY_STATUS_INTERVAL = 60
@@ -145,6 +145,7 @@ class DgtBoard(EBoard):
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
         self.connected = False
+        self._board_loss_notified = False
         self.version_timer = AsyncRepeatingTimer(2, self._retry_handshake, self.loop)
 
     def _queue_display(self, message: Message):
@@ -328,6 +329,11 @@ class DgtBoard(EBoard):
             )  # serial clock lateron
             self.connected = True
             self._queue_display(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
+            if self._board_loss_notified and not self.stop_requested.is_set():
+                self._board_loss_notified = False
+                asyncio.run_coroutine_threadsafe(
+                    Observable.fire(PicoEvent.BOARD_CONNECTION_RESTORED()), self.loop
+                )
             self.startup_serial_clock()  # now ask the serial clock to answer
             if self.watchdog_timer.is_running():
                 logger.warning("watchdog timer is already running")
@@ -917,7 +923,13 @@ class DgtBoard(EBoard):
 
     def _on_disconnect(self):
         """Central place to mark the board as disconnected and trigger re-handshake."""
+        was_connected = self.connected
         self.connected = False
+        if was_connected and not self.stop_requested.is_set():
+            self._board_loss_notified = True
+            asyncio.run_coroutine_threadsafe(
+                Observable.fire(PicoEvent.BOARD_CONNECTION_LOST()), self.loop
+            )
         self.handshake_pending = True
         if not self.version_timer.is_running():
             self.version_timer.start()

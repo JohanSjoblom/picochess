@@ -4,6 +4,7 @@ import threading
 import unittest
 from unittest.mock import Mock, call, patch
 
+from dgt.api import Event
 from dgt.board import DgtBoard
 from dgt.util import DgtClk, DgtCmd, DgtMsg
 
@@ -87,6 +88,30 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(board._setup_serial_port())
         board._open_serial.assert_not_called()
+
+    @patch("dgt.board.Observable.fire", new_callable=AsyncMock)
+    async def test_board_connection_events_fire_once_per_transition(self, observable_fire):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        board.connected = True
+        board.device = "/dev/rfcomm123"
+        board._queue_display = Mock()
+        board.write_command = Mock(return_value=True)
+        board.ask_battery_status = Mock()
+        board.startup_serial_clock = Mock()
+        board.version_timer.start = Mock()
+        board.version_timer.stop = Mock()
+        board.watchdog_timer.start = Mock()
+
+        board._on_disconnect()
+        board._on_disconnect()
+        await asyncio.sleep(0.01)
+        self.assertEqual(1, observable_fire.await_count)
+        self.assertIsInstance(observable_fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
+
+        board._process_board_message(DgtMsg.DGT_MSG_VERSION, (3, 10), 2)
+        await asyncio.sleep(0.01)
+        self.assertEqual(2, observable_fire.await_count)
+        self.assertIsInstance(observable_fire.await_args.args[0], Event.BOARD_CONNECTION_RESTORED)
 
     async def test_concurrent_setup_opens_serial_only_once(self):
         board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())

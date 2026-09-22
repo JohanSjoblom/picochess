@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from chess.engine import InfoDict
-
 from dgt.util import Mode
 
 
@@ -96,14 +94,6 @@ class AnalysisSourceContext:
     is_user_turn: bool
     engine_thinking: bool
     tutor_analyser_available: bool
-
-
-@dataclass(frozen=True)
-class WebAnalysisSnapshot:
-    """Keep cached web analysis together with the position it describes."""
-
-    info: list[InfoDict] | None
-    fen: str
 
 
 def decide_analysis_source(context: AnalysisSourceContext) -> AnalysisSourceAction:

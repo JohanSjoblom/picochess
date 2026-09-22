@@ -25,6 +25,7 @@ from analysis_policy import (
     tutor_analysis_allowed_in_mode,
 )
 from analysis_depth import depth_gated_analysis_info, selected_engine_analysis_depth
+from web_analysis import localize_web_san, web_analysis_payload
 from board_position import board_fen_after_move, previous_position_matching_board_fen
 from position_setup import (
     RK_STARTING_BOARD_FEN,
@@ -55,10 +56,8 @@ from move_policy import (
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
 from picochess import (
-    localize_web_san,
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
-    web_analysis_payload,
 )
 
 

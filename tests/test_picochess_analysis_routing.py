@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, call, patch
 import chess
 import chess.variant
 
-import picochess
+import mainloop
 from analysis_policy import (
     AnalysisCycleAction,
     AnalysisCycleContext,
@@ -55,7 +55,7 @@ from move_policy import (
 
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
-from picochess import (
+from mainloop import (
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
 )
@@ -79,14 +79,14 @@ class TestLocalTimeoutPolicy(unittest.TestCase):
 class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.show = AsyncMock()
-        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
         start_patch(
             self,
-            picochess.ModeInfo,
+            mainloop.ModeInfo,
             "get_online_mode",
             Mock(return_value=False),
         )
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.state = SimpleNamespace(
             position_checkpoint_restore_pending=False,
             stop_clock=AsyncMock(),
@@ -110,7 +110,7 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
 
 class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
     async def test_new_game_invalidates_preserved_history_before_move_cleanup(self):
-        controller = object.__new__(picochess.MainLoop)
+        controller = object.__new__(mainloop.MainLoop)
         old_scope = {"gameid": "old", "revision": 1}
         controller.shared = {
             "preserved_mame_history": {"pgn": "1. e4 *"},
@@ -387,7 +387,7 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertEqual(["Pf3", "Pf6"], payload["pv"])
 
     def test_successful_engine_change_clears_preserved_mame_history(self):
-        source = (Path(__file__).parents[1] / "picochess.py").read_text(encoding="utf-8")
+        source = (Path(__file__).parents[1] / "mainloop.py").read_text(encoding="utf-8")
         success_branch = """else:
                 clear_preserved_mame_history(self.shared)
                 self.state.searchmoves.reset()
@@ -1169,7 +1169,7 @@ class TestPicochessAlternativeTutorRollback(unittest.IsolatedAsyncioTestCase):
 
 class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.think = AsyncMock()
         self.board = chess.Board()
         self.move = chess.Move.from_uci("e2e4")
@@ -1218,7 +1218,7 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
 class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.engine = Mock()
         self.controller.engine.stop = AsyncMock()
         self.controller.engine.wait_until_idle = AsyncMock(return_value=True)
@@ -1239,7 +1239,7 @@ class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.controller._prepare_engine_for_search(7))
 
         self.controller.engine.stop.assert_awaited_once_with()
-        self.controller.engine.wait_until_idle.assert_awaited_once_with(picochess.ENGINE_SEARCH_IDLE_TIMEOUT)
+        self.controller.engine.wait_until_idle.assert_awaited_once_with(mainloop.ENGINE_SEARCH_IDLE_TIMEOUT)
         self.controller.engine.cancel_playing_search.assert_not_awaited()
 
     async def test_stuck_engine_is_cancelled_after_timeout(self):
@@ -1249,7 +1249,7 @@ class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.controller._prepare_engine_for_search(7))
 
         self.controller.engine.cancel_playing_search.assert_awaited_once_with(
-            picochess.ENGINE_SEARCH_CANCEL_TIMEOUT
+            mainloop.ENGINE_SEARCH_CANCEL_TIMEOUT
         )
 
     async def test_failed_cancellation_refuses_new_search(self):
@@ -1275,8 +1275,8 @@ class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):
 class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.fire = AsyncMock()
-        start_patch(self, picochess.Observable, "fire", self.fire)
-        self.controller = object.__new__(picochess.MainLoop)
+        start_patch(self, mainloop.Observable, "fire", self.fire)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.state = SimpleNamespace(pending_engine_result=None)
 
     async def test_idle_failure_uses_existing_best_move_recovery(self):
@@ -1294,8 +1294,8 @@ class TestEngineSearchIdleFailure(unittest.IsolatedAsyncioTestCase):
 class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.fire = AsyncMock()
-        start_patch(self, picochess.Observable, "fire", self.fire)
-        self.controller = object.__new__(picochess.MainLoop)
+        start_patch(self, mainloop.Observable, "fire", self.fire)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller._apply_pending_mame_recovery_rebase = AsyncMock()
         self.controller._set_game_started = Mock()
         self.controller._prepare_engine_for_search = AsyncMock(return_value=True)
@@ -1346,7 +1346,7 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
 
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.engine = Mock()
         self.controller.engine.stop = AsyncMock()
         self.controller.engine.consume_forced_analyser_stop.return_value = False
@@ -1356,7 +1356,7 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
     async def test_default_wait_is_bounded_and_succeeds(self):
         self.assertTrue(await self.controller.stop_search())
         self.controller.engine.wait_until_idle.assert_awaited_once_with(
-            picochess.ENGINE_SEARCH_IDLE_TIMEOUT
+            mainloop.ENGINE_SEARCH_IDLE_TIMEOUT
         )
 
     async def test_timeout_is_reported_to_caller(self):
@@ -1369,9 +1369,9 @@ class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        start_patch(self, picochess.DisplayMsg, "show", self.show)
-        start_patch(self, picochess.asyncio, "sleep", self.sleep)
-        self.controller = object.__new__(picochess.MainLoop)
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
+        start_patch(self, mainloop.asyncio, "sleep", self.sleep)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.board = chess.Board()
         self.move = chess.Move.from_uci("e2e4")
         self.board.push(self.move)
@@ -1411,12 +1411,12 @@ class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
 
 class TestEarlyUserMoveInvalidation(unittest.TestCase):
     def setUp(self):
-        self.source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        self.source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
         self.main_loop = next(
             node for node in ast.walk(self.source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.state = SimpleNamespace(user_move_revision=7)
 
     def test_invalidation_advances_the_owner_revision(self):
@@ -1472,22 +1472,22 @@ class TestEarlyUserMoveInvalidation(unittest.TestCase):
 
 class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
         self.main_loop = next(
             node for node in ast.walk(source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        start_patch(self, picochess.DisplayMsg, "show", self.show)
-        start_patch(self, picochess.asyncio, "sleep", self.sleep)
-        self.controller = object.__new__(picochess.MainLoop)
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
+        start_patch(self, mainloop.asyncio, "sleep", self.sleep)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.board = chess.Board()
         self.dgtmenu = SimpleNamespace(get_dgt_fen=Mock(return_value=self.board.board_fen()))
-        self.controller.board_type = picochess.dgt.util.EBoard.NOEBOARD
+        self.controller.board_type = mainloop.dgt.util.EBoard.NOEBOARD
         self.controller.state = SimpleNamespace(
             interaction_mode=Mode.NORMAL,
-            play_mode=picochess.PlayMode.USER_WHITE,
+            play_mode=mainloop.PlayMode.USER_WHITE,
             game=self.board,
             get_fen=self.board.fen,
             get_board_fen=self.board.board_fen,
@@ -1526,7 +1526,7 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
         self.show.assert_not_awaited()
 
     async def test_physical_position_change_stops_coach_and_keeps_correction_mode(self):
-        self.controller.board_type = picochess.dgt.util.EBoard.DGT
+        self.controller.board_type = mainloop.dgt.util.EBoard.DGT
         self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"
 
         await self.controller.call_pico_coach()
@@ -1579,7 +1579,7 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
 class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.show = AsyncMock()
-        start_patch(self, picochess.DisplayMsg, "show", self.show)
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
         self.state = object.__new__(PicochessState)
         self.state.stop_clock = AsyncMock()
         self.state.stop_fen_timer = Mock()
@@ -1594,7 +1594,7 @@ class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
         self.state.stop_clock.assert_awaited_once_with()
         old_time_control.stop_internal.assert_called_once_with(log=False)
         parameters = self.state.time_control.get_parameters()
-        self.assertEqual(picochess.TimeMode.FISCHER, parameters["mode"])
+        self.assertEqual(mainloop.TimeMode.FISCHER, parameters["mode"])
         self.assertEqual(5, parameters["blitz"])
         self.assertEqual(3, parameters["fischer"])
         self.assertEqual(
@@ -1605,7 +1605,7 @@ class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
         self.state.stop_fen_timer.assert_called_once_with()
 
     def test_switch_online_awaits_time_control_before_resetting_start_time(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
         switch_online = next(
             node for node in ast.walk(source)
             if isinstance(node, ast.AsyncFunctionDef) and node.name == "switch_online"
@@ -1629,7 +1629,7 @@ class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
 
 class TestAlternativeMovePendingState(unittest.TestCase):
     def setUp(self):
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.state = SimpleNamespace(
             done_computer_fen="pending engine position",
             done_move=chess.Move.from_uci("e7e5"),
@@ -1651,7 +1651,7 @@ class TestAlternativeMovePendingState(unittest.TestCase):
         )
 
     def test_both_alternative_move_paths_clear_pending_state(self):
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
+        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
         process_events = next(
             node for node in ast.walk(source)
             if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_main_events"
@@ -1668,13 +1668,13 @@ class TestAlternativeMovePendingState(unittest.TestCase):
 
 class TestUserMoveLegalFenPublication(unittest.TestCase):
     def setUp(self):
-        self.source_text = Path(picochess.__file__).read_text(encoding="utf-8")
+        self.source_text = Path(mainloop.__file__).read_text(encoding="utf-8")
         source = ast.parse(self.source_text)
         self.main_loop = next(
             node for node in ast.walk(source)
             if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
         )
-        self.controller = object.__new__(picochess.MainLoop)
+        self.controller = object.__new__(mainloop.MainLoop)
         self.controller.state = SimpleNamespace(
             interaction_mode=Mode.NORMAL,
             last_legal_fens=[],
@@ -1699,7 +1699,7 @@ class TestUserMoveLegalFenPublication(unittest.TestCase):
 
         self.assertEqual(previous_legal_fens, self.controller.state.last_legal_fens)
         self.assertEqual(
-            picochess.compute_legal_fens(self.controller.state.game),
+            mainloop.compute_legal_fens(self.controller.state.game),
             self.controller.state.legal_fens,
         )
 

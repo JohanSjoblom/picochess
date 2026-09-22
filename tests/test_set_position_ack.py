@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
-import picochess
+import mainloop
 from dgt.util import EBoard, Mode
 from dgt.api import Event
 
@@ -17,16 +17,16 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
                  "_finish_set_position_ack", "process_fen", "process_main_events"}
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        show_patch = patch.object(picochess.DisplayMsg, "show", self.show)
+        show_patch = patch.object(mainloop.DisplayMsg, "show", self.show)
         show_patch.start()
         self.addCleanup(show_patch.stop)
-        sleep_patch = patch.object(picochess.asyncio, "sleep", self.sleep)
+        sleep_patch = patch.object(mainloop.asyncio, "sleep", self.sleep)
         sleep_patch.start()
         self.addCleanup(sleep_patch.stop)
         controller_type = type(
             "AckController",
             (),
-            {name: getattr(picochess.MainLoop, name) for name in names},
+            {name: getattr(mainloop.MainLoop, name) for name in names},
         )
         self.controller = controller_type()
         self.board = chess.Board()
@@ -38,7 +38,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
             set_position_ack_target_fen=self.target, set_position_ack_pending=True,
             set_position_ack_ready=True, stop_fen_timer=Mock(), position_mode=False,
             position_checkpoint_restore_pending=False, variant="chess", game_started=False,
-            last_legal_fens=[], legal_fens=picochess.compute_legal_fens(self.board),
+            last_legal_fens=[], legal_fens=mainloop.compute_legal_fens(self.board),
             done_computer_fen=None, interaction_mode=Mode.NORMAL,
         )
         self.controller.state = self.state

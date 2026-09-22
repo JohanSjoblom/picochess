@@ -1,7 +1,8 @@
 import asyncio
 import unittest
 
-from picochess import gather_main_tasks, process_queued_event, track_event_task, wait_for_shutdown_cleanup
+from picochess import gather_main_tasks, wait_for_shutdown_cleanup
+from mainloop import process_queued_event, track_event_task
 
 
 class TestMainTaskShutdown(unittest.IsolatedAsyncioTestCase):

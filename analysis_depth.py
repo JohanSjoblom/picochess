@@ -15,7 +15,6 @@ FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 40  # fallback cap for selected main-engine Co
 AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH = 30  # lower cap when no engine moves are being played
 
 
-
 def selected_engine_analysis_depth(engine_plays: bool) -> int:
     """Return the selected main-engine ContinuousAnalysis depth limit."""
     if platform.machine().lower() == "aarch64" and not engine_plays:

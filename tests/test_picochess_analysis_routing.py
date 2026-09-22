@@ -20,11 +20,11 @@ from analysis_policy import (
     decide_analysis_source,
     decide_game_end_analysis_stop,
     decide_tutor_analysis,
-    selected_engine_analysis_depth,
     selected_engine_analysis_multipv,
     should_stop_analysis_after_game_end,
     tutor_analysis_allowed_in_mode,
 )
+from analysis_depth import depth_gated_analysis_info, selected_engine_analysis_depth
 from board_position import board_fen_after_move, previous_position_matching_board_fen
 from position_setup import (
     RK_STARTING_BOARD_FEN,
@@ -55,7 +55,6 @@ from move_policy import (
 from dgt.api import Event, EventApi, Message
 from dgt.util import Mode
 from picochess import (
-    depth_gated_analysis_info,
     localize_web_san,
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
@@ -396,15 +395,15 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertIn(success_branch, source)
 
-    @patch("analysis_policy.platform.machine", return_value="aarch64")
+    @patch("analysis_depth.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
         self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))
 
-    @patch("analysis_policy.platform.machine", return_value="aarch64")
+    @patch("analysis_depth.platform.machine", return_value="aarch64")
     def test_aarch64_playing_modes_keep_selected_engine_depth(self, _machine):
         self.assertEqual(40, selected_engine_analysis_depth(engine_plays=True))
 
-    @patch("analysis_policy.platform.machine", return_value="x86_64")
+    @patch("analysis_depth.platform.machine", return_value="x86_64")
     def test_desktop_non_playing_modes_keep_selected_engine_depth(self, _machine):
         self.assertEqual(40, selected_engine_analysis_depth(engine_plays=False))
 

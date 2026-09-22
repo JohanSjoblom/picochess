@@ -1,8 +1,7 @@
-"""Analysis limits and source-selection policy shared by the main loop and tests."""
+"""Analysis source-selection policy shared by the main loop and tests."""
 
 from __future__ import annotations
 
-import platform
 from dataclasses import dataclass
 from enum import Enum
 
@@ -11,16 +10,7 @@ from chess.engine import InfoDict
 from dgt.util import Mode
 
 
-FLOAT_ENGINE_MAX_ANALYSIS_DEPTH = 40  # fallback cap for selected main-engine ContinuousAnalysis
-AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH = 30  # lower cap when no engine moves are being played
 WEB_ANALYSIS_MULTIPV = 3  # maximum backend analysis lines shown by the web client
-
-
-def selected_engine_analysis_depth(engine_plays: bool) -> int:
-    """Return the selected main-engine ContinuousAnalysis depth limit."""
-    if platform.machine().lower() == "aarch64" and not engine_plays:
-        return AARCH64_NON_PLAYING_ENGINE_MAX_ANALYSIS_DEPTH
-    return FLOAT_ENGINE_MAX_ANALYSIS_DEPTH
 
 
 def selected_engine_analysis_multipv(interaction_mode: Mode, engine_options) -> int | None:

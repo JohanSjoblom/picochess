@@ -1,4 +1,6 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -85,6 +87,50 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(board._setup_serial_port())
         board._open_serial.assert_not_called()
+
+    async def test_concurrent_setup_opens_serial_only_once(self):
+        board = DgtBoard("/dev/test", False, False, False, asyncio.get_running_loop())
+        first_opening = threading.Event()
+        finish_first = threading.Event()
+        second_waiting = threading.Event()
+
+        class ObservedLock:
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.entries = 0
+
+            def __enter__(self):
+                self.entries += 1
+                if self.entries == 2:
+                    second_waiting.set()
+                self.lock.acquire()
+                return self
+
+            def __exit__(self, *_):
+                self.lock.release()
+
+        board.lock = ObservedLock()
+
+        def open_serial(_device):
+            first_opening.set()
+            if not finish_first.wait(5):
+                raise TimeoutError("first reconnect remained blocked")
+            board.serial = Mock()
+            return True
+
+        board._open_serial = Mock(side_effect=open_serial)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(board._setup_serial_port)
+            self.assertTrue(await asyncio.to_thread(first_opening.wait, 5))
+            second = executor.submit(board._setup_serial_port)
+            try:
+                self.assertTrue(await asyncio.to_thread(second_waiting.wait, 5))
+            finally:
+                finish_first.set()
+            self.assertTrue(first.result(timeout=5))
+            self.assertTrue(second.result(timeout=5))
+
+        board._open_serial.assert_called_once_with("/dev/test")
 
     async def test_stop_closes_connection_reopened_by_reader(self):
         loop = asyncio.get_running_loop()

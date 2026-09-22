@@ -970,6 +970,8 @@ class DgtBoard(EBoard):
         with self.lock:
             if self.stop_requested.is_set():
                 return False
+            if self.serial:
+                return True
             if self.given_device:
                 if self._open_serial(self.given_device):
                     return _success(self.given_device)

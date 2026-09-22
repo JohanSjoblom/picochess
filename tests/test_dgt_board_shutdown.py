@@ -227,7 +227,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         ):
             board._watchdog_blocking()
             board._watchdog_blocking()
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.01)
 
         self.assertFalse(board.connected)
         self.assertIsNone(board.serial)
@@ -299,7 +299,7 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         serial.write.side_effect = SerialTimeoutException("write timed out")
         with patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire:
             self.assertFalse(board.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS]))
-            await asyncio.sleep(0)
+            await asyncio.sleep(0.01)
         self.assertFalse(board.connected)
         self.assertEqual(1, serial.write.call_count)
         serial.close.assert_called_once_with()

@@ -595,6 +595,7 @@ class DgtBoard(EBoard):
                     if time.time() - now > 15:
                         logger.warning("EE_MOVES needed over 15secs => ignore not readed 0x%x bytes now", counter)
                         break
+                self.last_board_message = time.monotonic()
                 self.watchdog_timer.start()
             else:
                 logger.warning("illegal length in message header 0x%x length: %i", message_id, message_length)

@@ -392,7 +392,6 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertIn(success_branch, source)
 
-
     @patch("picochess.platform.machine", return_value="aarch64")
     def test_aarch64_non_playing_modes_cap_selected_engine_depth(self, _machine):
         self.assertEqual(30, selected_engine_analysis_depth(engine_plays=False))

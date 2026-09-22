@@ -59,6 +59,7 @@ from picochess import (
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
 )
+from picostate import PicochessState
 
 
 def start_patch(test_case, target, attribute, replacement):
@@ -1579,7 +1580,7 @@ class TestOnlineTimeControl(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.show = AsyncMock()
         start_patch(self, picochess.DisplayMsg, "show", self.show)
-        self.state = object.__new__(picochess.PicochessState)
+        self.state = object.__new__(PicochessState)
         self.state.stop_clock = AsyncMock()
         self.state.stop_fen_timer = Mock()
         self.state.dgttranslate = SimpleNamespace(text=Mock(return_value="ok"))

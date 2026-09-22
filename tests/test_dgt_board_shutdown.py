@@ -155,20 +155,20 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         board = DgtBoard("/dev/test", False, False, False, loop)
         board._retry_handshake_blocking = Mock()
 
-        with patch("dgt.board.asyncio.to_thread", return_value=asyncio.sleep(0)) as to_thread:
+        with patch("dgt.board.asyncio.to_thread") as to_thread:
             await board._retry_handshake()
 
-        to_thread.assert_called_once_with(board._retry_handshake_blocking)
+        to_thread.assert_awaited_once_with(board._retry_handshake_blocking)
 
     async def test_watchdog_runs_blocking_work_off_event_loop(self):
         loop = asyncio.get_running_loop()
         board = DgtBoard("/dev/test", False, False, False, loop)
         board._watchdog_blocking = Mock()
 
-        with patch("dgt.board.asyncio.to_thread", return_value=asyncio.sleep(0)) as to_thread:
+        with patch("dgt.board.asyncio.to_thread") as to_thread:
             await board._watchdog()
 
-        to_thread.assert_called_once_with(board._watchdog_blocking)
+        to_thread.assert_awaited_once_with(board._watchdog_blocking)
 
     async def test_watchdog_does_not_write_during_shutdown(self):
         loop = asyncio.get_running_loop()

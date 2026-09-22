@@ -1590,7 +1590,33 @@ class DgtDisplay(DisplayMsg):
                 logger.debug("inside update menu => board channel not displayed")
             else:
                 await DispatchDgt.fire(message.text)
-                await self._exit_display(devs={"i2c", "web"})  # ser is done, when clock found
+                if (
+                    not self._inside_main_menu()
+                    and not self.play_move
+                    and self.last_move
+                    and self.last_fen
+                ):
+                    # The spinner replaced the last move while the board was away.
+                    # Keep pending engine moves and menus on their existing paths.
+                    move = Dgt.DISPLAY_MOVE(
+                        move=self.last_move,
+                        fen=self.last_fen,
+                        side=self._get_clock_side(self.last_turn),
+                        wait=True,
+                        maxtime=0,
+                        beep=self.dgttranslate.bl(BeepLevel.NO),
+                        devs={"i2c", "web"},
+                        uci960=self.uci960,
+                        lang=self.dgttranslate.language,
+                        capital=self.dgttranslate.capital,
+                        long=self.dgttranslate.notation,
+                    )
+                    await DispatchDgt.fire(move)
+                    await DispatchDgt.fire(
+                        Dgt.LIGHT_SQUARES(uci_move=self.last_move.uci(), devs={"ser", "web"})
+                    )
+                else:
+                    await self._exit_display(devs={"i2c", "web"})  # ser is done when clock found
                 if not self.have_seen_a_fen and self._startup_engine_name_text is not None:
                     # Bluetooth startup may finish after the initial engine-name
                     # display. Restore it after the connection notification rather

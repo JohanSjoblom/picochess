@@ -299,6 +299,41 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("DGT_DISPLAY_TIME", repr(dispatch_fire.await_args_list[1].args[0]))
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_reconnection_restores_last_move_and_arrow(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+        display.have_seen_a_fen = True
+        display.last_move = chess.Move.from_uci("e2e4")
+        display.last_fen = chess.Board().fen()
+        display.last_turn = chess.WHITE
+        connection_text = SimpleNamespace(web_text="BT e-Board")
+
+        await display._process_message(Message.DGT_EBOARD_VERSION(text=connection_text, channel="BT"))
+
+        self.assertEqual(3, dispatch_fire.await_count)
+        restored = dispatch_fire.await_args_list[1].args[0]
+        self.assertEqual("DGT_DISPLAY_MOVE", repr(restored))
+        self.assertEqual(display.last_move, restored.move)
+        self.assertEqual({"i2c", "web"}, restored.devs)
+        arrow = dispatch_fire.await_args_list[2].args[0]
+        self.assertEqual("DGT_LIGHT_SQUARES", repr(arrow))
+        self.assertEqual("e2e4", arrow.uci_move)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_reconnection_keeps_menu_instead_of_restoring_move(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+        display.last_move = chess.Move.from_uci("e2e4")
+        display.last_fen = chess.Board().fen()
+        display._inside_main_menu = Mock(return_value=True)
+        display._exit_display = AsyncMock()
+
+        await display._process_message(
+            Message.DGT_EBOARD_VERSION(text=SimpleNamespace(web_text="BT e-Board"), channel="BT")
+        )
+
+        display._exit_display.assert_awaited_once_with(devs={"i2c", "web"})
+        dispatch_fire.assert_awaited_once()
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_mode_command_restore_to_start_uses_fen_not_new_game(self, observable_fire, _dispatch_fire):
         display = self.create_display()

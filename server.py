@@ -522,7 +522,7 @@ def _current_engine_menu_settings(shared: dict) -> dict:
     """Return stable web-menu identity for the selected engine."""
     from uci.engine_provider import EngineProvider
 
-    selected = {}
+    selected: dict[str, object] = {}
     dgtmenu = shared.get("dgtmenu")
     if dgtmenu is not None:
         try:

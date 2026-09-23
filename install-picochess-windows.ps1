@@ -6,17 +6,18 @@ Installs the Windows PicoChess Python environment and portable data resources.
 The installer can use the checkout containing this script or clone PicoChess
 into a user-selected directory. It creates a Python 3.11-3.13 AMD64 virtual environment,
 installs requirements.txt, initializes writable runtime files, and optionally
-downloads books, opening data, and games database data.
+downloads the Windows engine pack, books, opening data, and games database data.
 
-It deliberately does not install chess engines, Windows services, scheduled
-tasks, drivers, firewall rules, or Linux host integrations.
+It deliberately does not install Windows services, scheduled tasks, drivers,
+firewall rules, or Linux host integrations.
 
 .PARAMETER InstallDir
 PicoChess checkout to use or create. When omitted, the checkout containing
 this script is used if possible; otherwise %USERPROFILE%\PicoChess is used.
 
 .PARAMETER Resources
-Portable resource packs to install. The default is Books, OpeningData, Games.
+Portable resource packs to install. The default is Engines, Books, OpeningData,
+Games.
 
 .PARAMETER SkipResources
 Do not download any resource packs.
@@ -43,7 +44,7 @@ Only inspect prerequisites and the selected existing checkout. Make no changes.
 param(
     [string]$InstallDir,
 
-    [string[]]$Resources = @("Books", "OpeningData", "Games"),
+    [string[]]$Resources = @("Engines", "Books", "OpeningData", "Games"),
 
     [switch]$SkipResources,
     [switch]$UpdateRepo,
@@ -62,21 +63,32 @@ $repositoryUrl = "https://github.com/JohanSjoblom/picochess.git"
 $repositoryBranch = "471-port-to-windows"
 $selectedResources = @()
 $resourceDefinitions = @{
+    Engines = @{
+        Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.3.5/picochess-amd64-engines-small-v4.3.5.zip"
+        Archive = "picochess-amd64-engines-small-v4.3.5.zip"
+        ArchiveType = "Zip"
+        Destination = "engines\AMD64"
+        Marker = "a-stockf.exe"
+        Sha256 = "B939C1C4D035BCC96B6C8B71769724DE8B1965AE71A2E98566C3F7B05055B9BC"
+    }
     Books = @{
         Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/books.tar.gz"
         Archive = "books.tar.gz"
+        ArchiveType = "TarGz"
         Destination = "books"
         Marker = "books.ini"
     }
     OpeningData = @{
         Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/openingdata.tar.gz"
         Archive = "openingdata.tar.gz"
+        ArchiveType = "TarGz"
         Destination = "obooksrv"
         Marker = "opening.data"
     }
     Games = @{
         Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/gamesdb.tar.gz"
         Archive = "gamesdb.tar.gz"
+        ArchiveType = "TarGz"
         Destination = "gamesdb"
         Marker = "get_games.tcl"
     }
@@ -321,6 +333,26 @@ function Assert-SafeArchiveEntries {
     }
 }
 
+function Assert-SafeZipArchiveEntries {
+    param([string]$ArchivePath)
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        if ($archive.Entries.Count -eq 0) {
+            throw "Downloaded archive is empty: $ArchivePath"
+        }
+        foreach ($zipEntry in $archive.Entries) {
+            $entry = ([string]$zipEntry.FullName).Replace('\', '/')
+            if ($entry -match '^[\/]' -or $entry -match '^[A-Za-z]:' -or $entry -match '(^|/)\.\.(/|$)') {
+                throw "Archive contains an unsafe path: $entry"
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+
 function Move-ResourceToBackup {
     param(
         [string]$ExistingPath,
@@ -365,8 +397,29 @@ function Install-ResourcePack {
 
     Write-Step "Downloading $Name"
     Invoke-WebRequest -Uri $Definition.Url -OutFile $archivePath -UseBasicParsing
-    Assert-SafeArchiveEntries -TarCommand $TarCommand -ArchivePath $archivePath
-    Invoke-Native -FilePath $TarCommand -ArgumentList @("-xzf", $archivePath, "-C", $extractRoot)
+    if ($Definition.ContainsKey("Sha256")) {
+        $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
+        if ($actualHash -ne $Definition.Sha256) {
+            throw "$Name archive checksum mismatch. Expected $($Definition.Sha256), received $actualHash."
+        }
+    }
+
+    switch ($Definition.ArchiveType) {
+        "Zip" {
+            Assert-SafeZipArchiveEntries -ArchivePath $archivePath
+            Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot
+        }
+        "TarGz" {
+            if (-not $TarCommand) {
+                throw "Windows tar.exe is required to extract the $Name resource pack."
+            }
+            Assert-SafeArchiveEntries -TarCommand $TarCommand -ArchivePath $archivePath
+            Invoke-Native -FilePath $TarCommand -ArgumentList @("-xzf", $archivePath, "-C", $extractRoot)
+        }
+        default {
+            throw "Unsupported archive type '$($Definition.ArchiveType)' for $Name."
+        }
+    }
 
     $stagedMarker = Join-Path $extractRoot $Definition.Marker
     if (-not (Test-Path -LiteralPath $stagedMarker)) {
@@ -402,6 +455,23 @@ function Initialize-RuntimeFiles {
     }
 }
 
+function Initialize-WindowsConfiguration {
+    param([string]$RepositoryPath)
+
+    $configuration = Join-Path $RepositoryPath "picochess.ini"
+    if (Test-Path -LiteralPath $configuration) {
+        Write-Status "Preserving existing configuration: $configuration"
+        return
+    }
+
+    $exampleConfiguration = Join-Path $RepositoryPath "picochess.ini.example-web-AMD64"
+    if (-not (Test-Path -LiteralPath $exampleConfiguration)) {
+        throw "Windows example configuration is missing: $exampleConfiguration"
+    }
+    Copy-Item -LiteralPath $exampleConfiguration -Destination $configuration
+    Write-Status "Created $configuration from the Windows web example"
+}
+
 function Show-Readiness {
     param(
         [string]$RepositoryPath,
@@ -433,7 +503,7 @@ function Show-Readiness {
     if (Test-Path -LiteralPath $configuration) {
         Write-Status "Configuration: preserving existing picochess.ini"
     } else {
-        Write-Warning "picochess.ini was not created because no engine path should be guessed. Configure it after adding a Windows engine."
+        Write-Warning "Configuration is missing: $configuration"
     }
 
     if ($selectedResources -contains "Games" -and -not $SkipResources) {
@@ -458,7 +528,7 @@ try {
                 continue
             }
             if (-not $resourceDefinitions.ContainsKey($normalizedResource)) {
-                throw "Unknown resource '$normalizedResource'. Choose Books, OpeningData, or Games."
+                throw "Unknown resource '$normalizedResource'. Choose Engines, Books, OpeningData, or Games."
             }
             if ($selectedResources -notcontains $normalizedResource) {
                 $selectedResources += $normalizedResource
@@ -520,16 +590,20 @@ try {
     Invoke-Native -FilePath $venvPython -ArgumentList @("-m", "pip", "install", "--upgrade", "-r", (Join-Path $targetPath "requirements.txt"))
 
     if (-not $SkipResources) {
-        $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
-        if (-not $tar) {
-            throw "Windows tar.exe is required to extract resource packs."
+        $tarCommand = $null
+        if (@($selectedResources | Where-Object { $resourceDefinitions[$_].ArchiveType -eq "TarGz" }).Count -gt 0) {
+            $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+            if (-not $tar) {
+                throw "Windows tar.exe is required to extract the selected tar.gz resource packs."
+            }
+            $tarCommand = $tar.Source
         }
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("picochess-windows-install-" + [Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
         try {
             foreach ($resourceName in $selectedResources) {
-                Install-ResourcePack -Name $resourceName -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TarCommand $tar.Source -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources
+                Install-ResourcePack -Name $resourceName -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TarCommand $tarCommand -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources
             }
         } finally {
             if ((Test-Path -LiteralPath $temporaryRoot) -and ([IO.Path]::GetFileName($temporaryRoot) -like "picochess-windows-install-*")) {
@@ -539,6 +613,9 @@ try {
     } else {
         Write-Status "Resource downloads skipped."
     }
+
+    Write-Step "Preparing Windows configuration"
+    Initialize-WindowsConfiguration -RepositoryPath $targetPath
 
     if (-not $SkipSmokeTests) {
         Write-Step "Running Windows smoke tests"

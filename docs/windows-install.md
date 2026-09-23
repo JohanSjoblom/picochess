@@ -1,9 +1,10 @@
 # Installing PicoChess on Windows
 
-The Windows installer prepares PicoChess without installing chess engines,
-Windows services, scheduled tasks, drivers, or Linux host integrations. It can
-use an existing repository checkout or clone the repository when the selected
-installation directory is absent or empty.
+The Windows installer prepares PicoChess and can install the small AMD64 engine
+pack. It does not install Windows services, scheduled tasks, drivers, firewall
+rules, or Linux host integrations. It can use an existing repository checkout
+or clone the repository when the selected installation directory is absent or
+empty.
 
 The supported Python range is CPython 3.11 through 3.13 for x64/AMD64. The
 currently validated baseline is CPython 3.13 on 64-bit Windows.
@@ -61,7 +62,7 @@ only on a clean branch using a fast-forward-only pull:
 The default resource selection is:
 
 ```text
-Books, OpeningData, Games
+Engines, Books, OpeningData, Games
 ```
 
 Select a subset or skip all resource downloads with:
@@ -116,28 +117,22 @@ before it can safely become an installer option.
 
 ## Engines and configuration
 
-No engine is downloaded or installed. Follow [the engine setup guide](../engines/README.md#experimental-windows-amd64-setup)
-and place a native Windows UCI engine and its catalog files under:
+The default resource selection downloads the small Windows AMD64 engine pack
+from the PicoChess v4.3.5 GitHub release and installs it under:
 
 ```text
 engines\AMD64\
 ```
 
-The installer preserves an existing `picochess.ini`. If it is missing, the
-installer does not create one because it cannot safely guess the engine path.
-A minimal web-only configuration after installing an engine is:
+The installer always preserves an existing `picochess.ini`. If it is missing,
+the installer copies `picochess.ini.example-web-AMD64` to `picochess.ini`. That
+example is configured for the bundled `a-stockf.exe` engine and web-only use.
 
-```ini
-engine = engines\AMD64\stockfish.exe
-engine-level = Elo@2200
-tutor-engine = engines\AMD64\stockfish.exe
-board-type = noeboard
-web-server = 8080
-theme = dark
-book = books\h-varied.bin
+To install the other resource packs without the engine, pass an explicit list:
+
+```powershell
+.\install-picochess-windows.ps1 -Resources Books,OpeningData,Games
 ```
-
-Adjust the executable and level names to match the local engine catalog.
 
 ## Validation and recovery options
 

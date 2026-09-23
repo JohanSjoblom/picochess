@@ -33,6 +33,7 @@ from server import (
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
+    _current_engine_metadata,
     _engine_menu_labels,
     _engine_menu_payload,
     _apply_engine_menu_sort,
@@ -56,6 +57,14 @@ from utilities import version as pico_version
 
 
 class TestSettingsTemplate(unittest.TestCase):
+    def test_engine_info_shows_current_elo_and_level(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("var engineElo = settings.engine_elo", template)
+        self.assertIn("var engineLevel = settings.engine_level", template)
+        self.assertIn("[menuKey('game.elo'), engineElo]", template)
+        self.assertIn("[menuKey('engine.level'), engineLevel]", template)
+
     def test_beep_config_uses_valid_ini_values(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/settings.html").read_text(encoding="utf-8")
 
@@ -839,6 +848,17 @@ class TestServerWebEngineSelection(unittest.TestCase):
 
         self.assertEqual("", level_event.level_name)
         self.assertEqual({}, engine_event.options)
+
+    def test_current_engine_metadata_uses_live_engine_state(self):
+        shared = {
+            "system_info": {"engine_name": "Stockfish", "engine_elo": 2500},
+            "game_info": {"level_name": "Elo@1800"},
+        }
+
+        self.assertEqual(
+            {"engine_name": "Stockfish", "engine_elo": 2500, "engine_level": "Elo@1800"},
+            _current_engine_metadata(shared),
+        )
 
 
 class TestServerEngineBookSelection(unittest.TestCase):

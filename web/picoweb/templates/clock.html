@@ -2450,7 +2450,11 @@
                 listEl.innerHTML = '';
 
                 var current = _currentMameInfo();
-                var engineName = (window._picoSystemInfo || {}).engine_name || '—';
+                var settings = window._picoCurrentSettings || {};
+                var systemInfo = window._picoSystemInfo || {};
+                var engineName = settings.engine_name || systemInfo.engine_name || '—';
+                var engineElo = settings.engine_elo || systemInfo.engine_elo || '—';
+                var engineLevel = settings.engine_level || '—';
                 var heading = document.createElement('div');
                 heading.className = 'pico-picker-item';
                 var headingName = document.createElement('strong');
@@ -2462,6 +2466,22 @@
                     ? menuKey('engine.retro_capabilities') : menuKey('engine.not_retro');
                 heading.appendChild(headingSub);
                 listEl.appendChild(heading);
+
+                [
+                    [menuKey('game.elo'), engineElo],
+                    [menuKey('engine.level'), engineLevel]
+                ].forEach(function(row) {
+                    var item = document.createElement('div');
+                    item.className = 'pico-picker-item';
+                    var label = document.createElement('strong');
+                    label.textContent = row[0];
+                    item.appendChild(label);
+                    var value = document.createElement('span');
+                    value.className = 'picker-sub';
+                    value.textContent = row[1];
+                    item.appendChild(value);
+                    listEl.appendChild(item);
+                });
 
                 if (!current.isMame) return;
                 var rows = [

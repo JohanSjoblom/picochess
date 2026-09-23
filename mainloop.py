@@ -2801,6 +2801,16 @@ class MainLoop:
                             move, user_move_fen, user_move_revision, msg
                         )
                     elif self.emulation_mode():
+                        if user_move_task_matches_position(
+                            *user_move_owner,
+                            self.state.game,
+                            self.state.get_fen(),
+                            self.state.user_move_revision,
+                            self.state.done_computer_fen,
+                        ):
+                            await self.engine.send_terminal_position_to_mame(self.state.game.copy())
+                        else:
+                            logger.info("skipping obsolete MAME terminal move [%s]", move)
                         await DisplayMsg.show(msg)
                         await self._deliver_picotutor_messages(
                             pending_picotutor_msgs, user_move_owner

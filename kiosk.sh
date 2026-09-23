@@ -199,11 +199,12 @@ launch_kiosk_browser() {
 
   if is_wayland; then
     "$CHROMIUM_BIN" --user-data-dir="$KIOSK_PROFILE_DIR" --no-first-run --password-store=basic --kiosk "$picochess_url" &
+    CHROMIUM_PID=$!
     hide_wayland_cursor
   else
     "$CHROMIUM_BIN" --user-data-dir="$KIOSK_PROFILE_DIR" --no-first-run --enable-features=OverlayScrollbar --password-store=basic --display=:0 --noerrdialogs --disable-infobars --kiosk "$picochess_url" &
+    CHROMIUM_PID=$!
   fi
-  CHROMIUM_PID=$!
   echo "kiosk.sh: Chromium started with pid $CHROMIUM_PID"
 }
 

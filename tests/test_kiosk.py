@@ -24,6 +24,7 @@ class TestKioskSupervisor(unittest.TestCase):
             service_state = temp / "service-state"
             browser_started = temp / "browser-started"
             browser_stopped = temp / "browser-stopped"
+            cursor_hidden = temp / "cursor-hidden"
             service_state.write_text("active", encoding="utf-8")
 
             systemctl = bin_dir / "systemctl"
@@ -44,6 +45,14 @@ class TestKioskSupervisor(unittest.TestCase):
                 encoding="utf-8",
             )
             chromium.chmod(0o755)
+
+            ydotool = bin_dir / "ydotool"
+            ydotool.write_text(
+                "#!/bin/sh\n"
+                f"echo hidden >> '{cursor_hidden}'\n",
+                encoding="utf-8",
+            )
+            ydotool.chmod(0o755)
 
             pkill = bin_dir / "pkill"
             pkill.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -72,6 +81,8 @@ class TestKioskSupervisor(unittest.TestCase):
             )
             try:
                 self.wait_for_lines(browser_started, 1)
+                self.wait_for_lines(cursor_hidden, 1)
+                self.assertIsNone(kiosk.poll())
 
                 service_state.write_text("inactive", encoding="utf-8")
                 self.wait_for_lines(browser_stopped, 1)

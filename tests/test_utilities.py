@@ -3,7 +3,14 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from utilities import AsyncRepeatingTimer, _choose_wayland_backend, get_engine_mame_par, get_window_command
+from utilities import (
+    AsyncRepeatingTimer,
+    _choose_wayland_backend,
+    exit_pico,
+    get_engine_mame_par,
+    get_window_command,
+    update_picochess_now,
+)
 
 
 class TestUtilities(unittest.TestCase):
@@ -54,6 +61,21 @@ class TestUtilities(unittest.TestCase):
     @patch.dict("utilities.os.environ", {"PICOCHESS_WAYLAND_WINDOW_BACKEND": "ydotool"}, clear=False)
     def test_choose_wayland_backend_override_missing_tool(self, _):
         self.assertIsNone(_choose_wayland_backend())
+
+    @patch("utilities.os.system")
+    @patch("utilities.platform.system", return_value="Linux")
+    def test_exit_pico_does_not_stop_chromium_outside_kiosk(self, _, os_system):
+        exit_pico(dgtpi=False, dev="web")
+
+        os_system.assert_not_called()
+
+    @patch("utilities.subprocess.Popen")
+    def test_update_restart_does_not_kill_unowned_chromium(self, popen):
+        update_picochess_now()
+
+        command = popen.call_args.args[0][-1]
+        self.assertIn("systemctl restart picochess", command)
+        self.assertNotIn("chromium", command)
 
 
 class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):

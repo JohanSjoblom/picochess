@@ -95,6 +95,9 @@ stopped when PicoChess exits. Use `--skip-games-server` to skip it. Without a
 helper, PicoChess replaces the launcher process, so stopping it with Ctrl+C
 behaves exactly like running `./venv/bin/python picochess.py`.
 
+An experimental PicoChess.app control panel can install PicoChess and start,
+stop, and upgrade it without a terminal. See `mac/README.md`.
+
 The experimental macOS path is intended primarily for web-only play with a
 native engine. PGN upload authentication, host updates, Wi-Fi/Bluetooth setup,
 shutdown, and reboot integrations remain Linux-only.

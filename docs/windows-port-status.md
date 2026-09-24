@@ -1,6 +1,6 @@
 # Windows Port Status
 
-Last reviewed: 2026-09-19
+Last reviewed: 2026-09-24
 
 ## Purpose
 
@@ -19,7 +19,7 @@ validated baseline.
 | --- | --- | --- |
 | Python imports and CLI startup | Validated | CPython 3.13.15 x64 |
 | PowerShell environment installer | Implemented, validation path tested | Reuses/clones repo, creates `venv`, installs dependencies and portable resources; downloads not exercised locally, no engines or services |
-| Windows control panel | Implemented, stop path tested | WinForms app in `win\PicoChess.ControlPanel`: start, open browser, stop (Ctrl+C then forced), upgrade; bundled in the installer exe, which creates Start menu/desktop shortcuts; graceful stop verified with a stand-in picochess.py, not yet with a full engine setup |
+| Windows control panel | Validated on a target machine | WinForms app in `win\PicoChess.ControlPanel`: start, open browser, stop (Ctrl+C then forced), upgrade; bundled in the installer exe, which creates Start menu/desktop shortcuts; install into an existing checkout, then start, open browser, and stop verified with a native engine; Upgrade and shortcut launches not yet exercised |
 | Windows games helper launcher | Implemented, unvalidated with Scid | Detects a user-installed `tcscid.exe`; failure is isolated to the Games tab |
 | Web interface with `noeboard` | Validated baseline | Native Windows engine and local catalogs must be supplied |
 | Local Windows UCI engines | Implemented | Catalog is read from `engines/AMD64` |

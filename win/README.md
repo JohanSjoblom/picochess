@@ -38,16 +38,21 @@ Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), th
 dotnet run --project .\win\PicoChess.WindowsInstaller
 ```
 
-Build the distributable installer and its checksum into `sdist` at the repository root:
+Build the distributable installer, a release zip, and their checksums into `sdist` at the
+repository root:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\win\build-dist.ps1
 ```
 
-This writes `sdist\PicoChessInstaller.exe` and `sdist\PicoChessInstaller.exe.sha256` (sha256sum
-format, verify with `sha256sum -c PicoChessInstaller.exe.sha256` or `Get-FileHash`). `sdist` is
-ignored by Git; it only collects files to upload to a GitHub release. Pass `-OutputDirectory` to
-build somewhere else.
+This writes:
+
+- `PicoChessInstaller.exe` and `PicoChessInstaller.exe.sha256`
+- `PicoChessInstaller.zip`, containing the two files above, and `PicoChessInstaller.zip.sha256`
+
+The zip and its checksum are the files to upload to a GitHub release. The checksum files use the
+sha256sum format; verify with `sha256sum -c <file>.sha256` or `Get-FileHash`. `sdist` is ignored
+by Git; it only collects files to upload. Pass `-OutputDirectory` to build somewhere else.
 
 To publish manually instead, create a self-contained single-file executable for 64-bit Windows:
 

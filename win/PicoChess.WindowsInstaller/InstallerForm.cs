@@ -8,21 +8,25 @@ internal sealed class InstallerForm : Form
     private readonly TextBox _installDirectory = new();
     private readonly CheckBox _resources = new();
     private readonly CheckBox _update = new();
+    private readonly CheckBox _desktopShortcut = new();
     private readonly RichTextBox _log = new();
     private readonly Button _install = new();
     private readonly Button _cancel = new();
     private readonly Button _openFolder = new();
+    private readonly Button _openControlPanel = new();
     private readonly Button _browse = new();
     private readonly ProgressBar _progress = new();
     private readonly Label _status = new();
     private CancellationTokenSource? _cancellation;
+    private string? _controlPanel;
+    private string? _installedDirectory;
 
     public InstallerForm()
     {
         Text = "PicoChess Setup";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(720, 610);
-        Size = new Size(840, 690);
+        MinimumSize = new Size(720, 640);
+        Size = new Size(840, 720);
         Font = new Font("Segoe UI", 9F);
         AutoScaleMode = AutoScaleMode.Dpi;
 
@@ -71,7 +75,12 @@ internal sealed class InstallerForm : Form
         _update.Text = "Update an existing clean checkout before installing";
         _update.Checked = true;
         _update.AutoSize = true;
-        _update.Margin = new Padding(0, 0, 0, 14);
+        _update.Margin = new Padding(0, 0, 0, 6);
+
+        _desktopShortcut.Text = "Create a desktop shortcut for the PicoChess control panel";
+        _desktopShortcut.Checked = true;
+        _desktopShortcut.AutoSize = true;
+        _desktopShortcut.Margin = new Padding(0, 0, 0, 14);
 
         _log.Dock = DockStyle.Fill;
         _log.ReadOnly = true;
@@ -108,6 +117,12 @@ internal sealed class InstallerForm : Form
         _openFolder.Visible = false;
         _openFolder.Click += OpenFolder_Click;
 
+        _openControlPanel.Text = "Open PicoChess";
+        _openControlPanel.AutoSize = true;
+        _openControlPanel.Padding = new Padding(18, 4, 18, 4);
+        _openControlPanel.Visible = false;
+        _openControlPanel.Click += OpenControlPanel_Click;
+
         var buttonRow = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
@@ -115,6 +130,7 @@ internal sealed class InstallerForm : Form
             AutoSize = true,
             WrapContents = false
         };
+        buttonRow.Controls.Add(_openControlPanel);
         buttonRow.Controls.Add(_install);
         buttonRow.Controls.Add(_cancel);
         buttonRow.Controls.Add(_openFolder);
@@ -131,9 +147,10 @@ internal sealed class InstallerForm : Form
         {
             Dock = DockStyle.Fill,
             Padding = new Padding(28),
-            RowCount = 8,
+            RowCount = 9,
             ColumnCount = 1
         };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -148,8 +165,9 @@ internal sealed class InstallerForm : Form
         layout.Controls.Add(directoryRow, 0, 3);
         layout.Controls.Add(_resources, 0, 4);
         layout.Controls.Add(_update, 0, 5);
-        layout.Controls.Add(_log, 0, 6);
-        layout.Controls.Add(footer, 0, 7);
+        layout.Controls.Add(_desktopShortcut, 0, 6);
+        layout.Controls.Add(_log, 0, 7);
+        layout.Controls.Add(footer, 0, 8);
         Controls.Add(layout);
     }
 
@@ -181,15 +199,23 @@ internal sealed class InstallerForm : Form
         _log.Clear();
         _cancellation = new CancellationTokenSource();
         var service = new InstallerService(AppendLog);
-        var options = new InstallerOptions(_installDirectory.Text, _resources.Checked, _update.Checked);
+        var options = new InstallerOptions(
+            _installDirectory.Text, _resources.Checked, _update.Checked, _desktopShortcut.Checked);
 
         try
         {
-            await service.InstallAsync(options, _cancellation.Token);
+            _controlPanel = await service.InstallAsync(options, _cancellation.Token);
+            _installedDirectory = Path.GetFullPath(Environment.ExpandEnvironmentVariables(_installDirectory.Text.Trim()));
             _status.Text = "Installation complete";
             _openFolder.Visible = true;
-            MessageBox.Show(this, "PicoChess was installed successfully.", Text,
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _openControlPanel.Visible = true;
+            AcceptButton = _openControlPanel;
+            MessageBox.Show(this,
+                "PicoChess was installed successfully.\r\n\r\n" +
+                "Start it with the PicoChess shortcut in the Start menu" +
+                (options.CreateDesktopShortcut ? " or on the desktop" : "") +
+                ", or click Open PicoChess.",
+                Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (OperationCanceledException)
         {
@@ -218,6 +244,8 @@ internal sealed class InstallerForm : Form
         _browse.Enabled = !busy;
         _resources.Enabled = !busy;
         _update.Enabled = !busy;
+        _desktopShortcut.Enabled = !busy;
+        _openControlPanel.Enabled = !busy;
         _cancel.Enabled = busy;
         _progress.Visible = busy;
         if (busy) _status.Text = "Installing...";
@@ -233,6 +261,21 @@ internal sealed class InstallerForm : Form
         _log.AppendText(message + Environment.NewLine);
         _log.SelectionStart = _log.TextLength;
         _log.ScrollToCaret();
+    }
+
+    private void OpenControlPanel_Click(object? sender, EventArgs e)
+    {
+        if (_controlPanel is null || _installedDirectory is null) return;
+        try
+        {
+            ControlPanelInstaller.Launch(_controlPanel, _installedDirectory);
+            Close();
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            MessageBox.Show(this, exception.Message, "PicoChess control panel could not be started",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void OpenFolder_Click(object? sender, EventArgs e)

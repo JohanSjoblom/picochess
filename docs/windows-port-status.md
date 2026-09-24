@@ -19,6 +19,7 @@ validated baseline.
 | --- | --- | --- |
 | Python imports and CLI startup | Validated | CPython 3.13.15 x64 |
 | PowerShell environment installer | Implemented, validation path tested | Reuses/clones repo, creates `venv`, installs dependencies and portable resources; downloads not exercised locally, no engines or services |
+| Windows control panel | Implemented, stop path tested | WinForms app in `win\PicoChess.ControlPanel`: start, open browser, stop (Ctrl+C then forced), upgrade; bundled in the installer exe, which creates Start menu/desktop shortcuts; graceful stop verified with a stand-in picochess.py, not yet with a full engine setup |
 | Windows games helper launcher | Implemented, unvalidated with Scid | Detects a user-installed `tcscid.exe`; failure is isolated to the Games tab |
 | Web interface with `noeboard` | Validated baseline | Native Windows engine and local catalogs must be supplied |
 | Local Windows UCI engines | Implemented | Catalog is read from `engines/AMD64` |
@@ -107,6 +108,9 @@ venv\Scripts\python.exe picochess.py
 
 Then open `http://localhost:8080`. A non-privileged port such as 8080 is
 preferred; binding port 80 may require elevated privileges.
+
+Alternatively, the control panel in `win\PicoChess.ControlPanel` starts and stops
+PicoChess and opens the browser without a terminal. See `win/README.md`.
 
 ## DGT Bluetooth e-Board on Windows
 

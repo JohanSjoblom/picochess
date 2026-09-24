@@ -3,6 +3,7 @@ namespace PicoChess.WindowsInstaller;
 
 internal sealed class InstallerService
 {
+    private static readonly string[] SupportedPythonVersions = ["3.13", "3.12", "3.11"];
     private const string RepositoryUrl = "https://github.com/JohanSjoblom/picochess.git";
     // Temporary during Windows beta testing. Remove this explicit branch selection
     // before merging the Windows port into the default branch.
@@ -11,7 +12,7 @@ internal sealed class InstallerService
 
     public InstallerService(Action<string> log) => _log = log;
 
-    public async Task InstallAsync(InstallerOptions options, CancellationToken cancellationToken)
+    public async Task<string> InstallAsync(InstallerOptions options, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows() || !Environment.Is64BitOperatingSystem)
         {
@@ -24,6 +25,10 @@ internal sealed class InstallerService
         _log("Checking prerequisites...");
         var gitAvailable = await CommandSucceedsAsync("git.exe", ["--version"], cancellationToken);
         var pythonAvailable = await HasSupportedPythonAsync(cancellationToken);
+        _log(gitAvailable ? "Git is already installed." : "Git was not found.");
+        _log(pythonAvailable
+            ? "A supported CPython 3.11-3.13 x64 is already installed."
+            : "No supported CPython 3.11-3.13 x64 was found.");
 
         if (!gitAvailable || !pythonAvailable)
         {
@@ -93,7 +98,11 @@ internal sealed class InstallerService
         }
 
         await RunAsync("powershell.exe", arguments, cancellationToken, installDirectory);
+
+        _log("\r\nInstalling the PicoChess control panel...");
+        var controlPanel = ControlPanelInstaller.Install(installDirectory, options.CreateDesktopShortcut, _log);
         _log("\r\nInstallation completed successfully.");
+        return controlPanel;
     }
 
     private async Task PrepareRepositoryAsync(
@@ -123,10 +132,15 @@ internal sealed class InstallerService
 
     private async Task<bool> HasSupportedPythonAsync(CancellationToken cancellationToken)
     {
-        const string probe = "import platform,struct,sys;raise SystemExit(0 if sys.version_info[:2]==(3,13) and struct.calcsize('P')==8 and platform.machine()=='AMD64' else 1)";
-        if (await CommandSucceedsAsync("py.exe", ["-3.13", "-c", probe], cancellationToken))
+        // Accept the same CPython 3.11-3.13 x64 range as install-picochess-windows.ps1,
+        // so an existing supported Python is reused instead of adding 3.13 beside it.
+        const string probe = "import platform,struct,sys;raise SystemExit(0 if (3,11)<=sys.version_info[:2]<=(3,13) and struct.calcsize('P')==8 and platform.machine()=='AMD64' else 1)";
+        foreach (var version in SupportedPythonVersions)
         {
-            return true;
+            if (await CommandSucceedsAsync("py.exe", [$"-{version}", "-c", probe], cancellationToken))
+            {
+                return true;
+            }
         }
 
         return await CommandSucceedsAsync("python.exe", ["-c", probe], cancellationToken);

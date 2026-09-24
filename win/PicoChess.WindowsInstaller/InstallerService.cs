@@ -126,7 +126,9 @@ internal sealed class InstallerService
             ?? throw new InvalidOperationException("Choose an installation folder with a valid parent directory.");
         Directory.CreateDirectory(parent);
         await RunAsync("git.exe",
-            ["clone", "--branch", RepositoryBranch, "--single-branch", RepositoryUrl, installDirectory],
+            // Fetch all branches but check out only the selected one, so the checkout
+            // can later switch branches (for example to master) without re-cloning.
+            ["clone", "--branch", RepositoryBranch, RepositoryUrl, installDirectory],
             cancellationToken);
     }
 

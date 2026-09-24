@@ -267,7 +267,7 @@ function Ensure-Repository {
             throw "Git is required to clone PicoChess. Install Git for Windows and rerun the installer."
         }
         Write-Step "Cloning PicoChess"
-        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, "--single-branch", $repositoryUrl, $TargetPath)
+        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, $repositoryUrl, $TargetPath)
     } else {
         if ($ReadOnly) {
             throw "ValidateOnly requires an existing PicoChess checkout: $TargetPath"
@@ -280,7 +280,7 @@ function Ensure-Repository {
             New-Item -ItemType Directory -Path $parent -Force | Out-Null
         }
         Write-Step "Cloning PicoChess"
-        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, "--single-branch", $repositoryUrl, $TargetPath)
+        Invoke-Native -FilePath $GitCommand -ArgumentList @("clone", "--branch", $repositoryBranch, $repositoryUrl, $TargetPath)
     }
 
     if (-not (Test-PicoChessCheckout -Path $TargetPath)) {
@@ -309,6 +309,15 @@ function Ensure-Repository {
         $branch = @(Invoke-NativeCapture -FilePath $GitCommand -ArgumentList @("-C", $TargetPath, "symbolic-ref", "--quiet", "--short", "HEAD")) -join ""
         if (-not $branch) {
             throw "The checkout is detached. Select a branch before using -UpdateRepo."
+        }
+        # Older installers cloned with --single-branch, which fetches only the
+        # checked-out branch. Fetch all branches so the checkout can later move
+        # to another branch; the current branch and its upstream are unchanged.
+        $allBranches = "+refs/heads/*:refs/remotes/origin/*"
+        $fetchSpecs = @(Invoke-NativeCapture -FilePath $GitCommand -ArgumentList @("-C", $TargetPath, "config", "--get-all", "remote.origin.fetch"))
+        if ($fetchSpecs -notcontains $allBranches) {
+            Write-Status "Configuring origin to fetch all branches."
+            Invoke-Native -FilePath $GitCommand -ArgumentList @("-C", $TargetPath, "config", "--replace-all", "remote.origin.fetch", $allBranches)
         }
         Write-Step "Updating branch $branch with a fast-forward-only pull"
         Invoke-Native -FilePath $GitCommand -ArgumentList @("-C", $TargetPath, "pull", "--ff-only")

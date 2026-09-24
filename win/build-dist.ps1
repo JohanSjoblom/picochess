@@ -15,11 +15,16 @@ Destination folder. Defaults to sdist in the repository root (ignored by Git).
 
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory = (Join-Path (Split-Path $PSScriptRoot -Parent) "sdist")
+    [string]$OutputDirectory
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
+
+# Windows PowerShell 5.1 does not populate $PSScriptRoot in parameter defaults.
+if (-not $OutputDirectory) {
+    $OutputDirectory = Join-Path (Split-Path $PSScriptRoot -Parent) "sdist"
+}
 
 $project = Join-Path $PSScriptRoot "PicoChess.WindowsInstaller"
 $executableName = "PicoChessInstaller.exe"

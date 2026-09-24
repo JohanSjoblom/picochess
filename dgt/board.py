@@ -20,7 +20,7 @@ import platform
 import struct
 import logging
 import subprocess
-from threading import Lock
+from threading import Event, Lock
 from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK, read, path, listdir
 from serial import Serial, SerialException, STOPBITS_ONE, PARITY_NONE, EIGHTBITS  # type: ignore
@@ -29,10 +29,13 @@ from typing import List, Optional, Tuple
 
 from eboard.eboard import EBoard
 from dgt.util import DgtAck, DgtClk, DgtCmd, DgtMsg, ClockIcons, ClockSide, enum
-from dgt.api import Message, Dgt
-from utilities import AsyncRepeatingTimer, DisplayMsg, hms_time
+from dgt.api import Message, Dgt, Event as PicoEvent
+from utilities import AsyncRepeatingTimer, DisplayMsg, Observable, hms_time
 
 logger = logging.getLogger(__name__)
+BATTERY_STATUS_INTERVAL = 60
+BOARD_SILENCE_TIMEOUT = 5.0
+BOARD_WRITE_TIMEOUT = 2.0
 
 
 class Rev2Info:
@@ -105,7 +108,9 @@ class DgtBoard(EBoard):
 
         self.serial = None
         self.lock = Lock()  # lock the serial write
+        self.startup_lock = Lock()  # keep reconnect retries from duplicating the serial handshake
         self.incoming_board_task: Optional[asyncio.Task] = None
+        self.stop_requested = Event()
         self.lever_pos: Optional[int] = None
         # the next three are only used for "not dgtpi" mode
         self.clock_lock: float = 0.0  # serial connected clock is locked
@@ -115,12 +120,15 @@ class DgtBoard(EBoard):
             None  # None = "unknown status" False="only board found" True="clock also found"
         )
         self.watchdog_timer = AsyncRepeatingTimer(1, self._watchdog, self.loop)
+        self.last_battery_request = 0.0
+        self.last_board_message = 0.0
         # bluetooth vars for Jessie upwards & autoconnect
         self.btctl = None
         self.bt_rfcomm = None
         self.bt_state = -1
         self.bt_line = ""
         self.bt_current_device = -1
+        self.bt_retry_after = 0.0
         self.bt_mac_list: List[str] = []
         self.bt_name_list: List[str] = []
         self.bt_name = ""
@@ -140,6 +148,7 @@ class DgtBoard(EBoard):
         self.in_settime = False  # this is true between set_clock and clock_start => use set values instead of clock
         self.low_time = False  # This is set from picochess.py and used to limit the field timer
         self.connected = False
+        self._board_loss_notified = False
         self.version_timer = AsyncRepeatingTimer(2, self._retry_handshake, self.loop)
 
     def _queue_display(self, message: Message):
@@ -170,7 +179,7 @@ class DgtBoard(EBoard):
         self.field_timer.start()
         self.field_timer_running = True
 
-    def write_command(self, message: list):
+    def write_command(self, message: list, clock_retry: bool = False):
         """Write the message list to the dgt board."""
         if not self.serial:
             return False
@@ -243,26 +252,29 @@ class DgtBoard(EBoard):
                 logger.error("type not supported [%s]", type(item))
                 return False
 
-        while True:
-            if self.serial:
-                with self.lock:
-                    try:
-                        self.serial.write(bytearray(array))
-                        break
-                    except ValueError:
-                        logger.error("invalid bytes sent %s", message)
-                        return False
-                    except SerialException as write_expection:
-                        logger.error(write_expection)
-                        self.serial.close()
+        if self.stop_requested.is_set():
+            return False
+        with self.lock:
+            serial = self.serial
+            if serial is None:
+                return False
+            try:
+                serial.write(bytearray(array))
+            except ValueError:
+                logger.error("invalid bytes sent %s", message)
+                return False
+            except (OSError, SerialException, TypeError) as write_exception:
+                logger.error(write_exception)
+                try:
+                    serial.close()
+                except (OSError, SerialException, TypeError):
+                    logger.debug("error while closing failed serial connection", exc_info=True)
+                if self.serial is serial:
+                    if self.stop_requested.is_set():
+                        self.serial = None
+                    else:
                         self._on_disconnect()
-                    except IOError as write_expection:
-                        logger.error(write_expection)
-                        self.serial.close()
-                        self._on_disconnect()
-            if mes == DgtCmd.DGT_RETURN_SERIALNR:
-                break
-            time.sleep(0.1)
+                return False
 
         if message[0] == DgtCmd.DGT_SET_LEDS:
             logger.debug("(rev) leds turned %s", "on" if message[2] else "off")
@@ -273,7 +285,8 @@ class DgtBoard(EBoard):
             else:
                 logger.debug("(ser) clock is locked now")
             self.clock_lock = time.time()
-            self.clock_resend_attempts = 0
+            if not clock_retry:
+                self.clock_resend_attempts = 0
         elif mes != DgtCmd.DGT_RETURN_SERIALNR:
             time.sleep(0.1)  # give the board some time to process the command
         return True
@@ -303,6 +316,8 @@ class DgtBoard(EBoard):
                     text_l, text_m, text_s = "BT e-Board", "BT board", "ok bt"
                 self.channel = "BT"
                 self.ask_battery_status()
+            if self.serial is None or self.stop_requested.is_set():
+                return
             self.bconn_text = Dgt.DISPLAY_TEXT(
                 web_text=text_l,
                 large_text=text_l,
@@ -314,12 +329,22 @@ class DgtBoard(EBoard):
                 devs={"i2c", "web"},
             )  # serial clock lateron
             self.connected = True
+            self.last_board_message = time.monotonic()
+            self.last_battery_request = 0.0
             self._queue_display(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
+            if self._board_loss_notified and not self.stop_requested.is_set():
+                self._board_loss_notified = False
+                asyncio.run_coroutine_threadsafe(
+                    Observable.fire(PicoEvent.BOARD_CONNECTION_RESTORED()), self.loop
+                )
             self.startup_serial_clock()  # now ask the serial clock to answer
+            if not self.connected or self.serial is None or self.stop_requested.is_set():
+                return
             if self.watchdog_timer.is_running():
                 logger.warning("watchdog timer is already running")
             else:
                 logger.debug("watchdog timer is started")
+                self.last_board_message = time.monotonic()
                 self.watchdog_timer.start()
             self.handshake_pending = False
             if self.version_timer.is_running():
@@ -538,7 +563,7 @@ class DgtBoard(EBoard):
     def _read_serial(self, bytes_toread=1):
         try:
             return self.serial.read(bytes_toread)
-        except SerialException:
+        except (SerialException, TypeError):
             pass
         except AttributeError:  # serial is None (race condition)
             pass
@@ -560,7 +585,7 @@ class DgtBoard(EBoard):
                 logger.warning("falsely DGT_SEND_EE_MOVES send before => receive and ignore EE_MOVES result")
                 self.watchdog_timer.stop()  # this serial read gonna take around 8secs
                 now = time.time()
-                while counter > 0:
+                while counter > 0 and not self.stop_requested.is_set():
                     ee_moves = self._read_serial(counter)
                     if self.serial:
                         logger.debug(
@@ -570,6 +595,7 @@ class DgtBoard(EBoard):
                     if time.time() - now > 15:
                         logger.warning("EE_MOVES needed over 15secs => ignore not readed 0x%x bytes now", counter)
                         break
+                self.last_board_message = time.monotonic()
                 self.watchdog_timer.start()
             else:
                 logger.warning("illegal length in message header 0x%x length: %i", message_id, message_length)
@@ -582,7 +608,7 @@ class DgtBoard(EBoard):
             logger.warning("illegal id in message header 0x%x length: %i", message_id, message_length)
             return message
 
-        while counter:
+        while counter and not self.stop_requested.is_set():
             byte = self._read_serial()
             try:
                 if byte:
@@ -594,25 +620,37 @@ class DgtBoard(EBoard):
                         return self._read_board_message(byte)
                     message += data
                 else:
-                    logger.warning("timeout in data reading")
+                    logger.warning(
+                        "timeout reading message 0x%x - discard %i collected bytes, %i missing",
+                        message_id,
+                        len(message),
+                        counter,
+                    )
+                    return message
             except struct.error:
                 logger.warning("struct error => maybe a reconnected board?")
 
-        self._process_board_message(message_id, message, message_length)
+        if not self.stop_requested.is_set():
+            self.last_board_message = time.monotonic()
+            self._process_board_message(message_id, message, message_length)
         return message
 
     def _process_incoming_board_forever(self):
         counter = 0
         logger.info("incoming_board ready")
-        while True:
+        while not self.stop_requested.is_set():
             byte = b""
             if self.serial:
                 byte = self._read_serial()
             else:
+                if self.stop_requested.is_set():
+                    break
                 self._setup_serial_port()
                 if self.serial:
                     logger.debug("sleeping for 0.5 secs. Afterwards startup the (ser) board")
                     time.sleep(0.5)
+                    if self.stop_requested.is_set():
+                        break
                     counter = 0
                     self._startup_serial_board()
             if byte and byte[0] & 0x80:
@@ -620,12 +658,16 @@ class DgtBoard(EBoard):
             else:
                 counter = (counter + 1) % 10
                 if counter == 0 and not self.watchdog_timer.is_running():
-                    self._watchdog()  # issue 150 - check for alive connection, so write something to the board
+                    self._watchdog_blocking()  # issue 150 - check for alive connection, so write something to the board
                 time.sleep(0.1)
 
     def ask_battery_status(self):
         """Ask the BT board for the battery status."""
-        self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS])  # Get battery status
+        # Record the attempt before write_command yields to the board.  The
+        # watchdog runs independently and must not submit the same request in
+        # that short window.
+        self.last_battery_request = time.monotonic()
+        self.write_command([DgtCmd.DGT_SEND_BATTERY_STATUS])
 
     def startup_serial_clock(self):
         """Ask the clock for its version."""
@@ -644,13 +686,26 @@ class DgtBoard(EBoard):
             self.version_timer.start()
 
     def _startup_serial_board(self):
-        self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
-        self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
-        if not self.connected:
-            self.handshake_pending = True
+        if not self.startup_lock.acquire(blocking=False):
+            logger.debug("serial board startup already in progress")
+            return False
+        try:
+            self.write_command([DgtCmd.DGT_SEND_UPDATE_NICE])  # Set the board update mode
+            self.write_command([DgtCmd.DGT_SEND_VERSION])  # Get board version
+            if not self.connected:
+                self.handshake_pending = True
+            return True
+        finally:
+            self.startup_lock.release()
 
-    def _watchdog(self):
-        """callback by repeated timer"""
+    async def _watchdog(self):
+        """Run the serial keepalive without blocking the shared event loop."""
+        await asyncio.to_thread(self._watchdog_blocking)
+
+    def _watchdog_blocking(self):
+        """Perform one potentially blocking serial keepalive."""
+        if self.stop_requested.is_set():
+            return
         logger.debug("running watchdog")
         if self.clock_lock and not self.is_pi:
             age = time.time() - self.clock_lock
@@ -659,14 +714,41 @@ class DgtBoard(EBoard):
                     logger.debug("(ser) clock is locked over 2secs (attempt %s) - resending last message", self.clock_resend_attempts + 1)
                     self.clock_resend_attempts += 1
                     self.clock_lock = 0.0
-                    self.write_command(self.last_clock_command)
+                    self.write_command(self.last_clock_command, clock_retry=True)
                 else:
                     logger.warning("(ser) clock locked for %.1f secs, giving up and clearing lock", age)
                     self.clock_lock = 0.0
                     self.last_clock_command = []
+                    self.clock_resend_attempts = 0
         self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        if (
+            not self.stop_requested.is_set()
+            and self.connected
+            and self.serial is not None
+            and not self.handshake_pending
+            and self.last_board_message
+            and time.monotonic() - self.last_board_message > BOARD_SILENCE_TIMEOUT
+        ):
+            logger.warning(
+                "(ser) no board answer for over %.1f secs - treating the link as lost", BOARD_SILENCE_TIMEOUT
+            )
+            self._close_serial_for_shutdown()
+            self._on_disconnect()
+            return
+        if (
+            self.connected
+            and self.channel == "BT"
+            and time.monotonic() - self.last_battery_request >= BATTERY_STATUS_INTERVAL
+        ):
+            self.ask_battery_status()
 
     def _open_bluetooth(self):
+        if self.bt_state == 8:
+            if time.monotonic() < self.bt_retry_after:
+                return False
+            # Continue with the next known candidate.  With one board this
+            # naturally wraps around and retries that same board.
+            self.bt_state = 4
         if self.bt_state == -1:
             # only for jessie upwards
             if path.exists("/usr/bin/bluetoothctl"):
@@ -801,6 +883,10 @@ class DgtBoard(EBoard):
             if self.bt_state == 6:
                 # now try rfcomm
                 self.bt_state = 7
+                # Keep the pairing usable across reboots and transient rfcomm
+                # failures.  Trust is idempotent for an already-trusted board.
+                self.btctl.stdin.write("trust " + self.bt_mac_list[self.bt_current_device] + "\n")
+                self.btctl.stdin.flush()
                 self.bt_rfcomm = subprocess.Popen(
                     "sudo rfcomm connect 123 " + self.bt_mac_list[self.bt_current_device],
                     stdin=subprocess.PIPE,
@@ -824,31 +910,20 @@ class DgtBoard(EBoard):
                         return True
                 # rfcomm failed
                 if self.bt_rfcomm.poll() is not None:
-                    logger.debug("BT rfcomm failed")
-                    self.btctl.stdin.write("remove " + self.bt_mac_list[self.bt_current_device] + "\n")
-                    if self.bt_current_device > 0:
-                        logger.debug(
-                            "Removing device from list: %s %s",
-                            self.bt_mac_list[self.bt_current_device],
-                            self.bt_name_list[self.bt_current_device],
-                        )
-                        self.bt_mac_list.remove(self.bt_mac_list[self.bt_current_device])
-                        self.bt_name_list.remove(self.bt_name_list[self.bt_current_device])
-                        self.bt_current_device -= 1
-                    else:
-                        self.btctl.stdin.write("quit\n")
-                        self.btctl.stdin.flush()
-                        self.bt_state = -1
-                        self.bt_mac_list = []
-                        self.bt_name_list = []
-                        time.sleep(0.5)
-                        logger.debug("Restarting bluetoothctl")
+                    self._defer_bluetooth_after_rfcomm_failure()
         return False
 
-    def _queue_no_board_spinner(self):
+    def _defer_bluetooth_after_rfcomm_failure(self):
+        """Retry another candidate later without deleting BlueZ pairings."""
+        logger.debug("BT rfcomm failed; preserving pairing and retrying")
+        self.bt_state = 8
+        self.bt_retry_after = time.monotonic() + 2
+        self.bt_rfcomm = None
+
+    def _queue_no_board_spinner(self, force=False):
         """Schedule a non-blocking spinner update on the async loop."""
         now = time.time()
-        if now - self.last_no_board_display < 0.5:
+        if not force and now - self.last_no_board_display < 0.5:
             return
 
         waitchars = ["/", "-", "\\", "|"]
@@ -871,7 +946,16 @@ class DgtBoard(EBoard):
 
     def _on_disconnect(self):
         """Central place to mark the board as disconnected and trigger re-handshake."""
+        was_connected = self.connected
         self.connected = False
+        if was_connected and not self.stop_requested.is_set():
+            self._board_loss_notified = True
+            # Show the loss immediately; a Bluetooth reconnect attempt may block
+            # before _setup_serial_port reaches its regular spinner update.
+            self._queue_no_board_spinner(force=True)
+            asyncio.run_coroutine_threadsafe(
+                Observable.fire(PicoEvent.BOARD_CONNECTION_LOST(last_board_message=self.last_board_message)), self.loop
+            )
         self.handshake_pending = True
         if not self.version_timer.is_running():
             self.version_timer.start()
@@ -880,8 +964,12 @@ class DgtBoard(EBoard):
         self.last_clock_command = []
         self.clock_resend_attempts = 0
 
-    def _retry_handshake(self):
-        """Keep requesting version info until the board replies."""
+    async def _retry_handshake(self):
+        """Keep requesting version info without blocking the shared event loop."""
+        await asyncio.to_thread(self._retry_handshake_blocking)
+
+    def _retry_handshake_blocking(self):
+        """Perform one potentially blocking serial reconnect attempt."""
         if not self.handshake_pending:
             if self.version_timer.is_running():
                 self.version_timer.stop()
@@ -896,23 +984,39 @@ class DgtBoard(EBoard):
     def _open_serial(self, device: str):
         assert not self.serial, "serial connection still active: %s" % self.serial
         try:
-            self.serial = Serial(device, stopbits=STOPBITS_ONE, parity=PARITY_NONE, bytesize=EIGHTBITS, timeout=0.5)
+            self.serial = Serial(
+                device,
+                stopbits=STOPBITS_ONE,
+                parity=PARITY_NONE,
+                bytesize=EIGHTBITS,
+                timeout=0.5,
+                write_timeout=BOARD_WRITE_TIMEOUT,
+            )
         except SerialException:
             return False
         return True
 
     def _setup_serial_port(self):
         def _success(device: str):
+            if self.stop_requested.is_set():
+                self._close_serial_for_shutdown()
+                return False
             self.device = device
             logger.debug("(ser) board connected to %s", self.device)
             return True
 
+        if self.stop_requested.is_set():
+            return False
         if self.watchdog_timer.is_running():
             logger.debug("watchdog timer is stopped now")
             self.watchdog_timer.stop()
         if self.serial:
             return True
         with self.lock:
+            if self.stop_requested.is_set():
+                return False
+            if self.serial:
+                return True
             if self.given_device:
                 if self._open_serial(self.given_device):
                     return _success(self.given_device)
@@ -1128,4 +1232,33 @@ class DgtBoard(EBoard):
         if self.incoming_board_task and not self.incoming_board_task.done():
             logger.debug("incoming board task already running")
             return
+        self.stop_requested.clear()
         self.incoming_board_task = self.loop.create_task(asyncio.to_thread(self._process_incoming_board_forever))
+
+    def _close_serial_for_shutdown(self):
+        """Detach and close the current serial handle during shutdown."""
+        serial = self.serial
+        self.serial = None
+        if serial is not None:
+            try:
+                serial.close()
+            except (OSError, SerialException, TypeError):
+                logger.debug("error while closing serial board connection", exc_info=True)
+
+    async def stop(self):
+        """Stop the serial board reader and wait for its worker thread to finish."""
+        self.stop_requested.set()
+        self.watchdog_timer.stop()
+        self.version_timer.stop()
+        self.stop_field_timer()
+        self._close_serial_for_shutdown()
+        if self.incoming_board_task is not None:
+            try:
+                await self.incoming_board_task
+            except asyncio.CancelledError:
+                pass
+            except (OSError, SerialException, TypeError):
+                logger.debug("serial board reader stopped after connection closed", exc_info=True)
+        # A connection attempt may have completed after the first close but
+        # before the reader observed stop_requested.
+        self._close_serial_for_shutdown()

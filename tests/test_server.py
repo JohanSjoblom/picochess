@@ -30,9 +30,11 @@ from server import (
     _tutor_settings_from_shared,
     _board_from_web_pgn_prefix,
     _configured_engine_book_file,
+    _current_engine_menu_settings,
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
+    _current_engine_metadata,
     _engine_menu_labels,
     _engine_menu_payload,
     _apply_engine_menu_sort,
@@ -47,6 +49,7 @@ from server import (
     _select_engine_book,
     _select_web_book,
     _time_control_text,
+    _web_time_control_settings,
     _update_web_book_selection,
     _validate_setup_position_fen,
     _web_book_choices,
@@ -56,6 +59,14 @@ from utilities import version as pico_version
 
 
 class TestSettingsTemplate(unittest.TestCase):
+    def test_engine_info_shows_current_elo_and_level(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("var engineElo = settings.engine_elo", template)
+        self.assertIn("var engineLevel = settings.engine_level", template)
+        self.assertIn("[menuKey('game.elo'), engineElo]", template)
+        self.assertIn("[menuKey('engine.level'), engineLevel]", template)
+
     def test_beep_config_uses_valid_ini_values(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/settings.html").read_text(encoding="utf-8")
 
@@ -69,6 +80,22 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("['🕘 Time',  'time']", template)
         self.assertIn("if (val === 'auto' || val === 'time')", template)
 
+    def test_wayland_kiosk_hides_labwc_cursor(self):
+        root = Path(__file__).parents[1]
+        template = (root / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+        kiosk_script = (root / "kiosk.sh").read_text(encoding="utf-8")
+        installer = (root / "install-kiosk.sh").read_text(encoding="utf-8")
+
+        self.assertIn("ydotool key 56:1 125:1 35:1 35:0 125:0 56:0", kiosk_script)
+        self.assertIn('YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool', kiosk_script)
+        self.assertIn("Unable to hide Wayland cursor with ydotool", kiosk_script)
+        self.assertIn("hide_wayland_cursor", kiosk_script)
+        self.assertIn('action name="HideCursor"', installer)
+        self.assertIn('key="A-W-h"', installer)
+        self.assertIn("cp /etc/xdg/labwc/rc.xml", installer)
+        self.assertIn("no labwc configuration found", installer)
+        self.assertNotIn("pico-kiosk", template)
+
     def test_game_settings_are_persistent_toggles(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
 
@@ -77,6 +104,17 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("'display&ponder=8'", template)
         self.assertIn("'&enabled=' + (enabled ? 'true' : 'false')", template)
 
+    def test_current_engine_and_time_selections_use_authoritative_state(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("if (settings.engine_file) return eng.file === settings.engine_file;", template)
+        self.assertIn("settings.engine_category === cat", template)
+        self.assertIn("if (isCurrentCategory && !hasManufacturers)", template)
+        self.assertIn("_showEngineList(cat, manufacturer, containsCurrent)", template)
+        self.assertIn("var current = currentTimeControl();", template)
+        self.assertIn("tilePageForItem(currentIndex, items.length)", template)
+        self.assertNotIn("String((window._picoSystemInfo || {}).time_mode", template)
+
     def test_position_side_is_immediate_only_in_ponder(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
 
@@ -84,6 +122,24 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("if (currentMode !== 'ponder') return;", template)
         self.assertEqual(2, template.count("_applyPonderPositionSide();"))
         self.assertNotIn("_applyScannedPositionSide", template)
+
+    def test_position_scan_status_uses_menu_translations(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        for key in (
+            "position.scanning",
+            "common.please_wait",
+            "position.invalid",
+            "position.invalid_position",
+            "position.check_board_retry",
+            "position.scan_failed",
+            "position.check_connection",
+        ):
+            with self.subTest(key=key):
+                self.assertIn(f"menuKey('{key}')", template)
+
+        self.assertNotIn("Invalid position</strong>", template)
+        self.assertNotIn("'⚠ Invalid'", template)
 
     def test_retro_clock_preserves_clock_menu_when_returning(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
@@ -124,7 +180,20 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=21', template)
+        self.assertIn('app.js?v=25', template)
+        self.assertIn('base.css?v=15', template)
+        self.assertIn("ws.onopen = function ()", script)
+        self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
+
+    def test_eboard_disconnect_status_is_red(self):
+        root = Path(__file__).parents[1]
+        script = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        stylesheet = (root / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
+
+        self.assertIn("dgtEl.classList.add('footer-disconnected')", script)
+        self.assertIn("dgtEl.classList.remove('footer-disconnected')", script)
+        self.assertIn("#picoFooterDgt.footer-disconnected::before", stylesheet)
+        self.assertIn("color: #dc3545", stylesheet)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):
@@ -187,6 +256,28 @@ class TestServerEventHandler(unittest.TestCase):
             EventHandler.open(client)
 
         self.assertEqual([], client.messages)
+
+    def test_open_restores_clock_and_eboard_status(self):
+        shared = {
+            "clock_text": "Texel 1.11",
+            "clock_running": True,
+            "eboard_status": {"event": "Status", "eboard": "connected"},
+        }
+        client = self.Client(shared)
+
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+
+        self.assertIn(
+            {
+                "event": "Clock",
+                "msg": "Texel 1.11",
+                "running": True,
+                "menu_active": False,
+            },
+            client.messages,
+        )
+        self.assertIn({"event": "Status", "eboard": "connected"}, client.messages)
 
 
 class TestMameHistoryPreservation(unittest.TestCase):
@@ -378,6 +469,27 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
         self.assert_display_text(text)
         self.assertEqual("PGN Replay", text.web_text)
 
+    def test_web_time_control_settings_are_json_safe_and_picker_exact(self):
+        cases = [
+            ({"mode": TimeMode.FIXED, "fixed": 10}, {"mode": "fixed", "value": 10}),
+            ({"mode": TimeMode.BLITZ, "blitz": 5}, {"mode": "blitz", "value": 5}),
+            (
+                {"mode": TimeMode.FISCHER, "blitz": 5, "fischer": 3},
+                {"mode": "fischer", "value": [5, 3]},
+            ),
+            (
+                {"mode": TimeMode.FISCHER, "moves_to_go": 40, "blitz": 90, "blitz2": 60, "fischer": 30},
+                {"mode": "tournament", "value": "40 90 60 30"},
+            ),
+            ({"mode": TimeMode.FIXED, "depth": 15}, {"mode": "depth", "value": 15}),
+            ({"mode": TimeMode.FIXED, "node": 250}, {"mode": "nodes", "value": 250}),
+        ]
+        for tc_init, expected in cases:
+            with self.subTest(expected=expected):
+                result = _web_time_control_settings(tc_init)
+                self.assertEqual(expected, result)
+                json.dumps(result)
+
 
 class TestEngineMenuHelpers(unittest.TestCase):
     def setUp(self):
@@ -421,6 +533,29 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
         self.assertEqual(["retro-1", "retro-0"], [entry["file"] for entry in retro])
         self.assertEqual("", retro[0]["manufacturer"])
+
+    def test_current_engine_settings_use_file_identity(self):
+        EngineProvider.modern_engines = [
+            {"name": "Shared Name", "file": "modern-engine", "level_dict": {}},
+        ]
+        EngineProvider.retro_engines = [
+            {
+                "name": "Shared Name",
+                "file": "retro-engine",
+                "manufacturer": "Novag",
+                "level_dict": {},
+            },
+        ]
+        menu = Mock()
+        menu.get_engine.return_value = EngineProvider.retro_engines[0]
+
+        settings = _current_engine_menu_settings(
+            {"dgtmenu": menu, "system_info": {"engine_name": "Shared Name"}}
+        )
+
+        self.assertEqual("retro-engine", settings["engine_file"])
+        self.assertEqual("retro", settings["engine_category"])
+        self.assertEqual("Novag", settings["engine_manufacturer"])
 
     def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
         EngineProvider.modern_engines = [
@@ -603,6 +738,30 @@ class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual([{"event": "Analysis", "analysis": rich_analysis}], analysis_calls)
 
+    async def test_time_control_publishes_structured_picker_state(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        tc_init = {
+            "mode": TimeMode.FISCHER,
+            "fixed": 0,
+            "blitz": 5,
+            "fischer": 3,
+            "moves_to_go": 0,
+            "blitz2": 0,
+            "depth": 0,
+            "node": 0,
+            "internal_time": None,
+        }
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.TIME_CONTROL(time_text=Mock(), show_ok=False, tc_init=tc_init))
+
+        expected = {"mode": "fischer", "value": [5, 3]}
+        self.assertEqual(expected, shared["system_info"]["time_control"])
+        write_to_clients.assert_any_call(
+            {"event": "SystemInfo", "msg": {"time_label": "5+3", "time_control": expected}}
+        )
+
 
 class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
     async def test_game_ends_publishes_inactive_game_before_final_fen(self):
@@ -626,10 +785,70 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         calls = [call.args[0] for call in write_to_clients.call_args_list]
         self.assertEqual({"event": "SystemInfo", "msg": {"game_started": False}}, calls[0])
         self.assertEqual("0-1", shared["headers"]["Result"])
-        self.assertEqual("Fen", calls[-1]["event"])
-        self.assertEqual("reload", calls[-1]["play"])
-        self.assertIn("0-1", calls[-1]["pgn"])
+        self.assertEqual("Fen", calls[-2]["event"])
+        self.assertEqual("reload", calls[-2]["play"])
+        self.assertIn("0-1", calls[-2]["pgn"])
+        self.assertEqual({"event": "GameEnd", "result": "0-1"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
+
+
+class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
+    async def test_battery_update_is_cached_and_pushed_to_clients(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.BATTERY(percent=42))
+
+        self.assertEqual("42%", shared["system_info"]["battery"])
+        write_to_clients.assert_called_once_with(
+            {"event": "SystemInfo", "msg": {"battery": "42%"}}
+        )
+
+    async def test_unavailable_battery_is_cached_and_pushed_to_clients(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.BATTERY(percent=0x7F))
+
+        self.assertEqual("N/A", shared["system_info"]["battery"])
+        write_to_clients.assert_called_once_with(
+            {"event": "SystemInfo", "msg": {"battery": "N/A"}}
+        )
+
+    async def test_unchanged_battery_is_pushed_but_not_logged_again(self):
+        shared = {}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with (
+            patch("server.EventHandler.write_to_clients") as write_to_clients,
+            patch("server.logger.info") as log_info,
+        ):
+            await display.task(Message.BATTERY(percent=42))
+            await display.task(Message.BATTERY(percent=42))
+            await display.task(Message.BATTERY(percent=41))
+
+        self.assertEqual(2, log_info.call_count)
+        self.assertEqual(3, write_to_clients.call_count)
+        self.assertEqual("41%", shared["system_info"]["battery"])
+
+
+class TestServerWebDisplayEboardStatus(unittest.IsolatedAsyncioTestCase):
+    async def test_no_eboard_message_marks_board_disconnected(self):
+        shared = {
+            "eboard_status": {"event": "Status", "eboard": "connected"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        text = Mock()
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
+
+        disconnected = {"event": "Status", "eboard": "noeboard"}
+        self.assertEqual(disconnected, shared["eboard_status"])
+        write_to_clients.assert_called_once_with(disconnected)
 
 
 class TestServerWebBookSelection(unittest.TestCase):
@@ -711,8 +930,29 @@ class TestServerWebEngineSelection(unittest.TestCase):
         self.assertEqual("", level_event.level_name)
         self.assertEqual({}, engine_event.options)
 
+    def test_current_engine_metadata_uses_live_engine_state(self):
+        shared = {
+            "system_info": {"engine_name": "Stockfish", "engine_elo": 2500},
+            "game_info": {"level_name": "Elo@1800"},
+        }
+
+        self.assertEqual(
+            {"engine_name": "Stockfish", "engine_elo": 2500, "engine_level": "Elo@1800"},
+            _current_engine_metadata(shared),
+        )
+
 
 class TestServerEngineBookSelection(unittest.TestCase):
+    def setUp(self):
+        self.book_file = "books/test.bin"
+        self.book = {
+            "file": self.book_file,
+            "text": _display_text_from_label("Test Book"),
+        }
+        opening_books = patch("server.get_opening_books", return_value=[self.book])
+        opening_books.start()
+        self.addCleanup(opening_books.stop)
+
     def test_engine_book_choices_exclude_obooksrv_and_are_json_safe(self):
         books = _engine_book_choices()
         self.assertTrue(books)
@@ -724,7 +964,9 @@ class TestServerEngineBookSelection(unittest.TestCase):
         self.assertIsNone(_select_engine_book(OBOOKSRV_BOOK_FILE))
 
     def test_select_engine_book_resolves_configured_book_file(self):
-        selected = _select_engine_book(_configured_engine_book_file())
+        entries = {"book": {"value": self.book_file, "enabled": True}}
+        with patch("server._load_ini_entries", return_value=("picochess.ini", [], [], entries)):
+            selected = _select_engine_book(_configured_engine_book_file())
         self.assertIsNotNone(selected)
         self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
         self.assertTrue(selected["label"])

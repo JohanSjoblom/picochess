@@ -2,7 +2,7 @@ import unittest
 
 import chess
 
-from picochess import BestSeenDepth
+from analysis_depth import BestSeenDepth
 
 
 class TestBestSeenDepth(unittest.TestCase):

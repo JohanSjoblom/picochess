@@ -96,6 +96,8 @@ class EventApi:
     # Timecontrol events
     OUT_OF_TIME = "EVT_OUT_OF_TIME"  # Clock flag fallen
     CLOCK_TIME = "EVT_CLOCK_TIME"  # Clock sends its time
+    BOARD_CONNECTION_LOST = "EVT_BOARD_CONNECTION_LOST"
+    BOARD_CONNECTION_RESTORED = "EVT_BOARD_CONNECTION_RESTORED"
     # Special events
     EXIT_MENU = "EVT_EXIT_MENU"  # User exists the menu
     UPDATE_PICO = "EVT_UPDATE"  # User wants to upgrade/downgrade picochess
@@ -392,15 +394,25 @@ class Event:
     KEYBOARD_BUTTON = ClassFactory(EventApi.KEYBOARD_BUTTON, ["button", "dev"])
     KEYBOARD_FEN = ClassFactory(EventApi.KEYBOARD_FEN, ["fen"])
     # Engine events
-    BEST_MOVE = ClassFactory(EventApi.BEST_MOVE, ["move", "ponder", "inbook"])
-    NEW_PV = ClassFactory(EventApi.NEW_PV, ["pv"])
-    NEW_SCORE = ClassFactory(EventApi.NEW_SCORE, ["score", "mate"])
-    NEW_DEPTH = ClassFactory(EventApi.NEW_DEPTH, ["depth"])
+    # ``fen`` and ``search_revision`` are optional for backward compatibility
+    # with older producers. Picochess supplies both so delayed engine results
+    # can be rejected safely, including repeated searches on the same FEN.
+    BEST_MOVE = ClassFactory(
+        EventApi.BEST_MOVE,
+        ["move", "ponder", "inbook", "fen", "search_revision"],
+    )
+    # ``fen`` is optional for backward compatibility with older producers.
+    # Picochess supplies it so delayed analysis events can be rejected safely.
+    NEW_PV = ClassFactory(EventApi.NEW_PV, ["pv", "fen"])
+    NEW_SCORE = ClassFactory(EventApi.NEW_SCORE, ["score", "mate", "fen"])
+    NEW_DEPTH = ClassFactory(EventApi.NEW_DEPTH, ["depth", "fen"])
     START_SEARCH = ClassFactory(EventApi.START_SEARCH, [])
     STOP_SEARCH = ClassFactory(EventApi.STOP_SEARCH, [])
     # Timecontrol events
     OUT_OF_TIME = ClassFactory(EventApi.OUT_OF_TIME, ["color"])
     CLOCK_TIME = ClassFactory(EventApi.CLOCK_TIME, ["time_white", "time_black", "connect", "dev"])
+    BOARD_CONNECTION_LOST = ClassFactory(EventApi.BOARD_CONNECTION_LOST, ["last_board_message"])
+    BOARD_CONNECTION_RESTORED = ClassFactory(EventApi.BOARD_CONNECTION_RESTORED, [])
     # special events
     EXIT_MENU = ClassFactory(EventApi.EXIT_MENU, [])
     UPDATE_PICO = ClassFactory(EventApi.UPDATE_PICO, ["tag"])

@@ -84,6 +84,31 @@ EOF
 
 systemctl daemon-reload
 
+# Chromium cannot hide labwc's compositor cursor with page CSS. Bind a
+# dedicated shortcut that kiosk.sh can trigger through ydotool after startup.
+LABWC_CONFIG_DIR="$INSTALL_USER_HOME/.config/labwc"
+LABWC_CONFIG="$LABWC_CONFIG_DIR/rc.xml"
+LABWC_CURSOR_BINDING='<keybind key="A-W-h"><action name="HideCursor"/><action name="WarpCursor" x="-1" y="-1"/></keybind>'
+if [ ! -f "$LABWC_CONFIG" ]; then
+    mkdir -p "$LABWC_CONFIG_DIR"
+    if [ -f /etc/xdg/labwc/rc.xml ]; then
+        cp /etc/xdg/labwc/rc.xml "$LABWC_CONFIG"
+        chown -R "$INSTALL_USER:$INSTALL_USER" "$LABWC_CONFIG_DIR"
+        echo "Copied the system labwc configuration for $INSTALL_USER"
+    else
+        echo "Warning: no labwc configuration found; cursor shortcut not installed" >&2
+    fi
+fi
+if [ -f "$LABWC_CONFIG" ] && ! grep -q 'key="A-W-h".*action name="HideCursor"' "$LABWC_CONFIG"; then
+    if grep -q '</keyboard>' "$LABWC_CONFIG"; then
+        sed -i "1,/<\\/keyboard>/s#</keyboard>#$LABWC_CURSOR_BINDING</keyboard>#" "$LABWC_CONFIG"
+        chown "$INSTALL_USER:$INSTALL_USER" "$LABWC_CONFIG"
+        echo "Configured labwc to hide the kiosk cursor"
+    else
+        echo "Warning: no keyboard section found in $LABWC_CONFIG; cursor shortcut not installed" >&2
+    fi
+fi
+
 # Kiosk autostart
 AUTOSTART_DIR="$INSTALL_USER_HOME/.config/autostart"
 CONFIG_DIR="$INSTALL_USER_HOME/.config"

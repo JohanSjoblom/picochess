@@ -1920,9 +1920,50 @@ class UciEngine(object):
             return not self.playing.is_waiting_for_move()
         return True
 
+    async def wait_until_idle(self, timeout: float | None = None) -> bool:
+        """Wait until the playing search is idle without exposing its implementation."""
+        if not self.playing:
+            return True
+        return await self.playing.wait_until_idle(timeout)
+
+    async def cancel_playing_search(self, timeout: float = 1.0) -> bool:
+        """Cancel a stuck playing search and wait briefly for its cleanup."""
+        if not self.playing or not self.playing.is_waiting_for_move():
+            return True
+        self.playing.cancel()
+        self.playing.abort()
+        return await self.playing.wait_until_idle(timeout)
+
     def is_ready(self):
         """Engine waiting."""
         return True  # should not be needed any more
+
+    async def send_terminal_position_to_mame(self, game: Board) -> bool:
+        """Notify an idle MAME adapter of a user move that ended the game.
+
+        This deliberately sends only ``position``.  There is no following
+        ``go`` or ``isready`` because retro engines may use the position update
+        to show their native end-of-game reaction and PicoChess must not wait
+        for a reply.
+        """
+        if not self.engine or not self.is_mame:
+            return False
+
+        async with self.engine_lock:
+            if self.playing and self.playing.is_waiting_for_move():
+                # A Brain-mode ponder or a just-stopped search may still be
+                # releasing python-chess's active command. Coordinate with
+                # that earlier search, but never wait indefinitely. Once the
+                # position is written below there is deliberately no response
+                # wait of any kind.
+                idle = await self.playing.wait_until_idle(timeout=2.5)
+                if not idle:
+                    logger.warning("MAME terminal position skipped because engine is still thinking")
+                    return False
+
+            logger.debug("sending terminal position to mame engine: %s", game.fen())
+            self.engine._position(copy.deepcopy(game))
+            return True
 
     async def newgame(
         self,

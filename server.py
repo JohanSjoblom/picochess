@@ -508,6 +508,89 @@ def _engine_menu_payload() -> dict:
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
+def _current_engine_metadata(shared: dict) -> dict:
+    """Return the live engine metadata shown by the web Engine Info panel."""
+    system_info = shared.get("system_info", {})
+    return {
+        "engine_name": system_info.get("engine_name", ""),
+        "engine_elo": system_info.get("engine_elo", ""),
+        "engine_level": shared.get("game_info", {}).get("level_name", ""),
+    }
+
+
+def _current_engine_menu_settings(shared: dict) -> dict:
+    """Return stable web-menu identity for the selected engine."""
+    from uci.engine_provider import EngineProvider
+
+    selected: dict[str, object] = {}
+    dgtmenu = shared.get("dgtmenu")
+    if dgtmenu is not None:
+        try:
+            selected = dgtmenu.get_engine() or {}
+        except (AttributeError, IndexError):
+            selected = {}
+
+    system_info = shared.get("system_info", {})
+    engine_file = str(selected.get("file", "") or "")
+    engine_name = str(selected.get("name", "") or system_info.get("engine_name", "") or "")
+    match = None
+    match_category = ""
+    for category, catalog in (
+        ("modern", EngineProvider.modern_engines),
+        ("retro", EngineProvider.retro_engines),
+        ("favorites", EngineProvider.favorite_engines),
+    ):
+        for engine in catalog:
+            same_file = bool(engine_file) and engine.get("file", "") == engine_file
+            same_name = not engine_file and engine_name and engine.get("name", "") == engine_name
+            if same_file or same_name:
+                match = engine
+                match_category = category
+                break
+        if match is not None:
+            break
+
+    if match is not None:
+        engine_file = str(match.get("file", engine_file))
+        engine_name = str(match.get("name", engine_name))
+
+    return {
+        "engine_file": engine_file,
+        "engine_name": engine_name,
+        "engine_category": match_category,
+        "engine_manufacturer": str((match or {}).get("manufacturer", "")),
+    }
+
+
+def _web_time_control_settings(tc_init: dict) -> dict:
+    """Serialize the selected time control for exact web-picker matching."""
+    if not tc_init:
+        return {}
+
+    depth = int(tc_init.get("depth") or 0)
+    node = int(tc_init.get("node") or 0)
+    moves = int(tc_init.get("moves_to_go") or 0)
+    blitz = int(tc_init.get("blitz") or 0)
+    fixed = int(tc_init.get("fixed") or 0)
+    fischer = int(tc_init.get("fischer") or 0)
+    blitz2 = int(tc_init.get("blitz2") or 0)
+    mode = tc_init.get("mode")
+
+    if depth:
+        return {"mode": "depth", "value": depth}
+    if node:
+        return {"mode": "nodes", "value": node}
+    if moves:
+        return {"mode": "tournament", "value": f"{moves} {blitz} {blitz2} {fischer}"}
+    if mode == TimeMode.FISCHER:
+        return {"mode": "fischer", "value": [blitz, fischer]}
+    if mode == TimeMode.BLITZ:
+        return {"mode": "blitz", "value": blitz}
+    if mode == TimeMode.FIXED:
+        return {"mode": "fixed", "value": fixed}
+    return {}
+
+
 def _engine_menu_labels(dgttranslate) -> dict:
     """Return translated labels for the web engine-menu overlay."""
     language = getattr(dgttranslate, "language", "en") if dgttranslate else "en"
@@ -693,6 +776,15 @@ def _clock_event(shared: dict, text, running: bool = False):
         "running": shared["clock_running"],
         "menu_active": _clock_menu_active(shared),
     }
+
+
+def _eboard_status_event(shared: dict, eboard: str, msg: str | None = None):
+    """Cache the physical-board status so reconnecting clients can recover it."""
+    payload = {"event": "Status", "eboard": eboard}
+    if msg is not None:
+        payload["msg"] = msg
+    shared["eboard_status"] = payload
+    return payload
 
 
 def _clock_menu_active(shared: dict) -> bool:
@@ -1827,6 +1919,23 @@ class EventHandler(WebSocketHandler):
                 self.write_message({"event": "TutorSettings", "settings": _tutor_settings_from_shared(self.shared)})
             except Exception as exc:  # pragma: no cover - websocket errors
                 logger.warning("failed to sync tutor settings to client: %s", exc)
+        if self.shared and "clock_text" in self.shared:
+            try:
+                self.write_message(
+                    {
+                        "event": "Clock",
+                        "msg": self.shared["clock_text"],
+                        "running": bool(self.shared.get("clock_running", False)),
+                        "menu_active": _clock_menu_active(self.shared),
+                    }
+                )
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync clock state to client: %s", exc)
+        if self.shared and "eboard_status" in self.shared:
+            try:
+                self.write_message(dict(self.shared["eboard_status"]))
+            except Exception as exc:  # pragma: no cover - websocket errors
+                logger.warning("failed to sync eboard status to client: %s", exc)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -2003,10 +2112,12 @@ class InfoHandler(ServerRequestHandler):
                 ) else "off"
             except Exception as exc:
                 logger.warning("get_current_settings error: %s", exc)
-            # Engine name and level come from shared (live state, not ini)
-            si = self.shared.get("system_info", {})
-            settings["engine_name"] = si.get("engine_name", "")
-            settings["engine_level"] = self.shared.get("game_info", {}).get("level_name", "")
+            # Engine metadata comes from shared (live state, not ini).
+            settings.update(_current_engine_metadata(self.shared))
+            # Engine and time selections come from live state, not ini display labels.
+            settings.update(_current_engine_menu_settings(self.shared))
+            game_info = self.shared.get("game_info", {})
+            settings["time_control"] = _web_time_control_settings(game_info.get("tc_init", {}))
             settings.update(_tutor_settings_from_shared(self.shared))
             self.set_header("Content-Type", "application/json")
             self.write(json.dumps(settings))
@@ -3434,9 +3545,17 @@ class WebDisplay(DisplayMsg):
             self._create_system_info()
             pct = message.percent
             if pct == 0x7F:
-                self.shared["system_info"]["battery"] = "N/A"
+                battery = "N/A"
             else:
-                self.shared["system_info"]["battery"] = "{}%".format(min(pct, 99))
+                battery = "{}%".format(min(max(pct, 0), 99))
+            previous_battery = self.shared["system_info"].get("battery")
+            if battery != previous_battery:
+                if battery == "N/A":
+                    logger.info("DGT battery status unavailable")
+                else:
+                    logger.info("DGT battery status: %s", battery)
+            self.shared["system_info"]["battery"] = battery
+            EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"battery": battery}})
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
@@ -3488,7 +3607,7 @@ class WebDisplay(DisplayMsg):
                 {
                     "event": "SystemInfo",
                     "msg": {
-                        "engine_name": message.engine_name,
+                        **_current_engine_metadata(self.shared),
                         "is_mame": message.is_mame,
                         "mame_capabilities": dict(message.mame_capabilities),
                     },
@@ -3524,6 +3643,7 @@ class WebDisplay(DisplayMsg):
                 _tc_label = self._tc_to_label(_tc_init)
                 if _tc_label:
                     self.shared["system_info"]["time_label"] = _tc_label
+                self.shared["system_info"]["time_control"] = _web_time_control_settings(_tc_init)
 
             # remove if no level_text or level_name exist, else set old/original value from start
             if self.shared["game_info"].get("level_text") is None:
@@ -3631,14 +3751,20 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["time_text"] = message.time_text
             self.shared["game_info"]["tc_init"] = message.tc_init
-            # Derive a plain-string time label from tc_init and push it.
-            # tc_init contains TimeMode enums which are not JSON-safe, so we
-            # never put tc_init itself into system_info — only the derived label.
+            # Publish display text plus an enum-free picker selection. The raw
+            # tc_init contains TimeMode values and is not JSON-safe.
             _time_label = self._tc_to_label(message.tc_init)
             if _time_label:
                 self._create_system_info()
                 self.shared["system_info"]["time_label"] = _time_label
-                EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"time_label": _time_label}})
+                _time_control = _web_time_control_settings(message.tc_init)
+                self.shared["system_info"]["time_control"] = _time_control
+                EventHandler.write_to_clients(
+                    {
+                        "event": "SystemInfo",
+                        "msg": {"time_label": _time_label, "time_control": _time_control},
+                    }
+                )
             # Immediately push new clock times to web clients.
             # The normal dispatch chain (CLOCK_SET → CLOCK_START) can be silently
             # dropped when clock_connected["web"] is not yet set, or can be
@@ -3731,10 +3857,18 @@ class WebDisplay(DisplayMsg):
             # Serial number confirms the physical board is present on the bus.
             # Turn the footer dot green regardless of whether a clock is attached.
             if message.number:
-                EventHandler.write_to_clients({"event": "Status", "eboard": "connected"})
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, "connected"))
+
+        elif isinstance(message, Message.DGT_NO_EBOARD_ERROR):
+            # Keep both current and reconnecting browsers in sync with the
+            # physical-board state while the board connection is unavailable.
+            # The spinner can arrive twice per second, so publish only the
+            # connection-state transition.
+            if self.shared.get("eboard_status", {}).get("eboard") != "noeboard":
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, "noeboard"))
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
-            EventHandler.write_to_clients({"event": "Status", "eboard": "error"})
+            EventHandler.write_to_clients(_eboard_status_event(self.shared, "error"))
 
         elif isinstance(message, Message.DGT_CLOCK_VERSION):
             if message.dev == "ser":
@@ -3744,11 +3878,11 @@ class WebDisplay(DisplayMsg):
             else:
                 attached = "server"
             connected = attached != "server"  # physical board, not web-only
-            result = {
-                "event": "Status",
-                "msg": "Ok clock " + attached,
-                "eboard": "connected" if connected else "noeboard",
-            }
+            result = _eboard_status_event(
+                self.shared,
+                "connected" if connected else "noeboard",
+                "Ok clock " + attached,
+            )
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.COMPUTER_MOVE):
@@ -3938,6 +4072,9 @@ class WebDisplay(DisplayMsg):
             _attach_variant_info(end_msg)
             self.shared["last_dgt_move_msg"] = end_msg
             EventHandler.write_to_clients(end_msg)
+            # Announce the result only as a live event. Reconnecting clients
+            # receive last_dgt_move_msg, but must not repeat an old result.
+            EventHandler.write_to_clients({"event": "GameEnd", "result": WebDisplay.result_sav})
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

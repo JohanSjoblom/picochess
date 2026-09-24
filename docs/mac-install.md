@@ -35,6 +35,14 @@ is opt-in and requires a clean branch:
 bash ./install-picochess-mac.sh --update-repo
 ```
 
+The update uses `git pull --ff-only`, so it never merges or overwrites local
+work. It also configures older single-branch checkouts to fetch all branches,
+without changing the checked-out branch.
+
+> **Beta note:** Fresh clones currently check out the `471-port-to-windows`
+> branch explicitly. This temporary branch pin must be removed before the port
+> is merged into the default branch.
+
 ## Resource and recovery options
 
 Books, opening data, and games database data are installed by default. A subset
@@ -54,8 +62,9 @@ Use `--validate-only` to inspect an existing checkout without changing it,
 omit the final checks.
 
 The games archive contains useful database data, but its bundled `tcscid`
-binaries are for Linux. A native macOS Scid/tcscid setup is outside the scope
-of this installer.
+binaries are for Linux. Installing a native macOS Scid/tcscid is outside the
+scope of this installer. If you have one, the launcher can start it for the
+Games tab (see below).
 
 ## Engines and startup
 
@@ -69,8 +78,22 @@ macOS. See the
 After configuring `picochess.ini`, start PicoChess from the repository root:
 
 ```bash
-./venv/bin/python picochess.py
+bash ./start-picochess-mac.sh
 ```
+
+Arguments after `--` are passed to `picochess.py`:
+
+```bash
+bash ./start-picochess-mac.sh -- --board-type noeboard --web-server 8080
+```
+
+The launcher checks for the virtual environment and `picochess.ini`. It then
+optionally starts the Scid games helper (`tcscid get_games.tcl --server 7778`)
+when the games data and a native macOS `tcscid` are available. The `tcscid` is
+taken from `--tcscid PATH`, then `PICOCHESS_TCSCID`, then `PATH`. The helper is
+stopped when PicoChess exits. Use `--skip-games-server` to skip it. Without a
+helper, PicoChess replaces the launcher process, so stopping it with Ctrl+C
+behaves exactly like running `./venv/bin/python picochess.py`.
 
 The experimental macOS path is intended primarily for web-only play with a
 native engine. PGN upload authentication, host updates, Wi-Fi/Bluetooth setup,

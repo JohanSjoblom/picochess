@@ -7,6 +7,9 @@
 set -eu
 
 REPOSITORY_URL="https://github.com/JohanSjoblom/picochess.git"
+# Temporary during Windows/macOS beta testing. Remove the explicit branch from
+# the clone commands before merging this feature branch into the default branch.
+REPOSITORY_BRANCH="471-port-to-windows"
 INSTALL_DIR=""
 RESOURCES="Books,OpeningData,Games"
 SKIP_RESOURCES=false
@@ -169,13 +172,13 @@ ensure_repository() {
         [ -z "$(ls -A "$INSTALL_DIR")" ] || fail "Install directory is neither empty nor a PicoChess checkout: $INSTALL_DIR"
         command -v git >/dev/null 2>&1 || fail "Git is required to clone PicoChess. Install the Xcode Command Line Tools or Homebrew Git."
         step "Cloning PicoChess"
-        git clone "$REPOSITORY_URL" "$INSTALL_DIR"
+        git clone --branch "$REPOSITORY_BRANCH" "$REPOSITORY_URL" "$INSTALL_DIR"
     else
         [ "$VALIDATE_ONLY" = false ] || fail "--validate-only requires an existing PicoChess checkout: $INSTALL_DIR"
         command -v git >/dev/null 2>&1 || fail "Git is required to clone PicoChess. Install the Xcode Command Line Tools or Homebrew Git."
         mkdir -p "$(dirname -- "$INSTALL_DIR")"
         step "Cloning PicoChess"
-        git clone "$REPOSITORY_URL" "$INSTALL_DIR"
+        git clone --branch "$REPOSITORY_BRANCH" "$REPOSITORY_URL" "$INSTALL_DIR"
     fi
 
     is_checkout "$INSTALL_DIR" || fail "The selected directory is not a complete PicoChess Git checkout: $INSTALL_DIR"
@@ -197,6 +200,14 @@ ensure_repository() {
         [ -z "$(git -C "$INSTALL_DIR" status --porcelain)" ] || fail "The checkout has local changes. Commit or stash them before using --update-repo. No files were changed."
         branch=$(git -C "$INSTALL_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
         [ -n "$branch" ] || fail "The checkout is detached. Select a branch before using --update-repo."
+        # A --single-branch clone fetches only the checked-out branch. Fetch all
+        # branches so the checkout can later move to another branch; the current
+        # branch and its upstream are unchanged.
+        all_branches="+refs/heads/*:refs/remotes/origin/*"
+        if ! git -C "$INSTALL_DIR" config --get-all remote.origin.fetch | grep -qxF "$all_branches"; then
+            status "Configuring origin to fetch all branches."
+            git -C "$INSTALL_DIR" config --replace-all remote.origin.fetch "$all_branches"
+        fi
         step "Updating branch $branch with a fast-forward-only pull"
         git -C "$INSTALL_DIR" pull --ff-only
     fi
@@ -368,6 +379,7 @@ show_readiness() {
         *,Games,*)
             if [ "$SKIP_RESOURCES" = false ]; then
                 status "Games database data is portable, but its bundled Linux tcscid binaries are not used on macOS."
+                status "With a native macOS tcscid, start-picochess-mac.sh --tcscid PATH enables the Games tab."
             fi
             ;;
     esac
@@ -445,4 +457,4 @@ fi
 show_readiness
 printf '\nPicoChess macOS environment installation completed.\n'
 printf 'After adding and configuring a native macOS UCI engine, start with:\n'
-printf '  cd %s && ./venv/bin/python picochess.py\n' "$INSTALL_DIR"
+printf '  bash "%s/start-picochess-mac.sh"\n' "$INSTALL_DIR"

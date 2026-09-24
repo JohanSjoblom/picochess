@@ -555,6 +555,45 @@ class TestServerTutorCoachHelpers(unittest.TestCase):
         self.assertEqual(28, settings["tutor_depth"])
 
 
+class TestServerWebDisplayStartup(unittest.IsolatedAsyncioTestCase):
+    async def test_early_client_receives_board_authority_when_startup_finishes(self):
+        for board_type, mode, play_mode in (
+            (EBoardType.NOEBOARD, Mode.NORMAL, PlayMode.USER_WHITE),
+            (EBoardType.DGT, Mode.NORMAL, PlayMode.USER_WHITE),
+            (EBoardType.DGT, Mode.REMOTE, PlayMode.USER_BLACK),
+        ):
+            with self.subTest(board_type=board_type, mode=mode):
+                shared = {}
+                display = WebDisplay(shared, asyncio.get_running_loop())
+                client_info = {}
+
+                def receive(payload):
+                    if payload.get("event") == "SystemInfo":
+                        client_info.update(json.loads(json.dumps(payload["msg"])))
+
+                with (
+                    patch("server.ModeInfo.get_eboard_type", return_value=board_type),
+                    patch("server.EventHandler.write_to_clients", side_effect=receive),
+                ):
+                    await display.task(Message.SYSTEM_INFO(info={
+                        "engine_name": "Mephisto MM V",
+                        "is_mame": True,
+                        "mame_capabilities": {"position": True, "edit": False, "info": True},
+                    }))
+                    await display.task(Message.STARTUP_INFO(info={
+                        "interaction_mode": mode,
+                        "play_mode": play_mode,
+                        "books": [],
+                        "book_index": None,
+                    }))
+
+                self.assertEqual(board_type != EBoardType.NOEBOARD, client_info["has_board"])
+                self.assertEqual(mode.name.lower(), client_info["interaction_mode"])
+                self.assertEqual(play_mode.name.lower(), client_info["play_mode"])
+                self.assertEqual("Mephisto MM V", client_info["engine_name"])
+                self.assertFalse(client_info["mame_capabilities"]["edit"])
+
+
 class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):
     async def test_system_info_includes_picochess_version(self):
         shared = {}

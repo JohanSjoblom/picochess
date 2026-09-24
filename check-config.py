@@ -84,7 +84,7 @@ def main(argv):
 
     board_type = get_value(cfg, "board-type")
     if board_type:
-        allowed = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "noeboard"}
+        allowed = {"dgt", "certabo", "chesslink", "chessnut", "ichessone", "citrine", "osa", "noeboard"}
         if board_type.lower() not in allowed:
             errors.append(
                 f"board-type='{board_type}' is invalid. Allowed: {', '.join(sorted(allowed))}."

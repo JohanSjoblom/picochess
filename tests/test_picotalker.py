@@ -7,7 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import numpy as np
+try:
+    import numpy as np
+except Exception:
+    np = None
 
 from picotalker import PicoTalkerDisplay
 
@@ -57,6 +60,10 @@ class TestPicoTalkerSoxBackend(unittest.TestCase):
 
 
 class TestPicoTalkerReplayGain(unittest.TestCase):
+    def setUp(self):
+        if np is not None:
+            self.enterContext(patch("picotalker.np", np, create=True))
+
     def test_read_replaygain_track_gain_from_ogg_comment_bytes(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             voice_file = Path(tmpdir) / "voice.ogg"
@@ -75,6 +82,7 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
 
         self.assertIsNone(gain)
 
+    @unittest.skipIf(np is None, "NumPy is unavailable")
     def test_apply_replaygain_track_gain_scales_samples(self):
         samples = np.array([[0.25], [-0.25]], dtype=np.float32)
 
@@ -83,6 +91,7 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
         self.assertAlmostEqual(float(adjusted[0, 0]), 0.25 * (10 ** (6.0 / 20)), places=6)
         self.assertAlmostEqual(float(adjusted[1, 0]), -0.25 * (10 ** (6.0 / 20)), places=6)
 
+    @unittest.skipIf(np is None, "NumPy is unavailable")
     def test_apply_replaygain_track_gain_limits_positive_gain_to_prevent_clipping(self):
         samples = np.array([[0.8], [-0.4]], dtype=np.float32)
 
@@ -91,6 +100,7 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
         self.assertAlmostEqual(float(np.max(np.abs(adjusted))), 1.0, places=6)
         self.assertAlmostEqual(float(adjusted[1, 0]), -0.5, places=6)
 
+    @unittest.skipIf(np is None, "NumPy is unavailable")
     def test_apply_replaygain_track_gain_leaves_untagged_samples_unchanged(self):
         samples = np.array([[0.25], [-0.25]], dtype=np.float32)
 
@@ -100,6 +110,11 @@ class TestPicoTalkerReplayGain(unittest.TestCase):
 
 
 class TestPicoTalkerNativeVolume(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch("picotalker.sd", Mock(), create=True))
+        # Stream priming is unrelated to volume retries and needs NumPy samples.
+        self.enterContext(patch("picotalker.NATIVE_STREAM_STARTUP_WAIT", 0))
+
     def _talker(self):
         talker = PicoTalkerDisplay.__new__(PicoTalkerDisplay)
         talker.native_stream = None

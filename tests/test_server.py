@@ -29,7 +29,6 @@ from server import (
     _bounded_tutor_threads,
     _tutor_settings_from_shared,
     _board_from_web_pgn_prefix,
-    _configured_engine_book_file,
     _display_text_from_label,
     _engine_book_choices,
     _engine_change_events,
@@ -714,21 +713,28 @@ class TestServerWebEngineSelection(unittest.TestCase):
 
 
 class TestServerEngineBookSelection(unittest.TestCase):
+    def setUp(self):
+        books = patch("server.get_opening_books", return_value=[
+            {"file": "books/alpha.bin", "text": "Alpha"},
+            {"file": "books/beta.bin", "text": "Beta"},
+        ])
+        books.start()
+        self.addCleanup(books.stop)
+
     def test_engine_book_choices_exclude_obooksrv_and_are_json_safe(self):
         books = _engine_book_choices()
-        self.assertTrue(books)
-        self.assertNotEqual(OBOOKSRV_BOOK_FILE, books[0]["file"])
+        self.assertEqual(["books/alpha.bin", "books/beta.bin"], [book["file"] for book in books])
         json.dumps({"books": books})
 
     def test_engine_book_choices_exclude_web_only_obooksrv_entry(self):
         self.assertEqual(len(_web_book_choices()) - 1, len(_engine_book_choices()))
         self.assertIsNone(_select_engine_book(OBOOKSRV_BOOK_FILE))
 
-    def test_select_engine_book_resolves_configured_book_file(self):
-        selected = _select_engine_book(_configured_engine_book_file())
+    def test_select_engine_book_resolves_known_book_file(self):
+        selected = _select_engine_book("books/alpha.bin")
         self.assertIsNotNone(selected)
-        self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
-        self.assertTrue(selected["label"])
+        self.assertEqual("books/alpha.bin", selected["file"])
+        self.assertEqual("Alpha", selected["label"])
 
     @patch("server.get_opening_books")
     def test_engine_books_are_alphabetical(self, get_opening_books):

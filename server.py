@@ -42,18 +42,6 @@ import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
 
-def _supports_linux_host_integration(system_name: str | None = None) -> bool:
-    """Return whether optional Linux host-management features are available."""
-    return (system_name or platform.system()) == "Linux"
-
-
-if _supports_linux_host_integration():
-    import pam
-    from upload_pgn import UploadHandler
-else:
-    pam = None
-    UploadHandler = None
-
 from utilities import (
     Observable,
     DisplayMsg,
@@ -90,6 +78,20 @@ from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
 from pgn import ModeInfo, add_picotutor_variations_to_game
 import picotutor_constants as picotutor_c
+
+
+def _supports_linux_host_integration(system_name: str | None = None) -> bool:
+    """Return whether optional Linux host-management features are available."""
+    return (system_name or platform.system()) == "Linux"
+
+
+if _supports_linux_host_integration():
+    import pam
+    from upload_pgn import UploadHandler
+else:
+    pam = None
+    UploadHandler = None
+
 
 # This needs to be reworked to be session based (probably by token)
 # Otherwise multiple clients behind a NAT can all play as the 'player'
@@ -2782,26 +2784,26 @@ class WebServer:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
         handlers = [
-                (
-                    r"/",
-                    ChessBoardHandler,
-                    dict(
-                        theme=theme,
-                        pieces=pieces,
-                        board=board,
-                        shared=shared,
-                        theme_resolver=theme_resolver,
-                    ),
+            (
+                r"/",
+                ChessBoardHandler,
+                dict(
+                    theme=theme,
+                    pieces=pieces,
+                    board=board,
+                    shared=shared,
+                    theme_resolver=theme_resolver,
                 ),
-                (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
-                (r"/event", EventHandler, dict(shared=shared)),
-                (r"/dgt", DGTHandler, dict(shared=shared)),
-                (r"/info", InfoHandler, dict(shared=shared)),
-                (r"/book", BookHandler, dict(shared=shared)),
-                (r"/help", HelpHandler, dict(theme=theme)),
-                (r"/manual/?", ManualHandler),
-                (r"/manual/user-manual-en-GB.html", ManualHandler),
-                (r"/channel", ChannelHandler, dict(shared=shared)),
+            ),
+            (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
+            (r"/event", EventHandler, dict(shared=shared)),
+            (r"/dgt", DGTHandler, dict(shared=shared)),
+            (r"/info", InfoHandler, dict(shared=shared)),
+            (r"/book", BookHandler, dict(shared=shared)),
+            (r"/help", HelpHandler, dict(theme=theme)),
+            (r"/manual/?", ManualHandler),
+            (r"/manual/user-manual-en-GB.html", ManualHandler),
+            (r"/channel", ChannelHandler, dict(shared=shared)),
         ]
         if UploadHandler is not None:
             handlers.extend(

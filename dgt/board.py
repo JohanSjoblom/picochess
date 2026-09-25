@@ -32,12 +32,12 @@ try:
 except ImportError:
     fcntl = F_GETFL = F_SETFL = None
 
-O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
-
 from eboard.eboard import EBoard
 from dgt.util import DgtAck, DgtClk, DgtCmd, DgtMsg, ClockIcons, ClockSide, enum
 from dgt.api import Message, Dgt
 from utilities import AsyncRepeatingTimer, DisplayMsg, hms_time
+
+O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
 
 logger = logging.getLogger(__name__)
 

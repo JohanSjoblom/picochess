@@ -174,6 +174,33 @@ The book selector in the web client is independent from the engine opening book;
 The web book tab also includes an `obooksrv` entry; selecting it shows statistics from the local `opening.data` dataset, while other entries use the selected polyglot `.bin` book.
 To add a custom book, place the `.bin` file in `books/` and add a matching entry in `books/books.ini`.
 
+Windows installation
+--------------------
+The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs books, opening data, and games database data, but deliberately installs no chess engines or Windows services:
+
+```powershell
+.\install-picochess-windows.ps1
+```
+
+Windows users must supply a native UCI engine under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations.
+
+If the user has separately installed Scid vs. PC for Windows, `start-picochess-windows.ps1` can start its `tcscid.exe` games helper together with PicoChess. Failure to find Scid affects only the optional Games tab.
+
+macOS installation
+------------------
+The native macOS installer follows the same user-local approach. It supports
+Apple silicon and 64-bit Intel Macs, creates a native Python 3.11-3.13 virtual
+environment, and installs the portable data resources without installing
+engines or system services:
+
+```bash
+bash ./install-picochess-mac.sh
+```
+
+macOS users must supply a native UCI engine under `engines/arm64` on Apple
+silicon or `engines/mac_x86_64` on Intel. See the
+[macOS installation guide](docs/mac-install.md) for options and limitations.
+
 Installation with more detailed info
 ------------------------------------
 1. You need a Raspberry PI 5, 4, or 3. You also need a 32G SD card.

@@ -1,6 +1,7 @@
 import configargparse  # type: ignore
 import os
 
+from uci.architecture import local_default_engine_path
 from utilities import version
 
 
@@ -29,7 +30,7 @@ class Configuration:
             "-e",
             "--engine",
             type=str,
-            help="UCI engine filename/path such as 'engines/aarch64/a-stockf'",
+            help="UCI engine filename/path such as 'engines/<platform>/stockfish'",
             default=None,
         )
         self.parser.add_argument("-el", "--engine-level", type=str, help="UCI engine level", default=None)
@@ -43,7 +44,7 @@ class Configuration:
             "-er",
             "--engine-remote",
             type=str,
-            help="UCI engine filename/path such as 'engines/aarch64/a-stockf'",
+            help="UCI engine filename/path such as 'engines/<platform>/stockfish'",
             default=None,
         )
         self.parser.add_argument(
@@ -333,7 +334,7 @@ class Configuration:
             "-teng",
             "--tutor-engine",
             type=str,
-            default="/opt/picochess/engines/aarch64/a-stockf",
+            default=str(local_default_engine_path()),
             help="engine used for PicoTutor analysis",
         )
         self.parser.add_argument(

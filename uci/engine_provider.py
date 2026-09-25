@@ -104,6 +104,22 @@ class EngineProvider(object):
         return None
 
     @classmethod
+    def resolve_fallback_engine(
+        cls, failed_file: Optional[str], preferred_file: Optional[str] = None
+    ) -> Optional[Dict[str, str]]:
+        """Choose an installed fallback without selecting the failed engine again."""
+        if preferred_file and preferred_file != failed_file:
+            for eng in cls.installed_engines:
+                if cls.engine_matches(eng["file"], preferred_file) and not cls.engine_matches(
+                    eng["file"], failed_file
+                ):
+                    return eng
+        for eng in cls.installed_engines:
+            if not cls.engine_matches(eng["file"], failed_file):
+                return eng
+        return None
+
+    @classmethod
     def has_engine(cls, requested_file: Optional[str]) -> bool:
         """Return True if the configured engine is present in the installed engine list."""
         return any(cls.engine_matches(eng["file"], requested_file) for eng in cls.installed_engines)

@@ -38,7 +38,6 @@ import chess.pgn as pgn  # type: ignore
 import chess.polyglot  # type: ignore
 import chess.variant  # type: ignore
 
-import pam
 import tornado.web  # type: ignore
 import tornado.wsgi  # type: ignore
 from tornado.websocket import WebSocketHandler  # type: ignore
@@ -54,7 +53,6 @@ from utilities import (
     write_picochess_ini,
     version as pico_version,
 )
-from upload_pgn import UploadHandler
 from audio_volume import set_system_volume
 from web.picoweb import picoweb as pw
 from web.menu_translate import get_menu_catalog, get_menu_source_map, get_menu_text
@@ -80,6 +78,20 @@ from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
 from pgn import ModeInfo, add_picotutor_variations_to_game
 import picotutor_constants as picotutor_c
+
+
+def _supports_linux_host_integration(system_name: str | None = None) -> bool:
+    """Return whether optional Linux host-management features are available."""
+    return (system_name or platform.system()) == "Linux"
+
+
+if _supports_linux_host_integration():
+    import pam
+    from upload_pgn import UploadHandler
+else:
+    pam = None
+    UploadHandler = None
+
 
 # This needs to be reworked to be session based (probably by token)
 # Otherwise multiple clients behind a NAT can all play as the 'player'
@@ -188,6 +200,18 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "rwindow",
         "phone_speaker",
         "audio_backend",
+    }
+)
+
+LINUX_ONLY_CHANNEL_ACTIONS = frozenset(
+    {
+        "sys_shutdown",
+        "sys_reboot",
+        "sys_update",
+        "sys_update_engines",
+        "wifi_hotspot",
+        "bt_toggle",
+        "bt_fix",
     }
 )
 
@@ -827,6 +851,10 @@ def _channel_action_requires_remote_auth(action: str) -> bool:
 def _require_auth_if_remote(handler, realm: str) -> bool:
     if _is_local_request(handler.request):
         return True
+    if pam is None:
+        handler.set_status(503)
+        handler.finish("Remote authentication is unavailable on this platform")
+        return False
     auth_header = handler.request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Basic "):
         handler.set_status(401)
@@ -1008,6 +1036,10 @@ class ChannelHandler(ServerRequestHandler):
         if _channel_action_requires_remote_auth(action):
             if not _require_auth_if_remote(self, "Control"):
                 return
+        if action in LINUX_ONLY_CHANNEL_ACTIONS and not _supports_linux_host_integration():
+            self.set_status(501)
+            self.write({"success": False, "error": "This system action is available only on Linux"})
+            return
 
         if action == "broadcast":
             if not _require_auth_if_remote(self, "Broadcast"):
@@ -2751,39 +2783,52 @@ class WebServer:
     ) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
-        return tornado.web.Application(
-            [
-                (
-                    r"/",
-                    ChessBoardHandler,
-                    dict(
-                        theme=theme,
-                        pieces=pieces,
-                        board=board,
-                        shared=shared,
-                        theme_resolver=theme_resolver,
-                    ),
+        handlers = [
+            (
+                r"/",
+                ChessBoardHandler,
+                dict(
+                    theme=theme,
+                    pieces=pieces,
+                    board=board,
+                    shared=shared,
+                    theme_resolver=theme_resolver,
                 ),
-                (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
-                (r"/event", EventHandler, dict(shared=shared)),
-                (r"/dgt", DGTHandler, dict(shared=shared)),
-                (r"/info", InfoHandler, dict(shared=shared)),
-                (r"/book", BookHandler, dict(shared=shared)),
-                (r"/help", HelpHandler, dict(theme=theme)),
-                (r"/manual/?", ManualHandler),
-                (r"/manual/user-manual-en-GB.html", ManualHandler),
-                (r"/channel", ChannelHandler, dict(shared=shared)),
-                (r"/upload-pgn", UploadHandler),
-                (r"/upload", UploadPageHandler),
+            ),
+            (r"/clock", RetroClockHandler, dict(theme=theme, shared=shared)),
+            (r"/event", EventHandler, dict(shared=shared)),
+            (r"/dgt", DGTHandler, dict(shared=shared)),
+            (r"/info", InfoHandler, dict(shared=shared)),
+            (r"/book", BookHandler, dict(shared=shared)),
+            (r"/help", HelpHandler, dict(theme=theme)),
+            (r"/manual/?", ManualHandler),
+            (r"/manual/user-manual-en-GB.html", ManualHandler),
+            (r"/channel", ChannelHandler, dict(shared=shared)),
+        ]
+        if UploadHandler is not None:
+            handlers.extend(
+                [
+                    (r"/upload-pgn", UploadHandler),
+                    (r"/upload", UploadPageHandler),
+                ]
+            )
+        handlers.extend(
+            [
                 (r"/settings", SettingsPageHandler, dict(theme=theme)),
                 (r"/settings/data", SettingsDataHandler),
                 (r"/settings/save", SettingsSaveHandler, dict(shared=shared)),
-                (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
-                (r"/onboard", WifiSetupPageHandler),
-                (r"/onboard/wifi", WifiSetupHandler),
-                (r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}),
             ]
         )
+        if _supports_linux_host_integration():
+            handlers.extend(
+                [
+                    (r"/settings/action/(wifi-hotspot|bt-pair|bt-fix|bt-reconnect)", SettingsActionHandler),
+                    (r"/onboard", WifiSetupPageHandler),
+                    (r"/onboard/wifi", WifiSetupHandler),
+                ]
+            )
+        handlers.append((r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}))
+        return tornado.web.Application(handlers)
 
 
 class WebVr(DgtIface):

@@ -3,10 +3,41 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from utilities import AsyncRepeatingTimer, _choose_wayland_backend, get_engine_mame_par, get_window_command
+from utilities import (
+    AsyncRepeatingTimer,
+    _choose_wayland_backend,
+    exit_pico,
+    get_engine_mame_par,
+    get_window_command,
+    reboot,
+    shutdown,
+    update_pico_engines,
+    update_pico_v4,
+    update_picochess_now,
+)
 
 
 class TestUtilities(unittest.TestCase):
+
+    @patch("utilities.os.system")
+    @patch("utilities.platform.system", return_value="Darwin")
+    def test_macos_host_power_commands_are_noops(self, _, os_system):
+        shutdown(False, "web")
+        reboot(False, "web")
+        exit_pico(False, "web")
+
+        os_system.assert_not_called()
+
+    @patch("utilities.subprocess.Popen")
+    @patch("utilities.subprocess.run")
+    @patch("utilities.platform.system", return_value="Darwin")
+    def test_macos_host_updates_are_noops(self, _, run, popen):
+        update_pico_engines()
+        update_pico_v4()
+        update_picochess_now()
+
+        run.assert_not_called()
+        popen.assert_not_called()
 
     def test_engine_mame_par(self):
         self.assertEqual("-speed 1.0 -sound none", get_engine_mame_par(1.0))

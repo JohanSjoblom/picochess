@@ -31,6 +31,7 @@ import chess  # type: ignore
 from chess.engine import InfoDict, Limit, PlayResult
 import chess.engine
 import chess.pgn
+from uci.architecture import local_default_engine_path, local_engine_directory
 from uci.engine import UciShell, UciEngine
 from dgt.util import PicoComment, PicoCoach
 
@@ -44,7 +45,7 @@ class PicoTutor:
     def __init__(
         self,
         i_ucishell: UciShell,
-        i_engine_path="/opt/picochess/engines/aarch64/a-stockf",
+        i_engine_path=str(local_default_engine_path()),
         i_player_color=chess.WHITE,
         i_fen="",
         i_comment_file="",
@@ -391,8 +392,7 @@ class PicoTutor:
                 self.comment_no = len(self.comments)
 
         try:
-            arch = platform.machine()
-            general_comment_file = "/opt/picochess/engines/" + arch + "/general_game_comments_" + i_lang + ".txt"
+            general_comment_file = local_engine_directory() / ("general_game_comments_" + i_lang + ".txt")
             with open(general_comment_file) as fp:
                 self.comments_all = fp.readlines()
         except (OSError, IOError):

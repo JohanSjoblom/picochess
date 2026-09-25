@@ -47,6 +47,7 @@ from chess.engine import InfoDict, Limit, BestMove, PlayResult
 import dgt.util
 
 from configuration import Configuration
+from uci.architecture import local_default_engine_path
 from uci.engine import UciShell, UciEngine
 from uci.engine_provider import EngineProvider
 from uci.rating import Rating, determine_result
@@ -6061,8 +6062,32 @@ async def main() -> None:
                         await DisplayMsg.show(Message.ONLINE_FAILED())
                         await asyncio.sleep(3)
                         engine_fallback = True
-                        event.options = dict()
-                        old_file = "engines/aarch64/a-stockf"
+                        failed_online_file = self.state.engine_file
+                        fallback_engine = EngineProvider.resolve_fallback_engine(
+                            failed_file=failed_online_file,
+                            preferred_file=str(local_default_engine_path()),
+                        )
+                        if fallback_engine is None:
+                            logger.error("online login failed and no alternative installed engine is available")
+                            await self.engine.quit()
+                            await DisplayMsg.show(Message.ENGINE_FAIL())
+                            await asyncio.sleep(3)
+                            sys.exit(-1)
+
+                        fallback_file = fallback_engine["file"]
+                        fallback_is_previous = EngineProvider.engine_matches(fallback_file, old_file)
+                        event.options = old_options if fallback_is_previous else dict()
+                        if not fallback_is_previous:
+                            self.state.old_engine_level = None
+                        logger.warning(
+                            "online login failed for %s; falling back to installed engine %s",
+                            failed_online_file,
+                            fallback_file,
+                        )
+                        await self.engine.quit()
+                        self.state.engine_file = fallback_file
+                        self.state.artwork_in_use = False
+                        old_file = fallback_file
 
                         uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
 
@@ -6085,6 +6110,8 @@ async def main() -> None:
                             await DisplayMsg.show(Message.ENGINE_FAIL())
                             await asyncio.sleep(3)
                             sys.exit(-1)
+                        self._init_variant_from_engine()
+                        ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
                     else:
                         await asyncio.sleep(2)
                 elif self.emulation_mode() or self.pgn_mode():

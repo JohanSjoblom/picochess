@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import subprocess
 import tempfile
 import threading
@@ -42,6 +43,8 @@ class TestPicoTalkerSoxBackend(unittest.TestCase):
         process.wait.assert_called_once()
         self.assertIn("timeout", process.wait.call_args.kwargs)
 
+    # picotalker falls back to process.terminate() where os.killpg is missing.
+    @unittest.skipUnless(hasattr(os, "killpg"), "POSIX process groups required")
     @patch("picotalker.os.killpg")
     @patch("picotalker.subprocess.Popen")
     def test_sox_play_timeout_terminates_process_group(self, popen_mock, killpg_mock):

@@ -3582,6 +3582,13 @@ class WebDisplay(DisplayMsg):
             else:
                 WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
 
+            # The browser may connect before engine startup finishes (especially
+            # with MAME). Publish board authority and modes together so it can
+            # enable live moves without a reload or an engine-menu round trip.
+            EventHandler.write_to_clients(
+                {"event": "SystemInfo", "msg": dict(self.shared["system_info"])}
+            )
+
         elif isinstance(message, Message.OPENING_BOOK):
             self._create_game_info()
             self.shared["game_info"]["book_text"] = message.book_text

@@ -135,6 +135,36 @@ function goToPosition() {return true;}
         self.assertEqual("—", states[3]["text"])
         self.assertEqual("—", states[4]["text"])
 
+    def test_system_info_battery_hides_stale_value_after_disconnect(self):
+        root = Path(__file__).parents[1]
+        script = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        template = (root / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+        battery_start = script.index("function dgtBatteryPresentation(")
+        battery_end = script.index("\n}\n\nfunction updateDgtBatteryStatus", battery_start) + 2
+        info_start = template.index("                if (cat === 'info') {")
+        info_end = template.index("                // Voice", info_start)
+        program = script[battery_start:battery_end] + "\n" + (
+            "const window = {_picoSystemInfo: {battery: '18%'}};\n"
+            "const lbl = {}, listEl = {};\n"
+            "const menuKey = key => key;\n"
+            "let dgtBoardConnected = false;\n"
+            "function renderInfo() { const cat = 'info';\n"
+            + template[info_start:info_end]
+            + "}\n"
+            "renderInfo();\n"
+            "const disconnected = listEl.innerHTML;\n"
+            "dgtBoardConnected = true;\n"
+            "renderInfo();\n"
+            "console.log(JSON.stringify({disconnected, connected: listEl.innerHTML}));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+        panels = json.loads(result.stdout)
+        self.assertIn("system.battery: —", panels["disconnected"])
+        self.assertNotIn("18%", panels["disconnected"])
+        self.assertIn("system.battery: 18%", panels["connected"])
+
     def test_terminal_variant_display_uses_authoritative_server_fen(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function authoritativeDisplayFen(")

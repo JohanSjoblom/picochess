@@ -63,6 +63,22 @@ class TestWebPgnMoves(unittest.TestCase):
 
         self.assertEqual(atomic_terminal_fen, result.stdout.strip())
 
+    def test_explore_display_uses_explored_position_not_server_fen(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function authoritativeDisplayFen(")
+        end = script.index("\n}", start) + 2
+        live_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        explored_fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+        program = script[start:end] + "\n" + (
+            f"console.log(authoritativeDisplayFen({{fen: {json.dumps(live_fen)}}}, "
+            f"{{fen: () => {json.dumps(explored_fen)}}}, true));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual(explored_fen, result.stdout.strip())
+
     def test_web_exporter_marks_black_move_number_after_variation(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function WebExporter(")

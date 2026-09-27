@@ -1341,7 +1341,7 @@ var updateStatus = function () {
 
     var moveColor = 'White';
     var tmpGame = createGamePointer();
-    var fen = authoritativeDisplayFen(currentPosition, tmpGame);
+    var fen = authoritativeDisplayFen(currentPosition, tmpGame, webExploreMode && !!webExploreGame);
 
     var strippedFen = stripFen(fen);
 
@@ -1509,7 +1509,12 @@ async function getMove(game, source, target) {
     });
 }
 
-function authoritativeDisplayFen(position, fallbackGame) {
+function authoritativeDisplayFen(position, fallbackGame, exploring) {
+    // Browser Explore follows its own disposable game, while the server FEN
+    // describes only the live backend position.
+    if (exploring) {
+        return fallbackGame.fen();
+    }
     return position && position.fen ? position.fen : fallbackGame.fen();
 }
 
@@ -1519,7 +1524,7 @@ function updateChessGround() {
     // For example, Atomic has no losing king after it explodes. Chess.js then
     // falls back to its starting position, while Chessground can display the
     // authoritative server FEN directly.
-    var displayFen = authoritativeDisplayFen(currentPosition, tmpGame);
+    var displayFen = authoritativeDisplayFen(currentPosition, tmpGame, webExploreMode && !!webExploreGame);
     var turnColor = toColor(tmpGame);
     var movableColor;
 

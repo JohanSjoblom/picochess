@@ -280,6 +280,27 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         board.push(move)
         self.assertFalse(user_move_task_matches_position(move, current_fen, 1, board, board.fen(), 2, None))
 
+    def test_rebased_user_move_position_is_owned_without_its_move_stack(self):
+        board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        board.push(move)
+        rebased = board.copy(stack=False)
+        current_fen = rebased.fen()
+
+        self.assertFalse(
+            user_move_task_matches_position(move, current_fen, 1, rebased, current_fen, 1, None)
+        )
+        self.assertTrue(
+            user_move_task_matches_position(
+                move, current_fen, 1, rebased, current_fen, 1, None, require_last_move=False
+            )
+        )
+        self.assertFalse(
+            user_move_task_matches_position(
+                move, current_fen, 1, rebased, current_fen, 2, None, require_last_move=False
+            )
+        )
+
     def test_engine_move_event_requires_latest_search_and_no_pending_move(self):
         self.assertTrue(engine_move_event_matches_state("current", "current", 4, 4, None))
         self.assertFalse(engine_move_event_matches_state("current", "current", 3, 4, None))
@@ -1214,6 +1235,47 @@ class TestUserMoveSearchOwnership(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(started)
         self.controller.think.assert_not_awaited()
+
+
+class TestThinkAfterMameRecoveryRebase(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        start_patch(self, mainloop.Observable, "fire", AsyncMock())
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller._set_game_started = Mock()
+        # Returning None stops think() right after it decides to start a search.
+        self.controller._prepare_engine_for_search = AsyncMock(return_value=None)
+        self.controller.bookreader = None
+        self.move = chess.Move.from_uci("e2e4")
+        board = chess.Board()
+        board.push(self.move)
+        self.owner = (self.move, board.fen(), 1)
+        self.controller.state = SimpleNamespace(
+            engine_search_revision=0,
+            game=board,
+            get_fen=lambda: self.controller.state.game.fen(),
+            user_move_revision=1,
+            done_computer_fen=None,
+            variant="chess",
+        )
+
+        async def rebase():
+            self.controller.state.game = self.controller.state.game.copy(stack=False)
+            return True
+
+        self.controller._apply_pending_mame_recovery_rebase = AsyncMock(side_effect=rebase)
+
+    async def test_rebase_before_search_keeps_the_user_move_search(self):
+        await self.controller.think(None, user_move_owner=self.owner)
+
+        self.assertFalse(self.controller.state.game.move_stack)
+        self.controller._prepare_engine_for_search.assert_awaited_once_with(1)
+
+    async def test_rebase_does_not_revive_a_superseded_user_move(self):
+        self.controller.state.user_move_revision = 2
+
+        await self.controller.think(None, user_move_owner=self.owner)
+
+        self.controller._prepare_engine_for_search.assert_not_awaited()
 
 
 class TestEngineSearchIdlePreparation(unittest.IsolatedAsyncioTestCase):

@@ -777,7 +777,7 @@ class MainLoop:
         """
         self.state.engine_search_revision += 1
         search_revision = self.state.engine_search_revision
-        await self._apply_pending_mame_recovery_rebase()
+        rebased_for_recovery = await self._apply_pending_mame_recovery_rebase()
         if search_revision != self.state.engine_search_revision:
             logger.info("skipping superseded engine search revision %s", search_revision)
             return
@@ -799,6 +799,7 @@ class MainLoop:
                 self.state.get_fen(),
                 self.state.user_move_revision,
                 self.state.done_computer_fen,
+                require_last_move=not rebased_for_recovery,
             ):
                 logger.info("skipping obsolete search after user move [%s]", owner_move)
                 return
@@ -1705,10 +1706,13 @@ class MainLoop:
 
         self.state.stop_fen_timer()
 
-    async def _apply_pending_mame_recovery_rebase(self) -> None:
-        """Make a reopened pos-only MAME recovery position a fresh root."""
+    async def _apply_pending_mame_recovery_rebase(self) -> bool:
+        """Make a reopened pos-only MAME recovery position a fresh root.
+
+        Return True when the live game was rebased and lost its move stack.
+        """
         if not self.state.mame_recovery_rebase_pending:
-            return
+            return False
 
         self.state.mame_recovery_rebase_pending = False
         capabilities = self.engine.get_mame_capabilities()
@@ -1717,9 +1721,9 @@ class MainLoop:
             capabilities.position,
             capabilities.edit,
         ):
-            return
+            return False
         if not self.state.game.move_stack:
-            return
+            return False
 
         logger.info(
             "MAME recovery: edit unsupported; using current FEN as a fresh game root"
@@ -1739,6 +1743,7 @@ class MainLoop:
         self.state.last_legal_fens = []
         await self.set_picotutor_position(new_game=True)
         await DisplayMsg.show(self.state.new_game_msg(newgame=False))
+        return True
 
     async def takeback(self):
         if self.state.game.move_stack:

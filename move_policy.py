@@ -76,14 +76,18 @@ def user_move_task_matches_position(
     current_fen: str,
     current_revision: int,
     done_computer_fen: str | None,
+    require_last_move: bool = True,
 ) -> bool:
-    """Return whether a delayed user-move handler still owns the live position."""
+    """Return whether a delayed user-move handler still owns the live position.
+
+    ``require_last_move`` is False after a pos-only MAME recovery rebase, which
+    keeps the owned position but turns it into a fresh root without a stack.
+    """
     return bool(
         done_computer_fen is None
         and expected_revision == current_revision
         and expected_fen == current_fen
-        and board.move_stack
-        and board.peek() == move
+        and (not require_last_move or (board.move_stack and board.peek() == move))
     )
 
 

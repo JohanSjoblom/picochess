@@ -3871,8 +3871,14 @@ class WebDisplay(DisplayMsg):
             # physical-board state while the board connection is unavailable.
             # The spinner can arrive twice per second, so publish only the
             # connection-state transition.
-            if self.shared.get("eboard_status", {}).get("eboard") != "noeboard":
-                EventHandler.write_to_clients(_eboard_status_event(self.shared, "noeboard"))
+            if (ModeInfo.get_eboard_type() == EBoardType.DGT
+                    and self.shared.get("eboard_status", {}).get("eboard") != "disconnected"):
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, "disconnected"))
+
+        elif isinstance(message, Message.EBOARD_CONNECTION):
+            status = "connected" if message.connected else "disconnected"
+            if self.shared.get("eboard_status", {}).get("eboard") != status:
+                EventHandler.write_to_clients(_eboard_status_event(self.shared, status))
 
         elif isinstance(message, Message.DGT_NO_CLOCK_ERROR):
             EventHandler.write_to_clients(_eboard_status_event(self.shared, "error"))
@@ -3884,10 +3890,16 @@ class WebDisplay(DisplayMsg):
                 attached = "i2c-pi"
             else:
                 attached = "server"
-            connected = attached != "server"  # physical board, not web-only
+            board_type = ModeInfo.get_eboard_type()
+            if attached != "server" and board_type == EBoardType.DGT:
+                status = "connected"
+            elif board_type == EBoardType.NOEBOARD:
+                status = "noeboard"
+            else:
+                status = self.shared.get("eboard_status", {}).get("eboard", "disconnected")
             result = _eboard_status_event(
                 self.shared,
-                "connected" if connected else "noeboard",
+                status,
                 "Ok clock " + attached,
             )
             EventHandler.write_to_clients(result)

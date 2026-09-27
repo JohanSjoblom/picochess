@@ -57,6 +57,7 @@ class IChessOneBoard(EBoard):
 
     async def _process_incoming_board_forever(self):
         result = {}
+        await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=False))
         wait_counter = 0
         waitchars = ["/", "-", "\\", "|"]
         while "cmd" not in result or (result["cmd"] == "agent_state" and result["state"] == "offline"):
@@ -73,6 +74,7 @@ class IChessOneBoard(EBoard):
         if result["state"] != "offline":
             logger.info("incoming_board ready")
             self.connected = True
+            await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=True))
         await self._process_after_connection()
 
     async def _process_after_connection(self):
@@ -106,6 +108,7 @@ class IChessOneBoard(EBoard):
             self.agent.request_board_updates()
             text = Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"})
         await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
+        await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=self.connected))
 
     async def _process_board_position(self, result):
         fen = result["fen"].split(" ")[0]

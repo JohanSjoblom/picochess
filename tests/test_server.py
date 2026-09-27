@@ -881,13 +881,25 @@ class TestServerWebDisplayEboardStatus(unittest.IsolatedAsyncioTestCase):
         display = WebDisplay(shared, asyncio.get_running_loop())
         text = Mock()
 
-        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+        with patch("server.ModeInfo.get_eboard_type", return_value=EBoardType.DGT), patch("server.EventHandler.write_to_clients") as write_to_clients:
             await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
             await display.task(Message.DGT_NO_EBOARD_ERROR(text=text))
 
-        disconnected = {"event": "Status", "eboard": "noeboard"}
+        disconnected = {"event": "Status", "eboard": "disconnected"}
         self.assertEqual(disconnected, shared["eboard_status"])
         write_to_clients.assert_called_once_with(disconnected)
+
+    async def test_non_dgt_board_uses_explicit_connection_state(self):
+        shared = {"eboard_status": {"event": "Status", "eboard": "disconnected"}}
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        with patch("server.ModeInfo.get_eboard_type", return_value=EBoardType.CHESSNUT), patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=Mock()))
+            await display.task(Message.EBOARD_CONNECTION(connected=True))
+            await display.task(Message.DGT_NO_EBOARD_ERROR(text=Mock()))  # battery warning
+            await display.task(Message.EBOARD_CONNECTION(connected=True))
+            await display.task(Message.EBOARD_CONNECTION(connected=False))
+        self.assertEqual("disconnected", shared["eboard_status"]["eboard"])
+        self.assertEqual(2, write_to_clients.call_count)
 
 
 class TestServerWebBookSelection(unittest.TestCase):

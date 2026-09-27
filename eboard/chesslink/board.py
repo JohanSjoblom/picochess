@@ -61,6 +61,7 @@ class ChessLinkBoard(EBoard):
 
     async def _process_incoming_board_forever(self):
         result = {}
+        await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=False))
         bwait = self.waitchars[self.wait_counter]
         while "cmd" not in result or (result["cmd"] == "agent_state" and result["state"] == "offline"):
             try:
@@ -76,6 +77,7 @@ class ChessLinkBoard(EBoard):
         if result["state"] != "offline":
             logger.info("incoming_board ready")
             self.connected = True
+            await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=True))
 
         while True:
             if self.agent is not None:
@@ -93,6 +95,7 @@ class ChessLinkBoard(EBoard):
                             # successful online state cancels any reconnect backoff
                             self.reconnect_delay = 1.0
                         await DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
+                        await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=self.connected))
                     elif "cmd" in result and result["cmd"] == "raw_board_position" and "fen" in result:
                         fen = result["fen"].split(" ")[0]
                         await DisplayMsg.show(Message.DGT_FEN(fen=fen, raw=True))
@@ -142,6 +145,7 @@ class ChessLinkBoard(EBoard):
     async def _reconnect(self):
         """Attempt to reconnect with simple backoff and emit spinner while offline."""
         self.connected = False
+        await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=False))
         while not self.connected:
             if self.agent is not None:
                 try:
@@ -170,6 +174,7 @@ class ChessLinkBoard(EBoard):
 
             if self.connected:
                 self.reconnect_delay = 1.0
+                await DisplayMsg.show(Message.EBOARD_CONNECTION(connected=True))
                 await DisplayMsg.show(Dgt.DISPLAY_TIME(force=True, wait=True, devs={"ser", "i2c", "web"}))
                 return
 

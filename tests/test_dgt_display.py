@@ -6,11 +6,49 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
-from dgt.api import Event, Message
+from dgt.api import Dgt, Event, Message
 from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
-from dgt.util import EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+from dgt.util import ClockSide, EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+
+
+class TestSerialClockReconnectOrder(unittest.IsolatedAsyncioTestCase):
+    async def test_clock_version_keeps_running_side_after_resume(self):
+        await self._check_reconnect_order(version_first=False)
+
+    async def test_clock_resume_after_clock_version(self):
+        await self._check_reconnect_order(version_first=True)
+
+    async def test_clock_version_keeps_paused_game_stopped(self):
+        clock = TimeControl(mode=TimeMode.BLITZ, blitz=5)
+        display = DgtDisplay(DummyTranslate(), DummyMenu(), clock, asyncio.get_running_loop())
+        display._exit_display = AsyncMock()
+        version = Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="ser", text=SimpleNamespace(devs={"ser"}))
+        start = Message.CLOCK_START(turn=chess.WHITE, tc_init=clock.get_parameters(), devs={"ser", "web"})
+        with patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock) as fire:
+            await display._process_message(start)
+            await display._process_message(Message.CLOCK_STOP(devs={"ser", "web"}))
+            await display._process_message(version)
+        starts = [call.args[0] for call in fire.await_args_list if isinstance(call.args[0], Dgt.CLOCK_START)]
+        self.assertEqual(ClockSide.NONE, starts[-1].side)
+
+    async def _check_reconnect_order(self, version_first):
+        clock = TimeControl(mode=TimeMode.BLITZ, blitz=5)
+        display = DgtDisplay(DummyTranslate(), DummyMenu(), clock, asyncio.get_running_loop())
+        display._exit_display = AsyncMock()
+        version = Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="ser", text=SimpleNamespace(devs={"ser"}))
+        start = Message.CLOCK_START(turn=chess.WHITE, tc_init=clock.get_parameters(), devs={"ser", "web"})
+        with patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock) as fire:
+            await display._process_message(Message.CLOCK_STOP(devs={"ser", "web"}))
+            if version_first:
+                await display._process_message(version)
+                await display._process_message(start)
+            else:
+                await display._process_message(start)
+                await display._process_message(version)
+        starts = [call.args[0] for call in fire.await_args_list if isinstance(call.args[0], Dgt.CLOCK_START)]
+        self.assertEqual(ClockSide.LEFT, starts[-1].side)
 from pgn import ModeInfo
 from timecontrol import TimeControl
 from uci.engine_provider import EngineProvider

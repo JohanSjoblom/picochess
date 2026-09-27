@@ -52,6 +52,7 @@ class DgtDisplay(DisplayMsg):
         self.dgttranslate = dgttranslate
         self.dgtmenu = dgtmenu
         self.time_control = time_control
+        self._requested_clock_side = ClockSide.NONE
         self.last_pos_start = True
         self._setpieces_restore_pending = False
         self._start_position_restore_pending = False
@@ -1179,6 +1180,7 @@ class DgtDisplay(DisplayMsg):
     async def _process_clock_start(self, message):
         self.time_control = TimeControl(**message.tc_init)
         side = ClockSide.LEFT if (message.turn == chess.WHITE) != self.dgtmenu.get_flip_board() else ClockSide.RIGHT
+        self._requested_clock_side = side
         await self._set_clock(side=side, devs=message.devs)
 
     async def _process_once_per_second(self):
@@ -1534,6 +1536,7 @@ class DgtDisplay(DisplayMsg):
             await self._process_clock_start(message)
 
         elif isinstance(message, Message.CLOCK_STOP):
+            self._requested_clock_side = ClockSide.NONE
             await DispatchDgt.fire(Dgt.CLOCK_STOP(devs=message.devs, wait=True))
 
         elif isinstance(message, Message.DGT_BUTTON):
@@ -1553,7 +1556,9 @@ class DgtDisplay(DisplayMsg):
 
             if message.dev == "ser":  # send the "board connected message" to serial clock
                 await DispatchDgt.fire(message.text)
-            await self._set_clock(devs={message.dev})
+            # A reconnect may be queued after CLOCK_START. Preserve the side
+            # already requested by the game when setting up the found clock.
+            await self._set_clock(side=self._requested_clock_side, devs={message.dev})
             await self._exit_display(devs={message.dev})
 
         elif isinstance(message, Message.DGT_CLOCK_TIME):

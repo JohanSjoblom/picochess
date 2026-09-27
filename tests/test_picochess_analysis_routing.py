@@ -1872,7 +1872,8 @@ class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(analysis_event_matches_position(event.fen, self.board.fen()))
 
     def test_user_move_publishes_continuation_after_push(self):
-        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
+        source_text = Path(mainloop.__file__).read_text(encoding="utf-8")
+        source = ast.parse(source_text)
         user_move = next(
             node for node in ast.walk(source)
             if isinstance(node, ast.AsyncFunctionDef) and node.name == "user_move"
@@ -1887,11 +1888,11 @@ class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(calls))
         keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
         self.assertIs(True, keywords["defer_events"].value)
+        # user_move also calls self.state.picotutor.push_move, so match the game push exactly.
         push = next(
             node for node in ast.walk(user_move)
             if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "push_move"
+            and ast.get_source_segment(source_text, node.func) == "self.state.push_move"
         )
         publish = next(
             node for node in ast.walk(user_move)

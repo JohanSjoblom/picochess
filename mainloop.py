@@ -2019,6 +2019,14 @@ class MainLoop:
             self.state.interaction_mode,
             self.state.game_declared,
             ModeInfo.get_game_ending(),
+        ) and (
+            self.state.interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.REMOTE)
+            or not should_block_takeback(
+                take_back_locked=self.state.take_back_locked,
+                online_mode=self.online_mode(),
+                emulation_mode=self.emulation_mode(),
+                automatic_takeback=self.state.automatic_takeback,
+            )
         ):
             logger.info("sliding move detected")
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):

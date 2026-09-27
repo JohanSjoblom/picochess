@@ -1838,20 +1838,28 @@ class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
         return [fired.args[0] for fired in self.fire.await_args_list]
 
     async def test_continuation_survives_the_user_move_push(self):
-        await self.controller.send_analyse(
-            self.info, self.pre_move_fen, ponder_move=self.reply, for_next_position=True
+        events = await self.controller.send_analyse(
+            self.info, self.pre_move_fen, ponder_move=self.reply, defer_events=True
         )
-        self.board.push(self.user_move)
-
-        events = self.fired_events()
+        self.fire.assert_not_awaited()
         self.assertEqual(3, len(events))
-        for event in events:
-            with self.subTest(event=event):
-                self.assertTrue(analysis_event_matches_position(event.fen, self.board.fen()))
-        # best_sent_depth still records the analysed position before the move.
+        # The depth handover is cached while the analysed position is still live.
         self.controller.state.best_sent_depth.set_best.assert_called_once_with(
             self.info, self.pre_move_fen, self.board, self.reply
         )
+        self.board.push(self.user_move)
+        await self.controller._publish_analysis_events_for_position(events, self.board.fen())
+
+        published = self.fired_events()
+        self.assertEqual(3, len(published))
+        for event in published:
+            with self.subTest(event=event):
+                self.assertEqual(self.board.fen(), event.fen)
+                self.assertTrue(analysis_event_matches_position(event.fen, self.board.fen()))
+        self.board.push(self.reply)
+        for event in published:
+            with self.subTest(stale_event=event):
+                self.assertFalse(analysis_event_matches_position(event.fen, self.board.fen()))
 
     async def test_regular_clock_analysis_stays_tied_to_its_position(self):
         await self.controller.send_analyse(self.info, self.pre_move_fen)
@@ -1863,7 +1871,7 @@ class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
             with self.subTest(event=event):
                 self.assertFalse(analysis_event_matches_position(event.fen, self.board.fen()))
 
-    def test_user_move_ponder_hit_sends_continuation_for_next_position(self):
+    def test_user_move_publishes_continuation_after_push(self):
         source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
         user_move = next(
             node for node in ast.walk(source)
@@ -1878,4 +1886,18 @@ class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(1, len(calls))
         keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
-        self.assertIs(True, keywords["for_next_position"].value)
+        self.assertIs(True, keywords["defer_events"].value)
+        push = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "push_move"
+        )
+        publish = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_publish_analysis_events_for_position"
+        )
+        self.assertLess(calls[0].lineno, push.lineno)
+        self.assertLess(push.lineno, publish.lineno)

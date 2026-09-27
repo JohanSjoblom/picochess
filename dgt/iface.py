@@ -183,21 +183,28 @@ class DgtIface(DisplayDgt):
         logger.debug("(%s) handle DgtApi: %s started", ",".join(message.devs), message)
         self.case_res = True
 
+        async def call_sync(func, *args):
+            # Serial clock commands may wait for an ACK. Keep that wait off the
+            # shared event loop while preserving this consumer's message order.
+            if getattr(self, "offload_sync_io", False):
+                return await asyncio.to_thread(func, *args)
+            return func(*args)
+
         # switch-case
         if isinstance(message, Dgt.DISPLAY_MOVE):
-            self.case_res = self.display_move_on_clock(message)
+            self.case_res = await call_sync(self.display_move_on_clock, message)
         elif isinstance(message, Dgt.DISPLAY_TEXT):
-            self.case_res = self.display_text_on_clock(message)
+            self.case_res = await call_sync(self.display_text_on_clock, message)
         elif isinstance(message, Dgt.DISPLAY_TIME):
-            self.case_res = self.display_time_on_clock(message)
+            self.case_res = await call_sync(self.display_time_on_clock, message)
         elif isinstance(message, Dgt.LIGHT_CLEAR):
-            self.case_res = self.clear_light_on_revelation()
+            self.case_res = await call_sync(self.clear_light_on_revelation)
         elif isinstance(message, Dgt.LIGHT_SQUARES):
-            self.case_res = self.light_squares_on_revelation(message.uci_move)
+            self.case_res = await call_sync(self.light_squares_on_revelation, message.uci_move)
         elif isinstance(message, Dgt.LIGHT_SQUARE):
-            self.case_res = self.light_square_on_revelation(message.square)
+            self.case_res = await call_sync(self.light_square_on_revelation, message.square)
         elif isinstance(message, Dgt.CLOCK_SET):
-            self.case_res = self.set_clock(message.time_left, message.time_right, message.devs)
+            self.case_res = await call_sync(self.set_clock, message.time_left, message.time_right, message.devs)
         elif isinstance(message, Dgt.CLOCK_START):
             self.case_res = await self.start_clock(message.side, message.devs)
         elif isinstance(message, Dgt.CLOCK_STOP):

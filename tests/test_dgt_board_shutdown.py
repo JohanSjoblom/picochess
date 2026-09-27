@@ -229,6 +229,8 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         with patch("dgt.board.Observable.fire", new_callable=AsyncMock) as fire:
             with patch("dgt.board.time.monotonic", return_value=106.0):
                 board._watchdog_blocking()
+            self.assertTrue(board.connected)
+            with patch("dgt.board.time.monotonic", return_value=112.0):
                 board._watchdog_blocking()
             await asyncio.sleep(0.01)
 
@@ -237,6 +239,28 @@ class TestDgtBoardShutdown(unittest.IsolatedAsyncioTestCase):
         serial.close.assert_called_once_with()
         self.assertEqual(1, fire.await_count)
         self.assertIsInstance(fire.await_args.args[0], Event.BOARD_CONNECTION_LOST)
+
+    async def test_watchdog_waits_for_answer_after_delayed_tick(self):
+        board = self._connected_board_for_watchdog()
+        with patch("dgt.board.time.monotonic", return_value=200.0):
+            board._watchdog_blocking()
+        self.assertTrue(board.connected)
+        self.assertEqual(200.0, board.keepalive_sent_at)
+        board.last_board_message = 201.0
+        with patch("dgt.board.time.monotonic", return_value=206.0):
+            board._watchdog_blocking()
+        self.assertTrue(board.connected)
+
+    async def test_serial_clock_wait_does_not_block_event_loop(self):
+        from dgt.api import Dgt
+        from dgt.hw import DgtHw
+
+        hw = DgtHw(Mock(), asyncio.get_running_loop())
+        hw.display_time_on_clock = Mock(return_value=True)
+        message = Dgt.DISPLAY_TIME(wait=False, force=False, devs={"ser"})
+        with patch("dgt.iface.asyncio.to_thread", new_callable=AsyncMock, return_value=True) as to_thread:
+            await hw._process_message(message)
+        to_thread.assert_awaited_once_with(hw.display_time_on_clock, message)
 
     async def test_watchdog_keeps_recent_or_unfinished_connection(self):
         board = self._connected_board_for_watchdog()

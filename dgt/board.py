@@ -122,6 +122,7 @@ class DgtBoard(EBoard):
         self.watchdog_timer = AsyncRepeatingTimer(1, self._watchdog, self.loop)
         self.last_battery_request = 0.0
         self.last_board_message = 0.0
+        self.keepalive_sent_at = 0.0
         # bluetooth vars for Jessie upwards & autoconnect
         self.btctl = None
         self.bt_rfcomm = None
@@ -330,6 +331,7 @@ class DgtBoard(EBoard):
             )  # serial clock lateron
             self.connected = True
             self.last_board_message = time.monotonic()
+            self.keepalive_sent_at = 0.0
             self.last_battery_request = 0.0
             self._queue_display(Message.DGT_EBOARD_VERSION(text=self.bconn_text, channel=self.channel))
             if self._board_loss_notified and not self.stop_requested.is_set():
@@ -720,14 +722,20 @@ class DgtBoard(EBoard):
                     self.clock_lock = 0.0
                     self.last_clock_command = []
                     self.clock_resend_attempts = 0
-        self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        sent_at = time.monotonic()
+        sent = self.write_command([DgtCmd.DGT_RETURN_SERIALNR])  # ask for this AFTER cause of - maybe - old board hardware
+        if self.last_board_message >= self.keepalive_sent_at and self.keepalive_sent_at:
+            self.keepalive_sent_at = 0.0
+        if sent and self.connected and not self.keepalive_sent_at:
+            self.keepalive_sent_at = sent_at
         if (
             not self.stop_requested.is_set()
             and self.connected
             and self.serial is not None
             and not self.handshake_pending
-            and self.last_board_message
-            and time.monotonic() - self.last_board_message > BOARD_SILENCE_TIMEOUT
+            and self.keepalive_sent_at
+            and self.last_board_message < self.keepalive_sent_at
+            and time.monotonic() - self.keepalive_sent_at > BOARD_SILENCE_TIMEOUT
         ):
             logger.warning(
                 "(ser) no board answer for over %.1f secs - treating the link as lost", BOARD_SILENCE_TIMEOUT
@@ -948,6 +956,7 @@ class DgtBoard(EBoard):
         """Central place to mark the board as disconnected and trigger re-handshake."""
         was_connected = self.connected
         self.connected = False
+        self.keepalive_sent_at = 0.0
         if was_connected and not self.stop_requested.is_set():
             self._board_loss_notified = True
             # Show the loss immediately; a Bluetooth reconnect attempt may block

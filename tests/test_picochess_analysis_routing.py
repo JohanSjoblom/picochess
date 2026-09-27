@@ -26,7 +26,7 @@ from analysis_policy import (
     tutor_analysis_allowed_in_mode,
 )
 from analysis_depth import depth_gated_analysis_info, selected_engine_analysis_depth
-from web_analysis import localize_web_san, web_analysis_payload
+from web_analysis import web_analysis_payload
 from board_position import board_fen_after_move, previous_position_matching_board_fen
 from position_setup import (
     RK_STARTING_BOARD_FEN,
@@ -374,27 +374,7 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
                     decide_analysis_source(AnalysisSourceContext(*values)),
                 )
 
-    def test_web_san_uses_interface_piece_letters(self):
-        expected_piece_letters = {
-            "en": "KQRBN",
-            "de": "KDTLS",
-            "nl": "KDTLP",
-            "fr": "RDTFC",
-            "es": "RDTAC",
-            "it": "RDTAC",
-        }
-        for language, expected in expected_piece_letters.items():
-            with self.subTest(language=language):
-                self.assertEqual(expected, localize_web_san("KQRBN", language))
-
-        self.assertEqual("Dxd5+", localize_web_san("Qxd5+", "nl"))
-        self.assertEqual("e8=P+", localize_web_san("e8=N+", "nl"))
-
-    def test_web_san_keeps_english_and_unknown_languages_unchanged(self):
-        self.assertEqual("Nc6", localize_web_san("Nc6", "en"))
-        self.assertEqual("Nc6", localize_web_san("Nc6", "unknown"))
-
-    def test_web_analysis_payload_localizes_each_pv_move(self):
+    def test_web_analysis_payload_keeps_english_san_for_browser_figurines(self):
         board = chess.Board()
         info_list = [
             {
@@ -404,9 +384,19 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
             }
         ]
 
-        payload = web_analysis_payload(info_list, board.fen(), "engine", language="nl")
+        payload = web_analysis_payload(info_list, board.fen(), "engine")
 
-        self.assertEqual(["Pf3", "Pf6"], payload["pv"])
+        self.assertEqual(["Nf3", "Nf6"], payload["pv"])
+
+        king_board = chess.Board("4k3/8/8/8/8/8/8/4K3 w - - 0 1")
+        king_info = [{
+            "depth": 10,
+            "score": chess.engine.PovScore(chess.engine.Cp(25), chess.WHITE),
+            "pv": [chess.Move.from_uci("e1e2")],
+        }]
+        self.assertEqual(
+            ["Ke2"], web_analysis_payload(king_info, king_board.fen(), "engine")["pv"]
+        )
 
     def test_successful_engine_change_clears_preserved_mame_history(self):
         source = (Path(__file__).parents[1] / "mainloop.py").read_text(encoding="utf-8")

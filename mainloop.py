@@ -3685,7 +3685,6 @@ class MainLoop:
             analysed_fen,
             source,
             suppress_engine_line=suppress_engine_line,
-            language=getattr(self.state.dgttranslate, "language", "en"),
         )
         if analysis_payload is None:
             logger.debug("skip web analysis for %s: no complete score/mate lines yet", source)

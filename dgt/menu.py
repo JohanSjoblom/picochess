@@ -841,13 +841,19 @@ class DgtMenu(object):
         timectrl = TimeControl(**tc_init)
         if timectrl.moves_to_go_orig > 0:
             mode, choices, setter = TimeMode.TOURN, self.tc_tournaments, self.set_time_tourn
-            matches = lambda choice: choice == timectrl
+
+            def matches(choice):
+                return choice == timectrl
         elif timectrl.depth > 0:
             mode, choices, setter = TimeMode.DEPTH, self.tc_depths, self.set_time_depth
-            matches = lambda choice: choice.depth == timectrl.depth
+
+            def matches(choice):
+                return choice.depth == timectrl.depth
         elif timectrl.node > 0:
             mode, choices, setter = TimeMode.NODE, self.tc_nodes, self.set_time_node
-            matches = lambda choice: choice.node == timectrl.node
+
+            def matches(choice):
+                return choice.node == timectrl.node
         else:
             maps = {
                 TimeMode.FIXED: (self.tc_fixed_map, self.tc_fixed_list, self.set_time_fixed),
@@ -857,7 +863,9 @@ class DgtMenu(object):
             mode = timectrl.mode
             mapping, labels, setter = maps[mode]
             choices = list(mapping.values())
-            matches = lambda choice: choice == timectrl
+
+            def matches(choice):
+                return choice == timectrl
         self.set_time_mode(mode)
         for index, choice in enumerate(choices):
             if matches(choice):

@@ -7171,40 +7171,40 @@ class DgtTranslate(object):
         if text_id == "gameresult_repetition":
             wait = True
             entxt = Dgt.DISPLAY_TEXT(
-                web_text="Threefold repetition ",
-                large_text="3Repetition",
+                web_text="Fivefold repetition ",
+                large_text="5Repetition",
                 medium_text="rep pos ",
                 small_text="reppos",
             )
             detxt = Dgt.DISPLAY_TEXT(
-                web_text="3fache Stellungswiederholung",
-                large_text="3fach Wdhg",
+                web_text="5fache Stellungswiederholung",
+                large_text="5fach Wdhg",
                 medium_text="Wiederhg",
                 small_text="wdrhlg",
             )
             nltxt = Dgt.DISPLAY_TEXT(
-                web_text="Drievoudige zetherhaling",
-                large_text="zetherhalin",
-                medium_text="herhalin",
-                small_text="herhal",
+                web_text="Vijfvoudige zetherhaling",
+                large_text="5xherhaling",
+                medium_text="5x herh",
+                small_text="5xherh",
             )
             frtxt = Dgt.DISPLAY_TEXT(
-                web_text="",
-                large_text="3ieme rep  ",
-                medium_text="3iem rep",
-                small_text=" 3 rep",
+                web_text="Répétition quintuple",
+                large_text="5eme repet",
+                medium_text="5e repet",
+                small_text="5 rep",
             )
             estxt = Dgt.DISPLAY_TEXT(
-                web_text="",
+                web_text="Quíntuple repetición",
                 large_text="repeticion ",
-                medium_text="repite 3",
-                small_text="rep 3 ",
+                medium_text="repite 5",
+                small_text="rep 5 ",
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Patta per tripla ripetizione",
-                large_text="3 ripetiz  ",
-                medium_text="3 ripeti",
-                small_text="3 ripe",
+                web_text="Patta per quintupla ripetizione",
+                large_text="5 ripetiz  ",
+                medium_text="5 ripeti",
+                small_text="5 ripe",
             )
         if text_id == "gameresult_abort":
             wait = True

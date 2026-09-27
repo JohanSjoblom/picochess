@@ -34,6 +34,7 @@ from ssl import create_default_context
 
 import requests
 import chess  # type: ignore
+import chess.engine  # type: ignore
 import chess.pgn  # type: ignore
 import chess.variant  # type: ignore
 import dgt.util
@@ -388,7 +389,7 @@ class Emailer(object):
                 ctype = "application/octet-stream"
             maintype, subtype = ctype.split("/", 1)
             if maintype == "text":
-                with open(path) as fpath:
+                with open(path, encoding="utf-8") as fpath:
                     msg = MIMEText(fpath.read(), _subtype=subtype)
             elif maintype == "image":
                 with open(path, "rb") as fpath:
@@ -721,40 +722,47 @@ class PgnDisplay(DisplayMsg):
                         nag = value["nag"]  # $N symbol for !!, ! etc
                         if nag != chess.pgn.NAG_NULL:
                             node.nags.add(nag)
-                        node.comment = self._get_picotutor_eval_comments(nag, value, turn)
+                        # Keep the symbol in the comment as well as the NAG so
+                        # the raw PGN remains readable without a PGN viewer.
+                        node.comment = PicoTutor.nag_to_symbol(nag) if nag != chess.pgn.NAG_NULL else ""
+                        eval_score = self._get_picotutor_eval_score(value, turn)
+                        if eval_score is not None:
+                            # python-chess writes the commonly supported PGN
+                            # form: pawn decimals for centipawn evaluations and
+                            # #N for mate, always from White's perspective.
+                            node.set_eval(eval_score)
+                        extra_comments = self._get_picotutor_eval_comments(value)
+                        if extra_comments:
+                            node.comment = " ".join(filter(None, (node.comment, extra_comments)))
                         add_picotutor_variations_to_node(node, value)
                     else:
                         logger.debug("skipped move %s-%s picotutor eval mismatch", pgn_move.uci(), user_move.uci())
 
-    def _get_picotutor_eval_comments(self, nag: int, value: dict, turn: chess.Color) -> str:
-        """get comments found in picotutor evaluations value dict"""
-        if nag != chess.pgn.NAG_NULL:
-            comment = PicoTutor.nag_to_symbol(nag)  # back to !!, ! etc
-        else:
-            # special case inaccuracy - its not a nag, but CPL > INACCURACY_TH
-            # its the only case where there is a No-NULL evaluation
-            if "best_move" in value:
-                comment = "Best: " + value["best_move"]
-            else:
-                comment = "Inaccuracy "  # should never happen, fallback
+    @staticmethod
+    def _get_picotutor_eval_score(value: dict, turn: chess.Color) -> chess.engine.PovScore | None:
+        """Build a White-perspective score from a stored mover-perspective evaluation."""
+        perspective = -1 if turn == chess.WHITE else 1
         if "mate" in value:
-            comment += " Mate in: " + str(value["mate"])
+            score: chess.engine.Score = chess.engine.Mate(int(value["mate"]) * perspective)
+        elif "score" in value:
+            score = chess.engine.Cp(int(value["score"]) * perspective)
         else:
-            if "score" in value:
-                score_value = value["score"]
-                if turn == chess.WHITE:
-                    # always show score from white's perspective
-                    # as turn is AFTER move this is now Black perspective
-                    score_value = -score_value  # change to white's perspective
-                comment += " Score: " + str(score_value)
+            return None
+        return chess.engine.PovScore(score, chess.WHITE)
+
+    @staticmethod
+    def _get_picotutor_eval_comments(value: dict) -> str:
+        """Return structured supplemental commands for a Tutor evaluation."""
+        commands = []
+        if "best_move" in value:
+            commands.append("[%bestmove " + str(value["best_move"]) + "]")
         if "CPL" in value:
-            comment += " CPL: " + str(value["CPL"])
+            commands.append("[%cpl " + str(int(value["CPL"])) + "]")
         if "deep_low_diff" in value:
-            comment += " DS: " + str(value.get("deep_low_diff"))
-        if nag in (chess.pgn.NAG_BLUNDER, chess.pgn.NAG_MISTAKE, chess.pgn.NAG_DUBIOUS_MOVE):
-            if "best_move" in value:
-                comment += " Best: " + value["best_move"]
-        return comment
+            # This is PicoTutor's Cambridge delta-S value, not a common PGN
+            # command, so keep it explicitly namespaced.
+            commands.append("[%pico_ds " + str(int(value["deep_low_diff"])) + "]")
+        return " ".join(commands)
 
     def _save_and_email_pgn(self, message):
         """when game ends the pgn file is saved and emailed"""
@@ -808,12 +816,12 @@ class PgnDisplay(DisplayMsg):
         self.last_saved_game = pgn_game
 
         # Save to last game file
-        with open(self.last_file_name, "w") as last_file:
+        with open(self.last_file_name, "w", encoding="utf-8") as last_file:
             last_exporter = chess.pgn.FileExporter(last_file)
             pgn_game_last.accept(last_exporter)
 
         # Append to all games file
-        with open(self.file_name, "a") as file:
+        with open(self.file_name, "a", encoding="utf-8") as file:
             exporter = chess.pgn.FileExporter(file)
             pgn_game.accept(exporter)
 
@@ -844,7 +852,7 @@ class PgnDisplay(DisplayMsg):
                 else:
                     pgn_game.headers["Result"] = "0-1"
 
-        with open(l_file_name, "w") as file:
+        with open(l_file_name, "w", encoding="utf-8") as file:
             exporter = chess.pgn.FileExporter(file)
             pgn_game.accept(exporter)
 
@@ -958,7 +966,13 @@ class PgnDisplay(DisplayMsg):
             ):
                 # note that neither PGNREPLAY nor PONDER (ANALYSIS) modes overwrite last_game.pgn
                 # we do not have pgn_filename in GAME_ENDS as we have in SAVE_GAME message
-                self._save_and_email_pgn(message)
+                if message.result == dgt.util.GameResult.ABORT and ModeInfo.get_game_ending() != "*":
+                    logger.debug(
+                        "Skipping abort PGN autosave because game already ended with result %s",
+                        ModeInfo.get_game_ending(),
+                    )
+                else:
+                    self._save_and_email_pgn(message)
             elif message.mode == Mode.PGNREPLAY:
                 message.pgn_filename = "last_replay.pgn"
                 self._save_pgn(message)

@@ -318,6 +318,47 @@ var livePgnTreeActive = true;
 var webHistoryMerged = false;
 var webAnalysisSearchActive = false;
 var webAnalysisStopRequested = false;
+var dgtBoardConnected = false;
+
+function dgtBatteryPresentation(rawBattery, connected) {
+    var match = /^(\d+)%$/.exec(String(rawBattery || 'N/A'));
+    if (!connected || !match) {
+        return {
+            percentage: 0,
+            text: '—',
+            className: '',
+            title: connected ? 'DGT battery unavailable' : 'DGT board disconnected'
+        };
+    }
+    var percentage = Math.max(0, Math.min(Number(match[1]), 99));
+    return {
+        percentage: percentage,
+        text: percentage + '%',
+        className: percentage <= 10 ? 'footer-battery-low' :
+            (percentage <= 20 ? 'footer-battery-medium' : 'footer-battery-good'),
+        title: 'DGT battery: ' + percentage + '%'
+    };
+}
+
+function updateDgtBatteryStatus() {
+    var batteryEl = document.getElementById('picoFooterBattery');
+    if (!batteryEl) { return; }
+    var sysInfo = window._picoSystemInfo || {};
+    if (!Object.prototype.hasOwnProperty.call(sysInfo, 'battery')) {
+        batteryEl.hidden = true;
+        return;
+    }
+    batteryEl.hidden = false;
+    batteryEl.classList.remove('footer-battery-good', 'footer-battery-medium', 'footer-battery-low');
+    var batteryText = batteryEl.querySelector('.footer-battery-text');
+    var presentation = dgtBatteryPresentation(sysInfo.battery, dgtBoardConnected);
+    batteryEl.style.setProperty('--battery-level', presentation.percentage + '%');
+    batteryText.textContent = presentation.text;
+    batteryEl.title = presentation.title;
+    if (presentation.className) {
+        batteryEl.classList.add(presentation.className);
+    }
+}
 var webAnalysisStopReasserted = false;
 var webAnalysisPendingRequest = null;
 
@@ -966,7 +1007,7 @@ function WebExporter(columns) {
             this.write_token(String(fullmove_number) + ". ");
         }
         else if (variation_start) {
-            this.write_token(String(fullmove_number) + "... ");
+            this.write_token('<span class="variationResumeMoveNumber">' + String(fullmove_number) + '... </span>');
         }
     };
 
@@ -1300,7 +1341,7 @@ var updateStatus = function () {
 
     var moveColor = 'White';
     var tmpGame = createGamePointer();
-    var fen = tmpGame.fen();
+    var fen = authoritativeDisplayFen(currentPosition, tmpGame);
 
     var strippedFen = stripFen(fen);
 
@@ -1468,8 +1509,17 @@ async function getMove(game, source, target) {
     });
 }
 
+function authoritativeDisplayFen(position, fallbackGame) {
+    return position && position.fen ? position.fen : fallbackGame.fen();
+}
+
 function updateChessGround() {
     var tmpGame = createGamePointer();
+    // Terminal variant positions can be invalid under standard chess rules.
+    // For example, Atomic has no losing king after it explodes. Chess.js then
+    // falls back to its starting position, while Chessground can display the
+    // authoritative server FEN directly.
+    var displayFen = authoritativeDisplayFen(currentPosition, tmpGame);
     var turnColor = toColor(tmpGame);
     var movableColor;
 
@@ -1484,7 +1534,7 @@ function updateChessGround() {
     }
 
     chessground1.set({
-        fen: tmpGame.fen(),
+        fen: displayFen,
         turnColor: turnColor,
         movable: {
             color: movableColor,
@@ -1737,7 +1787,7 @@ function loadGame(pgn_lines, options) {
     if (isDefinitiveResult(game_result_token) || !isDefinitiveResult(game_headers['Result'])) {
         game_headers['Result'] = game_result_token || game_headers['Result'] || '*';
     }
-    if (lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
+    if (options.announceLastMove !== false && lastmove && (computerside == "" || (computerside != "" && lastmove.color != computerside))) {
         var tmp_board = new Chess(currentPosition.fen, chessGameType);
         saymove(lastmove, tmp_board); // announce user move
     }
@@ -2536,7 +2586,7 @@ function updateDGTPosition(data) {
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged });
+        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged, announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
@@ -2547,7 +2597,7 @@ function updateDGTPosition(data) {
         loadGame(data.pgn.split("\n"), { historyMerged: data.history_merged });
     }
     if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
-        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged });
+        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged, announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
             // FEN than the server sent.  Force the board to show the server's FEN.
@@ -3392,6 +3442,7 @@ function getAllInfo() {
         // when a physical board is the source of truth for piece positions.
         window._picoSystemInfo = window._picoSystemInfo || {};
         Object.assign(window._picoSystemInfo, data);
+        updateDgtBatteryStatus();
         applyInitialWebExploreBoardPolicy();
         if (Object.prototype.hasOwnProperty.call(data, 'game_started') && window.setPicoGameActive) {
             window.setPicoGameActive(Boolean(data.game_started));
@@ -3628,6 +3679,11 @@ $(function () {
             ws.onopen = function () {
                 // Reset backoff on successful connection.
                 wsReconnectDelay = 2000;
+                // A server restart creates a fresh websocket while this page
+                // keeps its old HTTP-derived clock, engine and menu state.
+                // Refresh those snapshots; the board itself is restored by
+                // EventHandler.open without changing browser Explore state.
+                getAllInfo();
                 stopAnalysisClock();
                 // Ensure placeholders are visible while waiting for first messages.
                 setEngineLinePlaceholder();
@@ -3692,6 +3748,17 @@ $(function () {
                         if (window.setPicoGameActive) window.setPicoGameActive(false);
                         if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
                         break;
+                    case 'GameEnd':
+                        if (data.result === '1-0') {
+                            talk('Game over. White wins.');
+                        } else if (data.result === '0-1') {
+                            talk('Game over. Black wins.');
+                        } else if (data.result === '1/2-1/2') {
+                            talk('Game over. Draw.');
+                        } else {
+                            talk('Game over.');
+                        }
+                        break;
                     case 'Analysis':
                         updateBackendAnalysis(data.analysis);
                         updateAnalysisClock(data.analysis);
@@ -3729,10 +3796,15 @@ $(function () {
                         if (dgtEl) {
                             if (data.eboard === 'connected') {
                                 dgtEl.classList.add('footer-connected');
+                                dgtEl.classList.remove('footer-disconnected');
+                                dgtBoardConnected = true;
                             } else if (data.eboard === 'error' || data.eboard === 'noeboard') {
                                 dgtEl.classList.remove('footer-connected');
+                                dgtEl.classList.add('footer-disconnected');
+                                dgtBoardConnected = false;
                             }
                         }
+                        updateDgtBatteryStatus();
                         break;
                     case 'TutorWatch':
                         if (data.settings && window.setTutorSettings) {
@@ -3805,6 +3877,7 @@ $(function () {
                         window._picoSystemInfo = window._picoSystemInfo || {};
                         var _prevMode = window._picoSystemInfo.interaction_mode;
                         Object.assign(window._picoSystemInfo, data.msg);
+                        updateDgtBatteryStatus();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.

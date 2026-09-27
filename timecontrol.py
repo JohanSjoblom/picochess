@@ -325,7 +325,7 @@ class TimeControl(object):
                 )
                 self.run_color = self.active_color
 
-    def stop_internal(self, log=True):
+    def stop_internal(self, log=True, refund_seconds: float = 0.0):
         """Stop the internal clock."""
         if self.internal_running() and self.mode in (TimeMode.BLITZ, TimeMode.FISCHER):
             if log:
@@ -337,11 +337,21 @@ class TimeControl(object):
             else:
                 logger.warning("time=%s", self.internal_time)
             used_time = time.time() - self.start_time
+            if refund_seconds > 0:
+                # A disconnected e-board cannot report a move. Do not charge
+                # the player for the silent interval before the watchdog noticed.
+                refunded = min(refund_seconds, max(0.0, used_time))
+                used_time -= refunded
+                logger.info("refunding %.1f secs of board disconnect detection", refunded)
             if log:
                 logger.debug("used time: %s secs", used_time)
             self.internal_time[self.active_color] -= used_time
             if self.internal_time[self.active_color] < 0:
                 self.internal_time[self.active_color] = 0
+            if refund_seconds > 0:
+                # The internal clock is authoritative while the board is away.
+                # A stale external reading must not undo the refund on restart.
+                self.clock_time.update(self.internal_time)
             if log:
                 w_hms, b_hms = self._log_time()
                 logger.debug("new internal time w:%s b:%s", w_hms, b_hms)

@@ -9,6 +9,83 @@ import unittest
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser JavaScript tests")
 class TestWebPgnMoves(unittest.TestCase):
+    def test_dgt_battery_footer_uses_live_system_info_and_connection_status(self):
+        root = Path(__file__).parents[1]
+        script = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        template = (root / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+        css = (root / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="picoFooterBattery"', template)
+        self.assertIn("function updateDgtBatteryStatus()", script)
+        self.assertIn("dgtBoardConnected = true", script)
+        self.assertIn("dgtBoardConnected = false", script)
+        self.assertIn(
+            "Object.assign(window._picoSystemInfo, data.msg);\n"
+            "                        updateDgtBatteryStatus();",
+            script,
+        )
+        self.assertIn(".footer-battery-low .footer-battery-body", css)
+        self.assertIn("--battery-level", css)
+
+        start = script.index("function dgtBatteryPresentation(")
+        end = script.index("\n}\n\nfunction updateDgtBatteryStatus", start) + 2
+        program = script[start:end] + (
+            "\nconsole.log(JSON.stringify(["
+            "dgtBatteryPresentation('42%', true),"
+            "dgtBatteryPresentation('15%', true),"
+            "dgtBatteryPresentation('9%', true),"
+            "dgtBatteryPresentation('N/A', true),"
+            "dgtBatteryPresentation('42%', false)"
+            "]));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+        states = json.loads(result.stdout)
+        self.assertEqual("footer-battery-good", states[0]["className"])
+        self.assertEqual("footer-battery-medium", states[1]["className"])
+        self.assertEqual("footer-battery-low", states[2]["className"])
+        self.assertEqual("—", states[3]["text"])
+        self.assertEqual("—", states[4]["text"])
+
+    def test_terminal_variant_display_uses_authoritative_server_fen(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function authoritativeDisplayFen(")
+        end = script.index("\n}", start) + 2
+        atomic_terminal_fen = "r1bq3r/p1ppp1pp/1pn5/8/8/8/PPPPPPPP/RNBQKB1R b KQ - 0 3"
+        program = script[start:end] + "\n" + (
+            f"console.log(authoritativeDisplayFen({{fen: {json.dumps(atomic_terminal_fen)}}}, "
+            "{fen: () => 'startpos'}));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual(atomic_terminal_fen, result.stdout.strip())
+
+    def test_web_exporter_marks_black_move_number_after_variation(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function WebExporter(")
+        end = script.index("\nfunction PgnExporter(", start)
+        program = script[start:end] + "\nconst exporter = new WebExporter();\n" + (
+            "exporter.put_fullmove_number('b', 47, true);\n"
+            "console.log(exporter.toString());"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual(
+            '<span class="variationResumeMoveNumber">47... </span>',
+            result.stdout.strip(),
+        )
+
+        css = (Path(__file__).parents[1] / "web/picoweb/static/css/base.css").read_text(encoding="utf-8")
+        self.assertIn(
+            "#pgn.pgn-variations-hidden .variationResumeMoveNumber",
+            css,
+        )
+
     def test_move_detection_ignores_headers_and_comments(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function pgnTextHasMoves(")

@@ -3,7 +3,14 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from utilities import AsyncRepeatingTimer, _choose_wayland_backend, get_engine_mame_par, get_window_command
+from utilities import (
+    AsyncRepeatingTimer,
+    _choose_wayland_backend,
+    exit_pico,
+    get_engine_mame_par,
+    get_window_command,
+    update_picochess_now,
+)
 
 
 class TestUtilities(unittest.TestCase):
@@ -27,7 +34,7 @@ class TestUtilities(unittest.TestCase):
     @patch("utilities.is_wayland_session", return_value=True)
     def test_get_window_command_wayland_ydotool(self, _, __):
         self.assertEqual(
-            "ydotool key 56:1 15:1 15:0 56:0",
+            "ydotool key 56:1 15:1 15:0; sleep 0.2; ydotool key 56:0",
             get_window_command("switch_window"),
         )
 
@@ -36,7 +43,8 @@ class TestUtilities(unittest.TestCase):
     @patch.dict("utilities.os.environ", {"YDOTOOL_SOCKET": "/home/pi/.ydotool_socket"}, clear=False)
     def test_get_window_command_wayland_ydotool_with_socket(self, _, __):
         self.assertEqual(
-            "YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:1 15:1 15:0 56:0",
+            "YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:1 15:1 15:0; "
+            "sleep 0.2; YDOTOOL_SOCKET=/home/pi/.ydotool_socket ydotool key 56:0",
             get_window_command("switch_window"),
         )
 
@@ -55,6 +63,21 @@ class TestUtilities(unittest.TestCase):
     def test_choose_wayland_backend_override_missing_tool(self, _):
         self.assertIsNone(_choose_wayland_backend())
 
+    @patch("utilities.os.system")
+    @patch("utilities.platform.system", return_value="Linux")
+    def test_exit_pico_does_not_stop_chromium_outside_kiosk(self, _, os_system):
+        exit_pico(dgtpi=False, dev="web")
+
+        os_system.assert_not_called()
+
+    @patch("utilities.subprocess.Popen")
+    def test_update_restart_does_not_kill_unowned_chromium(self, popen):
+        update_picochess_now()
+
+        command = popen.call_args.args[0][-1]
+        self.assertIn("systemctl restart picochess", command)
+        self.assertNotIn("chromium", command)
+
 
 class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
 
@@ -70,6 +93,27 @@ class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(fired.wait(), timeout=1)
         await asyncio.sleep(0)
         self.assertFalse(timer.is_running())
+
+    async def test_repeating_timer_survives_callback_exception(self):
+        loop = asyncio.get_running_loop()
+        succeeded = asyncio.Event()
+        call_count = 0
+
+        def callback():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("transient callback failure")
+            succeeded.set()
+
+        timer = AsyncRepeatingTimer(0.01, callback, loop)
+        timer.start()
+        try:
+            await asyncio.wait_for(succeeded.wait(), timeout=1)
+        finally:
+            timer.stop()
+
+        self.assertGreaterEqual(call_count, 2)
 
 
 if __name__ == "__main__":

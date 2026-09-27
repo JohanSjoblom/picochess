@@ -1499,6 +1499,9 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
             stop_clock=AsyncMock(),
             start_clock=AsyncMock(),
             stop_fen_timer=Mock(),
+            done_computer_fen=None,
+            is_user_turn=lambda: self.board.turn == chess.WHITE,
+            time_control=SimpleNamespace(internal_running=Mock(return_value=False)),
             picotutor=SimpleNamespace(
                 get_pos_analysis=AsyncMock(
                     return_value=(chess.Move.null(), 25, 0, [])
@@ -1525,15 +1528,34 @@ class TestCoachPositionOwnership(unittest.IsolatedAsyncioTestCase):
         self.controller.state.start_clock.assert_not_awaited()
         self.show.assert_not_awaited()
 
-    async def test_physical_position_change_stops_coach_and_keeps_correction_mode(self):
+    async def test_physical_position_change_stops_coach_and_gives_back_the_clock(self):
         self.controller.board_type = mainloop.dgt.util.EBoard.DGT
         self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"
 
         await self.controller.call_pico_coach()
 
+        # The return event's position-mode path still clears the Coach display.
         self.assertTrue(self.controller.state.position_mode)
-        self.controller.state.start_clock.assert_not_awaited()
+        self.controller.state.start_clock.assert_awaited_once_with()
         self.show.assert_not_awaited()
+
+    async def test_abandoned_coach_does_not_restart_clock_for_pending_engine_move(self):
+        self.controller.board_type = mainloop.dgt.util.EBoard.DGT
+        self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"
+        self.controller.state.done_computer_fen = "pending"
+
+        await self.controller.call_pico_coach()
+
+        self.controller.state.start_clock.assert_not_awaited()
+
+    async def test_abandoned_coach_does_not_restart_running_clock(self):
+        self.controller.board_type = mainloop.dgt.util.EBoard.DGT
+        self.dgtmenu.get_dgt_fen.return_value = "8/8/8/8/8/8/8/8"
+        self.controller.state.time_control.internal_running.return_value = True
+
+        await self.controller.call_pico_coach()
+
+        self.controller.state.start_clock.assert_not_awaited()
 
     async def test_move_during_coach_stops_old_output_and_does_not_restart_clock(self):
         async def advance_revision(delay):

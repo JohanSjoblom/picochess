@@ -1021,17 +1021,17 @@ class MainLoop:
             coach_revision = self.state.user_move_revision
             await self.state.stop_clock()
             await asyncio.sleep(0.5)
-            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+            if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                 return
             self.state.stop_fen_timer()
             await asyncio.sleep(0.5)
-            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+            if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                 return
             eval_str = "ANALYSIS"
             msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
             await DisplayMsg.show(msg)
             await asyncio.sleep(2)
-            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+            if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                 return
 
             (
@@ -1047,14 +1047,14 @@ class MainLoop:
                 t_best_mate,
                 len(t_alt_best_moves),
             )
-            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+            if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                 return
 
             tutor_str = "POS" + str(t_best_score)
             msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, score=t_best_score)
             await DisplayMsg.show(msg)
             await asyncio.sleep(5)
-            if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+            if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                 return
 
             if t_best_mate:
@@ -1067,7 +1067,7 @@ class MainLoop:
                     msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                     await DisplayMsg.show(msg)
                     await asyncio.sleep(5)
-                    if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                    if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                         return
             else:
                 l_mate = 0
@@ -1076,14 +1076,14 @@ class MainLoop:
                 msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(5)
-                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                     return
             elif l_mate < 0:
                 eval_str = "USRMATE_" + str(abs(l_mate))
                 msg = Message.PICOTUTOR_MSG(eval_str=eval_str)
                 await DisplayMsg.show(msg)
                 await asyncio.sleep(5)
-                if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                     return
             else:
                 l_max = 0
@@ -1098,7 +1098,7 @@ class MainLoop:
                         msg = Message.PICOTUTOR_MSG(eval_str=tutor_str, game=game_tutor)
                         await DisplayMsg.show(msg)
                         await asyncio.sleep(5)
-                        if not self._coach_call_is_current(coach_fen, coach_board_fen, coach_revision):
+                        if not await self._coach_may_continue(coach_fen, coach_board_fen, coach_revision):
                             return
                     else:
                         break
@@ -1123,6 +1123,36 @@ class MainLoop:
         if self.board_type == dgt.util.EBoard.NOEBOARD:
             return True
         return self.state.dgtmenu.get_dgt_fen() == expected_board_fen
+
+    async def _coach_may_continue(
+        self,
+        expected_fen: str,
+        expected_board_fen: str,
+        expected_revision: int,
+    ) -> bool:
+        """Return whether Coach may continue; otherwise give back the clock it stopped."""
+        if self._coach_call_is_current(expected_fen, expected_board_fen, expected_revision):
+            return True
+        await self._resume_clock_after_abandoned_coach(expected_fen, expected_revision)
+        return False
+
+    async def _resume_clock_after_abandoned_coach(self, coach_fen: str, coach_revision: int) -> None:
+        """Restart the user clock when Coach stopped only because the physical board changed.
+
+        A lift-and-return during Coach output abandons Coach, but the position is
+        still the user's to move. A newer move or a pending engine move owns the
+        clock instead, so leave it alone in those cases.
+        """
+        if (
+            self.state.user_move_revision == coach_revision
+            and self.state.get_fen() == coach_fen
+            and self.state.done_computer_fen is None
+            and self.state.is_user_turn()
+            and self.state.time_control is not None
+            and not self.state.time_control.internal_running()
+        ):
+            logger.info("Coach abandoned on an unchanged position; resuming user clock")
+            await self.state.start_clock()
 
     def _release_coach_position_mode_for_move(self) -> None:
         """Let a confirmed legal move enter Tutor while an old Coach display winds down."""

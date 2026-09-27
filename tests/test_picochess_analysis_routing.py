@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call, patch
 
 import chess
+import chess.engine
 import chess.variant
 
 import mainloop
@@ -1810,3 +1811,71 @@ class TestUserMoveLegalFenPublication(unittest.TestCase):
 
         self.assertLess(state_push.lineno, publication.lineno)
         self.assertLess(publication.lineno, tutor_push.lineno)
+
+
+class TestPonderHitContinuationClockEvents(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.fire = AsyncMock()
+        start_patch(self, mainloop.Observable, "fire", self.fire)
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.board = chess.Board()
+        self.pre_move_fen = self.board.fen()
+        self.user_move = chess.Move.from_uci("e2e4")
+        self.reply = chess.Move.from_uci("e7e5")
+        self.controller.state = SimpleNamespace(
+            game=self.board,
+            get_fen=self.board.fen,
+            best_sent_depth=SimpleNamespace(set_best=Mock()),
+            pb_move=chess.Move.null(),
+        )
+        self.info = {
+            "depth": 22,
+            "pv": [self.user_move, self.reply, chess.Move.from_uci("g1f3")],
+            "score": chess.engine.PovScore(chess.engine.Cp(30), chess.WHITE),
+        }
+
+    def fired_events(self):
+        return [fired.args[0] for fired in self.fire.await_args_list]
+
+    async def test_continuation_survives_the_user_move_push(self):
+        await self.controller.send_analyse(
+            self.info, self.pre_move_fen, ponder_move=self.reply, for_next_position=True
+        )
+        self.board.push(self.user_move)
+
+        events = self.fired_events()
+        self.assertEqual(3, len(events))
+        for event in events:
+            with self.subTest(event=event):
+                self.assertTrue(analysis_event_matches_position(event.fen, self.board.fen()))
+        # best_sent_depth still records the analysed position before the move.
+        self.controller.state.best_sent_depth.set_best.assert_called_once_with(
+            self.info, self.pre_move_fen, self.board, self.reply
+        )
+
+    async def test_regular_clock_analysis_stays_tied_to_its_position(self):
+        await self.controller.send_analyse(self.info, self.pre_move_fen)
+        self.board.push(self.user_move)
+
+        events = self.fired_events()
+        self.assertEqual(3, len(events))
+        for event in events:
+            with self.subTest(event=event):
+                self.assertFalse(analysis_event_matches_position(event.fen, self.board.fen()))
+
+    def test_user_move_ponder_hit_sends_continuation_for_next_position(self):
+        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
+        user_move = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "user_move"
+        )
+        calls = [
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "send_analyse"
+        ]
+
+        self.assertEqual(1, len(calls))
+        keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+        self.assertIs(True, keywords["for_next_position"].value)

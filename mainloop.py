@@ -2660,8 +2660,13 @@ class MainLoop:
                             ponder_reply = pv_moves[1] if pv_moves and len(pv_moves) > 1 else chess.Move.null()
                             send_pv = pv_moves and len(pv_moves) > 1
                             # Fast clock feedback only; not a full analysis update.
+                            # The events are consumed after push_move below.
                             await self.send_analyse(
-                                info, analysed_fen, send_pv=bool(send_pv), ponder_move=ponder_reply
+                                info,
+                                analysed_fen,
+                                send_pv=bool(send_pv),
+                                ponder_move=ponder_reply,
+                                for_next_position=True,
                             )
                             if not send_pv:
                                 self.state.pb_move = chess.Move.null()
@@ -3602,11 +3607,19 @@ class MainLoop:
         return info
 
     async def send_analyse(
-        self, info: InfoDict, analysed_fen: str, send_pv: bool = True, ponder_move: chess.Move | None = None
+        self,
+        info: InfoDict,
+        analysed_fen: str,
+        send_pv: bool = True,
+        ponder_move: chess.Move | None = None,
+        for_next_position: bool = False,
     ):
         """send pv, depth, and score events for a specific analysed fen
         with send_pv False pv message is not sent - use if its previous move InfoDict
         ponder_move overrides the cached ponder the optimiser remembers (None keeps previous behaviour)
+        for_next_position leaves the events untagged: the caller shows this continuation
+        for the position after the user move it is about to push, so tagging it with
+        analysed_fen would make the delayed-analysis filter discard it
         this is executed periodically in the background_analyse_timer task"""
         if not info:
             return
@@ -3614,6 +3627,7 @@ class MainLoop:
         if analysed_fen != current_fen:
             logger.debug("ignoring analysis info for old fen: %s != %s", analysed_fen, current_fen)
             return
+        event_fen = None if for_next_position else analysed_fen
         # ask for score from white's perspective
         (move, score, mate) = PicoTutor.get_score(info)
         if "depth" in info:
@@ -3623,7 +3637,7 @@ class MainLoop:
                 cache_ponder = ponder_move
             self.state.best_sent_depth.set_best(info, analysed_fen, self.state.game, cache_ponder)
             # send depth before score as score is assembling depth in receiver end
-            await Observable.fire(Event.NEW_DEPTH(depth=depth, fen=analysed_fen))
+            await Observable.fire(Event.NEW_DEPTH(depth=depth, fen=event_fen))
         if send_pv:
             pv_move_to_send = ponder_move if ponder_move and ponder_move != chess.Move.null() else move
             pv_moves = list(info.get("pv") or [])
@@ -3635,9 +3649,9 @@ class MainLoop:
                 pv_to_send = [pv_move_to_send] if pv_move_to_send != chess.Move.null() else []
             if pv_to_send:
                 self.state.pb_move = pv_to_send[0]  # backward compatibility
-                await Observable.fire(Event.NEW_PV(pv=pv_to_send, fen=analysed_fen))
+                await Observable.fire(Event.NEW_PV(pv=pv_to_send, fen=event_fen))
         if score is not None:
-            await Observable.fire(Event.NEW_SCORE(score=score, mate=mate, fen=analysed_fen))
+            await Observable.fire(Event.NEW_SCORE(score=score, mate=mate, fen=event_fen))
 
     async def send_web_analysis(
         self,

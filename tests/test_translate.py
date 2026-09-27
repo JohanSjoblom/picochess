@@ -26,6 +26,25 @@ class TestItalianTutorMoveTranslation(unittest.TestCase):
                     self.assertNotIn(english_move, text.web_text)
 
 
+class TestDutchTutorHintTranslation(unittest.TestCase):
+    def test_dgt3000_hint_uses_dutch_piece_letter(self):
+        dutch = DgtTranslate("none", 0, "nl", "version")
+        german = DgtTranslate("none", 0, "de", "version")
+
+        for english_move, dutch_move, german_move in (
+            ("Nc3", "Pc3", "Sc3"),
+            ("Qd3", "Dd3", "Dd3"),
+            ("Ra1", "Ta1", "Ta1"),
+            ("Bb5", "Lb5", "Lb5"),
+        ):
+            with self.subTest(move=english_move):
+                dutch_hint = dutch.text("C10_picotutor_msg", "HINT" + english_move)
+                german_hint = german.text("C10_picotutor_msg", "HINT" + english_move)
+                self.assertIn(dutch_move, dutch_hint.web_text)
+                self.assertIn(dutch_move, dutch_hint.medium_text)
+                self.assertIn(german_move, german_hint.medium_text)
+
+
 class TestDisplayTextLengths(unittest.TestCase):
     LIMITS = {
         "small_text": 6,

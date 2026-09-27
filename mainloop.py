@@ -121,6 +121,7 @@ from utilities import (
     is_wayland_session,
 )
 from utilities import AsyncRepeatingTimer
+from legacy_kiosk import stop_legacy_kiosk
 from pgn import Emailer, PgnDisplay, ModeInfo, pgn_has_variations, pgn_variation_review_points
 from server import EventHandler, clear_preserved_mame_history, publish_preserved_mame_history
 from picotalker import PicoTalkerDisplay
@@ -7245,6 +7246,7 @@ class MainLoop:
             # await DisplayMsg.show(Message.SYSTEM_EXIT())
             # no messaging or events beyond this point
             await asyncio.sleep(3)  # molli allow more time (5) for commentary chat
+            await asyncio.to_thread(stop_legacy_kiosk)
             exit_pico(self.args.dgtpi, dev=event.dev)  # @todo make independant of remote eng
             await self.final_exit_or_reboot_cleanups()
 

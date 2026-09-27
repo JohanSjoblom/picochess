@@ -311,16 +311,22 @@ def update_picochess_now():
     itself; the second pass uses the updated version to update the application code.
     After both passes, PicoChess is restarted via systemctl (no full reboot
     required). The kiosk supervisor closes and relaunches its own Chromium process
-    across the service restart.
+    across the service restart. A narrow fallback closes legacy unsupervised
+    kiosks immediately before the restart.
     """
     script = "/opt/picochess/install-picochess.sh"
     logfile = "/var/log/picochess-update.log"
     cmd = (
+        # Keep the helper across the install: the update may switch to a branch
+        # that does not yet contain legacy_kiosk.py.
+        "legacy_kiosk_helper=$(mktemp /tmp/picochess-legacy-kiosk.XXXXXX.py) && "
+        "cp /opt/picochess/legacy_kiosk.py \"$legacy_kiosk_helper\" ; "
         f"echo \"$(date): Update pass 1/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 && "
         f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
         f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
+        "python3 \"$legacy_kiosk_helper\" ; rm -f \"$legacy_kiosk_helper\" ; "
         f"systemctl restart picochess"
     )
     try:

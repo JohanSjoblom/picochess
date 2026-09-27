@@ -137,6 +137,8 @@ class DisplayDgt(object):
 class AsyncRepeatingTimer:
     """Call function on a given interval - Async version to replace RepeatedTimer"""
 
+    lag_warning_seconds = None  # Enable only for event-loop diagnostics.
+
     def __init__(self, interval, callback, loop: asyncio.AbstractEventLoop, repeating=True, args=None, kwargs=None):
         self.interval = interval  # Interval between each execution
         self.callback = callback  # Function to be repeatedly called
@@ -153,13 +155,26 @@ class AsyncRepeatingTimer:
 
     async def _run(self):
         while self._running:  # Continue running until the timer is stopped
+            threshold = self.lag_warning_seconds
+            scheduled = self.loop.time() + self.interval if threshold is not None else None
             try:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 # Timer cancelled during shutdown; exit quietly.
                 break
+            callback_name = None
+            if scheduled is not None:
+                actual = self.loop.time()
+                if actual - scheduled >= threshold:
+                    callback_name = self._callback_name()
+                    logging.warning(
+                        "event-loop timer late callback=%s scheduled=%.3f actual=%.3f late=%.3fs interval=%.3fs",
+                        callback_name, scheduled, actual, actual - scheduled, self.interval,
+                    )
+            callback_is_async = asyncio.iscoroutinefunction(self.callback)
+            callback_started = self.loop.time() if scheduled is not None and not callback_is_async else None
             try:
-                if asyncio.iscoroutinefunction(self.callback):
+                if callback_is_async:
                     await self.callback(*self.args, **self.kwargs)
                 else:
                     self.callback(*self.args, **self.kwargs)  # sync callback
@@ -167,8 +182,21 @@ class AsyncRepeatingTimer:
                 break
             except Exception:
                 logging.exception("repeating timer callback failed")
+            finally:
+                if callback_started is not None:
+                    elapsed = self.loop.time() - callback_started
+                    if elapsed >= threshold:
+                        logging.warning(
+                            "event-loop timer callback slow callback=%s elapsed=%.3fs",
+                            callback_name or self._callback_name(), elapsed,
+                        )
             if not self.repeating:
                 self._running = False
+
+    def _callback_name(self):
+        owner = getattr(self.callback, "__self__", None)
+        name = getattr(self.callback, "__name__", type(self.callback).__name__)
+        return f"{type(owner).__name__}.{name}" if owner is not None else name
 
     def _running_in_target_loop(self):
         try:

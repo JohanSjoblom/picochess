@@ -39,7 +39,7 @@ from uci.engine_provider import EngineProvider
 
 from theme import ThemeResolver
 from utilities import update_pico_v4
-from utilities import DisplayMsg, version, set_window_control_backend_preference
+from utilities import AsyncRepeatingTimer, DisplayMsg, version, set_window_control_backend_preference
 from pgn import Emailer, PgnDisplay, ModeInfo
 from server import WebDisplay, WebServer, WebVr, EventHandler
 from picotalker import PicoTalkerDisplay
@@ -142,6 +142,11 @@ async def main() -> None:
             handlers=[handler],
         )
     logging.getLogger("chess.engine").setLevel(logging.INFO)  # don't want to get so many python-chess uci messages
+    if args.event_loop_diagnostics:
+        AsyncRepeatingTimer.lag_warning_seconds = 0.5
+        main_loop.set_debug(True)
+        main_loop.slow_callback_duration = 0.5
+        logger.warning("event-loop diagnostics enabled: timer lag and slow callback threshold 0.5s")
 
     logger.debug("#" * 20 + " PicoChess v%s " + "#" * 20, version)
     # log the startup parameters but hide the password fields

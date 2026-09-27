@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +82,26 @@ class TestUtilities(unittest.TestCase):
 
 
 class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
+
+    async def test_diagnostics_report_late_wakeup_and_slow_sync_callback(self):
+        loop = asyncio.get_running_loop()
+        fired = asyncio.Event()
+
+        def callback():
+            time.sleep(0.03)
+            fired.set()
+
+        timer = AsyncRepeatingTimer(0.01, callback, loop, repeating=False)
+        with patch.object(AsyncRepeatingTimer, "lag_warning_seconds", 0.02):
+            with self.assertLogs(level="WARNING") as logs:
+                timer.start()
+                await asyncio.sleep(0)  # Let the timer schedule its first wakeup.
+                loop.call_soon(time.sleep, 0.06)
+                await asyncio.wait_for(fired.wait(), timeout=1)
+
+        messages = "\n".join(logs.output)
+        self.assertIn("event-loop timer late callback=callback", messages)
+        self.assertIn("event-loop timer callback slow callback=callback", messages)
 
     async def test_start_from_worker_thread_wakes_event_loop(self):
         loop = asyncio.get_running_loop()

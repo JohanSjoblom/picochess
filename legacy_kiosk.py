@@ -2,8 +2,8 @@
 
 import os
 from pathlib import Path
-import pwd
 import signal
+import sys
 from urllib.parse import urlsplit
 
 
@@ -21,16 +21,24 @@ def is_legacy_kiosk_command(args: list[str]) -> bool:
 
 def stop_legacy_kiosk(proc_root: Path = Path("/proc")) -> None:
     """Terminate only local PicoChess kiosks from the pre-supervisor launcher."""
+    if not sys.platform.startswith("linux"):
+        return
     target_uid = os.getuid()
     if target_uid == 0:
         sudo_user = os.environ.get("SUDO_USER")
         if not sudo_user:
             return
+        import pwd
+
         try:
             target_uid = pwd.getpwnam(sudo_user).pw_uid
         except KeyError:
             return
-    for entry in proc_root.iterdir():
+    try:
+        processes = list(proc_root.iterdir())
+    except OSError:
+        return  # Kiosk cleanup must not prevent the remaining shutdown steps.
+    for entry in processes:
         if not entry.name.isdecimal():
             continue
         try:

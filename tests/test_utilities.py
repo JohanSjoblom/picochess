@@ -72,11 +72,12 @@ class TestUtilities(unittest.TestCase):
 
     @patch("utilities.subprocess.Popen")
     def test_update_restart_does_not_kill_unowned_chromium(self, popen):
-        update_picochess_now()
+        update_picochess_now(web_port=8080)
 
         command = popen.call_args.args[0][-1]
         self.assertIn("systemctl restart picochess", command)
         self.assertNotIn("chromium", command)
+        self.assertIn('--web-port 8080', command)
 
 
 class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):

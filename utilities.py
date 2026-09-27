@@ -304,7 +304,7 @@ def update_pico_v4(reason: Optional[str] = None):
         logger.info("Failed to create update flag. Cannot update picochess on next boot.")
 
 
-def update_picochess_now():
+def update_picochess_now(web_port: int | None = None):
     """Run install-picochess.sh twice in the background, then restart PicoChess.
 
     The install script must be run twice: the first pass may update the script
@@ -314,6 +314,10 @@ def update_picochess_now():
     across the service restart. A narrow fallback closes legacy unsupervised
     kiosks immediately before the restart.
     """
+    from legacy_kiosk import configured_kiosk_port
+
+    # Capture the current endpoint before the installer can replace its config.
+    kiosk_port = int(web_port if web_port is not None else (configured_kiosk_port() or 0))
     script = "/opt/picochess/install-picochess.sh"
     logfile = "/var/log/picochess-update.log"
     cmd = (
@@ -326,7 +330,8 @@ def update_picochess_now():
         f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
         f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
-        "python3 \"$legacy_kiosk_helper\" ; rm -f \"$legacy_kiosk_helper\" ; "
+        f"python3 \"$legacy_kiosk_helper\" --web-port {kiosk_port} ; "
+        "rm -f \"$legacy_kiosk_helper\" ; "
         f"systemctl restart picochess"
     )
     try:

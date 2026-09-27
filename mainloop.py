@@ -7246,7 +7246,7 @@ class MainLoop:
             # await DisplayMsg.show(Message.SYSTEM_EXIT())
             # no messaging or events beyond this point
             await asyncio.sleep(3)  # molli allow more time (5) for commentary chat
-            await asyncio.to_thread(stop_legacy_kiosk)
+            await asyncio.to_thread(stop_legacy_kiosk, web_port=self.args.web_server_port or 0)
             exit_pico(self.args.dgtpi, dev=event.dev)  # @todo make independant of remote eng
             await self.final_exit_or_reboot_cleanups()
 

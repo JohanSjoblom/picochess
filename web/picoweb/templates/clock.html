@@ -3306,7 +3306,8 @@
                         '<div>' + infoText(menuKey('system.local_ip')) + ': ' + infoText(si.ip) + '</div>' +
                         '<div>' + infoText(menuKey('system.external_ip')) + ': ' + infoText(si.ext_ip) + '</div>' +
                         '<div>' + infoText(menuKey('system.location')) + ': ' + infoText(si.location) + '</div>' +
-                        '<div>' + infoText(menuKey('system.battery')) + ': ' + infoText(si.battery) + '</div>' +
+                        '<div>' + infoText(menuKey('system.battery')) + ': ' +
+                            infoText(dgtBatteryPresentation(si.battery, dgtBoardConnected).text) + '</div>' +
                         '</div>';
                     listEl.innerHTML = html;
                     return;

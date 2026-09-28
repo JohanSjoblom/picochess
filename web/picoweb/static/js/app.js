@@ -1518,6 +1518,11 @@ function authoritativeDisplayFen(position, fallbackGame, exploring) {
     return position && position.fen ? position.fen : fallbackGame.fen();
 }
 
+function chessgroundNeedsFenUpdate(currentFen, displayFen) {
+    var displayBoardFen = (displayFen || '').split(' ')[0];
+    return currentFen !== displayBoardFen;
+}
+
 function updateChessGround() {
     var tmpGame = createGamePointer();
     // Terminal variant positions can be invalid under standard chess rules.
@@ -1538,14 +1543,21 @@ function updateChessGround() {
         movableColor = 'none';
     }
 
-    chessground1.set({
-        fen: displayFen,
+    var boardConfig = {
         turnColor: turnColor,
         movable: {
             color: movableColor,
             dests: (movableColor === 'none') ? {} : toDests(tmpGame)
         }
-    });
+    };
+    // Chessground clears drawable shapes whenever a FEN is supplied, even if
+    // that FEN describes the position it already displays.  SystemInfo events
+    // (for example a battery update) still need to refresh move authority, but
+    // must not erase an announced engine-move arrow.
+    if (chessgroundNeedsFenUpdate(chessground1.getFen(), displayFen)) {
+        boardConfig.fen = displayFen;
+    }
+    chessground1.set(boardConfig);
 }
 
 function playOtherSide() {

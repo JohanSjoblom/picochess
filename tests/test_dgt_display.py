@@ -11,6 +11,10 @@ from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
 from dgt.util import ClockSide, EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+from pgn import ModeInfo
+from timecontrol import TimeControl
+from uci.engine_provider import EngineProvider
+from uci.read import read_engine_ini
 
 
 class TestSerialClockReconnectOrder(unittest.IsolatedAsyncioTestCase):
@@ -49,10 +53,6 @@ class TestSerialClockReconnectOrder(unittest.IsolatedAsyncioTestCase):
                 await display._process_message(version)
         starts = [call.args[0] for call in fire.await_args_list if isinstance(call.args[0], Dgt.CLOCK_START)]
         self.assertEqual(ClockSide.LEFT, starts[-1].side)
-from pgn import ModeInfo
-from timecontrol import TimeControl
-from uci.engine_provider import EngineProvider
-from uci.read import read_engine_ini
 
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"

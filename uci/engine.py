@@ -21,6 +21,7 @@ from __future__ import annotations
 import ast
 import asyncio
 from asyncio import CancelledError
+from collections import deque
 from dataclasses import dataclass
 import os
 import platform
@@ -165,6 +166,86 @@ class MameCapabilities:
         }
 
 
+class CooperativeUciProtocol(UciProtocol):
+    """Parse engine output in ordered batches without monopolising the shared loop."""
+
+    OUTPUT_BATCH_LINES = 8
+    OUTPUT_BATCH_SECONDS = 0.005
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._output_chunks: deque[tuple[int, bytes, float]] = deque()
+        self._output_task: asyncio.Task | None = None
+        self._output_bytes = 0
+        self._output_connection_lost: tuple[Exception | None] | None = None
+        self._output_warning_at = 0.0
+        self.output_label = "uci"
+
+    def pipe_data_received(self, fd, data):
+        # Framing and PV parsing happen in the consumer, not in this I/O callback.
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        self._output_chunks.append((fd, data, self.loop.time()))
+        self._output_bytes += len(data)
+        if self._output_task is None:
+            self._output_task = self.loop.create_task(self._drain_output(), name=f"uci-input:{self.output_label}")
+
+    def connection_lost(self, exc):
+        # bestmove/uciok may still be queued when the process exits. Deliver
+        # received lines before python-chess terminates its active commands.
+        if self._output_task is not None:
+            self._output_connection_lost = (exc,)
+        else:
+            super().connection_lost(exc)
+
+    async def _drain_output(self):
+        batch_lines = 0
+        batch_started = self.loop.time()
+        try:
+            while self._output_chunks:
+                fd, data, received = self._output_chunks.popleft()
+                age = self.loop.time() - received
+                if self.loop.get_debug() and age >= 0.5 and self.loop.time() >= self._output_warning_at:
+                    logger.warning(
+                        "%s engine output queued %.3fs pending_bytes=%d",
+                        self.output_label, age, self._output_bytes,
+                    )
+                    self._output_warning_at = self.loop.time() + 1.0
+                # Feed one complete line at a time to the original parser. Its
+                # per-fd buffer still owns any trailing fragment from earlier input.
+                parts = data.split(b"\n")
+                for index, part in enumerate(parts):
+                    fragment = part + b"\n" if index < len(parts) - 1 else part
+                    if not fragment:
+                        continue
+                    self._output_bytes -= len(fragment)
+                    try:
+                        super().pipe_data_received(fd, fragment)
+                    except Exception as exc:
+                        # Match asyncio's callback error reporting and continue
+                        # draining subsequent lines instead of losing the batch.
+                        self.loop.call_exception_handler({
+                            "message": "exception while parsing engine output",
+                            "exception": exc,
+                            "protocol": self,
+                            "transport": self.transport,
+                        })
+                    batch_lines += 1
+                    if (
+                        batch_lines >= self.OUTPUT_BATCH_LINES
+                        or self.loop.time() - batch_started >= self.OUTPUT_BATCH_SECONDS
+                    ):
+                        await asyncio.sleep(0)
+                        batch_lines = 0
+                        batch_started = self.loop.time()
+        finally:
+            self._output_task = None
+            if self._output_connection_lost is not None:
+                (exc,) = self._output_connection_lost
+                self._output_connection_lost = None
+                super().connection_lost(exc)
+
+
 class TolerantUciProtocol(UciProtocol):
     """UCI protocol that drops pre-uciok info lines to avoid init chatter crashes."""
 
@@ -185,6 +266,10 @@ class TolerantUciProtocol(UciProtocol):
     def pipe_data_received(self, fd, data):
         """Guard against protocol state glitches when receiving data."""
         super().pipe_data_received(fd, data)
+
+
+class CooperativeTolerantUciProtocol(CooperativeUciProtocol, TolerantUciProtocol):
+    """Preserve remote-engine init filtering while yielding between output batches."""
 
 
 class EngineLease:
@@ -1176,7 +1261,16 @@ class UciEngine(object):
             mfile = [self.file]
         logger.info("mfile %s", mfile)
         logger.info("opening engine locally")
-        self.transport, self.engine = await chess.engine.popen_uci(mfile)
+        if self.is_mame:
+            self.transport, self.engine = await chess.engine.popen_uci(mfile)
+        else:
+            self.transport, self.engine = await CooperativeUciProtocol.popen(mfile)
+            self.engine.output_label = self.whoami
+            try:
+                await self.engine.initialize()
+            except BaseException:
+                self.transport.close()
+                raise
 
     async def _open_remote_engine(self):
         if not self.remote_host:
@@ -1194,8 +1288,13 @@ class UciEngine(object):
         self.remote_conn = await asyncssh.connect(**conn_kwargs)
         remote_cmd = self._remote_engine_command()
         logger.info("remote command: %s", remote_cmd)
-        protocol_cls = TolerantUciProtocol if self.suppress_info else UciProtocol
+        if self.is_mame:
+            protocol_cls = TolerantUciProtocol if self.suppress_info else UciProtocol
+        else:
+            protocol_cls = CooperativeTolerantUciProtocol if self.suppress_info else CooperativeUciProtocol
         channel, engine = await self.remote_conn.create_subprocess(protocol_cls, remote_cmd)
+        if isinstance(engine, CooperativeUciProtocol):
+            engine.output_label = self.whoami
         await engine.initialize()
         self.loop.create_task(self._log_remote_exit(channel))
         self.transport, self.engine = channel, engine

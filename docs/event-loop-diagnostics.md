@@ -28,6 +28,15 @@ Asyncio's `Executing ... took ... seconds` warnings identify individual task ste
 or callbacks that occupy the loop for at least 0.5 seconds. Many shorter callbacks
 can still cause a queue delay without an individual slow-callback warning.
 
+Modern UCI engines parse output in batches of up to eight lines or approximately
+5 ms of work, then yield to the shared loop. No analysis lines are filtered by
+depth or dropped. A single expensive line can exceed the time budget. In debug
+mode, `engine output queued ... pending_bytes=...` warnings identify output that
+has waited at least 0.5 seconds, with the engine/Tutor role. Slow parser task
+warnings use the name `uci-input:<role>`. Yielding improves scheduling fairness;
+it does not reduce the total parsing workload or guarantee that an input backlog
+will disappear.
+
 Stopping a timer invalidates its generation before the queued cancellation runs.
 A stopped generation that has not entered its callback is discarded. This cannot
 undo a callback that has already begun executing.

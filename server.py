@@ -3078,12 +3078,19 @@ class WebVr(DgtIface):
         return True
 
     def set_clock(self, time_left: int, time_right: int, devs: set):
-        """Start the time on the web clock."""
+        """Set the web clock and immediately refresh a stopped time display."""
         if self.get_name() not in devs:
             logger.debug("ignored setClock - devs: %s", devs)
             return True
         self.l_time = time_left
         self.r_time = time_right
+        # CLOCK_SET and CLOCK_START are separate dispatch commands.  During
+        # engine/menu setup the latter may be delayed or superseded by a timed
+        # text message, leaving the browser on stale unequal values.  A stopped
+        # clock that is already showing time can safely publish the new pair
+        # here; active timed text remains visible until DISPLAY_TIME restores it.
+        if self.side_running == ClockSide.NONE and self.clock_show_time:
+            self._display_time(self.l_time, self.r_time)
         return True
 
     def light_squares_on_revelation(self, uci_move):

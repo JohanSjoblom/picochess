@@ -144,6 +144,8 @@ class AsyncRepeatingTimer:
         self.callback = callback  # Function to be repeatedly called
         self._task = None  # Reference to the asynchronous task
         self._running = False  # Keeps track of whether the timer is running
+        self._generation = 0
+        self._task_generation = 0
         self.loop = loop  # run callback in callers eventloop
         self.repeating = repeating  # repeat is default, set false to run only once
         self.args = args if args is not None else []
@@ -153,8 +155,10 @@ class AsyncRepeatingTimer:
         """Return the running status."""
         return self._running
 
-    async def _run(self):
-        while self._running:  # Continue running until the timer is stopped
+    async def _run(self, generation, requested, created):
+        self._log_handoff("task-start", created, generation)
+        first_expiry = True
+        while self._running and generation == self._generation:
             threshold = self.lag_warning_seconds
             scheduled = self.loop.time() + self.interval if threshold is not None else None
             try:
@@ -162,17 +166,27 @@ class AsyncRepeatingTimer:
             except asyncio.CancelledError:
                 # Timer cancelled during shutdown; exit quietly.
                 break
+            # stop() invalidates this generation immediately, even when its
+            # cancellation request is still waiting in the event-loop queue.
+            if not self._running or generation != self._generation:
+                break
+            if first_expiry and requested is not None:
+                self._log_handoff("first-expiry", requested + self.interval, generation)
+            first_expiry = False
             callback_name = None
             if scheduled is not None:
                 actual = self.loop.time()
                 if actual - scheduled >= threshold:
                     callback_name = self._callback_name()
                     logging.warning(
-                        "event-loop timer late callback=%s scheduled=%.3f actual=%.3f late=%.3fs interval=%.3fs",
-                        callback_name, scheduled, actual, actual - scheduled, self.interval,
+                        "event-loop timer late callback=%s timer=%x generation=%s "
+                        "scheduled=%.3f actual=%.3f late=%.3fs interval=%.3fs",
+                        callback_name, id(self), generation, scheduled, actual, actual - scheduled, self.interval,
                     )
             callback_is_async = asyncio.iscoroutinefunction(self.callback)
             callback_started = self.loop.time() if scheduled is not None and not callback_is_async else None
+            if not self._running or generation != self._generation:
+                break
             try:
                 if callback_is_async:
                     await self.callback(*self.args, **self.kwargs)
@@ -191,7 +205,24 @@ class AsyncRepeatingTimer:
                             callback_name or self._callback_name(), elapsed,
                         )
             if not self.repeating:
-                self._running = False
+                if generation == self._generation:
+                    self._running = False
+                break
+        if self._task is asyncio.current_task():
+            self._task = None
+
+    def _log_handoff(self, stage, scheduled, generation):
+        threshold = self.lag_warning_seconds
+        if threshold is None or scheduled is None:
+            return
+        actual = time.monotonic()
+        delay = actual - scheduled
+        logging.log(
+            logging.WARNING if delay >= threshold else logging.DEBUG,
+            "event-loop timer handoff stage=%s callback=%s timer=%x generation=%s "
+            "current_generation=%s scheduled=%.3f actual=%.3f delay=%.3fs",
+            stage, self._callback_name(), id(self), generation, self._generation, scheduled, actual, delay,
+        )
 
     def _callback_name(self):
         owner = getattr(self.callback, "__self__", None)
@@ -204,34 +235,50 @@ class AsyncRepeatingTimer:
         except RuntimeError:
             return False
 
-    def _start_task(self):
-        if self._running and self._task is None:
-            self._task = self.loop.create_task(self._run())
+    def _start_task(self, generation, requested):
+        created = time.monotonic() if requested is not None else None
+        self._log_handoff("start-dispatch", requested, generation)
+        if self._running and generation == self._generation:
+            if self._task is not None:
+                self._task.cancel()
+            self._task_generation = generation
+            self._task = self.loop.create_task(
+                self._run(generation, requested, created),
+                name=f"timer:{self._callback_name()}:{id(self):x}:{generation}",
+            )
 
-    def _stop_task(self):
-        if self._task is not None:
+    def _stop_task(self, generation, requested):
+        self._log_handoff("stop-dispatch", requested, generation)
+        # A delayed stop must not cancel a more recent start of this timer.
+        if self._task is not None and self._task_generation < generation:
             self._task.cancel()
             self._task = None
 
     def start(self):
         """Start the RepeatingTimer."""
         if not self._running:
+            requested = time.monotonic() if self.lag_warning_seconds is not None else None
+            self._generation += 1
+            generation = self._generation
             self._running = True
             if self._running_in_target_loop():
-                self._start_task()
+                self._start_task(generation, requested)
             else:
-                self.loop.call_soon_threadsafe(self._start_task)
+                self.loop.call_soon_threadsafe(self._start_task, generation, requested)
         else:
             logging.info("repeated timer already running - strange!")
 
     def stop(self):
         """Stop the RepeatingTimer."""
         if self._running:
+            requested = time.monotonic() if self.lag_warning_seconds is not None else None
             self._running = False
+            self._generation += 1
+            generation = self._generation
             if self._running_in_target_loop():
-                self._stop_task()
+                self._stop_task(generation, requested)
             else:
-                self.loop.call_soon_threadsafe(self._stop_task)
+                self.loop.call_soon_threadsafe(self._stop_task, generation, requested)
         else:
             logging.debug("repeated timer already stopped - strange!")
 

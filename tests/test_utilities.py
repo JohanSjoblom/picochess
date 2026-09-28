@@ -83,6 +83,89 @@ class TestUtilities(unittest.TestCase):
 
 class TestAsyncRepeatingTimer(unittest.IsolatedAsyncioTestCase):
 
+    async def test_diagnostics_include_start_and_stop_queue_delay(self):
+        loop = asyncio.get_running_loop()
+        timer = AsyncRepeatingTimer(10, lambda: None, loop)
+        with patch.object(AsyncRepeatingTimer, "lag_warning_seconds", 0.02):
+            with self.assertLogs(level="WARNING") as logs:
+                for operation in (timer.start, timer.stop):
+                    worker = threading.Thread(target=operation)
+                    worker.start()
+                    worker.join(timeout=1)
+                    self.assertFalse(worker.is_alive())
+                    time.sleep(0.03)  # Hold the loop after the worker submitted its request.
+                    await asyncio.sleep(0)
+        messages = "\n".join(logs.output)
+        self.assertIn("stage=start-dispatch", messages)
+        self.assertIn("stage=stop-dispatch", messages)
+
+    async def test_stop_suppresses_callback_before_queued_cancellation_runs(self):
+        loop = asyncio.get_running_loop()
+        calls = []
+        timer = AsyncRepeatingTimer(0, lambda: calls.append("fired"), loop, repeating=False)
+        timer.start()
+        await asyncio.sleep(0)  # The timer's sleep(0) wakeup is now ahead of cancellation.
+        worker = threading.Thread(target=timer.stop)
+        worker.start()
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        await asyncio.sleep(0)
+        self.assertEqual(calls, [])
+
+    async def test_diagnostics_include_task_dispatch_and_total_first_expiry_delay(self):
+        loop = asyncio.get_running_loop()
+        fired = asyncio.Event()
+        timer = AsyncRepeatingTimer(0, fired.set, loop, repeating=False)
+        with patch.object(AsyncRepeatingTimer, "lag_warning_seconds", 0.02):
+            with self.assertLogs(level="WARNING") as logs:
+                loop.call_soon(time.sleep, 0.03)
+                timer.start()  # Task creation happens now; execution waits behind the blocker.
+                await asyncio.wait_for(fired.wait(), timeout=1)
+        messages = "\n".join(logs.output)
+        self.assertIn("stage=task-start", messages)
+        self.assertIn("stage=first-expiry", messages)
+
+    async def test_restart_does_not_revive_old_generation(self):
+        loop = asyncio.get_running_loop()
+        calls = []
+        fired = asyncio.Event()
+
+        def callback():
+            calls.append("fired")
+            fired.set()
+
+        timer = AsyncRepeatingTimer(0, callback, loop, repeating=False)
+        timer.start()
+        await asyncio.sleep(0)
+
+        def restart():
+            timer.stop()
+            timer.start()
+
+        worker = threading.Thread(target=restart)
+        worker.start()
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        await asyncio.wait_for(fired.wait(), timeout=1)
+        await asyncio.sleep(0)
+        self.assertEqual(calls, ["fired"])
+        self.assertFalse(timer.is_running())
+
+    async def test_delayed_stop_does_not_cancel_new_generation(self):
+        loop = asyncio.get_running_loop()
+        fired = asyncio.Event()
+        timer = AsyncRepeatingTimer(0, fired.set, loop, repeating=False)
+        with patch.object(timer, "_running_in_target_loop", return_value=False):
+            with patch.object(loop, "call_soon_threadsafe") as queued:
+                timer.start()
+                timer.stop()
+                timer.start()
+        first_start, old_stop, new_start = queued.call_args_list
+        for request in (new_start, first_start, old_stop):
+            callback, *args = request.args
+            callback(*args)
+        await asyncio.wait_for(fired.wait(), timeout=1)
+
     async def test_diagnostics_report_late_wakeup_and_slow_sync_callback(self):
         loop = asyncio.get_running_loop()
         fired = asyncio.Event()

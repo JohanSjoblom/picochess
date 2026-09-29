@@ -78,7 +78,7 @@ from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
-from pgn import ModeInfo, add_picotutor_variations_to_game
+from pgn import ModeInfo, add_picotutor_variations_to_game, game_with_legal_pending_move
 import picotutor_constants as picotutor_c
 
 # This needs to be reworked to be session based (probably by token)
@@ -3494,26 +3494,6 @@ class WebDisplay(DisplayMsg):
             add_picotutor_variations_to_game(pgn_game, self.shared.get("picotutor"))
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=True))
 
-        def _pending_move_is_legal(game: chess.Board, move: chess.Move) -> bool:
-            """Check a pending move with the rules used by the active variant."""
-            variant_boards = {
-                "atomic": chess.variant.AtomicBoard,
-                "antichess": chess.variant.AntichessBoard,
-                "racingkings": chess.variant.RacingKingsBoard,
-                "3check": chess.variant.ThreeCheckBoard,
-            }
-            board_type = variant_boards.get(self.shared.get("variant", "chess"))
-            if board_type is None:
-                return move in game.legal_moves
-            try:
-                variant_board = board_type()
-                for historic_move in game.move_stack:
-                    variant_board.push(historic_move)
-            except Exception as exc:
-                logger.debug("cannot reconstruct variant board for pending move: %s", exc)
-                return False
-            return move in variant_board.legal_moves
-
         def peek_uci(game: chess.Board):
             """Return last move in uci format."""
             try:
@@ -4105,16 +4085,11 @@ class WebDisplay(DisplayMsg):
             game_for_end = message.game
             pending = self.shared.get("pending_computer_move")
             if pending and "move" in pending:
-                try:
-                    pending_move = chess.Move.from_uci(pending["move"])
-                except (TypeError, ValueError):
-                    logger.debug("ignoring invalid pending engine move at game end: %r", pending["move"])
-                    pending_move = None
-                if pending_move is not None and _pending_move_is_legal(message.game, pending_move):
-                    game_for_end = message.game.copy()
-                    game_for_end.push(pending_move)
-                elif pending_move is not None:
-                    logger.debug("ignoring illegal pending engine move at game end: %s", pending_move.uci())
+                game_for_end = game_with_legal_pending_move(
+                    message.game,
+                    pending["move"],
+                    self.shared.get("variant", "chess"),
+                )
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)

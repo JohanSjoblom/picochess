@@ -48,6 +48,43 @@ from picotutor import PicoTutor
 logger = logging.getLogger(__name__)
 
 
+def game_with_legal_pending_move(game: chess.Board, move_uci: object, variant: str = "chess") -> chess.Board:
+    """Return a copy with a pending move when it is legal for the active variant."""
+    if not isinstance(move_uci, str):
+        logger.debug("ignoring invalid pending engine move at game end: %r", move_uci)
+        return game
+    try:
+        pending_move = chess.Move.from_uci(move_uci)
+    except ValueError:
+        logger.debug("ignoring invalid pending engine move at game end: %r", move_uci)
+        return game
+
+    variant_boards = {
+        "atomic": chess.variant.AtomicBoard,
+        "antichess": chess.variant.AntichessBoard,
+        "racingkings": chess.variant.RacingKingsBoard,
+        "3check": chess.variant.ThreeCheckBoard,
+    }
+    board_type = variant_boards.get(variant)
+    legality_board = game
+    if board_type is not None:
+        try:
+            legality_board = board_type()
+            for historic_move in game.move_stack:
+                legality_board.push(historic_move)
+        except Exception as exc:
+            logger.debug("cannot reconstruct variant board for pending move: %s", exc)
+            return game
+
+    if pending_move not in legality_board.legal_moves:
+        logger.debug("ignoring illegal pending engine move at game end: %s", pending_move.uci())
+        return game
+
+    augmented = game.copy()
+    augmented.push(pending_move)
+    return augmented
+
+
 def _parse_legal_picotutor_variation_moves(parent: chess.pgn.GameNode, variation: dict) -> list[chess.Move]:
     """Convert a stored tutor PV payload into legal moves from parent."""
     if not isinstance(variation, dict):
@@ -773,12 +810,13 @@ class PgnDisplay(DisplayMsg):
         if self.shared:
             pending = self.shared.get("pending_computer_move")
             if pending and "move" in pending:
-                try:
-                    augmented = message.game.copy()
-                    augmented.push(chess.Move.from_uci(pending["move"]))
+                augmented = game_with_legal_pending_move(
+                    message.game,
+                    pending["move"],
+                    self.shared.get("variant", "chess"),
+                )
+                if augmented is not message.game:
                     message.game = augmented
-                except Exception:
-                    pass
         pgn_game = self._pgn_game_from_message(message)
         pgn_game_last = pgn_game
 

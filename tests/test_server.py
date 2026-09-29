@@ -858,6 +858,7 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
             if call.args[0].get("event") == "Fen"
         )
         self.assertEqual(board.fen(), end_position["fen"])
+        self.assertEqual("d8h4", end_position["move"])
         self.assertNotIn("Ke7", end_position["pgn"])
 
     async def test_game_ends_includes_legal_pending_engine_move(self):
@@ -889,6 +890,38 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Qh4#", end_position["pgn"])
         self.assertEqual("d8h4", end_position["move"])
+
+    async def test_game_ends_includes_pending_move_legal_only_in_atomic(self):
+        board = chess.Board()
+        for move in ("e2e4", "d7d5", "e4d5"):
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "atomic",
+            # Standard rules: the d5 pawn blocks the queen. In Atomic, exd5
+            # explodes both pawns, so the queen may travel d8-d4.
+            "pending_computer_move": {"move": "d8d4"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("d8d4", end_position["move"])
 
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):

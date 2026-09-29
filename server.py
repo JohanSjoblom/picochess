@@ -3494,6 +3494,26 @@ class WebDisplay(DisplayMsg):
             add_picotutor_variations_to_game(pgn_game, self.shared.get("picotutor"))
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=True))
 
+        def _pending_move_is_legal(game: chess.Board, move: chess.Move) -> bool:
+            """Check a pending move with the rules used by the active variant."""
+            variant_boards = {
+                "atomic": chess.variant.AtomicBoard,
+                "antichess": chess.variant.AntichessBoard,
+                "racingkings": chess.variant.RacingKingsBoard,
+                "3check": chess.variant.ThreeCheckBoard,
+            }
+            board_type = variant_boards.get(self.shared.get("variant", "chess"))
+            if board_type is None:
+                return move in game.legal_moves
+            try:
+                variant_board = board_type()
+                for historic_move in game.move_stack:
+                    variant_board.push(historic_move)
+            except Exception as exc:
+                logger.debug("cannot reconstruct variant board for pending move: %s", exc)
+                return False
+            return move in variant_board.legal_moves
+
         def peek_uci(game: chess.Board):
             """Return last move in uci format."""
             try:
@@ -4088,10 +4108,13 @@ class WebDisplay(DisplayMsg):
                 try:
                     pending_move = chess.Move.from_uci(pending["move"])
                 except (TypeError, ValueError):
+                    logger.debug("ignoring invalid pending engine move at game end: %r", pending["move"])
                     pending_move = None
-                if pending_move is not None and pending_move in message.game.legal_moves:
+                if pending_move is not None and _pending_move_is_legal(message.game, pending_move):
                     game_for_end = message.game.copy()
                     game_for_end.push(pending_move)
+                elif pending_move is not None:
+                    logger.debug("ignoring illegal pending engine move at game end: %s", pending_move.uci())
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)

@@ -923,6 +923,51 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual("d8d4", end_position["move"])
 
+    async def test_game_ends_ignores_pending_move_illegal_only_in_atomic(self):
+        board = chess.Board()
+        moves = (
+            "a2a3",
+            "e7e6",
+            "g1h3",
+            "b8c6",
+            "h3f4",
+            "d7d5",
+            "f4h3",
+            "d8f6",
+            "h3g5",
+            "f6b2",
+        )
+        for move in moves:
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "atomic",
+            # Standard rules leave the rook on a1 after Qxb2. In Atomic, the
+            # capture on b2 explodes that rook, so a1-a2 must be rejected.
+            "pending_computer_move": {"move": "a1a2"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("f6b2", end_position["move"])
+        self.assertNotIn("Ra2", end_position["pgn"])
+
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):

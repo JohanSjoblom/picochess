@@ -4086,10 +4086,12 @@ class WebDisplay(DisplayMsg):
             pending = self.shared.get("pending_computer_move")
             if pending and "move" in pending:
                 try:
+                    pending_move = chess.Move.from_uci(pending["move"])
+                except (TypeError, ValueError):
+                    pending_move = None
+                if pending_move is not None and pending_move in message.game.legal_moves:
                     game_for_end = message.game.copy()
-                    game_for_end.push(chess.Move.from_uci(pending["move"]))
-                except Exception:
-                    pass
+                    game_for_end.push(pending_move)
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)

@@ -40,6 +40,11 @@ warnings use the name `uci-input:<role>`. Yielding improves scheduling fairness;
 it does not reduce the total parsing workload or guarantee that an input backlog
 will disappear.
 
+When the deep PicoTutor search is stopped, the Tutor has already taken its
+evaluation snapshot. Its remaining queued `info` lines are discarded so the
+`bestmove` response can complete promptly. Other engines and active searches
+still receive every analysis line.
+
 Stopping a timer invalidates its generation before the queued cancellation runs.
 A stopped generation that has not entered its callback is discarded. This cannot
 undo a callback that has already begun executing.

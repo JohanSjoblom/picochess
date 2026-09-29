@@ -20,6 +20,7 @@ from uci.engine import (
 class RecordingProtocol(CooperativeUciProtocol):
     def __init__(self):
         super().__init__()
+        self.config["MultiPV"] = 30
         self.lines = []
 
     def _line_received(self, line):
@@ -30,6 +31,43 @@ class RecordingProtocol(CooperativeUciProtocol):
 
 
 class TestCooperativeProtocol(unittest.IsolatedAsyncioTestCase):
+    async def test_single_pv_and_startup_use_original_parser_immediately(self):
+        for width in (None, 1):
+            protocol = RecordingProtocol()
+            protocol.config.clear()
+            if width is not None:
+                protocol.config["MultiPV"] = width
+            protocol.pipe_data_received(1, b"info string update\n" * 120)
+            self.assertEqual(len(protocol.lines), 120)
+            self.assertIsNone(protocol._output_task)
+            self.assertEqual(protocol._output_bytes, 0)
+
+    async def test_switch_to_single_pv_drains_queued_lines_before_direct_input(self):
+        protocol = RecordingProtocol()
+        protocol.pipe_data_received(1, b"info string old\n" * 20 + b"partial")
+        task = protocol._output_task
+        protocol.config["MultiPV"] = 1
+        protocol.pipe_data_received(1, b" tail\nbestmove e2e4\n")
+        self.assertEqual(protocol.lines, [])
+        await asyncio.wait_for(task, 1)
+        self.assertEqual(protocol.lines, [(1, "info string old")] * 20 + [
+            (1, "partial tail"), (1, "bestmove e2e4"),
+        ])
+        protocol.pipe_data_received(1, b"info string new search\n")
+        self.assertEqual(protocol.lines[-1], (1, "info string new search"))
+        self.assertIsNone(protocol._output_task)
+
+    async def test_switch_to_multipv_preserves_direct_parser_partial_line(self):
+        protocol = RecordingProtocol()
+        protocol.config["MultiPV"] = 1
+        protocol.pipe_data_received(1, b"info string partial")
+        self.assertIsNone(protocol._output_task)
+        protocol.config["MultiPV"] = 2
+        protocol.pipe_data_received(1, b" tail\ninfo string next\n")
+        self.assertEqual(protocol.lines, [])
+        await asyncio.wait_for(protocol._output_task, 1)
+        self.assertEqual(protocol.lines, [(1, "info string partial tail"), (1, "info string next")])
+
     async def initialized_protocol(self, protocol_cls=CooperativeUciProtocol):
         protocol = protocol_cls()
         transport = chess.engine.MockTransport(protocol)
@@ -143,6 +181,8 @@ class TestCooperativeProtocol(unittest.IsolatedAsyncioTestCase):
         second = await asyncio.wait_for(protocol.analysis(board, multipv=1), 1)
         self.assertEqual((await first.wait()).move, chess.Move.from_uci("e2e4"))
         protocol.pipe_data_received(1, b"info depth 9 score cp -30 pv e7e5\n")
+        self.assertIsNone(protocol._output_task)
+        self.assertEqual(second.info["depth"], 9)
         transport.expect("stop", ["bestmove e7e5"])
         second.stop()
         self.assertEqual((await asyncio.wait_for(second.wait(), 1)).move, chess.Move.from_uci("e7e5"))

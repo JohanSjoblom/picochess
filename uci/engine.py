@@ -185,6 +185,12 @@ class CooperativeUciProtocol(UciProtocol):
         # Framing and PV parsing happen in the consumer, not in this I/O callback.
         if isinstance(data, str):
             data = data.encode("utf-8")
+        # Keep ordinary single-PV searches on the original synchronous path.
+        # During a MultiPV -> single-PV transition, drain queued output first:
+        # new input must never overtake an earlier info/bestmove response.
+        if self.config.get("MultiPV", 1) <= 1 and self._output_task is None:
+            super().pipe_data_received(fd, data)
+            return
         self._output_chunks.append((fd, data, self.loop.time()))
         self._output_bytes += len(data)
         if self._output_task is None:

@@ -28,8 +28,11 @@ Asyncio's `Executing ... took ... seconds` warnings identify individual task ste
 or callbacks that occupy the loop for at least 0.5 seconds. Many shorter callbacks
 can still cause a queue delay without an individual slow-callback warning.
 
-Modern UCI engines parse output in batches of up to eight lines or approximately
-5 ms of work, then yield to the shared loop. No analysis lines are filtered by
+Modern UCI engines with MultiPV greater than 1 parse output in batches of up to
+eight lines or approximately 5 ms of work, then yield to the shared loop.
+Single-PV output uses the original parser directly. When switching back to
+single-PV, any queued output drains first to preserve response ordering.
+No analysis lines are filtered by
 depth or dropped. A single expensive line can exceed the time budget. In debug
 mode, `engine output queued ... pending_bytes=...` warnings identify output that
 has waited at least 0.5 seconds, with the engine/Tutor role. Slow parser task

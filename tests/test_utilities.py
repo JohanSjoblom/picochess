@@ -96,7 +96,8 @@ class TestUtilities(unittest.TestCase):
         os_system.assert_not_called()
 
     @patch("utilities.subprocess.Popen")
-    def test_update_restart_does_not_kill_unowned_chromium(self, popen):
+    @patch("utilities.platform.system", return_value="Linux")
+    def test_update_restart_does_not_kill_unowned_chromium(self, _, popen):
         update_picochess_now(web_port=8080)
 
         command = popen.call_args.args[0][-1]

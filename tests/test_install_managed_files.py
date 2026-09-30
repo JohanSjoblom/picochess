@@ -7,6 +7,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANAGED_FILES_SCRIPT = REPO_ROOT / "install-managed-files.sh"
+INSTALLER_SCRIPT = REPO_ROOT / "install-picochess.sh"
 
 
 class TestInstallManagedFiles(unittest.TestCase):
@@ -54,6 +55,34 @@ class TestInstallManagedFiles(unittest.TestCase):
                 str(MANAGED_FILES_SCRIPT),
                 str(ini_file),
                 key,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def select_ini_profile(
+        self,
+        contents="",
+        *,
+        install_dgtpi=False,
+        install_dgt3000=False,
+        reset=True,
+    ):
+        ini_file = self.root / "profile.ini"
+        ini_file.write_text(contents, encoding="utf-8")
+        command = '. "$1"; select_ini_profile "$2" "$3" "$4" "$5"'
+        return subprocess.run(
+            [
+                "sh",
+                "-c",
+                command,
+                "managed-files-test",
+                str(MANAGED_FILES_SCRIPT),
+                str(install_dgtpi).lower(),
+                str(install_dgt3000).lower(),
+                str(reset).lower(),
+                str(ini_file),
             ],
             check=False,
             capture_output=True,
@@ -138,6 +167,66 @@ class TestInstallManagedFiles(unittest.TestCase):
         result = self.ini_setting_is_true("dgtpi = True\ndgtpi = False\n")
 
         self.assertNotEqual(0, result.returncode)
+
+    def test_explicit_dgtpi_selects_dgtpi_profile(self):
+        result = self.select_ini_profile(install_dgtpi=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("dgtpi", result.stdout.strip())
+
+    def test_explicit_dgt3000_selects_web_profile_even_if_old_ini_says_dgtpi(self):
+        result = self.select_ini_profile(
+            "dgtpi = True\n",
+            install_dgt3000=True,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("web", result.stdout.strip())
+
+    def test_reset_without_hardware_flag_preserves_existing_dgtpi_profile(self):
+        result = self.select_ini_profile("dgtpi = True\n")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("dgtpi", result.stdout.strip())
+
+    def test_reset_without_hardware_flag_uses_web_profile_for_dgt3000_ini(self):
+        result = self.select_ini_profile("dgtpi = False\n")
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("web", result.stdout.strip())
+
+
+class TestInstallerHardwareProfiles(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.installer = INSTALLER_SCRIPT.read_text(encoding="utf-8")
+
+    def test_dgt3000_and_dgtpi_arguments_are_parsed_separately(self):
+        self.assertIn(
+            "dgt3000|DGT3000)\n            INSTALL_DGT3000=true",
+            self.installer,
+        )
+        self.assertIn(
+            "dgtpi|DGTPi|DGTPI)\n            INSTALL_DGTPI=true",
+            self.installer,
+        )
+        self.assertNotIn("dgt3000|DGT3000|dgtpi", self.installer)
+
+    def test_only_dgtpi_installs_gpio_clock_support(self):
+        clock_install = self.installer.index("# Install DGTPi clock support on request.")
+        bluetooth_install = self.installer.index("# Install Bluetooth unblock service", clock_install)
+        section = self.installer[clock_install:bluetooth_install]
+
+        self.assertIn('if [ "$INSTALL_DGTPI" = true ]; then', section)
+        self.assertIn("./install-dgtpi-clock.sh", section)
+        self.assertNotIn("INSTALL_DGT3000", section)
+
+    def test_conflicting_clock_hardware_flags_are_rejected(self):
+        self.assertIn(
+            'if [ "$INSTALL_DGTPI" = true ] && [ "$INSTALL_DGT3000" = true ]; then',
+            self.installer,
+        )
+        self.assertIn("choose either dgtpi or dgt3000, not both", self.installer)
 
 
 if __name__ == "__main__":

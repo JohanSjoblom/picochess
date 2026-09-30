@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
+from mainloop import MainLoop
 
 from dgt.api import Dgt, Event, Message
 from dgt.display import DgtDisplay
@@ -172,6 +173,38 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         event = observable_fire.await_args.args[0]
         self.assertIsInstance(event, Event.NEW_GAME)
         self.assertEqual(518, event.pos960)
+
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_early_legal_move_can_be_rescanned_after_engine_move(self, observable_fire):
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        await self.display._process_fen(early_fen, raw=False)
+        await self.display._process_fen(early_fen, raw=False)
+        self.assertEqual(1, observable_fire.await_count)
+
+        controller = object.__new__(MainLoop)
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu
+        )
+        controller._allow_early_user_fen_rescan()
+        await self.display._process_fen(early_fen, raw=False)
+
+        self.assertEqual(2, observable_fire.await_count)
+        self.assertEqual(early_fen, observable_fire.await_args.args[0].fen)
+
+    def test_early_move_rescan_keeps_newer_or_illegal_scan(self):
+        controller = object.__new__(MainLoop)
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[], dgtmenu=self.menu
+        )
+        self.menu.set_dgt_fen(early_fen)
+        controller._allow_early_user_fen_rescan()
+        self.assertEqual(early_fen, self.menu.get_dgt_fen())
+
+        controller.state.legal_fens = [early_fen]
+        self.menu.set_dgt_fen("newer scan")
+        controller._allow_early_user_fen_rescan()
+        self.assertEqual("newer scan", self.menu.get_dgt_fen())
 
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):

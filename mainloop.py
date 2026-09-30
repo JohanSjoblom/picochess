@@ -1881,6 +1881,17 @@ class MainLoop:
         else:
             ModeInfo.set_pgn_mode(mode=False)
 
+    def _allow_early_user_fen_rescan(self):
+        """Let a later board scan retry a move seen during engine-move completion."""
+        early_fen = self.state.error_fen
+        if (
+            early_fen
+            and early_fen in self.state.legal_fens
+            and self.state.dgtmenu.get_dgt_fen() == early_fen
+        ):
+            logger.info("allowing another board scan of early legal move: %s", early_fen)
+            self.state.dgtmenu.set_dgt_fen("")
+
     async def process_fen(self, fen: str, state: PicochessState):
         """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
         handled_fen = True
@@ -2343,6 +2354,7 @@ class MainLoop:
                     end_time_cmove_done = 0
 
                 self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
+                self._allow_early_user_fen_rescan()
                 self.start_brain_hint_timer()
 
                 if self.pgn_mode():

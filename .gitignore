@@ -140,3 +140,6 @@ pylint_raw_output.txt
 
 # Local release helper scripts
 scripts/release-assets-v4.2.0.sh
+
+# remote logs downloaded to dev machines
+rlogs/

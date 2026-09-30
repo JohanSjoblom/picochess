@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -13,6 +14,69 @@ class TestPicotutor(unittest.TestCase):
     def __init__(self, tests=()):
         super().__init__(tests)
         self.uci_shell = UciShell(hostname="", username="", key_file="", password="")
+
+    def test_posted_engine_move_takeback_preserves_tutor_history(self):
+        async def check():
+            tutor = PicoTutor.__new__(PicoTutor)
+            tutor.board = chess.Board()
+            user_move = chess.Move.from_uci("e2e4")
+            engine_move = chess.Move.from_uci("e7e5")
+            tutor.board.push(user_move)
+            tutor.board.push(engine_move)
+            game = chess.Board()  # the user move has already been taken back
+            tutor.op = ["e4", "e5"]
+            tutor.coach_on = True
+            tutor.watcher_on = False
+            tutor.best_history = {
+                chess.WHITE: [(None, engine_move, 0, None, 1)],
+                chess.BLACK: [(None, user_move, 0, None, 1)],
+            }
+            tutor.obvious_history = {
+                chess.WHITE: [(None, engine_move, 0, None)],
+                chess.BLACK: [(None, user_move, 0, None)],
+            }
+            tutor.best_info = {chess.WHITE: ["white"], chess.BLACK: ["black"]}
+            tutor._reset_history_vars = AsyncMock()
+            tutor._start_or_stop_as_needed = AsyncMock()
+            tutor.log_sync_info = Mock()
+
+            self.assertTrue(await tutor.pop_posted_engine_move(game))
+            self.assertEqual([user_move], tutor.board.move_stack)
+            self.assertEqual(["e4"], tutor.op)
+            self.assertEqual([], tutor.best_history[chess.WHITE])
+            self.assertEqual([], tutor.obvious_history[chess.WHITE])
+            self.assertEqual([user_move], [entry[1] for entry in tutor.best_history[chess.BLACK]])
+            self.assertEqual(["white"], tutor.best_info[chess.WHITE])
+            tutor._reset_history_vars.assert_not_awaited()
+
+            self.assertTrue(await tutor.pop_last_move(game))
+            self.assertEqual(game.fen(), tutor.board.fen())
+            self.assertEqual([], tutor.op)
+            self.assertEqual([], tutor.best_history[chess.BLACK])
+            self.assertEqual([], tutor.obvious_history[chess.BLACK])
+            self.assertEqual(["white"], tutor.best_info[chess.WHITE])
+            tutor._reset_history_vars.assert_not_awaited()
+
+        asyncio.run(check())
+
+    def test_posted_engine_move_rejects_unrelated_history_without_mutation(self):
+        async def check():
+            tutor = PicoTutor.__new__(PicoTutor)
+            tutor.board = chess.Board()
+            tutor.board.push_uci("e2e4")
+            tutor.board.push_uci("e7e5")
+            tutor.op = ["e4", "e5"]
+            tutor._reset_history_vars = AsyncMock()
+            game = chess.Board()
+            game.push_uci("d2d4")
+            original = tutor.board.fen()
+
+            self.assertFalse(await tutor.pop_posted_engine_move(game))
+            self.assertEqual(original, tutor.board.fen())
+            self.assertEqual(["e4", "e5"], tutor.op)
+            tutor._reset_history_vars.assert_not_awaited()
+
+        asyncio.run(check())
 
     def test_find_longest_matching_opening_kings_pawn(self):
         tutor = PicoTutor(i_ucishell=self.uci_shell, i_engine_path="engines/x86_64/a-stock8")

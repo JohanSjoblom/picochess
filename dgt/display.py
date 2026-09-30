@@ -52,6 +52,7 @@ class DgtDisplay(DisplayMsg):
         self.dgttranslate = dgttranslate
         self.dgtmenu = dgtmenu
         self.time_control = time_control
+        self._requested_clock_side = ClockSide.NONE
         self.last_pos_start = True
         self._setpieces_restore_pending = False
         self._start_position_restore_pending = False
@@ -571,7 +572,8 @@ class DgtDisplay(DisplayMsg):
             fen = flip_board_fen(fen)
 
         logger.debug("DGT-Fen [%s]", fen)
-        if fen == self.dgtmenu.get_dgt_fen():
+        rescan_allowed = self.dgtmenu.consume_dgt_fen_rescan(fen)
+        if fen == self.dgtmenu.get_dgt_fen() and not rescan_allowed:
             logger.debug("ignore same fen")
             self.have_seen_a_fen = True
             return
@@ -1179,6 +1181,7 @@ class DgtDisplay(DisplayMsg):
     async def _process_clock_start(self, message):
         self.time_control = TimeControl(**message.tc_init)
         side = ClockSide.LEFT if (message.turn == chess.WHITE) != self.dgtmenu.get_flip_board() else ClockSide.RIGHT
+        self._requested_clock_side = side
         await self._set_clock(side=side, devs=message.devs)
 
     async def _process_once_per_second(self):
@@ -1534,6 +1537,7 @@ class DgtDisplay(DisplayMsg):
             await self._process_clock_start(message)
 
         elif isinstance(message, Message.CLOCK_STOP):
+            self._requested_clock_side = ClockSide.NONE
             await DispatchDgt.fire(Dgt.CLOCK_STOP(devs=message.devs, wait=True))
 
         elif isinstance(message, Message.DGT_BUTTON):
@@ -1553,7 +1557,9 @@ class DgtDisplay(DisplayMsg):
 
             if message.dev == "ser":  # send the "board connected message" to serial clock
                 await DispatchDgt.fire(message.text)
-            await self._set_clock(devs={message.dev})
+            # A reconnect may be queued after CLOCK_START. Preserve the side
+            # already requested by the game when setting up the found clock.
+            await self._set_clock(side=self._requested_clock_side, devs={message.dev})
             await self._exit_display(devs={message.dev})
 
         elif isinstance(message, Message.DGT_CLOCK_TIME):
@@ -1590,7 +1596,33 @@ class DgtDisplay(DisplayMsg):
                 logger.debug("inside update menu => board channel not displayed")
             else:
                 await DispatchDgt.fire(message.text)
-                await self._exit_display(devs={"i2c", "web"})  # ser is done, when clock found
+                if (
+                    not self._inside_main_menu()
+                    and not self.play_move
+                    and self.last_move
+                    and self.last_fen
+                ):
+                    # The spinner replaced the last move while the board was away.
+                    # Keep pending engine moves and menus on their existing paths.
+                    move = Dgt.DISPLAY_MOVE(
+                        move=self.last_move,
+                        fen=self.last_fen,
+                        side=self._get_clock_side(self.last_turn),
+                        wait=True,
+                        maxtime=0,
+                        beep=self.dgttranslate.bl(BeepLevel.NO),
+                        devs={"i2c", "web"},
+                        uci960=self.uci960,
+                        lang=self.dgttranslate.language,
+                        capital=self.dgttranslate.capital,
+                        long=self.dgttranslate.notation,
+                    )
+                    await DispatchDgt.fire(move)
+                    await DispatchDgt.fire(
+                        Dgt.LIGHT_SQUARES(uci_move=self.last_move.uci(), devs={"ser", "web"})
+                    )
+                else:
+                    await self._exit_display(devs={"i2c", "web"})  # ser is done when clock found
                 if not self.have_seen_a_fen and self._startup_engine_name_text is not None:
                     # Bluetooth startup may finish after the initial engine-name
                     # display. Restore it after the connection notification rather
@@ -1737,7 +1769,9 @@ class DgtDisplay(DisplayMsg):
             await DispatchDgt.fire(self.dgttranslate.text("C10_noopponent"))
 
         elif isinstance(message, Message.LOST_ON_TIME):
-            await DispatchDgt.fire(self.dgttranslate.text("C10_gameresult_time"))
+            text = self.dgttranslate.text("C10_gameresult_time")
+            text.maxtime = 0
+            await DispatchDgt.fire(text)
 
         elif isinstance(message, Message.SET_NOBOOK):
             self.dgtmenu.set_book(message.book_index)  # molli for emulation, online & pgn modes

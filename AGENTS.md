@@ -99,7 +99,7 @@ event loop used throughout the program. Preserve that architecture.
   used by the two UCI analysis sisters: they run as background async tasks and
   expose cached state for the main loop to read.
 - If a library API is blocking, isolate it behind an async boundary rather than
-  leaking blocking behavior into `picochess.py`.
+  leaking blocking behavior into `mainloop.py` or `picochess.py`.
 
 ## Engine Ponder And Legacy Ponder-Hit State
 
@@ -110,7 +110,7 @@ its primary modern-engine path.
   engine move and live thinking information. It does not start a classic UCI
   ponder search and later send `ponderhit`.
 - The `ponder_hit` calculation, parameter, logging, and related comments still
-  present in `picochess.py` are legacy plumbing. Do not build new behavior or
+  present in `mainloop.py` are legacy plumbing. Do not build new behavior or
   tests around a supposed V4 ponder-hit optimization.
 - `Mode.BRAIN`, stored ponder moves such as `pb_move`, and the user-facing
   Brain mode are broader PicoChess concepts. Do not assume their names prove
@@ -260,9 +260,9 @@ behavior for that default path:
   positions are entered move-by-move, but entering those modes is still
   user-initiated rather than startup-automatic.
 
-## `picochess.py` Analysis Driver
+## `mainloop.py` Analysis Driver
 
-`analyse()` in `picochess.py` is the main Picochess policy layer around
+`analyse()` in `mainloop.py` is the main Picochess policy layer around
 `UciEngine` analysis. It is called periodically by the background analysis
 timer and decides which already-running analysis buffer should be read, where
 that information should be displayed, and whether the engine analyser should be
@@ -272,7 +272,7 @@ Keep this boundary intact when changing analysis behavior:
 
 - `UciEngine` owns engine communication, `ContinuousAnalysis`, and
   `PlayingContinuousAnalysis`.
-- `picochess.py` owns mode policy, tutor-versus-engine routing, clock/web
+- `mainloop.py` owns mode policy, tutor-versus-engine routing, clock/web
   output decisions, PGN replay side effects, and `best_sent_depth` filtering.
 - `analyse()` should usually call `get_analysis()` or `get_thinking_analysis()`
   to read buffered data. Those calls are not the place to start another deep
@@ -339,7 +339,7 @@ Keep this boundary intact when changing analysis behavior:
 
 `PicoTutor` also uses `UciEngine`, so it has its own analyser lifecycle guard:
 `_start_or_stop_as_needed()`. Treat it as the tutor-side equivalent of
-`picochess.py`'s `_start_or_stop_analysis_as_needed()`.
+`mainloop.py`'s `_start_or_stop_analysis_as_needed()`.
 
 The tutor-side rule is:
 
@@ -365,7 +365,7 @@ The tutor-side rule is:
   physical-board game.
 
 If `UciEngine` analysis internals are updated again, preserve both lifecycle
-guards: `picochess.py` decides whether the selected main engine analyser should
+guards: `mainloop.py` decides whether the selected main engine analyser should
 run, and `picotutor.py` decides whether the tutor analyser should run. The CPU
 saving behavior depends on those two decisions staying coordinated.
 
@@ -707,7 +707,7 @@ the same code path.
 
 ## Touch Points
 
-- `picochess.py`
+- `mainloop.py`
   - tutor/engine routing policy
   - `engine_mode()`
   - `analyse()`

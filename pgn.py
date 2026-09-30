@@ -34,6 +34,7 @@ from ssl import create_default_context
 
 import requests
 import chess  # type: ignore
+import chess.engine  # type: ignore
 import chess.pgn  # type: ignore
 import chess.variant  # type: ignore
 import dgt.util
@@ -45,6 +46,49 @@ from dgt.util import PlayMode, Mode, TimeMode
 from picotutor import PicoTutor
 
 logger = logging.getLogger(__name__)
+
+
+def replay_variant_board(game: chess.Board, board_type: type[chess.Board]) -> chess.Board:
+    """Replay a game's moves under variant rules from its actual root position."""
+    board = board_type(game.root().fen())
+    for move in game.move_stack:
+        board.push(move)
+    return board
+
+
+def game_with_legal_pending_move(game: chess.Board, move_uci: object, variant: str = "chess") -> chess.Board:
+    """Return a copy with a pending move when it is legal for the active variant."""
+    if not isinstance(move_uci, str):
+        logger.debug("ignoring invalid pending engine move at game end: %r", move_uci)
+        return game
+    try:
+        pending_move = chess.Move.from_uci(move_uci)
+    except ValueError:
+        logger.debug("ignoring invalid pending engine move at game end: %r", move_uci)
+        return game
+
+    variant_boards = {
+        "atomic": chess.variant.AtomicBoard,
+        "antichess": chess.variant.AntichessBoard,
+        "racingkings": chess.variant.RacingKingsBoard,
+        "3check": chess.variant.ThreeCheckBoard,
+    }
+    board_type = variant_boards.get(variant)
+    legality_board = game
+    if board_type is not None:
+        try:
+            legality_board = replay_variant_board(game, board_type)
+        except Exception as exc:
+            logger.debug("cannot reconstruct variant board for pending move: %s", exc)
+            return game
+
+    if pending_move not in legality_board.legal_moves:
+        logger.debug("ignoring illegal pending engine move at game end: %s", pending_move.uci())
+        return game
+
+    augmented = game.copy()
+    augmented.push(pending_move)
+    return augmented
 
 
 def _parse_legal_picotutor_variation_moves(parent: chess.pgn.GameNode, variation: dict) -> list[chess.Move]:
@@ -388,7 +432,7 @@ class Emailer(object):
                 ctype = "application/octet-stream"
             maintype, subtype = ctype.split("/", 1)
             if maintype == "text":
-                with open(path) as fpath:
+                with open(path, encoding="utf-8") as fpath:
                     msg = MIMEText(fpath.read(), _subtype=subtype)
             elif maintype == "image":
                 with open(path, "rb") as fpath:
@@ -527,17 +571,13 @@ class PgnDisplay(DisplayMsg):
         variant = self.shared.get("variant", "chess") if self.shared else "chess"
         if variant == "atomic" and game.move_stack:
             try:
-                atm = chess.variant.AtomicBoard()
-                for move in game.move_stack:
-                    atm.push(move)
+                atm = replay_variant_board(game, chess.variant.AtomicBoard)
                 return chess.pgn.Game().from_board(atm)
             except Exception:
                 pass
         elif variant == "antichess" and game.move_stack:
             try:
-                acb = chess.variant.AntichessBoard()
-                for move in game.move_stack:
-                    acb.push(move)
+                acb = replay_variant_board(game, chess.variant.AntichessBoard)
                 return chess.pgn.Game().from_board(acb)
             except Exception:
                 pass
@@ -721,40 +761,47 @@ class PgnDisplay(DisplayMsg):
                         nag = value["nag"]  # $N symbol for !!, ! etc
                         if nag != chess.pgn.NAG_NULL:
                             node.nags.add(nag)
-                        node.comment = self._get_picotutor_eval_comments(nag, value, turn)
+                        # Keep the symbol in the comment as well as the NAG so
+                        # the raw PGN remains readable without a PGN viewer.
+                        node.comment = PicoTutor.nag_to_symbol(nag) if nag != chess.pgn.NAG_NULL else ""
+                        eval_score = self._get_picotutor_eval_score(value, turn)
+                        if eval_score is not None:
+                            # python-chess writes the commonly supported PGN
+                            # form: pawn decimals for centipawn evaluations and
+                            # #N for mate, always from White's perspective.
+                            node.set_eval(eval_score)
+                        extra_comments = self._get_picotutor_eval_comments(value)
+                        if extra_comments:
+                            node.comment = " ".join(filter(None, (node.comment, extra_comments)))
                         add_picotutor_variations_to_node(node, value)
                     else:
                         logger.debug("skipped move %s-%s picotutor eval mismatch", pgn_move.uci(), user_move.uci())
 
-    def _get_picotutor_eval_comments(self, nag: int, value: dict, turn: chess.Color) -> str:
-        """get comments found in picotutor evaluations value dict"""
-        if nag != chess.pgn.NAG_NULL:
-            comment = PicoTutor.nag_to_symbol(nag)  # back to !!, ! etc
-        else:
-            # special case inaccuracy - its not a nag, but CPL > INACCURACY_TH
-            # its the only case where there is a No-NULL evaluation
-            if "best_move" in value:
-                comment = "Best: " + value["best_move"]
-            else:
-                comment = "Inaccuracy "  # should never happen, fallback
+    @staticmethod
+    def _get_picotutor_eval_score(value: dict, turn: chess.Color) -> chess.engine.PovScore | None:
+        """Build a White-perspective score from a stored mover-perspective evaluation."""
+        perspective = -1 if turn == chess.WHITE else 1
         if "mate" in value:
-            comment += " Mate in: " + str(value["mate"])
+            score: chess.engine.Score = chess.engine.Mate(int(value["mate"]) * perspective)
+        elif "score" in value:
+            score = chess.engine.Cp(int(value["score"]) * perspective)
         else:
-            if "score" in value:
-                score_value = value["score"]
-                if turn == chess.WHITE:
-                    # always show score from white's perspective
-                    # as turn is AFTER move this is now Black perspective
-                    score_value = -score_value  # change to white's perspective
-                comment += " Score: " + str(score_value)
+            return None
+        return chess.engine.PovScore(score, chess.WHITE)
+
+    @staticmethod
+    def _get_picotutor_eval_comments(value: dict) -> str:
+        """Return structured supplemental commands for a Tutor evaluation."""
+        commands = []
+        if "best_move" in value:
+            commands.append("[%bestmove " + str(value["best_move"]) + "]")
         if "CPL" in value:
-            comment += " CPL: " + str(value["CPL"])
+            commands.append("[%cpl " + str(int(value["CPL"])) + "]")
         if "deep_low_diff" in value:
-            comment += " DS: " + str(value.get("deep_low_diff"))
-        if nag in (chess.pgn.NAG_BLUNDER, chess.pgn.NAG_MISTAKE, chess.pgn.NAG_DUBIOUS_MOVE):
-            if "best_move" in value:
-                comment += " Best: " + value["best_move"]
-        return comment
+            # This is PicoTutor's Cambridge delta-S value, not a common PGN
+            # command, so keep it explicitly namespaced.
+            commands.append("[%pico_ds " + str(int(value["deep_low_diff"])) + "]")
+        return " ".join(commands)
 
     def _save_and_email_pgn(self, message):
         """when game ends the pgn file is saved and emailed"""
@@ -765,12 +812,13 @@ class PgnDisplay(DisplayMsg):
         if self.shared:
             pending = self.shared.get("pending_computer_move")
             if pending and "move" in pending:
-                try:
-                    augmented = message.game.copy()
-                    augmented.push(chess.Move.from_uci(pending["move"]))
+                augmented = game_with_legal_pending_move(
+                    message.game,
+                    pending["move"],
+                    self.shared.get("variant", "chess"),
+                )
+                if augmented is not message.game:
                     message.game = augmented
-                except Exception:
-                    pass
         pgn_game = self._pgn_game_from_message(message)
         pgn_game_last = pgn_game
 
@@ -808,12 +856,12 @@ class PgnDisplay(DisplayMsg):
         self.last_saved_game = pgn_game
 
         # Save to last game file
-        with open(self.last_file_name, "w") as last_file:
+        with open(self.last_file_name, "w", encoding="utf-8") as last_file:
             last_exporter = chess.pgn.FileExporter(last_file)
             pgn_game_last.accept(last_exporter)
 
         # Append to all games file
-        with open(self.file_name, "a") as file:
+        with open(self.file_name, "a", encoding="utf-8") as file:
             exporter = chess.pgn.FileExporter(file)
             pgn_game.accept(exporter)
 
@@ -844,7 +892,7 @@ class PgnDisplay(DisplayMsg):
                 else:
                     pgn_game.headers["Result"] = "0-1"
 
-        with open(l_file_name, "w") as file:
+        with open(l_file_name, "w", encoding="utf-8") as file:
             exporter = chess.pgn.FileExporter(file)
             pgn_game.accept(exporter)
 
@@ -958,7 +1006,13 @@ class PgnDisplay(DisplayMsg):
             ):
                 # note that neither PGNREPLAY nor PONDER (ANALYSIS) modes overwrite last_game.pgn
                 # we do not have pgn_filename in GAME_ENDS as we have in SAVE_GAME message
-                self._save_and_email_pgn(message)
+                if message.result == dgt.util.GameResult.ABORT and ModeInfo.get_game_ending() != "*":
+                    logger.debug(
+                        "Skipping abort PGN autosave because game already ended with result %s",
+                        ModeInfo.get_game_ending(),
+                    )
+                else:
+                    self._save_and_email_pgn(message)
             elif message.mode == Mode.PGNREPLAY:
                 message.pgn_filename = "last_replay.pgn"
                 self._save_pgn(message)

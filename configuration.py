@@ -118,6 +118,12 @@ class Configuration:
         )
         self.parser.add_argument("-lf", "--log-file", type=str, help="log to the given file")
         self.parser.add_argument(
+            "--event-loop-diagnostics",
+            type=str_to_bool,
+            default=False,
+            help="log timers delayed by 0.5 seconds and asyncio callbacks taking over 0.5 seconds",
+        )
+        self.parser.add_argument(
             "-pf", "--pgn-file", type=str, help="pgn file used to store the games", default="games.pgn"
         )
         self.parser.add_argument("-pu", "--pgn-user", type=str, help="user name for the pgn file", default=None)

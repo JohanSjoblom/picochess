@@ -10,8 +10,9 @@
 #   2. Ensure bluetoothd runs with --compat (enables Serial Port Profile).
 #   3. Restart the Bluetooth service so the flag takes effect.
 #   4. Look up the already-paired DGT board MAC address.
-#   5. Release any stale rfcomm123 device.
-#   6. Re-establish rfcomm123 in the background; picochess will detect it.
+#   5. Mark the board as trusted so reconnects need no desktop confirmation.
+#   6. Release any stale rfcomm123 device.
+#   7. Re-establish rfcomm123 in the background; picochess will detect it.
 
 set -e
 
@@ -69,11 +70,22 @@ if [[ -z "$MAC" ]]; then
 else
     echo "EN: Found paired DGT board: ${MAC}"
 
-    # 5. Release stale rfcomm device
+    # 5. Trust the paired board and verify the persisted BlueZ state.
+    # bluetoothctl does not reliably return a failure status on every BlueZ version.
+    trust_output=$(bluetoothctl trust "${MAC}" 2>&1) || true
+    info_output=$(bluetoothctl info "${MAC}" 2>&1) || true
+    if grep -q "Trusted: yes" <<< "${info_output}"; then
+        echo "EN: DGT board marked as trusted"
+    else
+        echo "EN: Warning: unable to verify DGT board as trusted: ${trust_output}"
+        echo "EN: Bluetooth device status: ${info_output}"
+    fi
+
+    # 6. Release stale rfcomm device
     rfcomm release 123 2>/dev/null || true
     sleep 1
 
-    # 6. Connect in background (rfcomm connect blocks until disconnected)
+    # 7. Connect in background (rfcomm connect blocks until disconnected)
     nohup rfcomm connect 123 "${MAC}" 1 </dev/null >>/var/log/picochess-rfcomm.log 2>&1 &
 
     echo "EN: rfcomm connect started for ${MAC} — picochess will detect /dev/rfcomm123"

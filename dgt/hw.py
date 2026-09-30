@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 class DgtHw(DgtIface):
     """Handle the DgtXL/3000 communication."""
 
+    offload_sync_io = True
+
     def __init__(self, dgtboard: EBoard, loop: asyncio.AbstractEventLoop):
         super(DgtHw, self).__init__(dgtboard, loop)
 
@@ -194,7 +196,7 @@ class DgtHw(DgtIface):
             hms_time(self.dgtboard.l_time),
             hms_time(self.dgtboard.r_time),
         )
-        return self._resume_clock(ClockSide.NONE)
+        return await asyncio.to_thread(self._resume_clock, ClockSide.NONE)
 
     def _resume_clock(self, side: ClockSide):
         if self.dgtboard.l_time >= 3600 * 10 or self.dgtboard.r_time >= 3600 * 10:
@@ -237,7 +239,7 @@ class DgtHw(DgtIface):
             hms_time(self.dgtboard.l_time),
             hms_time(self.dgtboard.r_time),
         )
-        return self._resume_clock(side)
+        return await asyncio.to_thread(self._resume_clock, side)
 
     def set_clock(self, time_left: int, time_right: int, devs: set):
         """Start the dgtxl/3k."""

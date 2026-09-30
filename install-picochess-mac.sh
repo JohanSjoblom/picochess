@@ -259,6 +259,12 @@ select_python() {
 }
 
 initialize_runtime_files() {
+    config_file="$INSTALL_DIR/picochess.ini"
+    if [ ! -e "$config_file" ] && [ ! -L "$config_file" ]; then
+        [ -f "$INSTALL_DIR/picochess.ini.example-web-MAC" ] || fail "macOS configuration template is missing."
+        cp "$INSTALL_DIR/picochess.ini.example-web-MAC" "$config_file"
+        status "Created $config_file from picochess.ini.example-web-MAC"
+    fi
     for path in "$INSTALL_DIR/logs" "$INSTALL_DIR/games/uploads"; do
         if [ ! -d "$path" ]; then
             mkdir -p "$path"
@@ -370,9 +376,9 @@ show_readiness() {
     fi
 
     if [ -f "$INSTALL_DIR/picochess.ini" ]; then
-        status "Configuration: preserving existing picochess.ini"
+        status "Configuration: picochess.ini is available"
     else
-        warn "picochess.ini was not created because no engine path should be guessed. Configure it after adding a macOS engine."
+        warn "picochess.ini is missing; installation creates it from picochess.ini.example-web-MAC."
     fi
 
     case ",$SELECTED_RESOURCES," in

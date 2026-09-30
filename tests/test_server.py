@@ -830,6 +830,144 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({"event": "GameEnd", "result": "0-1"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
 
+    async def test_game_ends_ignores_stale_pending_engine_move_after_mate(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4", "d8h4"):
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "pending_computer_move": {"move": "e8e7"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.MATE,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual(board.fen(), end_position["fen"])
+        self.assertEqual("d8h4", end_position["move"])
+        self.assertNotIn("Ke7", end_position["pgn"])
+
+    async def test_game_ends_includes_legal_pending_engine_move(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4"):
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "pending_computer_move": {"move": "d8h4"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.MATE,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertIn("Qh4#", end_position["pgn"])
+        self.assertEqual("d8h4", end_position["move"])
+
+    async def test_game_ends_includes_pending_move_legal_only_in_atomic(self):
+        board = chess.Board()
+        for move in ("e2e4", "d7d5", "e4d5"):
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "atomic",
+            # Standard rules: the d5 pawn blocks the queen. In Atomic, exd5
+            # explodes both pawns, so the queen may travel d8-d4.
+            "pending_computer_move": {"move": "d8d4"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("d8d4", end_position["move"])
+
+    async def test_game_ends_ignores_pending_move_illegal_only_in_atomic(self):
+        board = chess.Board()
+        moves = (
+            "a2a3",
+            "e7e6",
+            "g1h3",
+            "b8c6",
+            "h3f4",
+            "d7d5",
+            "f4h3",
+            "d8f6",
+            "h3g5",
+            "f6b2",
+        )
+        for move in moves:
+            board.push(chess.Move.from_uci(move))
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "atomic",
+            # Standard rules leave the rook on a1 after Qxb2. In Atomic, the
+            # capture on b2 explodes that rook, so a1-a2 must be rejected.
+            "pending_computer_move": {"move": "a1a2"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("f6b2", end_position["move"])
+        self.assertNotIn("Ra2", end_position["pgn"])
+
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):

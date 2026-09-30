@@ -194,7 +194,7 @@ class TestCooperativeProtocol(unittest.IsolatedAsyncioTestCase):
         payload = []
         for depth in (10, 20):
             for index, move in enumerate(roots, 1):
-                payload.append(f"info depth {depth} multipv {index} score cp {100-index} pv {move.uci()}")
+                payload.append(f"info depth {depth} multipv {index} score cp {100 - index} pv {move.uci()}")
         payload.append(f"bestmove {roots[0].uci()}")
         protocol.pipe_data_received(1, ("\n".join(payload) + "\n").encode())
         protocol.connection_lost(None)
@@ -208,7 +208,7 @@ class TestCooperativeProtocol(unittest.IsolatedAsyncioTestCase):
         for index, info in enumerate(analysis.multipv):
             self.assertEqual(info["depth"], 20)
             self.assertEqual(info["pv"], [roots[index]])
-            self.assertEqual(info["score"].pov(board.turn).score(), 99-index)
+            self.assertEqual(info["score"].pov(board.turn).score(), 99 - index)
         transport.assert_done()
 
     async def test_stop_and_new_position_keep_search_results_separate(self):

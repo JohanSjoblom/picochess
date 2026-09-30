@@ -78,7 +78,7 @@ from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
-from pgn import ModeInfo, add_picotutor_variations_to_game
+from pgn import ModeInfo, add_picotutor_variations_to_game, game_with_legal_pending_move
 import picotutor_constants as picotutor_c
 
 # This needs to be reworked to be session based (probably by token)
@@ -3078,12 +3078,19 @@ class WebVr(DgtIface):
         return True
 
     def set_clock(self, time_left: int, time_right: int, devs: set):
-        """Start the time on the web clock."""
+        """Set the web clock and immediately refresh a stopped time display."""
         if self.get_name() not in devs:
             logger.debug("ignored setClock - devs: %s", devs)
             return True
         self.l_time = time_left
         self.r_time = time_right
+        # CLOCK_SET and CLOCK_START are separate dispatch commands.  During
+        # engine/menu setup the latter may be delayed or superseded by a timed
+        # text message, leaving the browser on stale unequal values.  A stopped
+        # clock that is already showing time can safely publish the new pair
+        # here; active timed text remains visible until DISPLAY_TIME restores it.
+        if self.side_running == ClockSide.NONE and self.clock_show_time:
+            self._display_time(self.l_time, self.r_time)
         return True
 
     def light_squares_on_revelation(self, uci_move):
@@ -4078,11 +4085,11 @@ class WebDisplay(DisplayMsg):
             game_for_end = message.game
             pending = self.shared.get("pending_computer_move")
             if pending and "move" in pending:
-                try:
-                    game_for_end = message.game.copy()
-                    game_for_end.push(chess.Move.from_uci(pending["move"]))
-                except Exception:
-                    pass
+                game_for_end = game_with_legal_pending_move(
+                    message.game,
+                    pending["move"],
+                    self.shared.get("variant", "chess"),
+                )
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)

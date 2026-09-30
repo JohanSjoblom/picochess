@@ -468,3 +468,94 @@ class TestPgnDisplay(unittest.TestCase):
             )
             testee._save_and_email_pgn(msg)
             self.assertEqual(len(emailer.sent), 2)
+
+    def test_game_end_save_ignores_stale_pending_move_after_mate(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4", "d8h4"):
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "chess",
+            "pending_computer_move": {"move": "e8e7"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="0-1")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("d8h4", msg.game.peek().uci())
+        self.assertIn("Qh4#", saved_text)
+        self.assertNotIn("Ke7", saved_text)
+
+    def test_game_end_save_includes_legal_pending_move(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4"):
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "chess",
+            "pending_computer_move": {"move": "d8h4"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="0-1")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("d8h4", msg.game.peek().uci())
+        self.assertIn("Qh4#", saved_text)
+
+    def test_game_end_save_rejects_pending_move_illegal_in_atomic(self):
+        board = chess.Board()
+        moves = (
+            "a2a3",
+            "e7e6",
+            "g1h3",
+            "b8c6",
+            "h3f4",
+            "d7d5",
+            "f4h3",
+            "d8f6",
+            "h3g5",
+            "f6b2",
+        )
+        for move in moves:
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "atomic",
+            # Qxb2 explodes the rook on a1 in Atomic, so a1-a2 must not be
+            # appended even though it remains legal on the standard board.
+            "pending_computer_move": {"move": "a1a2"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="*")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("f6b2", msg.game.peek().uci())
+        self.assertIn("Qxb2", saved_text)
+        self.assertNotIn("Ra2", saved_text)

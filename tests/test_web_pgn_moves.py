@@ -9,6 +9,22 @@ import unittest
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser JavaScript tests")
 class TestWebPgnMoves(unittest.TestCase):
+    def test_same_position_refresh_does_not_reset_chessground_fen(self):
+        script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
+        start = script.index("function chessgroundNeedsFenUpdate(")
+        end = script.index("\n}", start) + 2
+        program = script[start:end] + "\n" + (
+            "console.log(JSON.stringify(["
+            "chessgroundNeedsFenUpdate('8/8/8/8/8/8/8/K6k', '8/8/8/8/8/8/8/K6k w - - 0 1'),"
+            "chessgroundNeedsFenUpdate('8/8/8/8/8/8/8/K6k', '8/8/8/8/8/8/8/1K5k b - - 1 1')"
+            "]));"
+        )
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, check=True, timeout=10
+        )
+
+        self.assertEqual([False, True], json.loads(result.stdout))
+
     def test_dgt_battery_footer_uses_live_system_info_and_connection_status(self):
         root = Path(__file__).parents[1]
         script = (root / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")

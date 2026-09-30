@@ -39,9 +39,7 @@ The update uses `git pull --ff-only`, so it never merges or overwrites local
 work. It also configures older single-branch checkouts to fetch all branches,
 without changing the checked-out branch.
 
-> **Beta note:** Fresh clones currently check out the `471-port-to-windows`
-> branch explicitly. This temporary branch pin must be removed before the port
-> is merged into the default branch.
+Fresh clones check out the `master` branch.
 
 ## Resource and recovery options
 

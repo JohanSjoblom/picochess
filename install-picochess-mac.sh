@@ -7,9 +7,7 @@
 set -eu
 
 REPOSITORY_URL="https://github.com/JohanSjoblom/picochess.git"
-# Temporary during Windows/macOS beta testing. Remove the explicit branch from
-# the clone commands before merging this feature branch into the default branch.
-REPOSITORY_BRANCH="471-port-to-windows"
+REPOSITORY_BRANCH="master"
 INSTALL_DIR=""
 RESOURCES="Books,OpeningData,Games"
 SKIP_RESOURCES=false

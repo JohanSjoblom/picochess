@@ -20,9 +20,7 @@ refreshes the copy and the shortcuts; close the control panel first.
 The app runs as the current user. `winget` may show a Windows elevation prompt if a prerequisite
 installer requires one.
 
-> **Beta note:** Fresh installations currently clone the `471-port-to-windows` branch explicitly.
-> This temporary branch pin must be removed before the Windows port is merged into the default
-> branch.
+Fresh installations clone the `master` branch.
 
 ## Download
 

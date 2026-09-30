@@ -58,9 +58,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = "Stop"
 
 $repositoryUrl = "https://github.com/JohanSjoblom/picochess.git"
-# Temporary during Windows beta testing. Remove the explicit branch from the
-# clone commands before merging this feature branch into the default branch.
-$repositoryBranch = "471-port-to-windows"
+$repositoryBranch = "master"
 $selectedResources = @()
 $resourceDefinitions = @{
     Engines = @{

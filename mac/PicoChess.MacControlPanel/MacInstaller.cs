@@ -7,9 +7,7 @@ namespace PicoChess.MacControlPanel;
 internal static class MacInstaller
 {
     private const string RepositoryUrl = "https://github.com/JohanSjoblom/picochess.git";
-    // Temporary during Windows/macOS beta testing. Remove this explicit branch
-    // selection before merging the port into the default branch.
-    private const string RepositoryBranch = "471-port-to-windows";
+    private const string RepositoryBranch = "master";
 
     public static async Task InstallAsync(
         string installDirectory,

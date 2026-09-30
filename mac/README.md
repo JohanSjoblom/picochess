@@ -11,7 +11,7 @@ When no PicoChess checkout is found, the app shows an **Install** section:
 
 1. Choose a folder (default `~/PicoChess`) and whether to download books, opening data, and
    games data.
-2. The app checks for Git and clones the `471-port-to-windows` branch. If Git is missing, macOS
+2. The app checks for Git and clones the `master` branch. If Git is missing, macOS
    offers to install the Command Line Tools; accept, then click Install again.
 3. It runs `install-picochess-mac.sh` and shows its output. The script needs a native CPython
    3.11-3.13 from [python.org](https://www.python.org/downloads/macos/) or Homebrew, and reports

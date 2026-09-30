@@ -5,9 +5,7 @@ internal sealed class InstallerService
 {
     private static readonly string[] SupportedPythonVersions = ["3.13", "3.12", "3.11"];
     private const string RepositoryUrl = "https://github.com/JohanSjoblom/picochess.git";
-    // Temporary during Windows beta testing. Remove this explicit branch selection
-    // before merging the Windows port into the default branch.
-    private const string RepositoryBranch = "471-port-to-windows";
+    private const string RepositoryBranch = "master";
     private readonly Action<string> _log;
 
     public InstallerService(Action<string> log) => _log = log;
@@ -126,8 +124,8 @@ internal sealed class InstallerService
             ?? throw new InvalidOperationException("Choose an installation folder with a valid parent directory.");
         Directory.CreateDirectory(parent);
         await RunAsync("git.exe",
-            // Fetch all branches but check out only the selected one, so the checkout
-            // can later switch branches (for example to master) without re-cloning.
+            // Fetch all branches but check out master, so the checkout can later
+            // switch branches without re-cloning.
             ["clone", "--branch", RepositoryBranch, RepositoryUrl, installDirectory],
             cancellationToken);
     }

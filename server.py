@@ -78,7 +78,7 @@ from dgt.util import EBoard as EBoardType
 from timecontrol import TimeControl
 from dgt.iface import DgtIface
 from eboard.eboard import EBoard as EBoardProtocol
-from pgn import ModeInfo, add_picotutor_variations_to_game, game_with_legal_pending_move
+from pgn import ModeInfo, add_picotutor_variations_to_game, game_with_legal_pending_move, replay_variant_board
 import picotutor_constants as picotutor_c
 
 # This needs to be reworked to be session based (probably by token)
@@ -3355,9 +3355,7 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic":
                 try:
-                    atm = chess.variant.AtomicBoard()
-                    for move in game.move_stack:
-                        atm.push(move)
+                    atm = replay_variant_board(game, chess.variant.AtomicBoard)
                     return atm.board_fen()
                 except Exception:
                     pass  # fall through to standard
@@ -3367,17 +3365,13 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic" and game.move_stack:
                 try:
-                    atm = chess.variant.AtomicBoard()
-                    for move in game.move_stack:
-                        atm.push(move)
+                    atm = replay_variant_board(game, chess.variant.AtomicBoard)
                     return atm.fen()
                 except Exception:
                     pass  # fall through to standard
             elif variant == "racingkings":
                 try:
-                    rkb = chess.variant.RacingKingsBoard()
-                    for move in game.move_stack:
-                        rkb.push(move)
+                    rkb = replay_variant_board(game, chess.variant.RacingKingsBoard)
                     return rkb.fen()
                 except Exception:
                     pass  # fall through to standard
@@ -3457,33 +3451,25 @@ class WebDisplay(DisplayMsg):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic" and game.move_stack:
                 try:
-                    atm = chess.variant.AtomicBoard()
-                    for move in game.move_stack:
-                        atm.push(move)
+                    atm = replay_variant_board(game, chess.variant.AtomicBoard)
                     pgn_game = pgn.Game.from_board(atm)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)
             elif variant == "antichess" and game.move_stack:
                 try:
-                    acb = chess.variant.AntichessBoard()
-                    for move in game.move_stack:
-                        acb.push(move)
+                    acb = replay_variant_board(game, chess.variant.AntichessBoard)
                     pgn_game = pgn.Game.from_board(acb)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)
             elif variant == "racingkings":
                 try:
-                    rkb = chess.variant.RacingKingsBoard()
-                    for move in game.move_stack:
-                        rkb.push(move)
+                    rkb = replay_variant_board(game, chess.variant.RacingKingsBoard)
                     pgn_game = pgn.Game.from_board(rkb)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)
             elif variant == "3check" and game.move_stack:
                 try:
-                    tcb = chess.variant.ThreeCheckBoard()
-                    for move in game.move_stack:
-                        tcb.push(move)
+                    tcb = replay_variant_board(game, chess.variant.ThreeCheckBoard)
                     pgn_game = pgn.Game.from_board(tcb)
                 except Exception:
                     pgn_game = pgn.Game().from_board(game)

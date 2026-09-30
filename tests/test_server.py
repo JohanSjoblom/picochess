@@ -923,6 +923,38 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual("d8d4", end_position["move"])
 
+    async def test_game_ends_includes_pending_atomic_move_from_custom_root(self):
+        root_fen = "4k3/8/8/8/8/8/8/R3K3 b Q - 0 1"
+        board = chess.Board(root_fen)
+        board.push_uci("e8e7")
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "atomic",
+            "pending_computer_move": {"move": "a1a2"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("a1a2", end_position["move"])
+        self.assertEqual("8/4k3/8/8/8/8/R7/4K3", end_position["fen"].split()[0])
+        self.assertIn(root_fen, end_position["pgn"])
+
     async def test_game_ends_ignores_pending_move_illegal_only_in_atomic(self):
         board = chess.Board()
         moves = (

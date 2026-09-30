@@ -48,6 +48,14 @@ from picotutor import PicoTutor
 logger = logging.getLogger(__name__)
 
 
+def replay_variant_board(game: chess.Board, board_type: type[chess.Board]) -> chess.Board:
+    """Replay a game's moves under variant rules from its actual root position."""
+    board = board_type(game.root().fen())
+    for move in game.move_stack:
+        board.push(move)
+    return board
+
+
 def game_with_legal_pending_move(game: chess.Board, move_uci: object, variant: str = "chess") -> chess.Board:
     """Return a copy with a pending move when it is legal for the active variant."""
     if not isinstance(move_uci, str):
@@ -69,9 +77,7 @@ def game_with_legal_pending_move(game: chess.Board, move_uci: object, variant: s
     legality_board = game
     if board_type is not None:
         try:
-            legality_board = board_type()
-            for historic_move in game.move_stack:
-                legality_board.push(historic_move)
+            legality_board = replay_variant_board(game, board_type)
         except Exception as exc:
             logger.debug("cannot reconstruct variant board for pending move: %s", exc)
             return game
@@ -565,17 +571,13 @@ class PgnDisplay(DisplayMsg):
         variant = self.shared.get("variant", "chess") if self.shared else "chess"
         if variant == "atomic" and game.move_stack:
             try:
-                atm = chess.variant.AtomicBoard()
-                for move in game.move_stack:
-                    atm.push(move)
+                atm = replay_variant_board(game, chess.variant.AtomicBoard)
                 return chess.pgn.Game().from_board(atm)
             except Exception:
                 pass
         elif variant == "antichess" and game.move_stack:
             try:
-                acb = chess.variant.AntichessBoard()
-                for move in game.move_stack:
-                    acb.push(move)
+                acb = replay_variant_board(game, chess.variant.AntichessBoard)
                 return chess.pgn.Game().from_board(acb)
             except Exception:
                 pass

@@ -520,6 +520,28 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertEqual("d8h4", msg.game.peek().uci())
         self.assertIn("Qh4#", saved_text)
 
+    def test_game_end_save_includes_pending_atomic_move_from_custom_root(self):
+        root_fen = "4k3/8/8/8/8/8/8/R3K3 b Q - 0 1"
+        board = chess.Board(root_fen)
+        board.push_uci("e8e7")
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        shared = {
+            "headers": {},
+            "variant": "atomic",
+            "pending_computer_move": {"move": "a1a2"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", FakeEmailer(), shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            testee._save_and_email_pgn(msg)
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("a1a2", msg.game.peek().uci())
+        self.assertIn('[FEN "' + root_fen + '"]', saved_text)
+        self.assertIn("Ra2", saved_text)
+
     def test_game_end_save_rejects_pending_move_illegal_in_atomic(self):
         board = chess.Board()
         moves = (

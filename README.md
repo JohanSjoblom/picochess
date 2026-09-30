@@ -58,7 +58,8 @@ Get the installation script, give it execution rights, and run it as sudo. It wi
 - `chmod +x install-picochess.sh`
 - `sudo ./install-picochess.sh`
 - Default engine pack is `small`. If you want more engines and are OK with a longer download, use `sudo ./install-picochess.sh lite`.
-- If you install on a DGTPi/DGT3000 clock, run: `sudo ./install-picochess.sh dgtpi`
+- If PicoChess runs inside a DGTPi clock, use `sudo ./install-picochess.sh dgtpi`.
+- For a standalone DGT3000 connected by cable to a DGT eboard, use `sudo ./install-picochess.sh dgt3000`; this keeps `dgtpi=False` because clock communication runs through the eboard.
 - If you install on a standard Raspberry Pi 3 without a DGTPi/DGT3000 clock, run: `sudo ./install-picochess.sh pi3`
 - Reboot; Picochess should start as a service.
 
@@ -66,17 +67,20 @@ The script installs the following services in `/etc/systemd/system/`:
 - picochess (main service)
 - picochess-update (stay updated)
 - gamesdb (games window on web page)
-- unblock-bt (only installed when using the `pi3`, `dgtpi`, or `dgt3000` parameter; unblocks Bluetooth on boot)
+- unblock-bt (only installed when using the `pi3` parameter; unblocks Bluetooth on boot)
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).
 - `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
-- `dgtpi`, `dgt3000`, or `DGT3000` installs the DGT Pi 3000 clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
+- `dgtpi` installs the DGTPi GPIO clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
+- `dgt3000` or `DGT3000` selects a standalone DGT3000 connected through a DGT eboard. It keeps `dgtpi=False` and does not install the DGTPi GPIO clock service.
 - `kiosk` installs autologin + kiosk autostart using `etc/pico-kiosk.desktop`.
 - `pi3` installs the Bluetooth unblock service (useful on Raspberry Pi 3 with Trixie).
 - `master` switches an existing checkout back to `origin/master` before installing, useful for leaving a test branch.
 - `reset` backs up and resets `picochess.ini` and the installed user `kiosk.sh` to current defaults. Existing DGTPi configuration selects the DGTPi defaults automatically.
+
+When an older standalone DGT3000 installation incorrectly contains `dgtpi=True`, use `reset dgt3000` once to select the normal eboard profile explicitly.
 
 On normal updates, an existing user `kiosk.sh` is refreshed from the repository and its previous contents are saved as `kiosk.sh.backup`. Add an exact `# no update` comment line to a customized `kiosk.sh` to keep it unchanged. Explicit `reset` mode overrides this marker.
 

@@ -31,6 +31,27 @@ ini_setting_is_true() {
     ' "$setting_file"
 }
 
+# Select the configuration profile for a settings reset. Explicit hardware
+# flags take precedence over the existing file: a standalone DGT3000 is
+# connected through the eboard and must not enable the DGTPi GPIO driver.
+# Arguments: install_dgtpi install_dgt3000 reset_settings existing_ini
+select_ini_profile() {
+    profile_dgtpi=$1
+    profile_dgt3000=$2
+    profile_reset=$3
+    profile_existing_ini=$4
+
+    if [ "$profile_dgtpi" = true ]; then
+        printf '%s\n' dgtpi
+    elif [ "$profile_dgt3000" = true ]; then
+        printf '%s\n' web
+    elif [ "$profile_reset" = true ] && ini_setting_is_true "$profile_existing_ini" dgtpi; then
+        printf '%s\n' dgtpi
+    else
+        printf '%s\n' web
+    fi
+}
+
 # Replace a managed file only when its contents changed. Keeping this operation
 # idempotent is important because PicoChess code updates run the installer twice.
 #

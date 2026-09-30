@@ -42,7 +42,7 @@ from typing import Optional
 from pathlib import Path
 
 # picochess version
-version = "4.3.5"
+version = "4.3.6"
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,13 @@ class AsyncRepeatingTimer:
                     logging.warning(
                         "event-loop timer late callback=%s timer=%x generation=%s "
                         "scheduled=%.3f actual=%.3f late=%.3fs interval=%.3fs",
-                        callback_name, id(self), generation, scheduled, actual, actual - scheduled, self.interval,
+                        callback_name,
+                        id(self),
+                        generation,
+                        scheduled,
+                        actual,
+                        actual - scheduled,
+                        self.interval,
                     )
             callback_is_async = asyncio.iscoroutinefunction(self.callback)
             callback_started = self.loop.time() if scheduled is not None and not callback_is_async else None
@@ -202,7 +208,8 @@ class AsyncRepeatingTimer:
                     if elapsed >= threshold:
                         logging.warning(
                             "event-loop timer callback slow callback=%s elapsed=%.3fs",
-                            callback_name or self._callback_name(), elapsed,
+                            callback_name or self._callback_name(),
+                            elapsed,
                         )
             if not self.repeating:
                 if generation == self._generation:
@@ -221,7 +228,14 @@ class AsyncRepeatingTimer:
             logging.WARNING if delay >= threshold else logging.DEBUG,
             "event-loop timer handoff stage=%s callback=%s timer=%x generation=%s "
             "current_generation=%s scheduled=%.3f actual=%.3f delay=%.3fs",
-            stage, self._callback_name(), id(self), generation, self._generation, scheduled, actual, delay,
+            stage,
+            self._callback_name(),
+            id(self),
+            generation,
+            self._generation,
+            scheduled,
+            actual,
+            delay,
         )
 
     def _callback_name(self):
@@ -409,14 +423,14 @@ def update_picochess_now(web_port: int | None = None):
         # Keep the helper across the install: the update may switch to a branch
         # that does not yet contain legacy_kiosk.py.
         "legacy_kiosk_helper=$(mktemp /tmp/picochess-legacy-kiosk.XXXXXX.py) && "
-        "cp /opt/picochess/legacy_kiosk.py \"$legacy_kiosk_helper\" ; "
+        'cp /opt/picochess/legacy_kiosk.py "$legacy_kiosk_helper" ; '
         f"echo \"$(date): Update pass 1/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 && "
         f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
         f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
-        f"python3 \"$legacy_kiosk_helper\" --web-port {kiosk_port} ; "
-        "rm -f \"$legacy_kiosk_helper\" ; "
+        f'python3 "$legacy_kiosk_helper" --web-port {kiosk_port} ; '
+        'rm -f "$legacy_kiosk_helper" ; '
         f"systemctl restart picochess"
     )
     try:
@@ -636,10 +650,7 @@ def _get_wayland_ydotool_commands() -> dict[str, str]:
     ydotool_prefix = _get_ydotool_prefix()
     # Keep Alt pressed briefly after releasing Tab.  labwc may miss an
     # instantaneous chord, while this mirrors the proven X11 timing above.
-    ydotool_alt_tab = (
-        f"{ydotool_prefix} key 56:1 15:1 15:0; "
-        f"sleep 0.2; {ydotool_prefix} key 56:0"
-    )
+    ydotool_alt_tab = f"{ydotool_prefix} key 56:1 15:1 15:0; " f"sleep 0.2; {ydotool_prefix} key 56:0"
     ydotool_alt_f11 = f"{ydotool_prefix} key 56:1 87:1 87:0 56:0"
     return {
         "toggle_fullscreen": ydotool_alt_f11,

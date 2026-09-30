@@ -4067,6 +4067,10 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.TAKE_BACK):
             self._set_pending_engine_move(False)
+            # A takeback invalidates any announced engine continuation.  If it
+            # remains cached and is also legal in a replacement line,
+            # GAME_ENDS can append that stale move to the final PGN.
+            self.shared.pop("pending_computer_move", None)
             # A takeback from a terminal position reopens the game.  Clear the
             # cached result before rebuilding the PGN, otherwise
             # _build_game_header() reattaches the old 1-0/0-1 result.

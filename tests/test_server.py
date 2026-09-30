@@ -1073,6 +1073,40 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("1-0", position["pgn"])
         self.assertIn("*", position["pgn"])
 
+    async def test_takeback_discards_stale_pending_move_before_koth_win(self):
+        board = chess.Board("8/p4p2/1p3k2/5r1p/5P2/4K3/PP5P/6R1 w - - 2 33")
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True, "pending_engine_move": True},
+            "variant": "kingofthehill",
+            "pending_computer_move": {"move": "a7a6"},
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(Message.TAKE_BACK(game=board))
+            board.push_uci("e3d4")
+            write_to_clients.reset_mock()
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.KOTH_WHITE,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertNotIn("pending_computer_move", shared)
+        self.assertEqual("e3d4", end_position["move"])
+        self.assertIn("Kd4", end_position["pgn"])
+        self.assertNotIn("a6", end_position["pgn"])
+
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):

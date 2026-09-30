@@ -137,11 +137,15 @@ class DisplayDgt(object):
 class AsyncRepeatingTimer:
     """Call function on a given interval - Async version to replace RepeatedTimer"""
 
+    lag_warning_seconds = None  # Enable only for event-loop diagnostics.
+
     def __init__(self, interval, callback, loop: asyncio.AbstractEventLoop, repeating=True, args=None, kwargs=None):
         self.interval = interval  # Interval between each execution
         self.callback = callback  # Function to be repeatedly called
         self._task = None  # Reference to the asynchronous task
         self._running = False  # Keeps track of whether the timer is running
+        self._generation = 0
+        self._task_generation = 0
         self.loop = loop  # run callback in callers eventloop
         self.repeating = repeating  # repeat is default, set false to run only once
         self.args = args if args is not None else []
@@ -151,19 +155,79 @@ class AsyncRepeatingTimer:
         """Return the running status."""
         return self._running
 
-    async def _run(self):
-        while self._running:  # Continue running until the timer is stopped
+    async def _run(self, generation, requested, created):
+        self._log_handoff("task-start", created, generation)
+        first_expiry = True
+        while self._running and generation == self._generation:
+            threshold = self.lag_warning_seconds
+            scheduled = self.loop.time() + self.interval if threshold is not None else None
             try:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 # Timer cancelled during shutdown; exit quietly.
                 break
-            if asyncio.iscoroutinefunction(self.callback):
-                await self.callback(*self.args, **self.kwargs)
-            else:
-                self.callback(*self.args, **self.kwargs)  # sync callback
+            # stop() invalidates this generation immediately, even when its
+            # cancellation request is still waiting in the event-loop queue.
+            if not self._running or generation != self._generation:
+                break
+            if first_expiry and requested is not None:
+                self._log_handoff("first-expiry", requested + self.interval, generation)
+            first_expiry = False
+            callback_name = None
+            if scheduled is not None:
+                actual = self.loop.time()
+                if actual - scheduled >= threshold:
+                    callback_name = self._callback_name()
+                    logging.warning(
+                        "event-loop timer late callback=%s timer=%x generation=%s "
+                        "scheduled=%.3f actual=%.3f late=%.3fs interval=%.3fs",
+                        callback_name, id(self), generation, scheduled, actual, actual - scheduled, self.interval,
+                    )
+            callback_is_async = asyncio.iscoroutinefunction(self.callback)
+            callback_started = self.loop.time() if scheduled is not None and not callback_is_async else None
+            if not self._running or generation != self._generation:
+                break
+            try:
+                if callback_is_async:
+                    await self.callback(*self.args, **self.kwargs)
+                else:
+                    self.callback(*self.args, **self.kwargs)  # sync callback
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logging.exception("repeating timer callback failed")
+            finally:
+                if callback_started is not None:
+                    elapsed = self.loop.time() - callback_started
+                    if elapsed >= threshold:
+                        logging.warning(
+                            "event-loop timer callback slow callback=%s elapsed=%.3fs",
+                            callback_name or self._callback_name(), elapsed,
+                        )
             if not self.repeating:
-                self._running = False
+                if generation == self._generation:
+                    self._running = False
+                break
+        if self._task is asyncio.current_task():
+            self._task = None
+
+    def _log_handoff(self, stage, scheduled, generation):
+        threshold = self.lag_warning_seconds
+        if threshold is None or scheduled is None:
+            return
+        actual = time.monotonic()
+        delay = actual - scheduled
+        logging.log(
+            logging.WARNING if delay >= threshold else logging.DEBUG,
+            "event-loop timer handoff stage=%s callback=%s timer=%x generation=%s "
+            "current_generation=%s scheduled=%.3f actual=%.3f delay=%.3fs",
+            stage, self._callback_name(), id(self), generation, self._generation, scheduled, actual, delay,
+        )
+
+    def _callback_name(self):
+        owner = getattr(self.callback, "__self__", None)
+        name = getattr(self.callback, "__name__", type(self.callback).__name__)
+        return f"{type(owner).__name__}.{name}" if owner is not None else name
 
     def _running_in_target_loop(self):
         try:
@@ -171,34 +235,50 @@ class AsyncRepeatingTimer:
         except RuntimeError:
             return False
 
-    def _start_task(self):
-        if self._running and self._task is None:
-            self._task = self.loop.create_task(self._run())
+    def _start_task(self, generation, requested):
+        created = time.monotonic() if requested is not None else None
+        self._log_handoff("start-dispatch", requested, generation)
+        if self._running and generation == self._generation:
+            if self._task is not None:
+                self._task.cancel()
+            self._task_generation = generation
+            self._task = self.loop.create_task(
+                self._run(generation, requested, created),
+                name=f"timer:{self._callback_name()}:{id(self):x}:{generation}",
+            )
 
-    def _stop_task(self):
-        if self._task is not None:
+    def _stop_task(self, generation, requested):
+        self._log_handoff("stop-dispatch", requested, generation)
+        # A delayed stop must not cancel a more recent start of this timer.
+        if self._task is not None and self._task_generation < generation:
             self._task.cancel()
             self._task = None
 
     def start(self):
         """Start the RepeatingTimer."""
         if not self._running:
+            requested = time.monotonic() if self.lag_warning_seconds is not None else None
+            self._generation += 1
+            generation = self._generation
             self._running = True
             if self._running_in_target_loop():
-                self._start_task()
+                self._start_task(generation, requested)
             else:
-                self.loop.call_soon_threadsafe(self._start_task)
+                self.loop.call_soon_threadsafe(self._start_task, generation, requested)
         else:
             logging.info("repeated timer already running - strange!")
 
     def stop(self):
         """Stop the RepeatingTimer."""
         if self._running:
+            requested = time.monotonic() if self.lag_warning_seconds is not None else None
             self._running = False
+            self._generation += 1
+            generation = self._generation
             if self._running_in_target_loop():
-                self._stop_task()
+                self._stop_task(generation, requested)
             else:
-                self.loop.call_soon_threadsafe(self._stop_task)
+                self.loop.call_soon_threadsafe(self._stop_task, generation, requested)
         else:
             logging.debug("repeated timer already stopped - strange!")
 
@@ -299,23 +379,34 @@ def update_pico_v4(reason: Optional[str] = None):
         logger.info("Failed to create update flag. Cannot update picochess on next boot.")
 
 
-def update_picochess_now():
+def update_picochess_now(web_port: int | None = None):
     """Run install-picochess.sh twice in the background, then restart PicoChess.
 
     The install script must be run twice: the first pass may update the script
     itself; the second pass uses the updated version to update the application code.
-    After both passes, chromium (kiosk) is killed so it reconnects to the fresh
-    server, and PicoChess is restarted via systemctl (no full reboot required).
+    After both passes, PicoChess is restarted via systemctl (no full reboot
+    required). The kiosk supervisor closes and relaunches its own Chromium process
+    across the service restart. A narrow fallback closes legacy unsupervised
+    kiosks immediately before the restart.
     """
+    from legacy_kiosk import configured_kiosk_port
+
+    # Capture the current endpoint before the installer can replace its config.
+    kiosk_port = int(web_port if web_port is not None else (configured_kiosk_port() or 0))
     script = "/opt/picochess/install-picochess.sh"
     logfile = "/var/log/picochess-update.log"
     cmd = (
+        # Keep the helper across the install: the update may switch to a branch
+        # that does not yet contain legacy_kiosk.py.
+        "legacy_kiosk_helper=$(mktemp /tmp/picochess-legacy-kiosk.XXXXXX.py) && "
+        "cp /opt/picochess/legacy_kiosk.py \"$legacy_kiosk_helper\" ; "
         f"echo \"$(date): Update pass 1/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 && "
         f"echo \"$(date): Update pass 2/2...\" >> '{logfile}' 2>&1 && "
         f"sh '{script}' pico noengines >> '{logfile}' 2>&1 ; "
         f"echo \"$(date): Restarting PicoChess...\" >> '{logfile}' 2>&1 ; "
-        f"pkill -f chromium 2>/dev/null ; "
+        f"python3 \"$legacy_kiosk_helper\" --web-port {kiosk_port} ; "
+        "rm -f \"$legacy_kiosk_helper\" ; "
         f"systemctl restart picochess"
     )
     try:
@@ -408,18 +499,12 @@ def exit_pico(dgtpi: bool, dev: str):
     logging.debug("exit picochess requested by (%s)", dev)
 
     if platform.system() == "Windows":
-        os.system("sudo pkill -f chromium")
         os.system("sudo systemctl stop picochess")
     elif dgtpi:
         shutdown_dgtpi()
-        os.system("sudo pkill -f chromium")
         os.system("sudo systemctl stop dgtpi")
-    elif platform.machine() != "x86_64":
-        # on Debian Linux laptops we dont want to stop chromium
-        # on Pi systems we have kiosk mode, so we kill chromium
-        # @todo should perhaps have a check for kiosk mode here
-        os.system("sudo pkill -f chromium")
-    # no need to stop picochess, all async will be stopped by MainLoop
+    # The kiosk launcher owns and closes only the Chromium process it started.
+    # No browser should be stopped here because PicoChess may not be in kiosk mode.
 
 
 def reboot(dgtpi: bool, dev: str):
@@ -530,7 +615,12 @@ def _get_ydotool_prefix() -> str:
 def _get_wayland_ydotool_commands() -> dict[str, str]:
     # evdev keycodes used by ydotool key injection.
     ydotool_prefix = _get_ydotool_prefix()
-    ydotool_alt_tab = f"{ydotool_prefix} key 56:1 15:1 15:0 56:0"
+    # Keep Alt pressed briefly after releasing Tab.  labwc may miss an
+    # instantaneous chord, while this mirrors the proven X11 timing above.
+    ydotool_alt_tab = (
+        f"{ydotool_prefix} key 56:1 15:1 15:0; "
+        f"sleep 0.2; {ydotool_prefix} key 56:0"
+    )
     ydotool_alt_f11 = f"{ydotool_prefix} key 56:1 87:1 87:0 56:0"
     return {
         "toggle_fullscreen": ydotool_alt_f11,

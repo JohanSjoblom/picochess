@@ -9,7 +9,30 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from picotalker import PicoTalkerDisplay
+from dgt.util import GameResult
+from picotalker import BLACK_WIN_RESULTS, WHITE_WIN_RESULTS, PicoTalkerDisplay
+
+
+class TestPicoTalkerVariantResults(unittest.TestCase):
+    def test_all_variant_wins_use_the_existing_winner_announcements(self):
+        self.assertTrue(
+            {
+                GameResult.THREE_CHECK_WHITE,
+                GameResult.KOTH_WHITE,
+                GameResult.ATOMIC_WHITE,
+                GameResult.RK_WHITE,
+                GameResult.ANTICHESS_WHITE,
+            }.issubset(WHITE_WIN_RESULTS)
+        )
+        self.assertTrue(
+            {
+                GameResult.THREE_CHECK_BLACK,
+                GameResult.KOTH_BLACK,
+                GameResult.ATOMIC_BLACK,
+                GameResult.RK_BLACK,
+                GameResult.ANTICHESS_BLACK,
+            }.issubset(BLACK_WIN_RESULTS)
+        )
 
 
 class TestPicoTalkerSoxBackend(unittest.TestCase):

@@ -7,26 +7,26 @@ jobs:
     runs-on: ubuntu-22.04
    
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.11
+        python-version: '3.13'
     - name: Install tox
       run: pip install tox
     - name: Run linting with tox
       run: tox -e lint
         
   mypy:
-    if: false  # disable the job
+    continue-on-error: true  # informational baseline; not a required CI gate yet
     runs-on: ubuntu-22.04
    
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.11
+        python-version: '3.13'
     - name: Install tox
       run: pip install tox
     - name: Run type checks with tox
@@ -36,11 +36,11 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v6
       with:
-        python-version: 3.11
+        python-version: '3.13'
     - name: Install tox
       run: pip install tox
     - name: Run unit tests with tox

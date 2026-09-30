@@ -11,6 +11,26 @@ class DummyBoard:
 
 class TestWebVr(unittest.IsolatedAsyncioTestCase):
 
+    async def test_set_clock_refreshes_stopped_time_display_immediately(self):
+        web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
+        web.side_running = ClockSide.NONE
+        web.clock_show_time = True
+        web._display_time = Mock()
+
+        web.set_clock(61, 61, {"web"})
+
+        web._display_time.assert_called_once_with(61, 61)
+
+    async def test_set_clock_preserves_active_timed_text(self):
+        web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
+        web.side_running = ClockSide.NONE
+        web.clock_show_time = False
+        web._display_time = Mock()
+
+        web.set_clock(61, 61, {"web"})
+
+        web._display_time.assert_not_called()
+
     async def test_runclock_accumulates_fractional_delay(self):
         web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
         web.side_running = ClockSide.LEFT

@@ -2,19 +2,58 @@ import asyncio
 import os
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
+from mainloop import MainLoop
 
-from dgt.api import Event, Message
+from dgt.api import Dgt, Event, Message
 from dgt.display import DgtDisplay
-from dgt.menu import DgtMenu
+from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
-from dgt.util import EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+from dgt.util import ClockSide, EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
 from pgn import ModeInfo
 from timecontrol import TimeControl
 from uci.engine_provider import EngineProvider
 from uci.read import read_engine_ini
+
+
+class TestSerialClockReconnectOrder(unittest.IsolatedAsyncioTestCase):
+    async def test_clock_version_keeps_running_side_after_resume(self):
+        await self._check_reconnect_order(version_first=False)
+
+    async def test_clock_resume_after_clock_version(self):
+        await self._check_reconnect_order(version_first=True)
+
+    async def test_clock_version_keeps_paused_game_stopped(self):
+        clock = TimeControl(mode=TimeMode.BLITZ, blitz=5)
+        display = DgtDisplay(DummyTranslate(), DummyMenu(), clock, asyncio.get_running_loop())
+        display._exit_display = AsyncMock()
+        version = Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="ser", text=SimpleNamespace(devs={"ser"}))
+        start = Message.CLOCK_START(turn=chess.WHITE, tc_init=clock.get_parameters(), devs={"ser", "web"})
+        with patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock) as fire:
+            await display._process_message(start)
+            await display._process_message(Message.CLOCK_STOP(devs={"ser", "web"}))
+            await display._process_message(version)
+        starts = [call.args[0] for call in fire.await_args_list if isinstance(call.args[0], Dgt.CLOCK_START)]
+        self.assertEqual(ClockSide.NONE, starts[-1].side)
+
+    async def _check_reconnect_order(self, version_first):
+        clock = TimeControl(mode=TimeMode.BLITZ, blitz=5)
+        display = DgtDisplay(DummyTranslate(), DummyMenu(), clock, asyncio.get_running_loop())
+        display._exit_display = AsyncMock()
+        version = Message.DGT_CLOCK_VERSION(main=2, sub=2, dev="ser", text=SimpleNamespace(devs={"ser"}))
+        start = Message.CLOCK_START(turn=chess.WHITE, tc_init=clock.get_parameters(), devs={"ser", "web"})
+        with patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock) as fire:
+            await display._process_message(Message.CLOCK_STOP(devs={"ser", "web"}))
+            if version_first:
+                await display._process_message(version)
+                await display._process_message(start)
+            else:
+                await display._process_message(start)
+                await display._process_message(version)
+        starts = [call.args[0] for call in fire.await_args_list if isinstance(call.args[0], Dgt.CLOCK_START)]
+        self.assertEqual(ClockSide.LEFT, starts[-1].side)
 
 
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
@@ -50,6 +89,7 @@ class DummyMenu:
         self.installed_engines = []
         self.remote_engine = False
         self._dgt_fen = ""
+        self._dgt_fen_rescan = None
         self._flip_board = False
         self._engine_has_960 = False
         self._engine_rdisplay = False
@@ -66,6 +106,15 @@ class DummyMenu:
 
     def set_dgt_fen(self, fen):
         self._dgt_fen = fen
+        self._dgt_fen_rescan = None
+
+    def allow_dgt_fen_rescan(self, fen):
+        self._dgt_fen_rescan = fen
+
+    def consume_dgt_fen_rescan(self, fen):
+        allowed = fen == self._dgt_fen_rescan
+        self._dgt_fen_rescan = None
+        return allowed
 
     def get_engine_has_960(self):
         return self._engine_has_960
@@ -135,6 +184,48 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(event, Event.NEW_GAME)
         self.assertEqual(518, event.pos960)
 
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_early_legal_move_can_be_rescanned_after_engine_move(self, observable_fire):
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        await self.display._process_fen(early_fen, raw=False)
+        await self.display._process_fen(early_fen, raw=False)
+        self.assertEqual(1, observable_fire.await_count)
+
+        controller = object.__new__(MainLoop)
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu
+        )
+        controller._allow_early_user_fen_rescan()
+        self.assertEqual(early_fen, self.menu.get_dgt_fen())
+        await self.display._process_fen(early_fen, raw=False)
+
+        self.assertEqual(2, observable_fire.await_count)
+        self.assertEqual(early_fen, observable_fire.await_args.args[0].fen)
+        await self.display._process_fen(early_fen, raw=False)
+        self.assertEqual(2, observable_fire.await_count)
+
+    def test_early_move_rescan_keeps_newer_or_illegal_scan(self):
+        controller = object.__new__(MainLoop)
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[], dgtmenu=self.menu
+        )
+        self.menu.set_dgt_fen(early_fen)
+        controller._allow_early_user_fen_rescan()
+        self.assertEqual(early_fen, self.menu.get_dgt_fen())
+        self.assertIsNone(self.menu._dgt_fen_rescan)
+
+        controller.state.legal_fens = [early_fen]
+        self.menu.set_dgt_fen("newer scan")
+        controller._allow_early_user_fen_rescan()
+        self.assertEqual("newer scan", self.menu.get_dgt_fen())
+        self.assertIsNone(self.menu._dgt_fen_rescan)
+
+        self.menu.set_dgt_fen(early_fen)
+        controller._allow_early_user_fen_rescan()
+        self.assertFalse(self.menu.consume_dgt_fen_rescan("newer scan"))
+        self.assertFalse(self.menu.consume_dgt_fen_rescan(early_fen))
+
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
     def create_display(self, board_connected=None) -> DgtDisplay:
@@ -186,6 +277,29 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
             board_connected=board_connected,
         )
 
+    @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_position_scan_uses_physical_fen_during_retry_allowance(
+        self, observable_fire, _dispatch_fire
+    ):
+        display = self.create_display()
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        await display._process_fen(early_fen, raw=False)
+        controller = object.__new__(MainLoop)
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=display.dgtmenu
+        )
+        controller._allow_early_user_fen_rescan()
+
+        display.dgtmenu.state = MenuState.POS_READ
+        observable_fire.reset_mock()
+        await display.dgtmenu.main_down()
+
+        self.assertEqual(early_fen, display.dgtmenu.get_dgt_fen())
+        setup = observable_fire.await_args.args[0]
+        self.assertIsInstance(setup, Event.SETUP_POSITION)
+        self.assertEqual(early_fen, setup.fen.split()[0])
+
     @staticmethod
     def no_eboard_message():
         text = SimpleNamespace(
@@ -216,6 +330,17 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         await display._process_message(message)
 
         dispatch_fire.assert_awaited_once_with(message.text)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_lost_on_time_remains_until_next_display_action(self, dispatch_fire):
+        display = self.create_display()
+        text = SimpleNamespace(maxtime=1)
+        display.dgttranslate.text = Mock(return_value=text)
+
+        await display._process_message(Message.LOST_ON_TIME())
+
+        self.assertEqual(0, text.maxtime)
+        dispatch_fire.assert_awaited_once_with(text)
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_loaded_mame_capabilities_are_shown_as_timed_retro_info(self, dispatch_fire):
@@ -286,6 +411,41 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, dispatch_fire.await_count)
         self.assertIs(connection_text, dispatch_fire.await_args_list[0].args[0])
         self.assertEqual("DGT_DISPLAY_TIME", repr(dispatch_fire.await_args_list[1].args[0]))
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_reconnection_restores_last_move_and_arrow(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+        display.have_seen_a_fen = True
+        display.last_move = chess.Move.from_uci("e2e4")
+        display.last_fen = chess.Board().fen()
+        display.last_turn = chess.WHITE
+        connection_text = SimpleNamespace(web_text="BT e-Board")
+
+        await display._process_message(Message.DGT_EBOARD_VERSION(text=connection_text, channel="BT"))
+
+        self.assertEqual(3, dispatch_fire.await_count)
+        restored = dispatch_fire.await_args_list[1].args[0]
+        self.assertEqual("DGT_DISPLAY_MOVE", repr(restored))
+        self.assertEqual(display.last_move, restored.move)
+        self.assertEqual({"i2c", "web"}, restored.devs)
+        arrow = dispatch_fire.await_args_list[2].args[0]
+        self.assertEqual("DGT_LIGHT_SQUARES", repr(arrow))
+        self.assertEqual("e2e4", arrow.uci_move)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_reconnection_keeps_menu_instead_of_restoring_move(self, dispatch_fire):
+        display = self.create_display(board_connected=lambda: True)
+        display.last_move = chess.Move.from_uci("e2e4")
+        display.last_fen = chess.Board().fen()
+        display._inside_main_menu = Mock(return_value=True)
+        display._exit_display = AsyncMock()
+
+        await display._process_message(
+            Message.DGT_EBOARD_VERSION(text=SimpleNamespace(web_text="BT e-Board"), channel="BT")
+        )
+
+        display._exit_display.assert_awaited_once_with(devs={"i2c", "web"})
+        dispatch_fire.assert_awaited_once()
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)

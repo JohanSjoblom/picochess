@@ -6,10 +6,12 @@ import io
 import os
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from dgt.api import Message
-from dgt.util import Mode, PlayMode
+from dgt.util import GameResult, Mode, PlayMode
 from pgn import (
+    ModeInfo,
     PgnDisplay,
     add_picotutor_variations_to_game,
     pgn_has_variations,
@@ -62,6 +64,8 @@ class TestPgnDisplay(unittest.TestCase):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.testee = PgnDisplay("test", None, {}, self.loop)
+        ModeInfo.set_game_ending(result="*")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
 
     def test_generate_pgn(self):
         game = chess.Board()
@@ -98,6 +102,89 @@ class TestPgnDisplay(unittest.TestCase):
         side_line = game.variations[1]
         self.assertEqual(side_line.parent, game)
         self.assertEqual(side_line.variations[0].move.uci(), "d7d5")
+
+        evaluated_node = game.next()
+        self.assertEqual(evaluated_node.nags, {chess.pgn.NAG_MISTAKE})
+        self.assertEqual(evaluated_node.comment, "? [%eval 0.00] [%bestmove Nf3] [%cpl 1000]")
+        self.assertEqual(evaluated_node.eval().white().score(), 0)
+        exported = game.accept(chess.pgn.StringExporter(headers=False, comments=True, variations=True))
+        self.assertIn("$2 { ? [%eval 0.00] [%bestmove Nf3] [%cpl 1000] }", exported)
+
+    def test_picotutor_evaluation_uses_white_perspective_and_pawn_decimals(self):
+        board = chess.Board()
+        white_move = chess.Move.from_uci("e2e4")
+        black_move = chess.Move.from_uci("e7e5")
+        board.push(white_move)
+        board.push(black_move)
+        game = chess.pgn.Game.from_board(board)
+        self.testee.set_picotutor(
+            FakePicoTutor(
+                {
+                    (1, white_move, chess.BLACK): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "best_move": "e4",
+                        "CPL": 0,
+                        "score": 50,
+                        "deep_low_diff": 12,
+                    },
+                    (2, black_move, chess.WHITE): {
+                        "nag": chess.pgn.NAG_MISTAKE,
+                        "best_move": "c5",
+                        "CPL": 40,
+                        "score": 50,
+                    },
+                }
+            )
+        )
+
+        self.testee.add_picotutor_evaluation(game)
+
+        white_node, black_node = list(game.mainline())
+        self.assertEqual(
+            white_node.comment,
+            "! [%eval 0.50] [%bestmove e4] [%cpl 0] [%pico_ds 12]",
+        )
+        self.assertEqual(black_node.comment, "? [%eval -0.50] [%bestmove c5] [%cpl 40]")
+        self.assertEqual(white_node.eval().white().score(), 50)
+        self.assertEqual(black_node.eval().white().score(), -50)
+
+    def test_picotutor_mate_evaluation_uses_white_perspective(self):
+        board = chess.Board()
+        white_move = chess.Move.from_uci("e2e4")
+        black_move = chess.Move.from_uci("e7e5")
+        board.push(white_move)
+        board.push(black_move)
+        game = chess.pgn.Game.from_board(board)
+        self.testee.set_picotutor(
+            FakePicoTutor(
+                {
+                    (1, white_move, chess.BLACK): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "mate": 3,
+                        "CPL": 0,
+                    },
+                    (2, black_move, chess.WHITE): {
+                        "nag": chess.pgn.NAG_GOOD_MOVE,
+                        "mate": 3,
+                        "CPL": 0,
+                    },
+                }
+            )
+        )
+
+        self.testee.add_picotutor_evaluation(game)
+
+        white_node, black_node = list(game.mainline())
+        self.assertEqual(white_node.comment, "! [%eval #3] [%cpl 0]")
+        self.assertEqual(black_node.comment, "! [%eval #-3] [%cpl 0]")
+        self.assertEqual(white_node.eval().white().mate(), 3)
+        self.assertEqual(black_node.eval().white().mate(), -3)
+
+        exported = game.accept(chess.pgn.StringExporter(headers=False, comments=True, variations=True))
+        reparsed = chess.pgn.read_game(io.StringIO(exported))
+        reparsed_white, reparsed_black = list(reparsed.mainline())
+        self.assertEqual(reparsed_white.eval().white().mate(), 3)
+        self.assertEqual(reparsed_black.eval().white().mate(), -3)
 
     def test_add_picotutor_evaluation_does_not_duplicate_existing_first_move(self):
         board = chess.Board()
@@ -278,6 +365,61 @@ class TestPgnDisplay(unittest.TestCase):
         self.assertIn('[FEN "4k3/8/8/8/8/8/P7/4K3 w - - 0 7"]', saved_text)
         self.assertTrue(saved_text.rstrip().endswith("*"))
 
+    def test_explicit_save_writes_unicode_headers_as_utf8(self):
+        board = chess.Board()
+        message = FakeMessage(board, PlayMode.USER_WHITE)
+        message.mode = Mode.NORMAL
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            saved_path = os.path.join(tmpdir, "saved.pgn")
+            message.pgn_filename = os.path.relpath(saved_path, "games")
+            testee = PgnDisplay(
+                tmpdir + "/games.pgn",
+                FakeEmailer(),
+                {"headers": {"Event": "Café Schaak"}, "variant": "chess", "loaded_pgn_game": None},
+                self.loop,
+            )
+
+            testee._save_pgn(message)
+
+            with open(saved_path, "r", encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertIn('[Event "Café Schaak"]', saved_text)
+
+    def test_shutdown_abort_does_not_resave_game_with_definitive_result(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        message = Message.GAME_ENDS(
+            tc_init={"internal_time": {chess.WHITE: 0, chess.BLACK: 0}},
+            result=GameResult.ABORT,
+            play_mode=PlayMode.USER_WHITE,
+            game=board,
+            mode=Mode.NORMAL,
+        )
+        self.testee._save_and_email_pgn = Mock()
+        ModeInfo.set_game_ending(result="1/2-1/2")
+
+        self.loop.run_until_complete(self.testee._process_message(message))
+
+        self.testee._save_and_email_pgn.assert_not_called()
+
+    def test_abort_still_autosaves_unfinished_game(self):
+        board = chess.Board()
+        board.push(chess.Move.from_uci("e2e4"))
+        message = Message.GAME_ENDS(
+            tc_init={"internal_time": {chess.WHITE: 0, chess.BLACK: 0}},
+            result=GameResult.ABORT,
+            play_mode=PlayMode.USER_WHITE,
+            game=board,
+            mode=Mode.NORMAL,
+        )
+        self.testee._save_and_email_pgn = Mock()
+
+        self.loop.run_until_complete(self.testee._process_message(message))
+
+        self.testee._save_and_email_pgn.assert_called_once_with(message)
+
     def test_game_end_duplicate_check_uses_final_pgn_with_variations(self):
         user_move = chess.Move.from_uci("e2e4")
         board = chess.Board()
@@ -326,3 +468,116 @@ class TestPgnDisplay(unittest.TestCase):
             )
             testee._save_and_email_pgn(msg)
             self.assertEqual(len(emailer.sent), 2)
+
+    def test_game_end_save_ignores_stale_pending_move_after_mate(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4", "d8h4"):
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "chess",
+            "pending_computer_move": {"move": "e8e7"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="0-1")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("d8h4", msg.game.peek().uci())
+        self.assertIn("Qh4#", saved_text)
+        self.assertNotIn("Ke7", saved_text)
+
+    def test_game_end_save_includes_legal_pending_move(self):
+        board = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4"):
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "chess",
+            "pending_computer_move": {"move": "d8h4"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="0-1")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("d8h4", msg.game.peek().uci())
+        self.assertIn("Qh4#", saved_text)
+
+    def test_game_end_save_includes_pending_atomic_move_from_custom_root(self):
+        root_fen = "4k3/8/8/8/8/8/8/R3K3 b Q - 0 1"
+        board = chess.Board(root_fen)
+        board.push_uci("e8e7")
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        shared = {
+            "headers": {},
+            "variant": "atomic",
+            "pending_computer_move": {"move": "a1a2"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", FakeEmailer(), shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            testee._save_and_email_pgn(msg)
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("a1a2", msg.game.peek().uci())
+        self.assertIn('[FEN "' + root_fen + '"]', saved_text)
+        self.assertIn("Ra2", saved_text)
+
+    def test_game_end_save_rejects_pending_move_illegal_in_atomic(self):
+        board = chess.Board()
+        moves = (
+            "a2a3",
+            "e7e6",
+            "g1h3",
+            "b8c6",
+            "h3f4",
+            "d7d5",
+            "f4h3",
+            "d8f6",
+            "h3g5",
+            "f6b2",
+        )
+        for move in moves:
+            board.push(chess.Move.from_uci(move))
+        msg = FakeMessage(board, PlayMode.USER_WHITE)
+        emailer = FakeEmailer()
+        shared = {
+            "headers": {},
+            "variant": "atomic",
+            # Qxb2 explodes the rook on a1 in Atomic, so a1-a2 must not be
+            # appended even though it remains legal on the standard board.
+            "pending_computer_move": {"move": "a1a2"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testee = PgnDisplay(tmpdir + "/games.pgn", emailer, shared, self.loop)
+            testee.last_file_name = tmpdir + "/last_game.pgn"
+            ModeInfo.set_game_ending(result="*")
+
+            testee._save_and_email_pgn(msg)
+
+            with open(testee.last_file_name, encoding="utf-8") as saved_file:
+                saved_text = saved_file.read()
+
+        self.assertEqual("f6b2", msg.game.peek().uci())
+        self.assertIn("Qxb2", saved_text)
+        self.assertNotIn("Ra2", saved_text)

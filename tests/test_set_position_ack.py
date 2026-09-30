@@ -1,37 +1,33 @@
 """Exercise Set Pos acknowledgement interleavings without starting hardware."""
 
-import ast
-from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
-import picochess
+import mainloop
 from dgt.util import EBoard, Mode
 from dgt.api import Event
 
 
 class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # MainLoop is local to main(); compile its actual methods without running
-        # application startup or copying their implementation into the test.
-        source = ast.parse(Path(picochess.__file__).read_text(encoding="utf-8"))
-        main_loop = next(
-            node for node in ast.walk(source)
-            if isinstance(node, ast.ClassDef) and node.name == "MainLoop"
-        )
         names = {"_clear_set_position_ack", "_begin_set_position_ack",
                  "_finish_set_position_ack", "process_fen", "process_main_events"}
-        methods = [node for node in main_loop.body if getattr(node, "name", None) in names]
-        namespace = dict(vars(picochess))
         self.show = AsyncMock()
         self.sleep = AsyncMock()
-        namespace.update(DisplayMsg=SimpleNamespace(show=self.show),
-                         asyncio=SimpleNamespace(sleep=self.sleep))
-        exec(compile(ast.Module(body=methods, type_ignores=[]), picochess.__file__, "exec"), namespace)
-        controller_type = type("AckController", (), {name: namespace[name] for name in names})
+        show_patch = patch.object(mainloop.DisplayMsg, "show", self.show)
+        show_patch.start()
+        self.addCleanup(show_patch.stop)
+        sleep_patch = patch.object(mainloop.asyncio, "sleep", self.sleep)
+        sleep_patch.start()
+        self.addCleanup(sleep_patch.stop)
+        controller_type = type(
+            "AckController",
+            (),
+            {name: getattr(mainloop.MainLoop, name) for name in names},
+        )
         self.controller = controller_type()
         self.board = chess.Board()
         self.board.push_uci("e2e4")
@@ -42,7 +38,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
             set_position_ack_target_fen=self.target, set_position_ack_pending=True,
             set_position_ack_ready=True, stop_fen_timer=Mock(), position_mode=False,
             position_checkpoint_restore_pending=False, variant="chess", game_started=False,
-            last_legal_fens=[], legal_fens=picochess.compute_legal_fens(self.board),
+            last_legal_fens=[], legal_fens=mainloop.compute_legal_fens(self.board),
             done_computer_fen=None, interaction_mode=Mode.NORMAL,
         )
         self.controller.state = self.state
@@ -84,8 +80,9 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
         move = chess.Move.from_uci("e7e5")
         moved = self.board.copy()
         moved.push(move)
+        legal_fens_before_move = list(self.state.legal_fens)
 
-        async def accept_move(move, sliding):
+        async def accept_move(move, sliding, legal_fens_before_move):
             self.board.push(move)
             return True
 
@@ -93,13 +90,18 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
 
         async def on_ok(message):
             self.assertEqual("POSOK", message.eval_str)
+            self.assertFalse(hasattr(message, "game"))
             await self.controller.process_fen(moved.board_fen(), self.state)
             await self.controller._finish_set_position_ack(self.target)
 
         self.show.side_effect = on_ok
         await self.controller._finish_set_position_ack(self.target)
 
-        self.controller.user_move.assert_awaited_once_with(move, sliding=False)
+        self.controller.user_move.assert_awaited_once_with(
+            move,
+            sliding=False,
+            legal_fens_before_move=legal_fens_before_move,
+        )
         self.assertEqual(moved.fen(), self.board.fen())
         self.assertEqual(moved.move_stack, self.board.move_stack)
         self.show.assert_awaited_once()

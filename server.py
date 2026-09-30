@@ -3455,13 +3455,14 @@ class WebDisplay(DisplayMsg):
 
         def _variant_history(game: chess.Board) -> dict | None:
             """Build browser history with authoritative variant FENs and SAN."""
+            variant = self.shared.get("variant", "chess")
             board_types = {
                 "atomic": chess.variant.AtomicBoard,
                 "antichess": chess.variant.AntichessBoard,
                 "racingkings": chess.variant.RacingKingsBoard,
                 "3check": chess.variant.ThreeCheckBoard,
             }
-            board_type = board_types.get(self.shared.get("variant", "chess"))
+            board_type = board_types.get(variant)
             if board_type is None:
                 return None
             try:
@@ -3475,7 +3476,12 @@ class WebDisplay(DisplayMsg):
                         "fullmove": board.fullmove_number,
                     }
                     board.push(move)
-                    entry["fen"] = board.fen()
+                    fen = board.fen()
+                    if variant == "3check":
+                        fields = fen.split()
+                        if len(fields) == 7:
+                            fen = " ".join(fields[:4] + fields[5:])
+                    entry["fen"] = fen
                     moves.append(entry)
                 return {"root_fen": game.root().fen(), "moves": moves}
             except Exception as exc:

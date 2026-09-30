@@ -366,13 +366,21 @@ assert.equal(currentPosition.fen, reviewFen);
                         "fullmove": replay.fullmove_number,
                     }
                     replay.push(move)
-                    item["fen"] = replay.fen()
+                    fen = replay.fen()
+                    if variant == "3check":
+                        fields = fen.split()
+                        fen = " ".join(fields[:4] + fields[5:])
+                    item["fen"] = fen
                     variant_moves.append(item)
+                live_fen = board.fen()
+                if variant == "3check":
+                    fields = live_fen.split()
+                    live_fen = " ".join(fields[:4] + fields[5:])
                 payload = {
                     "event": "Fen",
                     "play": "computer",
                     "variant": variant,
-                    "fen": board.fen(),
+                    "fen": live_fen,
                     "pgn": str(chess.pgn.Game.from_board(board)),
                     "variant_history": {
                         "root_fen": board.root().fen(),

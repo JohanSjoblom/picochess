@@ -1006,6 +1006,38 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("f6b2", end_position["move"])
         self.assertNotIn("Ra2", end_position["pgn"])
 
+    async def test_threecheck_browser_history_uses_web_compatible_fens(self):
+        board = chess.Board()
+        for move in ("e2e4", "e7e5", "f1b5", "b8c6"):
+            board.push_uci(move)
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "3check",
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.ABORT,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+
+        end_position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        history = end_position["variant_history"]
+        self.assertEqual(4, len(history["moves"]))
+        self.assertTrue(all(len(move["fen"].split()) == 6 for move in history["moves"]))
+        self.assertEqual(end_position["fen"], history["moves"][-1]["fen"])
+
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):

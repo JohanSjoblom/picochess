@@ -1,17 +1,20 @@
 import asyncio
+import io
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 import chess.variant
 
 from dgt.menu import DgtMenu
 from dgt.translate import DgtTranslate
-from dgt.util import GameResult
+from dgt.util import GameResult, PlayMode
 from mainloop import MainLoop
+from pgn import ModeInfo, PgnDisplay
 from picostate import PicochessState
 from timecontrol import TimeControl
+from uci.engine import UciEngine
 
 
 class TestVariantContracts(unittest.TestCase):
@@ -216,6 +219,95 @@ class TestVariantContracts(unittest.TestCase):
 
         self.assertTrue(self.state.get_move_check_board().is_variant_end())
         self._assert_result(GameResult.ANTICHESS_WHITE)
+
+    def test_bestmove_0000_uses_each_variant_terminal_result(self):
+        boards = {}
+
+        boards["atomic"] = chess.variant.AtomicBoard("7k/6p1/8/8/8/8/6Q1/K7 w - - 0 1")
+        boards["atomic"].push_uci("g2g7")
+        boards["3check"] = chess.variant.ThreeCheckBoard("7k/8/8/8/8/8/5R2/K7 w - - 1+3 0 1")
+        boards["3check"].push_uci("f2f8")
+        boards["racingkings"] = chess.variant.RacingKingsBoard("8/K7/8/8/8/8/7k/8 w - - 0 1")
+        boards["racingkings"].push_uci("a7a8")
+        boards["kingofthehill"] = chess.variant.KingOfTheHillBoard("7k/8/8/8/8/3K4/8/8 w - - 0 1")
+        boards["kingofthehill"].push_uci("d3d4")
+        boards["antichess"] = chess.variant.AntichessBoard("8/8/8/8/8/8/8/7k w - - 0 1")
+
+        engine = object.__new__(UciEngine)
+        for name, board in boards.items():
+            with self.subTest(variant=name):
+                result = self.loop.run_until_complete(
+                    engine.handle_bestmove_0000(chess.Board(), variant_board=board)
+                )
+                self.assertEqual(board.result(), result)
+
+    def test_saved_pgn_round_trip_preserves_variant_and_custom_root(self):
+        variant_names = {
+            "atomic": "Atomic",
+            "3check": "Three-Check",
+            "racingkings": "Racing Kings",
+            "kingofthehill": "King of the Hill",
+            "antichess": "Antichess",
+        }
+        root_fen = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
+        message = SimpleNamespace(
+            game=chess.Board(root_fen),
+            play_mode=PlayMode.USER_WHITE,
+            tc_init=TimeControl().get_parameters(),
+        )
+        ModeInfo.set_game_ending(result="*")
+
+        for variant, header in variant_names.items():
+            with self.subTest(variant=variant):
+                display = PgnDisplay("unused.pgn", None, {"variant": variant}, self.loop)
+                saved = display._pgn_game_from_message(message)
+                reparsed = chess.pgn.read_game(io.StringIO(str(saved)))
+
+                self.assertEqual(header, saved.headers["Variant"])
+                self.assertEqual("1", saved.headers["SetUp"])
+                self.assertEqual(root_fen, saved.headers["FEN"])
+                self.assertIsNotNone(reparsed)
+                self.assertEqual(header, reparsed.headers["Variant"])
+                self.assertEqual(root_fen, reparsed.headers["FEN"])
+
+    def test_opening_book_policy_is_explicit_for_every_variant(self):
+        policies = {
+            "atomic": False,
+            "3check": True,
+            "racingkings": False,
+            "kingofthehill": True,
+            "antichess": False,
+            "chess960": True,
+        }
+        for variant, should_use_book in policies.items():
+            with self.subTest(variant=variant):
+                controller = object.__new__(MainLoop)
+                controller.bookreader = object()
+                controller.state = SimpleNamespace(
+                    engine_search_revision=0,
+                    variant=variant,
+                    game=chess.Board(),
+                    searchmoves=SimpleNamespace(book=Mock(return_value=None)),
+                    pgn_book_test=False,
+                    pending_engine_result=None,
+                    _threecheck_board=(chess.variant.ThreeCheckBoard() if variant == "3check" else None),
+                    get_fen=Mock(return_value=chess.STARTING_FEN),
+                )
+                controller._apply_pending_mame_recovery_rebase = AsyncMock(return_value=False)
+                controller._set_game_started = Mock()
+                controller._prepare_engine_for_search = AsyncMock(return_value=False)
+                controller._publish_engine_search_failure = AsyncMock()
+                controller.emulation_mode = Mock(return_value=False)
+                controller.online_mode = Mock(return_value=False)
+                controller.pgn_mode = Mock(return_value=False)
+
+                with patch("mainloop.logger.error"):
+                    self.loop.run_until_complete(controller.think(None))
+
+                if should_use_book:
+                    controller.state.searchmoves.book.assert_called_once()
+                else:
+                    controller.state.searchmoves.book.assert_not_called()
 
 
 if __name__ == "__main__":

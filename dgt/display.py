@@ -22,7 +22,7 @@ import copy
 import asyncio
 import chess  # type: ignore
 import chess.variant  # type: ignore
-from pgn import ModeInfo
+from pgn import ModeInfo, replay_variant_board
 from utilities import DisplayMsg, Observable, DispatchDgt, AsyncRepeatingTimer, write_picochess_ini, get_window_command
 from timecontrol import TimeControl
 from dgt.menu import DgtMenu
@@ -869,9 +869,7 @@ class DgtDisplay(DisplayMsg):
         # For atomic variant with a standard chess.Board, replay on AtomicBoard
         if variant_name == "atomic" and game.move_stack:
             try:
-                atm = chess.variant.AtomicBoard()
-                for move in game.move_stack:
-                    atm.push(move)
+                atm = replay_variant_board(game, chess.variant.AtomicBoard)
                 return variant_name, atm.fen()
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: atomic replay failed: %s", exc)
@@ -880,9 +878,7 @@ class DgtDisplay(DisplayMsg):
         # to include the check-count suffix (e.g. +3+2) in the FEN.
         if variant_name == "3check" and game.move_stack:
             try:
-                tcb = chess.variant.ThreeCheckBoard()
-                for move in game.move_stack:
-                    tcb.push(move)
+                tcb = replay_variant_board(game, chess.variant.ThreeCheckBoard)
                 return variant_name, tcb.fen()
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: 3check replay failed: %s", exc)
@@ -890,9 +886,7 @@ class DgtDisplay(DisplayMsg):
         # For racingkings variant with a standard chess.Board, replay on RacingKingsBoard
         if variant_name == "racingkings" and game.move_stack:
             try:
-                rkb = chess.variant.RacingKingsBoard()
-                for move in game.move_stack:
-                    rkb.push(move)
+                rkb = replay_variant_board(game, chess.variant.RacingKingsBoard)
                 return variant_name, rkb.fen()
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: racingkings replay failed: %s", exc)
@@ -900,9 +894,7 @@ class DgtDisplay(DisplayMsg):
         # For antichess variant with a standard chess.Board, replay on AntichessBoard
         if variant_name == "antichess" and game.move_stack:
             try:
-                ach = chess.variant.AntichessBoard()
-                for move in game.move_stack:
-                    ach.push(move)
+                ach = replay_variant_board(game, chess.variant.AntichessBoard)
                 return variant_name, ach.fen()
             except Exception as exc:
                 logger.warning("_variant_fen_from_game: antichess replay failed: %s", exc)

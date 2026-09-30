@@ -955,6 +955,11 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("a1a2", end_position["move"])
         self.assertEqual("8/4k3/8/8/8/8/R7/4K3", end_position["fen"].split()[0])
         self.assertIn(root_fen, end_position["pgn"])
+        history = end_position["variant_history"]
+        self.assertEqual(root_fen, history["root_fen"])
+        self.assertEqual(["e8e7", "a1a2"], [move["uci"] for move in history["moves"]])
+        self.assertEqual(["Ke7", "Ra2"], [move["san"] for move in history["moves"]])
+        self.assertEqual(end_position["fen"], history["moves"][-1]["fen"])
 
     async def test_game_ends_ignores_pending_move_illegal_only_in_atomic(self):
         board = chess.Board()

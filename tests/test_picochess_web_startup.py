@@ -4,6 +4,7 @@ from picochess import (
     WEB_SERVER_PERMISSION_FALLBACK_PORT,
     WebServerListenError,
     _listen_web_app,
+    _warn_unknown_parameters,
 )
 
 
@@ -21,6 +22,16 @@ class FakeWebApp:
 
 
 class TestPicochessWebStartup(unittest.TestCase):
+    def test_unknown_startup_parameters_do_not_log_values(self):
+        unknown = ["--hotspot-ssid=phone", "--hotspot-pass=secret-value", "--other-pass", "another-secret"]
+
+        with self.assertLogs("picochess", level="WARNING") as captured:
+            _warn_unknown_parameters(unknown)
+
+        self.assertEqual(["WARNING:picochess:4 unrecognized startup parameter(s) ignored"], captured.output)
+        self.assertNotIn("secret-value", captured.output[0])
+        self.assertNotIn("another-secret", captured.output[0])
+
     def test_listen_uses_requested_port_when_available(self):
         web_app = FakeWebApp()
 

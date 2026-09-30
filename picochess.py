@@ -116,6 +116,12 @@ def _listen_web_app(web_app: Any, requested_port: int) -> int:
         raise WebServerListenError(requested_port, "unavailable", exc) from exc
 
 
+def _warn_unknown_parameters(unknown: list[str]) -> None:
+    if unknown:
+        # An unrecognized option may contain a password, including in --key=value form.
+        logger.warning("%d unrecognized startup parameter(s) ignored", len(unknown))
+
+
 async def main() -> None:
     """Main function."""
     # Use asyncio's event loop as the Tornado IOLoop
@@ -153,8 +159,7 @@ async def main() -> None:
     a_copy = copy.copy(vars(args))
     a_copy["mailgun_key"] = a_copy["smtp_pass"] = a_copy["engine_remote_key"] = a_copy["engine_remote_pass"] = "*****"
     logger.debug("startup parameters: %s", a_copy)
-    if unknown:
-        logger.warning("invalid parameter given %s", unknown)
+    _warn_unknown_parameters(unknown)
 
     EngineProvider.init(args.engine_menu_sort)
 

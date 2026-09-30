@@ -56,6 +56,28 @@ class TestSerialClockReconnectOrder(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ClockSide.LEFT, starts[-1].side)
 
 
+class TestVariantFenPresentation(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.new_event_loop()
+        self.addCleanup(self.loop.close)
+        self.display = DgtDisplay(DummyTranslate(), DummyMenu(), TimeControl(), self.loop)
+
+    def test_atomic_replay_starts_from_custom_game_root(self):
+        root_fen = "4k3/8/8/8/8/8/8/R3K3 b Q - 0 1"
+        game = chess.Board(root_fen)
+        game.push_uci("e8e7")
+        game.push_uci("a1a2")
+        self.display._current_variant = "atomic"
+
+        variant, presented_fen = self.display._variant_fen_from_game(game)
+
+        expected = chess.variant.AtomicBoard(root_fen)
+        expected.push_uci("e8e7")
+        expected.push_uci("a1a2")
+        self.assertEqual("atomic", variant)
+        self.assertEqual(expected.fen(), presented_fen)
+
+
 START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 PGNREPLAY_MODE_FEN = "rnbqkbnr/pppppppp/8/1Q6/8/8/PPPPPPPP/RNBQKBNR"
 

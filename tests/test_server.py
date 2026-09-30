@@ -1038,6 +1038,41 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(len(move["fen"].split()) == 6 for move in history["moves"]))
         self.assertEqual(end_position["fen"], history["moves"][-1]["fen"])
 
+    async def test_takeback_clears_threecheck_result_from_move_list(self):
+        board = chess.Board()
+        for move in ("e2e4", "e7e5", "f1b5", "b8c6"):
+            board.push_uci(move)
+        shared = {
+            "headers": {},
+            "system_info": {"game_started": True},
+            "variant": "3check",
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.GAME_ENDS(
+                    tc_init={},
+                    result=GameResult.THREE_CHECK_WHITE,
+                    play_mode=PlayMode.USER_WHITE,
+                    game=board,
+                    mode=Mode.NORMAL,
+                )
+            )
+            board.pop()
+            write_to_clients.reset_mock()
+            await display.task(Message.TAKE_BACK(game=board))
+
+        position = next(
+            call.args[0]
+            for call in write_to_clients.call_args_list
+            if call.args[0].get("event") == "Fen"
+        )
+        self.assertEqual("", WebDisplay.result_sav)
+        self.assertEqual("*", shared["headers"]["Result"])
+        self.assertNotIn("1-0", position["pgn"])
+        self.assertIn("*", position["pgn"])
+
 
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):

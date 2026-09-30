@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import chess
 import chess.pgn
+import chess.variant
 
 from server import EventHandler, DGTHandler
 from web_history import history_scope, preserve, project_message, read_game, reset_history
@@ -321,3 +322,97 @@ assert.equal(currentPosition.fen, reviewFen);
             ["node", "-e", program], capture_output=True, text=True, timeout=10
         )
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required")
+    def test_browser_keeps_other_variant_histories_authoritative(self):
+        cases = {
+            "antichess": (
+                chess.variant.AntichessBoard("k3r3/8/8/8/8/8/P7/4K3 w - - 0 1"),
+                ("a2a3",),
+            ),
+            "racingkings": (
+                chess.variant.RacingKingsBoard(),
+                ("h2h3", "a2a3", "h3h4", "a3a4"),
+            ),
+            "3check": (
+                chess.variant.ThreeCheckBoard(),
+                ("e2e4", "e7e5", "f1b5", "b8c6"),
+            ),
+        }
+        root = Path(__file__).parents[1]
+        app = (root / "web/picoweb/static/js/app.js").read_text()
+        functions = []
+        for name in ("loadGame", "addNewMove", "setHeaders", "WebExporter", "exportGame",
+                     "getWebGameHeader", "writeVariationTree", "stripFen", "isDefinitiveResult",
+                     "goToPosition", "findPositionByFen", "fenWithoutEnPassant", "forcePosition",
+                     "applyVariantHistory", "loadDgtGame", "updateDGTPosition", "pgnTextHasMoves"):
+            start = app.index("function " + name + "(")
+            end = app.index("\n}", start) + 2
+            functions.append(app[start:end])
+        javascript = (root / "web/picoweb/static/js/chess960.min.js").read_text() + "\n"
+        javascript += "\n".join(functions)
+
+        for variant, (board, move_ucis) in cases.items():
+            with self.subTest(variant=variant):
+                for move_uci in move_ucis:
+                    board.push_uci(move_uci)
+                replay = board.root()
+                variant_moves = []
+                for move in board.move_stack:
+                    item = {
+                        "uci": move.uci(),
+                        "san": replay.san(move),
+                        "turn": "w" if replay.turn == chess.WHITE else "b",
+                        "fullmove": replay.fullmove_number,
+                    }
+                    replay.push(move)
+                    item["fen"] = replay.fen()
+                    variant_moves.append(item)
+                payload = {
+                    "event": "Fen",
+                    "play": "computer",
+                    "variant": variant,
+                    "fen": board.fen(),
+                    "pgn": str(chess.pgn.Game.from_board(board)),
+                    "variant_history": {
+                        "root_fen": board.root().fen(),
+                        "moves": variant_moves,
+                    },
+                }
+                program = javascript + "\nvar payload = " + json.dumps(payload) + ";\n"
+                program += r"""
+var assert = require('assert');
+var START_FEN = new Chess().fen(), setupBoardFen = START_FEN, chessGameType = 0;
+var currentPosition = {fen: START_FEN}, gameHistory = {}, fenHash = {};
+var webHistoryMerged = false, webExploreMode = false, computerside = 'w';
+var simpleNags = {}, pgnEl = '#pgn', rendered = '', displayedFen = '', window = {};
+console.log = function () {};
+console.warn = function () {};
+function $(el) { return {html: function (text) {rendered = text;}}; }
+$.isEmptyObject = function (obj) {return Object.keys(obj).length === 0;};
+function setLivePgnTreeActive() {}
+function bindPgnFenLinks() {}
+function applyPgnVariationVisibility() {}
+function syncWebExploreFromCurrentPosition() {}
+function shouldAutoExploreLoadedFinishedPgn() {return false;}
+function formatPgnWindowMove(move) {return move.san;}
+function figurinizeMove(move) {return move;}
+function saymove() {}
+function stopAnalysis() {}
+function updateChessGround() {displayedFen = currentPosition && currentPosition.fen;}
+function updateStatus() {}
+function updateTutorMistakes() {}
+function isSameGameAsPgn() {return false;}
+updateDGTPosition(payload);
+assert.equal(displayedFen, payload.fen);
+assert.equal(currentPosition.fen, payload.fen);
+assert.equal((rendered.match(/data-fen=/g) || []).length, payload.variant_history.moves.length);
+var reviewFen = payload.variant_history.moves[0].fen;
+assert(goToPosition(reviewFen));
+assert.equal(displayedFen, reviewFen);
+assert.equal(currentPosition.fen, reviewFen);
+"""
+                result = subprocess.run(
+                    ["node", "-e", program], capture_output=True, text=True, timeout=10
+                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)

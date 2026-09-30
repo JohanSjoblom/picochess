@@ -186,9 +186,9 @@ async def process_queued_event(event, handler, queue: asyncio.Queue) -> None:
         queue.task_done()
 
 
-def should_report_local_timeout(online_mode: bool) -> bool:
-    """Report each local flag fall; online servers own their timeout policy."""
-    return not online_mode
+def should_report_local_timeout(online_mode: bool, already_reported: bool = False) -> bool:
+    """Report the first local flag fall for a game; online servers own their timeout policy."""
+    return not online_mode and not already_reported
 
 
 def log_pgn(state: PicochessState):
@@ -5393,6 +5393,7 @@ class MainLoop:
                 await asyncio.sleep(1)
 
         elif isinstance(event, Event.NEW_GAME):
+            self.state.local_timeout_reported = False
             self._clear_set_position_ack()
             self._clear_position_checkpoint()
             clear_preserved_mame_history(self.shared)
@@ -7168,11 +7169,12 @@ class MainLoop:
                 logger.debug("ignore clock time - too low prio: %s", event.dev)
         elif isinstance(event, Event.OUT_OF_TIME):
             # Local timeout is a soft warning: Picochess historically allows
-            # casual play to continue after the clock flag falls. A new clock
-            # period may start after play resumes, so report every new flag fall.
+            # casual play to continue after the clock flag falls. Later clock
+            # periods can also expire, but only the first needs an announcement.
             # Use the mode flag: this timer event can race with engine replacement.
-            if should_report_local_timeout(ModeInfo.get_online_mode()):
+            if should_report_local_timeout(ModeInfo.get_online_mode(), self.state.local_timeout_reported):
                 await self.state.stop_clock()
+                self.state.local_timeout_reported = True
                 await DisplayMsg.show(Message.LOST_ON_TIME())
 
         elif isinstance(event, Event.SHUTDOWN):

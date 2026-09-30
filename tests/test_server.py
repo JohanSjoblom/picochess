@@ -48,6 +48,7 @@ from server import (
     _resolve_web_theme,
     _select_engine_book,
     _select_web_book,
+    _supports_linux_host_integration,
     _time_control_text,
     _web_time_control_settings,
     _update_web_book_selection,
@@ -1165,32 +1166,36 @@ class TestServerWebEngineSelection(unittest.TestCase):
 
 class TestServerEngineBookSelection(unittest.TestCase):
     def setUp(self):
-        self.book_file = "books/test.bin"
-        self.book = {
-            "file": self.book_file,
-            "text": _display_text_from_label("Test Book"),
-        }
-        opening_books = patch("server.get_opening_books", return_value=[self.book])
-        opening_books.start()
-        self.addCleanup(opening_books.stop)
+        books = patch("server.get_opening_books", return_value=[
+            {"file": "books/alpha.bin", "text": "Alpha"},
+            {"file": "books/beta.bin", "text": "Beta"},
+        ])
+        books.start()
+        self.addCleanup(books.stop)
 
     def test_engine_book_choices_exclude_obooksrv_and_are_json_safe(self):
         books = _engine_book_choices()
-        self.assertTrue(books)
-        self.assertNotEqual(OBOOKSRV_BOOK_FILE, books[0]["file"])
+        self.assertEqual(["books/alpha.bin", "books/beta.bin"], [book["file"] for book in books])
         json.dumps({"books": books})
 
     def test_engine_book_choices_exclude_web_only_obooksrv_entry(self):
         self.assertEqual(len(_web_book_choices()) - 1, len(_engine_book_choices()))
         self.assertIsNone(_select_engine_book(OBOOKSRV_BOOK_FILE))
 
+    def test_select_engine_book_resolves_known_book_file(self):
+        selected = _select_engine_book("books/alpha.bin")
+
+        self.assertIsNotNone(selected)
+        self.assertEqual("books/alpha.bin", selected["file"])
+        self.assertEqual("Alpha", selected["label"])
+
     def test_select_engine_book_resolves_configured_book_file(self):
-        entries = {"book": {"value": self.book_file, "enabled": True}}
+        entries = {"book": {"value": "books/alpha.bin", "enabled": True}}
         with patch("server._load_ini_entries", return_value=("picochess.ini", [], [], entries)):
             selected = _select_engine_book(_configured_engine_book_file())
         self.assertIsNotNone(selected)
-        self.assertNotEqual(OBOOKSRV_BOOK_FILE, selected["file"])
-        self.assertTrue(selected["label"])
+        self.assertEqual("books/alpha.bin", selected["file"])
+        self.assertEqual("Alpha", selected["label"])
 
     @patch("server.get_opening_books")
     def test_engine_books_are_alphabetical(self, get_opening_books):
@@ -1281,6 +1286,11 @@ class TestServerClockState(unittest.TestCase):
 
 
 class TestServerChannelAuth(unittest.TestCase):
+    def test_linux_host_integration_is_disabled_on_desktop_ports(self):
+        self.assertTrue(_supports_linux_host_integration("Linux"))
+        self.assertFalse(_supports_linux_host_integration("Darwin"))
+        self.assertFalse(_supports_linux_host_integration("Windows"))
+
     def test_high_impact_channel_actions_require_remote_auth(self):
         for action in (
             "new_engine",
@@ -1314,6 +1324,26 @@ class TestServerChannelAuth(unittest.TestCase):
             "set_position_side",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)
+
+
+class TestServerUnsupportedHostActions(unittest.IsolatedAsyncioTestCase):
+    async def test_macos_rejects_linux_system_action(self):
+        handler = Mock()
+        handler.shared = {}
+        handler.get_argument.return_value = "sys_shutdown"
+
+        with (
+            patch("server._require_auth_if_remote", return_value=True),
+            patch("server._supports_linux_host_integration", return_value=False),
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        fire.assert_not_awaited()
+        handler.set_status.assert_called_once_with(501)
+        handler.write.assert_called_once_with(
+            {"success": False, "error": "This system action is available only on Linux"}
+        )
 
 
 class TestServerSetPositionFromPgn(unittest.TestCase):

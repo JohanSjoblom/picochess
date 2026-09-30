@@ -1,6 +1,7 @@
 """Exercise browser projection against real PGN trees and raw transport caches."""
 import copy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -173,6 +174,9 @@ class TestWebHistory(unittest.IsolatedAsyncioTestCase):
         handler.write.assert_called_once_with(expected)
         self.assertEqual(1, len(self.moves(self.shared["last_dgt_move_msg"])))
 
+    # The assembled program is passed with "node -e" and exceeds the 32767-character
+    # Windows command-line limit. Windows is a target platform, not a development one.
+    @unittest.skipIf(os.name == "nt", "node -e program exceeds the Windows command-line limit")
     @unittest.skipUnless(shutil.which("node"), "Node.js required")
     def test_browser_renders_navigates_and_syncs_combined_initial_game(self):
         root = Path(__file__).parents[1]

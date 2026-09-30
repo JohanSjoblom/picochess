@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>PicoChessInstaller</AssemblyName>
+    <RootNamespace>PicoChess.WindowsInstaller</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The installer doubles as the control panel (started with control-panel mode), so end users
+         download one self-contained executable instead of two. -->
+    <Compile Include="..\PicoChess.ControlPanel\*.cs"
+             Exclude="..\PicoChess.ControlPanel\Program.cs"
+             Link="ControlPanel\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

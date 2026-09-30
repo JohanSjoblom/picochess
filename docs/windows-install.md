@@ -1,0 +1,174 @@
+# Installing PicoChess on Windows
+
+The Windows installer prepares PicoChess and can install the small AMD64 engine
+pack. It does not install Windows services, scheduled tasks, drivers, firewall
+rules, or Linux host integrations. It can use an existing repository checkout
+or clone the repository when the selected installation directory is absent or
+empty.
+
+The supported Python range is CPython 3.11 through 3.13 for x64/AMD64. The
+currently validated baseline is CPython 3.13 on 64-bit Windows.
+
+## Prerequisites
+
+- 64-bit Windows 10 or Windows 11.
+- CPython 3.11, 3.12, or 3.13 from
+  <https://www.python.org/downloads/windows/>. Select **Windows installer
+  (64-bit)** for x64/AMD64, not **Windows installer (ARM64)**. Although both
+  builds are 64-bit, the current Windows dependencies do not support ARM64.
+  Enabling the Python launcher (`py.exe`) during installation is recommended.
+- Git for Windows when the repository still needs to be cloned, or when using
+  the optional repository-update mode.
+- Internet access for Python dependencies and selected resource packs.
+
+The installer does not require administrator privileges. Do not install
+PicoChess under `Program Files`; a normal user-writable directory is preferred.
+
+## Basic installation
+
+From an existing PicoChess checkout, open PowerShell in the repository root:
+
+```powershell
+.\install-picochess-windows.ps1
+```
+
+When PowerShell script execution is restricted, enable it only for the current
+PowerShell process and then run the installer:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\install-picochess-windows.ps1
+```
+
+To use the script as a bootstrap installer outside a checkout:
+
+```powershell
+.\install-picochess-windows.ps1 -InstallDir "$env:USERPROFILE\PicoChess"
+```
+
+The installer creates or reuses `venv`, installs `requirements.txt`, creates
+runtime directories and `talker\voices\voices.ini`, installs portable resource
+packs, and runs dependency/import smoke tests.
+
+It never resets local Git changes. Repository updating is opt-in and succeeds
+only on a clean branch using a fast-forward-only pull:
+
+```powershell
+.\install-picochess-windows.ps1 -UpdateRepo
+```
+
+## Resource selection
+
+The default resource selection is:
+
+```text
+Engines, Books, OpeningData, Games
+```
+
+Select a subset or skip all resource downloads with:
+
+```powershell
+.\install-picochess-windows.ps1 -Resources Books,OpeningData
+.\install-picochess-windows.ps1 -SkipResources
+```
+
+Existing resources with their expected marker files are preserved. Incomplete
+resource directories cause the installer to stop rather than merge unknown
+content. `-ForceResources` moves existing data to a timestamped backup under
+`%LOCALAPPDATA%\PicoChess\backups` before installing a clean copy.
+
+### Games database limitation
+
+The games resource pack supplies database data, but the web client's Games tab
+also needs a `tcscid` HTTP server on port 7778. The resource pack contains
+Linux/Raspberry Pi binaries, so the Windows installer does not install Scid.
+
+To try the Games tab on Windows, install the 64-bit Windows version of
+[Scid vs. PC](https://scidvspc.sourceforge.net/) yourself. Then start PicoChess
+with the optional launcher:
+
+```powershell
+.\start-picochess-windows.ps1
+```
+
+The launcher searches for `tcscid.exe` in `PICOCHESS_TCSCID`, `PATH`, and common
+Scid vs. PC installation directories. An explicit path can also be supplied:
+
+```powershell
+.\start-picochess-windows.ps1 -TcscidPath "C:\Program Files\Scid vs PC-4.27\bin\tcscid.exe"
+```
+
+Scid vs. PC 4.27 currently bundles Tcl 8.5 on Windows, while the downloaded
+games resource uses a Wapp script written for Tcl 8.6. The launcher applies the
+small Tcl 8.5 compatibility update to that resource automatically.
+
+When `tcscid.exe` and the games data are available, the launcher runs
+`tcscid.exe get_games.tcl --server 7778`, waits for the port, starts PicoChess,
+and stops only the helper process it created when PicoChess exits. If Scid is
+missing or fails to start, PicoChess still starts normally and only the Games
+tab lacks database results. No Windows service is installed.
+
+### MAME limitation
+
+The existing MAME resource packs are distributed by the Linux engine installer
+and include platform-specific runtime assumptions. They are not installed on
+Windows. Windows MAME support needs a native resource pack and runtime validation
+before it can safely become an installer option.
+
+## Engines and configuration
+
+The default resource selection downloads the small Windows AMD64 engine pack
+from the PicoChess v4.3.5 GitHub release and installs it under:
+
+```text
+engines\AMD64\
+```
+
+The installer always preserves an existing `picochess.ini`. If it is missing,
+the installer copies `picochess.ini.example-web-AMD64` to `picochess.ini`. That
+example is configured for the bundled `a-stockf.exe` engine and web-only use.
+
+To install the other resource packs without the engine, pass an explicit list:
+
+```powershell
+.\install-picochess-windows.ps1 -Resources Books,OpeningData,Games
+```
+
+## Validation and recovery options
+
+Inspect prerequisites and an existing checkout without changing anything:
+
+```powershell
+.\install-picochess-windows.ps1 -ValidateOnly
+```
+
+Other recovery and diagnostic switches are:
+
+```powershell
+# Move the current venv aside and build a new one.
+.\install-picochess-windows.ps1 -RecreateVenv
+
+# Install without running the final imports and --help checks.
+.\install-picochess-windows.ps1 -SkipSmokeTests
+```
+
+The old environment created by `-RecreateVenv` is retained as
+`venv.backup.<timestamp>` until it is removed manually.
+
+## Starting PicoChess
+
+After installing and configuring a Windows engine, run from the repository root:
+
+```powershell
+.\start-picochess-windows.ps1
+```
+
+To bypass Scid discovery explicitly, use:
+
+```powershell
+.\start-picochess-windows.ps1 -SkipGamesServer
+```
+
+Then open <http://localhost:8080>. See
+[Windows port status](windows-port-status.md) for currently validated features
+and known Windows limitations.

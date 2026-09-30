@@ -76,6 +76,9 @@ class TestLocalTimeoutPolicy(unittest.TestCase):
     def test_online_timeout_is_left_to_server(self):
         self.assertFalse(should_report_local_timeout(True))
 
+    def test_local_timeout_is_reported_only_once(self):
+        self.assertFalse(should_report_local_timeout(False, already_reported=True))
+
 
 class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -91,16 +94,18 @@ class TestRepeatedLocalTimeoutHandling(unittest.IsolatedAsyncioTestCase):
         self.controller.state = SimpleNamespace(
             position_checkpoint_restore_pending=False,
             stop_clock=AsyncMock(),
+            local_timeout_reported=False,
         )
 
-    async def test_each_local_flag_fall_is_reported(self):
+    async def test_only_first_local_flag_fall_is_reported(self):
         event = Event.OUT_OF_TIME(color=chess.WHITE)
 
         await self.controller.process_main_events(event)
         await self.controller.process_main_events(event)
 
-        self.assertEqual(2, self.controller.state.stop_clock.await_count)
-        self.assertEqual(2, self.show.await_count)
+        self.assertEqual(1, self.controller.state.stop_clock.await_count)
+        self.assertEqual(1, self.show.await_count)
+        self.assertTrue(self.controller.state.local_timeout_reported)
         self.assertTrue(
             all(
                 isinstance(args[0], Message.LOST_ON_TIME)
@@ -118,6 +123,7 @@ class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
             "web_history_scope": old_scope,
         }
         controller.state = SimpleNamespace(position_checkpoint_restore_pending=False)
+        controller.state.local_timeout_reported = True
         controller._clear_set_position_ack = Mock()
         controller._clear_position_checkpoint = Mock()
 
@@ -127,6 +133,7 @@ class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
         async def check_history_before_continuing():
             self.assertNotIn("preserved_mame_history", controller.shared)
             self.assertNotEqual(old_scope, controller.shared["web_history_scope"])
+            self.assertFalse(controller.state.local_timeout_reported)
             raise StopAfterHistoryCheck
 
         controller.get_rid_of_engine_move = check_history_before_continuing

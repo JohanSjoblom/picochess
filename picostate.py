@@ -87,6 +87,7 @@ class PicochessState:
         self.engine_move_was_book = False
         self.engine_search_revision = 0
         self.game_declared = False  # User declared resignation or draw
+        self.local_timeout_reported = False  # Show a local flag fall once per game while allowing play to continue.
         self.game_started = False  # Lifecycle flag: true once play has started, even after takeback to move 0.
         self.interaction_mode = Mode.NORMAL
         self.user_move_revision = 0

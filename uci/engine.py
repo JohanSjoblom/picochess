@@ -180,6 +180,20 @@ class CooperativeUciProtocol(UciProtocol):
         self._output_connection_lost: tuple[Exception | None] | None = None
         self._output_warning_at = 0.0
         self.output_label = "uci"
+        self.discard_stopped_info = False
+        self._stopped_tutor_search = False
+        self._discarding_stopped_info_line = False
+
+    def send_line(self, line):
+        # PicoTutor has already snapshotted the position before it stops its
+        # deep search. Its queued info cannot improve that move evaluation, but
+        # can keep bestmove (and the next position) waiting behind many PVs.
+        if self.discard_stopped_info:
+            if line == "stop" and self.config.get("MultiPV", 1) > 1:
+                self._stopped_tutor_search = True
+            elif line.startswith("go "):
+                self._stopped_tutor_search = False
+        super().send_line(line)
 
     def pipe_data_received(self, fd, data):
         # Framing and PV parsing happen in the consumer, not in this I/O callback.
@@ -225,6 +239,29 @@ class CooperativeUciProtocol(UciProtocol):
                     if not fragment:
                         continue
                     self._output_bytes -= len(fragment)
+                    if self._stopped_tutor_search and fd == 1:
+                        # A UCI line may span several transport reads. Include
+                        # the base parser's partial line before deciding whether
+                        # this is obsolete analysis output.
+                        if self._discarding_stopped_info_line or (
+                            self.buffer[1] + fragment
+                        ).startswith(b"info "):
+                            self.buffer[1].clear()
+                            self._discarding_stopped_info_line = not fragment.endswith(b"\n")
+                            batch_lines += 1
+                            if (
+                                batch_lines >= self.OUTPUT_BATCH_LINES
+                                or self.loop.time() - batch_started >= self.OUTPUT_BATCH_SECONDS
+                            ):
+                                await asyncio.sleep(0)
+                                batch_lines = 0
+                                batch_started = self.loop.time()
+                            continue
+                    stopped_bestmove = (
+                        self._stopped_tutor_search and fd == 1
+                        and (self.buffer[1] + fragment).startswith(b"bestmove ")
+                        and fragment.endswith(b"\n")
+                    )
                     try:
                         super().pipe_data_received(fd, fragment)
                     except Exception as exc:
@@ -236,6 +273,8 @@ class CooperativeUciProtocol(UciProtocol):
                             "protocol": self,
                             "transport": self.transport,
                         })
+                    if stopped_bestmove:
+                        self._stopped_tutor_search = False
                     batch_lines += 1
                     if (
                         batch_lines >= self.OUTPUT_BATCH_LINES
@@ -1272,6 +1311,7 @@ class UciEngine(object):
         else:
             self.transport, self.engine = await CooperativeUciProtocol.popen(mfile)
             self.engine.output_label = self.whoami
+            self.engine.discard_stopped_info = self.whoami == "best picotutor"
             try:
                 await self.engine.initialize()
             except BaseException:
@@ -1301,6 +1341,7 @@ class UciEngine(object):
         channel, engine = await self.remote_conn.create_subprocess(protocol_cls, remote_cmd)
         if isinstance(engine, CooperativeUciProtocol):
             engine.output_label = self.whoami
+            engine.discard_stopped_info = self.whoami == "best picotutor"
         await engine.initialize()
         self.loop.create_task(self._log_remote_exit(channel))
         self.transport, self.engine = channel, engine

@@ -68,6 +68,52 @@ class TestCooperativeProtocol(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(protocol._output_task, 1)
         self.assertEqual(protocol.lines, [(1, "info string partial tail"), (1, "info string next")])
 
+    async def test_stopped_deep_tutor_skips_queued_info_but_delivers_bestmove(self):
+        protocol, transport = await self.initialized_protocol()
+        protocol.discard_stopped_info = True
+        board = chess.Board()
+        self.expect_analysis(transport, board, 30, first=True)
+        analysis = await asyncio.wait_for(protocol.analysis(board, multipv=30), 1)
+        protocol.pipe_data_received(1, b"info depth 10 multipv 1 score cp 20 pv e2e4\n")
+        await asyncio.wait_for(protocol._output_task, 1)
+        self.assertEqual(analysis.info["depth"], 10)
+
+        transport.expect("stop")
+        analysis.stop()
+        protocol.pipe_data_received(1, b"info depth 11 multipv 1 score cp 30 pv e2e4\n" * 100)
+        protocol.pipe_data_received(1, b"in")
+        protocol.pipe_data_received(1, b"fo depth 12 multipv 2 score cp 10 pv d2d4\n")
+        protocol.pipe_data_received(1, b"best")
+        protocol.pipe_data_received(1, b"move e2e4\n")
+        self.assertEqual((await asyncio.wait_for(analysis.wait(), 1)).move, chess.Move.from_uci("e2e4"))
+        self.assertEqual(analysis.info["depth"], 10)
+        self.assertFalse(protocol._stopped_tutor_search)
+        self.assertEqual(protocol._output_bytes, 0)
+
+        board.push_uci("e2e4")
+        transport.expect("position startpos moves e2e4")
+        transport.expect("go infinite")
+        next_analysis = await asyncio.wait_for(protocol.analysis(board, multipv=30), 1)
+        protocol.pipe_data_received(1, b"info depth 13 multipv 1 score cp 15 pv e7e5\n")
+        await asyncio.wait_for(protocol._output_task, 1)
+        self.assertEqual(next_analysis.info["depth"], 13)
+        transport.expect("stop", ["bestmove e7e5"])
+        next_analysis.stop()
+        self.assertEqual((await asyncio.wait_for(next_analysis.wait(), 1)).move, chess.Move.from_uci("e7e5"))
+        transport.assert_done()
+
+    async def test_other_multipv_search_keeps_info_after_stop(self):
+        protocol, transport = await self.initialized_protocol()
+        board = chess.Board()
+        self.expect_analysis(transport, board, 30, first=True)
+        analysis = await asyncio.wait_for(protocol.analysis(board, multipv=30), 1)
+        transport.expect("stop")
+        analysis.stop()
+        protocol.pipe_data_received(1, b"info depth 12 multipv 1 score cp 20 pv e2e4\nbestmove e2e4\n")
+        await asyncio.wait_for(analysis.wait(), 1)
+        self.assertEqual(analysis.info["depth"], 12)
+        transport.assert_done()
+
     async def initialized_protocol(self, protocol_cls=CooperativeUciProtocol):
         protocol = protocol_cls()
         transport = chess.engine.MockTransport(protocol)

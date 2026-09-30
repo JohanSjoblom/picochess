@@ -1890,7 +1890,7 @@ class MainLoop:
             and self.state.dgtmenu.get_dgt_fen() == early_fen
         ):
             logger.info("allowing another board scan of early legal move: %s", early_fen)
-            self.state.dgtmenu.set_dgt_fen("")
+            self.state.dgtmenu.allow_dgt_fen_rescan(early_fen)
 
     async def process_fen(self, fen: str, state: PicochessState):
         """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""

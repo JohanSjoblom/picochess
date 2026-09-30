@@ -328,6 +328,7 @@ class DgtMenu(object):
             self.state = MenuState.TOP
 
         self.dgt_fen = "8/8/8/8/8/8/8/8"
+        self._dgt_fen_rescan = None
         self.int_ip = None
         self.ext_ip = None
         self.flip_board = False
@@ -1103,6 +1104,17 @@ class DgtMenu(object):
     def set_dgt_fen(self, fen: str):
         """Set the flag."""
         self.dgt_fen = fen
+        self._dgt_fen_rescan = None
+
+    def allow_dgt_fen_rescan(self, fen: str):
+        """Allow one repeat scan of a position rejected during move completion."""
+        self._dgt_fen_rescan = fen
+
+    def consume_dgt_fen_rescan(self, fen: str) -> bool:
+        """Use the allowance on the next scan, even if that scan has changed."""
+        allowed = fen == self._dgt_fen_rescan
+        self._dgt_fen_rescan = None
+        return allowed
 
     def get_mode(self):
         """Get the flag."""

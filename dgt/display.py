@@ -572,7 +572,8 @@ class DgtDisplay(DisplayMsg):
             fen = flip_board_fen(fen)
 
         logger.debug("DGT-Fen [%s]", fen)
-        if fen == self.dgtmenu.get_dgt_fen():
+        rescan_allowed = self.dgtmenu.consume_dgt_fen_rescan(fen)
+        if fen == self.dgtmenu.get_dgt_fen() and not rescan_allowed:
             logger.debug("ignore same fen")
             self.have_seen_a_fen = True
             return

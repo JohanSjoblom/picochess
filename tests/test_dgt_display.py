@@ -9,7 +9,7 @@ from mainloop import MainLoop
 
 from dgt.api import Dgt, Event, Message
 from dgt.display import DgtDisplay
-from dgt.menu import DgtMenu
+from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
 from dgt.util import ClockSide, EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
 
@@ -89,6 +89,7 @@ class DummyMenu:
         self.installed_engines = []
         self.remote_engine = False
         self._dgt_fen = ""
+        self._dgt_fen_rescan = None
         self._flip_board = False
         self._engine_has_960 = False
         self._engine_rdisplay = False
@@ -105,6 +106,15 @@ class DummyMenu:
 
     def set_dgt_fen(self, fen):
         self._dgt_fen = fen
+        self._dgt_fen_rescan = None
+
+    def allow_dgt_fen_rescan(self, fen):
+        self._dgt_fen_rescan = fen
+
+    def consume_dgt_fen_rescan(self, fen):
+        allowed = fen == self._dgt_fen_rescan
+        self._dgt_fen_rescan = None
+        return allowed
 
     def get_engine_has_960(self):
         return self._engine_has_960
@@ -186,10 +196,13 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
             error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu
         )
         controller._allow_early_user_fen_rescan()
+        self.assertEqual(early_fen, self.menu.get_dgt_fen())
         await self.display._process_fen(early_fen, raw=False)
 
         self.assertEqual(2, observable_fire.await_count)
         self.assertEqual(early_fen, observable_fire.await_args.args[0].fen)
+        await self.display._process_fen(early_fen, raw=False)
+        self.assertEqual(2, observable_fire.await_count)
 
     def test_early_move_rescan_keeps_newer_or_illegal_scan(self):
         controller = object.__new__(MainLoop)
@@ -200,11 +213,18 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.menu.set_dgt_fen(early_fen)
         controller._allow_early_user_fen_rescan()
         self.assertEqual(early_fen, self.menu.get_dgt_fen())
+        self.assertIsNone(self.menu._dgt_fen_rescan)
 
         controller.state.legal_fens = [early_fen]
         self.menu.set_dgt_fen("newer scan")
         controller._allow_early_user_fen_rescan()
         self.assertEqual("newer scan", self.menu.get_dgt_fen())
+        self.assertIsNone(self.menu._dgt_fen_rescan)
+
+        self.menu.set_dgt_fen(early_fen)
+        controller._allow_early_user_fen_rescan()
+        self.assertFalse(self.menu.consume_dgt_fen_rescan("newer scan"))
+        self.assertFalse(self.menu.consume_dgt_fen_rescan(early_fen))
 
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
@@ -256,6 +276,29 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
             asyncio.get_running_loop(),
             board_connected=board_connected,
         )
+
+    @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_position_scan_uses_physical_fen_during_retry_allowance(
+        self, observable_fire, _dispatch_fire
+    ):
+        display = self.create_display()
+        early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
+        await display._process_fen(early_fen, raw=False)
+        controller = object.__new__(MainLoop)
+        controller.state = SimpleNamespace(
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=display.dgtmenu
+        )
+        controller._allow_early_user_fen_rescan()
+
+        display.dgtmenu.state = MenuState.POS_READ
+        observable_fire.reset_mock()
+        await display.dgtmenu.main_down()
+
+        self.assertEqual(early_fen, display.dgtmenu.get_dgt_fen())
+        setup = observable_fire.await_args.args[0]
+        self.assertIsInstance(setup, Event.SETUP_POSITION)
+        self.assertEqual(early_fen, setup.fen.split()[0])
 
     @staticmethod
     def no_eboard_message():

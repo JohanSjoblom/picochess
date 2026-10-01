@@ -109,10 +109,12 @@ Experimental macOS setup
 ========================
 
 Apple-silicon Macs report their architecture as ``arm64``. PicoChess therefore
-looks for the local engine catalog in ``engines/arm64``. macOS users must supply
-a native macOS UCI engine; Linux ``aarch64`` executables are not compatible.
+looks for the local engine catalog in ``engines/arm64``. The macOS installer
+downloads an official Stockfish starter engine when this directory is absent.
+Linux ``aarch64`` executables are not compatible.
 
-For a Stockfish test, create the following local, git-ignored files::
+To install a different engine manually, create the following local,
+git-ignored files::
 
     engines/arm64/stockfish
     engines/arm64/stockfish.uci

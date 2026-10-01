@@ -1,15 +1,15 @@
 #!/bin/bash
 #
 # Install the portable PicoChess environment on macOS.
-# This script intentionally does not install engines, launch agents, drivers,
-# or Linux host integrations.
+# This script installs a starter engine when the native engine directory is
+# missing. It does not install launch agents, drivers, or Linux host integrations.
 
 set -eu
 
 REPOSITORY_URL="https://github.com/JohanSjoblom/picochess.git"
 REPOSITORY_BRANCH="master"
 INSTALL_DIR=""
-RESOURCES="Books,OpeningData,Games"
+RESOURCES="Engines,Books,OpeningData,Games"
 SKIP_RESOURCES=false
 UPDATE_REPO=false
 FORCE_RESOURCES=false
@@ -30,10 +30,11 @@ Options:
   --install-dir PATH       Use or create this PicoChess checkout.
                            Default: this checkout, or $HOME/PicoChess.
   --resources LIST         Comma-separated resource packs to install.
-                           Choices: Books, OpeningData, Games.
+                           Choices: Engines, Books, OpeningData, Games.
   --skip-resources         Do not download resource packs.
   --update-repo            Update a clean checkout with git pull --ff-only.
-  --force-resources        Back up and replace existing resource directories.
+  --force-resources        Back up and replace existing data resource directories.
+                           The native engine directory is always preserved.
   --recreate-venv          Back up the existing venv and create a new one.
   --skip-smoke-tests       Skip dependency and import smoke tests.
   --validate-only          Check prerequisites without changing anything.
@@ -140,14 +141,14 @@ for resource in $RESOURCES; do
     IFS=$OLD_IFS
     resource=$(printf '%s' "$resource" | tr -d '[:space:]')
     case "$resource" in
-        Books|OpeningData|Games)
+        Engines|Books|OpeningData|Games)
             case ",$SELECTED_RESOURCES," in
                 *,$resource,*) ;;
                 *) SELECTED_RESOURCES="${SELECTED_RESOURCES}${SELECTED_RESOURCES:+,}${resource}" ;;
             esac
             ;;
         "") ;;
-        *) fail "Unknown resource '$resource'. Choose Books, OpeningData, or Games." ;;
+        *) fail "Unknown resource '$resource'. Choose Engines, Books, OpeningData, or Games." ;;
     esac
     IFS=,
 done
@@ -323,6 +324,69 @@ backup_resource() {
     status "Existing resource moved to: $backup_path"
 }
 
+install_starter_engine() {
+    destination="$INSTALL_DIR/engines/$ENGINE_PLATFORM"
+    if [ -d "$destination" ]; then
+        status "Native engine directory already exists; keeping $destination"
+        return
+    fi
+    [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Engine destination exists and is not a directory: $destination"
+
+    resource_root="$TEMPORARY_ROOT/Engines"
+    extract_root="$resource_root/extract"
+    metadata_root="$resource_root/metadata"
+    stage_root="$resource_root/stage"
+    archive_path="$resource_root/stockfish-macos-universal.tar.gz"
+    metadata_archive="$resource_root/picochess-mac-engines-small-v4.3.5.tar.gz"
+    mkdir -p "$extract_root" "$metadata_root" "$stage_root"
+
+    step "Downloading Stockfish 19 for macOS"
+    curl --fail --location --retry 2 --output "$archive_path" \
+        "https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-macos-universal.tar.gz"
+    assert_safe_archive "$archive_path"
+    tar -xzf "$archive_path" -C "$extract_root"
+
+    matches=$(find "$extract_root" -type f -name stockfish-macos-universal -print)
+    [ -n "$matches" ] || fail "Stockfish archive did not contain stockfish-macos-universal. Nothing was installed."
+    case "$matches" in
+        *'
+'*) fail "Stockfish archive contained multiple engine binaries. Nothing was installed." ;;
+    esac
+    cp "$matches" "$stage_root/a-stockf"
+    chmod 755 "$stage_root/a-stockf"
+
+    # Running the UCI handshake also checks that this Mac can execute the binary.
+    if ! uci_output=$(printf 'uci\nisready\nquit\n' | "$stage_root/a-stockf" 2>&1); then
+        fail "Downloaded Stockfish cannot run on this Mac: $uci_output"
+    fi
+    printf '%s\n' "$uci_output" | grep -qx 'uciok' || fail "Downloaded Stockfish did not answer uci. Nothing was installed."
+    printf '%s\n' "$uci_output" | grep -qx 'readyok' || fail "Downloaded Stockfish did not answer isready. Nothing was installed."
+
+    step "Downloading PicoChess macOS engine metadata"
+    curl --fail --location --retry 2 --output "$metadata_archive" \
+        "https://github.com/JohanSjoblom/picochess/releases/download/v4.3.5/picochess-mac-engines-small-v4.3.5.tar.gz"
+    assert_safe_archive "$metadata_archive"
+    tar -xzf "$metadata_archive" -C "$metadata_root"
+    [ -f "$metadata_root/engines.ini" ] || fail "Mac engine metadata archive is missing engines.ini. Nothing was installed."
+    [ -f "$metadata_root/a-stockf.uci" ] || fail "Mac engine metadata archive is missing a-stockf.uci. Nothing was installed."
+    [ ! -e "$metadata_root/a-stockf" ] && [ ! -L "$metadata_root/a-stockf" ] || fail "Mac engine metadata archive must not replace the official Stockfish binary."
+    grep -q '^\[a-stockf\]$' "$metadata_root/engines.ini" || fail "Mac engine catalog is missing [a-stockf]. Nothing was installed."
+    grep -q '^\[Elo@2200\]$' "$metadata_root/a-stockf.uci" || fail "Mac engine levels are missing Elo@2200. Nothing was installed."
+    cp -R "$metadata_root"/. "$stage_root"/
+
+    cp "$INSTALL_DIR/LICENSE" "$stage_root/COPYING.txt"
+    cat > "$stage_root/STOCKFISH-SOURCE.txt" <<'EOF'
+Stockfish 19, unmodified official macOS universal binary.
+Binary: https://github.com/official-stockfish/Stockfish/releases/tag/sf_19
+Source: https://github.com/official-stockfish/Stockfish/tree/sf_19
+License: GPL-3.0-or-later (COPYING.txt)
+EOF
+
+    mkdir -p "$INSTALL_DIR/engines"
+    mv "$stage_root" "$destination"
+    status "Stockfish installed in $destination"
+}
+
 install_resource() {
     name=$1
     url=$(resource_value "$name" url)
@@ -369,7 +433,7 @@ show_readiness() {
     if [ -f "$engine_dir/engines.ini" ] && find "$engine_dir" -type f -perm -111 -print -quit 2>/dev/null | grep -q .; then
         status "Engine catalog: found in $engine_dir"
     else
-        warn "No complete native macOS engine catalog was found. This is expected before adding an engine."
+        warn "No complete native macOS engine catalog was found."
         status "Follow engines/README.md and place native macOS engines under engines/$ENGINE_PLATFORM."
     fi
 
@@ -439,7 +503,11 @@ if [ "$SKIP_RESOURCES" = false ]; then
     IFS=,
     for resource in $SELECTED_RESOURCES; do
         IFS=$OLD_IFS
-        install_resource "$resource"
+        if [ "$resource" = Engines ]; then
+            install_starter_engine
+        else
+            install_resource "$resource"
+        fi
         IFS=,
     done
     IFS=$OLD_IFS
@@ -460,5 +528,5 @@ fi
 
 show_readiness
 printf '\nPicoChess macOS environment installation completed.\n'
-printf 'After adding and configuring a native macOS UCI engine, start with:\n'
+printf 'Start with:\n'
 printf '  bash "%s/start-picochess-mac.sh"\n' "$INSTALL_DIR"

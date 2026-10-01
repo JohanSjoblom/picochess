@@ -196,15 +196,17 @@ macOS installation
 ------------------
 The native macOS installer follows the same user-local approach. It supports
 Apple silicon and 64-bit Intel Macs, creates a native Python 3.11-3.13 virtual
-environment, and installs the portable data resources without installing
-engines or system services:
+environment, and installs a Stockfish starter engine when the native engine
+directory is absent. It also installs the portable data resources without
+adding system services:
 
 ```bash
 bash ./install-picochess-mac.sh
 ```
 
-macOS users must supply a native UCI engine under `engines/arm64` on Apple
-silicon or `engines/mac_x86_64` on Intel. See the
+macOS users can supply their own native UCI engine under `engines/arm64` on Apple
+silicon or `engines/mac_x86_64` on Intel. An existing architecture directory is
+left untouched. See the
 [macOS installation guide](docs/mac-install.md) for options and limitations.
 
 Installation with more detailed info

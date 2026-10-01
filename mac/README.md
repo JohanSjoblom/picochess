@@ -9,8 +9,8 @@ control panel in `win/` and shares no code with it.
 
 When no PicoChess checkout is found, the app shows an **Install** section:
 
-1. Choose a folder (default `~/PicoChess`) and whether to download books, opening data, and
-   games data.
+1. Choose a folder (default `~/PicoChess`) and whether to download the starter engine,
+   books, opening data, and games data.
 2. The app checks for Git and clones the `master` branch. If Git is missing, macOS
    offers to install the Command Line Tools; accept, then click Install again.
 3. It runs `install-picochess-mac.sh` and shows its output. The script needs a native CPython
@@ -35,8 +35,9 @@ The PicoChess folder is found from `--repo <folder>`, `PICOCHESS_HOME`, the fold
 with **Change folder...** (saved in `~/Library/Application Support/PicoChess`), and finally
 `~/PicoChess`.
 
-No engine is installed. Add a native macOS engine and `picochess.ini` as described in
-`docs/mac-install.md` before clicking Start.
+If the native engine directory is absent, installation adds an official Stockfish starter
+engine. Existing engine directories are left untouched. See `docs/mac-install.md` for
+custom engine setup before clicking Start.
 
 An app started from Finder does not inherit your shell's `PATH`. The app adds `/opt/homebrew/bin`,
 `/usr/local/bin`, and the python.org framework folders so the install script finds the same

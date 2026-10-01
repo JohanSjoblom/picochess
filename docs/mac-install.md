@@ -1,10 +1,10 @@
 # Installing PicoChess on macOS
 
-The macOS installer prepares a user-local PicoChess environment without
-installing engines, launch agents, drivers, or Linux host integrations. It can
-use the checkout containing the script or clone PicoChess into another
-directory. Apple silicon and 64-bit Intel Macs are supported with a native
-CPython 3.11 through 3.13 runtime.
+The macOS installer prepares a user-local PicoChess environment with a
+Stockfish starter engine. It does not install launch agents, drivers, or Linux
+host integrations. It can use the checkout containing the script or clone
+PicoChess into another directory. Apple silicon and 64-bit Intel Macs are
+supported with a native CPython 3.11 through 3.13 runtime.
 
 ## Prerequisites
 
@@ -43,16 +43,26 @@ Fresh clones check out the `master` branch.
 
 ## Resource and recovery options
 
-Books, opening data, and games database data are installed by default. A subset
-can be selected, or downloads can be disabled:
+The native engine directory is checked before any engine download. If
+`engines/arm64` or `engines/mac_x86_64` already exists for this Mac, the
+installer leaves it untouched, even with `--force-resources`. Otherwise it
+downloads the official Stockfish 19 macOS universal release, verifies that the
+binary answers UCI commands, then downloads the PicoChess macOS engine metadata
+archive from release v4.3.5. It installs the executable as `a-stockf` alongside
+the archive's `engines.ini`, `a-stockf.uci`, and any additional files. The
+official Stockfish archive and the metadata archive serve both Mac architectures.
+
+The starter engine, books, opening data, and games database data are selected
+by default. A subset can be selected, or downloads can be disabled:
 
 ```bash
-bash ./install-picochess-mac.sh --resources Books,OpeningData
+bash ./install-picochess-mac.sh --resources Engines,Books,OpeningData
 bash ./install-picochess-mac.sh --skip-resources
 ```
 
-Existing complete resources are preserved. `--force-resources` first moves an
-existing directory to a timestamped backup under
+Existing complete data resources are preserved. For data resources,
+`--force-resources` first moves an existing directory to a timestamped backup
+under
 `~/Library/Application Support/PicoChess/backups`.
 
 Use `--validate-only` to inspect an existing checkout without changing it,
@@ -66,14 +76,15 @@ Games tab (see below).
 
 ## Engines and startup
 
-No engine is downloaded. Add a native macOS UCI engine and catalog under
-`engines/arm64` on Apple silicon or `engines/mac_x86_64` on an Intel Mac.
+The starter engine is installed under `engines/arm64` on Apple silicon or
+`engines/mac_x86_64` on an Intel Mac when that directory is absent. You can
+also supply your own native UCI engine and catalog in that directory.
 The separate Intel folder prevents macOS binaries from being confused with
 Linux binaries in `engines/x86_64`. Linux executables are not compatible with
 macOS. See the
 [engine setup guide](../engines/README.md#experimental-macos-setup).
 
-After configuring `picochess.ini`, start PicoChess from the repository root:
+After installation, start PicoChess from the repository root:
 
 ```bash
 bash ./start-picochess-mac.sh

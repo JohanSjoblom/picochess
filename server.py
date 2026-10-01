@@ -3453,11 +3453,50 @@ class WebDisplay(DisplayMsg):
             except Exception as exc:  # pragma: no cover - defensive for UI
                 logger.debug("failed to collect tutor mistakes: %s", exc)
 
-        def _attach_variant_info(result: dict) -> None:
+        def _variant_history(game: chess.Board) -> dict | None:
+            """Build browser history with authoritative variant FENs and SAN."""
+            variant = self.shared.get("variant", "chess")
+            board_types = {
+                "atomic": chess.variant.AtomicBoard,
+                "antichess": chess.variant.AntichessBoard,
+                "racingkings": chess.variant.RacingKingsBoard,
+                "3check": chess.variant.ThreeCheckBoard,
+            }
+            board_type = board_types.get(variant)
+            if board_type is None:
+                return None
+            try:
+                board = board_type(game.root().fen())
+                moves = []
+                for move in game.move_stack:
+                    entry = {
+                        "uci": move.uci(),
+                        "san": board.san(move),
+                        "turn": "w" if board.turn == chess.WHITE else "b",
+                        "fullmove": board.fullmove_number,
+                    }
+                    board.push(move)
+                    fen = board.fen()
+                    if variant == "3check":
+                        fields = fen.split()
+                        if len(fields) == 7:
+                            fen = " ".join(fields[:4] + fields[5:])
+                    entry["fen"] = fen
+                    moves.append(entry)
+                return {"root_fen": game.root().fen(), "moves": moves}
+            except Exception as exc:
+                logger.debug("cannot build variant browser history: %s", exc)
+                return None
+
+        def _attach_variant_info(result: dict, game: chess.Board = None) -> None:
             """Attach 3check variant info to result dict for web clients."""
             variant = self.shared.get("variant", "chess")
             result["variant"] = variant
             result.setdefault("history_scope", message_history_scope)
+            if game is not None:
+                variant_history = _variant_history(game)
+                if variant_history is not None:
+                    result["variant_history"] = variant_history
             if variant == "3check":
                 result["checks"] = self.shared.get("checks_remaining", {"white": 3, "black": 3})
 
@@ -3558,7 +3597,7 @@ class WebDisplay(DisplayMsg):
                 "move": "0000",
                 "play": "newgame",
             }
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             result["mistakes"] = []  # always empty for a new game
             self.shared.pop("pending_computer_move", None)  # discard any pending engine move
             self._set_pending_engine_move(False)
@@ -3955,7 +3994,7 @@ class WebDisplay(DisplayMsg):
                 mov = message.move.uci()
                 result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "computer"}
                 _attach_mistakes(result)
-                _attach_variant_info(result)
+                _attach_variant_info(result, game_copy)
                 self.shared["pending_computer_move"] = result  # not sent => keep it for COMPUTER_MOVE_DONE
                 has_board = bool(self.shared.get("system_info", {}).get("has_board", True))
                 self._set_pending_engine_move(has_board)
@@ -3988,7 +4027,7 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "user"}
             _attach_mistakes(result)
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
             if self.shared.pop("brain_hint", None) is not None:
@@ -4000,7 +4039,7 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "review"}
             _attach_mistakes(result)
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -4011,7 +4050,7 @@ class WebDisplay(DisplayMsg):
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -4022,18 +4061,26 @@ class WebDisplay(DisplayMsg):
             mov = message.move.uci()
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
         elif isinstance(message, Message.TAKE_BACK):
             self._set_pending_engine_move(False)
+            # A takeback invalidates any announced engine continuation.  If it
+            # remains cached and is also legal in a replacement line,
+            # GAME_ENDS can append that stale move to the final PGN.
+            self.shared.pop("pending_computer_move", None)
+            # A takeback from a terminal position reopens the game.  Clear the
+            # cached result before rebuilding the PGN, otherwise
+            # _build_game_header() reattaches the old 1-0/0-1 result.
+            WebDisplay.result_sav = ""
             pgn_str = _transfer(message.game)
             fen = _oldstyle_fen(message.game)
             mov = peek_uci(message.game)
             result = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(result)
-            _attach_variant_info(result)
+            _attach_variant_info(result, message.game)
             self.shared["last_dgt_move_msg"] = result
             EventHandler.write_to_clients(result)
 
@@ -4126,7 +4173,7 @@ class WebDisplay(DisplayMsg):
             mov = peek_uci(game_for_end)
             end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
             _attach_mistakes(end_msg)
-            _attach_variant_info(end_msg)
+            _attach_variant_info(end_msg, game_for_end)
             self.shared["last_dgt_move_msg"] = end_msg
             EventHandler.write_to_clients(end_msg)
             # Announce the result only as a live event. Reconnecting clients

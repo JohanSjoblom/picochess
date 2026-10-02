@@ -12,6 +12,12 @@ namespace PicoChess.MacControlPanel;
 internal sealed class MainWindow : Window
 {
     private const int MaxLogLength = 200_000;
+    private const string InstallIntro =
+        "PicoChess is not installed yet. Choose a folder and click Install. " +
+        "Git (Xcode Command Line Tools) and CPython 3.11-3.13 are required.";
+    private const string SetupIntro =
+        "PicoChess was found in this folder, but it is not set up yet. Click Set up to create its " +
+        "Python environment. CPython 3.11-3.13 is required.";
     private readonly Button _start = new() { Content = "Start" };
     private readonly Button _browser = new() { Content = "Open in browser" };
     private readonly Button _stop = new() { Content = "Stop" };
@@ -21,6 +27,7 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _status = new() { FontSize = 15, FontWeight = FontWeight.SemiBold };
     private readonly StackPanel _controlPanel = new() { Spacing = 12 };
     private readonly StackPanel _installPanel = new() { Spacing = 8 };
+    private readonly TextBlock _installIntro = new() { Text = InstallIntro, TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _installDirectory = new() { Text = PicoChessLocation.DefaultInstallDirectory };
     private readonly CheckBox _installResources = new()
     {
@@ -44,6 +51,7 @@ internal sealed class MainWindow : Window
     private bool _busy;
     private bool _probing;
     private bool _closeAfterStop;
+    private bool _setupMode;
 
     public MainWindow(string[] args)
     {
@@ -82,12 +90,7 @@ internal sealed class MainWindow : Window
             Children = { _start, _browser, _stop, _upgrade }
         });
 
-        _installPanel.Children.Add(new TextBlock
-        {
-            Text = "PicoChess is not installed yet. Choose a folder and click Install. " +
-                   "Git (Xcode Command Line Tools) and CPython 3.11-3.13 are required.",
-            TextWrapping = TextWrapping.Wrap
-        });
+        _installPanel.Children.Add(_installIntro);
         _installPanel.Children.Add(_installDirectory);
         _installPanel.Children.Add(_installResources);
         _installPanel.Children.Add(_install);
@@ -133,8 +136,24 @@ internal sealed class MainWindow : Window
         _repository.Text = repository is null
             ? "PicoChess folder: not found"
             : $"PicoChess folder: {repository}    Web port: {_webPort}";
-        _controlPanel.IsVisible = repository is not null;
-        _installPanel.IsVisible = repository is null;
+
+        // A checkout without a venv (for example the clone used to build this app)
+        // is not set up yet: offer setup for that folder instead of the control panel.
+        var needsSetup = repository is not null && !PicoChessLocation.HasVirtualEnvironment(repository);
+        if (needsSetup)
+        {
+            _installDirectory.Text = repository;
+        }
+        else if (_setupMode)
+        {
+            _installDirectory.Text = PicoChessLocation.DefaultInstallDirectory;
+        }
+        _setupMode = needsSetup;
+        _installDirectory.IsReadOnly = needsSetup;
+        _installIntro.Text = needsSetup ? SetupIntro : InstallIntro;
+        _install.Content = needsSetup ? "Set up" : "Install";
+        _controlPanel.IsVisible = repository is not null && !needsSetup;
+        _installPanel.IsVisible = repository is null || needsSetup;
         UpdateControls();
     }
 
@@ -174,14 +193,17 @@ internal sealed class MainWindow : Window
         _log.Text = string.Empty;
         try
         {
-            await MacInstaller.InstallAsync(directory, _installResources.IsChecked == true, AppendLog, CancellationToken.None);
+            var installResources = _installResources.IsChecked == true;
+            await MacInstaller.InstallAsync(directory, installResources, AppendLog, CancellationToken.None);
             var installed = PicoChessLocation.Normalize(directory);
             PicoChessLocation.SaveRepository(installed);
             _busy = false;
             SetRepository(installed);
             await MessageDialog.ShowAsync(this, Title!,
-                "PicoChess was installed. Add a native macOS engine and picochess.ini before starting it; " +
-                "see docs/mac-install.md in the PicoChess folder.");
+                installResources
+                    ? "PicoChess is ready. Click Start to run it."
+                    : "PicoChess is set up, but no resources were downloaded. If no native macOS engine is " +
+                      "installed yet, add one before clicking Start; see docs/mac-install.md in the PicoChess folder.");
         }
         catch (Exception exception)
         {
@@ -206,8 +228,10 @@ internal sealed class MainWindow : Window
         }
         if (!PicoChessLocation.HasVirtualEnvironment(_repositoryPath))
         {
+            // The venv disappeared while the panel was open; switch to the setup view.
+            SetRepository(_repositoryPath);
             await MessageDialog.ShowAsync(this, Title!,
-                "The PicoChess Python environment (venv) is missing. Click Upgrade to run the setup script.");
+                "The PicoChess Python environment (venv) is missing. Click Set up to create it.");
             return;
         }
 

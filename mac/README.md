@@ -17,7 +17,12 @@ When no PicoChess checkout is found, the app shows an **Install** section:
    3.11-3.13 from [python.org](https://www.python.org/downloads/macos/) or Homebrew, and reports
    when none is found. The app does not install Python.
 
-With a checkout, the app is a control panel:
+When the app finds a checkout that has no `venv` yet, for example the clone used to build the app
+with `build-dist-mac.sh`, it shows the same section with that folder filled in and a **Set up**
+button. Set up runs `install-picochess-mac.sh` for the existing checkout without cloning or
+updating it.
+
+With a set-up checkout, the app is a control panel:
 
 - **Start** runs `start-picochess-mac.sh`, which starts `venv/bin/python picochess.py` and the
   optional Scid games helper.

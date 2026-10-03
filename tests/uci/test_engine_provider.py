@@ -40,6 +40,28 @@ class TestEngineProvider(unittest.TestCase):
     def test_has_engine_is_false_for_missing_engine(self):
         self.assertFalse(EngineProvider.has_engine("/opt/picochess/engines/test/missing"))
 
+    def test_fallback_prefers_previous_installed_engine(self):
+        fallback = EngineProvider.resolve_fallback_engine(
+            failed_file="/opt/picochess/engines/test/second",
+            preferred_file="engines/test/first",
+        )
+        self.assertEqual("/opt/picochess/engines/test/first", fallback["file"])
+
+    def test_fallback_chooses_another_installed_engine_when_preferred_failed(self):
+        fallback = EngineProvider.resolve_fallback_engine(
+            failed_file="engines/test/second",
+            preferred_file="/opt/picochess/engines/test/second",
+        )
+        self.assertEqual("/opt/picochess/engines/test/first", fallback["file"])
+
+    def test_fallback_returns_none_when_no_alternative_is_installed(self):
+        EngineProvider.installed_engines = [{"file": "/opt/picochess/engines/test/second"}]
+        fallback = EngineProvider.resolve_fallback_engine(
+            failed_file="engines/test/second",
+            preferred_file="engines/test/second",
+        )
+        self.assertIsNone(fallback)
+
     def test_retro_groups_are_absent_without_metadata(self):
         EngineProvider.retro_engines = [{"name": "One"}, {"name": "Two"}]
         self.assertEqual([], EngineProvider.get_retro_groups())

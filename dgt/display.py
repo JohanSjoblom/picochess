@@ -1477,7 +1477,10 @@ class DgtDisplay(DisplayMsg):
 
                 text = self.dgttranslate.text(message.result.value)
                 text.beep = self.dgttranslate.bl(BeepLevel.CONFIG)
-                text.maxtime = 1
+                # A stopped clock conveys no useful information after the game
+                # has ended.  Keep the result visible until a subsequent user
+                # action or new game replaces it.
+                text.maxtime = 0
                 await DispatchDgt.fire(text)
                 await asyncio.sleep(1)
                 if self.dgtmenu.get_mode() in (Mode.PONDER, Mode.TRAINING):

@@ -11,7 +11,7 @@ from dgt.api import Dgt, Event, Message
 from dgt.display import DgtDisplay
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
-from dgt.util import ClockSide, EBoard, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
+from dgt.util import ClockSide, EBoard, GameResult, Mode, PicoCoach, PicoComment, PlayMode, TimeMode
 from pgn import ModeInfo
 from timecontrol import TimeControl
 from uci.engine_provider import EngineProvider
@@ -298,6 +298,26 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
             asyncio.get_running_loop(),
             board_connected=board_connected,
         )
+
+    @patch("dgt.display.asyncio.sleep", new_callable=AsyncMock)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_koth_engine_win_remains_visible(self, dispatch_fire, _sleep):
+        display = self.create_display()
+
+        await display._process_message(
+            Message.GAME_ENDS(
+                tc_init={},
+                result=GameResult.KOTH_BLACK,
+                play_mode=PlayMode.USER_WHITE,
+                game=chess.Board(),
+                mode=Mode.NORMAL,
+            )
+        )
+
+        result_text = dispatch_fire.await_args_list[-1].args[0]
+        self.assertEqual("King in center. 0-1", result_text.web_text)
+        self.assertEqual(0, result_text.maxtime)
+        self.assertTrue(result_text.wait)
 
     @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)

@@ -14,6 +14,8 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 |---|---|
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
 | `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
+| `get_hint` | Suggests the best move in the current position, like the clock's + button (button 3): the move in SAN, the expected continuation, up to two other candidates, the search depth and the source (Tutor or engine). Read-only. |
+| `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
 | `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
 | `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
 | `force_engine_move` | While the engine is thinking, makes it play the best move found so far, like "Move now" in the web client. Without an e-board it returns the engine's move; with one, PicoChess shows the move on its displays. |
@@ -129,6 +131,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | New game | `POST /channel` with `action=new_game` |
 | Resign | `POST /channel` with `action=resign_game` |
 | Clock state | `GET /info?action=get_clock_state` |
+| Analysis for hints and evaluations | WebSocket `/event`: the snapshot PicoChess sends every new client |
 | Pause or resume the clock | `POST /channel` with `action=pause_resume`, only on the user's turn |
 | Move now | `POST /channel` with `action=pause_resume`, only while the engine is thinking |
 | Alternative move | `POST /channel` with `action=pause_resume`, only while an engine move is pending on the e-board |
@@ -145,3 +148,10 @@ PicoChess accepts the move only when it is legal and produces that position.
 After posting a move, `make_move` polls `get_last_move` for the engine's reply. Until PicoChess
 handles the new move, that endpoint still returns the previous engine reply, so a reply is
 accepted only if it is legal after the user's move and produces the reported position.
+
+`get_hint` and `get_evaluation` read the analysis PicoChess already runs rather than pressing the
+clock buttons, so nothing flashes on the clock. They connect to the web client's WebSocket, read
+the messages PicoChess sends a new client (latest position, analysis and system information),
+and disconnect. Each analysis carries the position it was computed for. The tools use only
+analysis of the current position: after the engine moves, PicoChess keeps showing the engine's
+analysis of the previous position, which would otherwise give a hint for the wrong side.

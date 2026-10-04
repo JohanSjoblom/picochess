@@ -24,9 +24,11 @@ from typing import Literal
 
 import chess
 import chess.pgn
+import websockets
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from websockets.asyncio.client import connect as websocket_connect
 
 PICOCHESS_URL = os.environ.get("PICOCHESS_URL", "http://localhost:8080").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = 5.0
@@ -34,6 +36,10 @@ POLL_INTERVAL_SECONDS = 0.5
 # PicoChess shows an accepted web move within moments; no sign of it means it was ignored.
 MOVE_ACCEPT_TIMEOUT_SECONDS = 10.0
 ENGINE_REPLY_TIMEOUT_SECONDS = 120.0
+# After the connect snapshot, how long to wait for analysis of the current position.
+ANALYSIS_WAIT_SECONDS = 3.0
+# Half-moves of the expected continuation shown with a hint.
+HINT_LINE_PLIES = 8
 
 _MOVE_NUMBER = re.compile(r"^\d+\s*\.+\s*")
 _PGN_RESULT = re.compile(r'^\[Result "([^"]*)"\]', re.MULTILINE)
@@ -116,6 +122,98 @@ def _game_result(message: dict) -> str:
     """Return the PGN Result tag of a position message; "*" while the game is still open."""
     match = _PGN_RESULT.search(message.get("pgn") or "")
     return match.group(1) if match else "*"
+
+
+def _same_position(fen_a: str | None, fen_b: str | None) -> bool:
+    """Compare placement, side to move and castling; PicoChess FEN variants differ in en passant."""
+    return bool(fen_a and fen_b) and fen_a.split(" ")[:3] == fen_b.split(" ")[:3]
+
+
+async def _websocket_snapshot(analysis_fen: str | None = None) -> list[dict]:
+    """Read the messages PicoChess sends a newly connected web client.
+
+    PicoChess replays the latest position, analysis and system information to every
+    new client, ending with SystemInfo. With analysis_fen, keep listening briefly if
+    the replay holds no analysis of that position, as after a fresh move.
+    """
+    url = PICOCHESS_URL.replace("http", "ws", 1) + "/event"
+    messages: list[dict] = []
+    loop = asyncio.get_running_loop()
+    try:
+        async with websocket_connect(url, open_timeout=REQUEST_TIMEOUT_SECONDS) as websocket:
+            while not any(m.get("event") == "SystemInfo" for m in messages):
+                try:
+                    raw = await asyncio.wait_for(websocket.recv(), timeout=REQUEST_TIMEOUT_SECONDS)
+                except asyncio.TimeoutError:
+                    break
+                messages.append(json.loads(raw))
+            deadline = loop.time() + ANALYSIS_WAIT_SECONDS
+            while analysis_fen and _analysis_for(messages, analysis_fen) is None:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    break
+                try:
+                    raw = await asyncio.wait_for(websocket.recv(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    break
+                messages.append(json.loads(raw))
+    except (OSError, websockets.exceptions.WebSocketException) as exc:
+        raise ToolError(f"PicoChess is not reachable at {PICOCHESS_URL}. Start PicoChess and try again. ({exc})") from exc
+    return messages
+
+
+def _analysis_for(messages: list[dict], fen: str) -> dict | None:
+    """Return the deepest Analysis payload computed for this position, if any."""
+    matching = [
+        m["analysis"]
+        for m in messages
+        if m.get("event") == "Analysis" and m.get("analysis") and _same_position(m["analysis"].get("fen"), fen)
+    ]
+    return max(matching, key=lambda a: a.get("depth") or 0) if matching else None
+
+
+async def _current_analysis() -> tuple[chess.Board, dict, dict]:
+    """Return the current board, system info, and the analysis of exactly this position."""
+    info = await _system_info()
+    message = await _last_move_message()
+    variant = message.get("variant", "chess")
+    if variant != "chess":
+        raise ToolError(f"Only standard chess is supported by this tool; PicoChess is playing {variant}.")
+    board = _game_from_message(message).end().board()
+    analysis = _analysis_for(await _websocket_snapshot(board.fen()), board.fen())
+    if analysis is None:
+        raise ToolError(
+            "PicoChess has no analysis of the current position yet. Its engine or Tutor analyses on "
+            "the user's turn once the game has started; try again in a moment."
+        )
+    return board, info, analysis
+
+
+def _line_san(fen: str, pv: list[str]) -> str:
+    """Number a SAN principal variation from its position, e.g. "8. O-O Nf6 9. Qb3"."""
+    board = chess.Board(fen)
+    moves = []
+    try:
+        for san in pv:
+            moves.append(board.parse_san(san))
+            board.push(moves[-1])
+    except ValueError:
+        pass
+    if not moves:
+        return " ".join(pv)
+    return chess.Board(fen).variation_san(moves)
+
+
+def _assessment(centipawns: int | None, mate: int | None) -> str:
+    """Describe a score from White's point of view in words."""
+    if mate:
+        return f"{'White' if mate > 0 else 'Black'} mates in {abs(mate)}"
+    if centipawns is None:
+        return "unknown"
+    pawns = centipawns / 100
+    if abs(pawns) < 0.3:
+        return "roughly equal"
+    return f"{'White' if pawns > 0 else 'Black'} is better by about {abs(pawns):.1f} pawns"
 
 
 _USER_COLORS = {"user_white": chess.WHITE, "user_black": chess.BLACK}
@@ -331,6 +429,68 @@ async def get_game() -> dict[str, str | bool | None]:
         "fen": board.fen(),
         "pgn": message.get("pgn"),
     }
+
+
+@server.tool(annotations=ToolAnnotations(title="Get a hint", read_only_hint=True, open_world_hint=False))
+async def get_hint() -> dict[str, str | int | None]:
+    """Suggest the best move in the current position, like the + button (button 3) on the PicoChess clock.
+
+    Use this when the user asks for a hint or the best move. The hint comes from
+    the analysis PicoChess is already running, by its Tutor or engine, for exactly
+    the current position. It returns the move in SAN, the expected continuation,
+    up to two other candidate moves, the search depth and the source. It leaves
+    out the evaluation; use get_evaluation for that.
+    """
+    board, info, analysis = await _current_analysis()
+    user_color = None
+    if info.get("interaction_mode") in _PLAYING_MODES:
+        user_color = _USER_COLORS.get(info.get("play_mode"))
+    if user_color is not None and board.turn != user_color:
+        raise ToolError("It is the engine's turn; a hint is for the user's move.")
+    pv = analysis.get("pv") or []
+    if not pv:
+        raise ToolError("PicoChess's analysis of this position has no move yet; try again in a moment.")
+    others = [
+        candidate["pv"][0]
+        for candidate in (analysis.get("lines") or [])[1:]
+        if candidate.get("pv")
+    ]
+    return {
+        "hint": pv[0],
+        "line": _line_san(analysis["fen"], pv[:HINT_LINE_PLIES]),
+        "other_candidates": ", ".join(others) or None,
+        "depth": analysis.get("depth"),
+        "source": analysis.get("source"),
+    }
+
+
+@server.tool(annotations=ToolAnnotations(title="Get the evaluation", read_only_hint=True, open_world_hint=False))
+async def get_evaluation() -> dict[str, str | int | None]:
+    """Evaluate the current position, like the - button (button 1) on the PicoChess clock.
+
+    Use this when the user asks who is better or for the score. Returns an
+    assessment in words, the score in centipawns from White's point of view
+    (100 is one pawn; positive favours White) or a mate count (positive: White
+    mates), the score from the user's point of view in a playing mode, the search
+    depth and the source (Tutor or engine). It does not reveal the best move.
+    """
+    board, info, analysis = await _current_analysis()
+    mate = analysis.get("mate") or None
+    # With a mate, PicoChess reports a large placeholder score; the mate count is the evaluation.
+    centipawns = None if mate else analysis.get("score")
+    result: dict[str, str | int | None] = {
+        "assessment": _assessment(centipawns, mate),
+        "centipawns_white": centipawns,
+        "mate_white": mate,
+        "depth": analysis.get("depth"),
+        "source": analysis.get("source"),
+        "to_move": _color_name(board.turn),
+    }
+    if info.get("interaction_mode") in _PLAYING_MODES:
+        user_color = _USER_COLORS.get(info.get("play_mode"))
+        if user_color is not None and centipawns is not None:
+            result["centipawns_for_you"] = centipawns if user_color == chess.WHITE else -centipawns
+    return result
 
 
 @server.tool(annotations=ToolAnnotations(title="Make a move", read_only_hint=False, open_world_hint=False))

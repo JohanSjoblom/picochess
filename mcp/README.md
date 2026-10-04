@@ -16,7 +16,8 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
 | `get_hint` | Suggests the best move in the current position, like the clock's + button (button 3): the move in SAN, the expected continuation, up to two other candidates, the search depth and the source (Tutor or engine). Read-only. |
 | `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
-| `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
+| `make_move` | Plays the user's move. In play mode it waits for the engine's reply; in analysis mode the user enters moves for both sides and there is no reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns the moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
+| `set_mode` | Switches between `play` (Normal mode: play against the engine) and `analysis` (the menu's Analysis mode: enter moves for both sides while the engine analyses). Switching back to play continues from the analysed position. |
 | `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
 | `force_engine_move` | While the engine is thinking, makes it play the best move found so far, like "Move now" in the web client. Without an e-board it returns the engine's move; with one, PicoChess shows the move on its displays. |
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
@@ -115,8 +116,10 @@ Claude Code starts the server when the session begins. After changing `server.py
 ## Limitations
 
 - Standard chess only. Variants are refused.
-- The user plays the side to move after the engine's reply, the normal `Mode.NORMAL` case. Side
-  switching is not supported yet.
+- In play mode the user plays the side to move after the engine's reply, the normal
+  `Mode.NORMAL` case. Side switching is not supported yet.
+- Leaving analysis mode keeps the analysed position. PicoChess's Mode menu can also return to the
+  position saved when analysis mode started; the MCP does not offer that yet.
 - Losing on time does not end a local PicoChess game, so play can continue after the flag falls.
   After resignation, checkmate or a draw, `make_move` reports that the game is over.
 - With an e-board, PicoChess publishes which move the engine chose only after it has been made on
@@ -133,6 +136,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | New game | `POST /channel` with `action=new_game` |
 | Resign | `POST /channel` with `action=resign_game` |
 | Set a position | `POST /channel` with `action=set_position` and `fen` |
+| Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |
 | Scan the e-board | `POST /channel` with `action=scan_board`, `sideToPlay`, `boardSide` and the four castling flags |
 | Clock state | `GET /info?action=get_clock_state` |
 | Analysis for hints and evaluations | WebSocket `/event`: the snapshot PicoChess sends every new client |

@@ -13,6 +13,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | Tool | What it does |
 |---|---|
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
+| `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
 | `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
@@ -111,6 +112,9 @@ Claude Code starts the server when the session begins. After changing `server.py
   switching is not supported yet.
 - Losing on time does not end a local PicoChess game, so play can continue after the flag falls.
   After resignation, checkmate or a draw, `make_move` reports that the game is over.
+- With an e-board, PicoChess publishes which move the engine chose only after it has been made on
+  the board. Until then `get_game` reports that a move is pending, but not which move; PicoChess
+  shows it on its own displays.
 
 ## How it works
 

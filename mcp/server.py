@@ -11,6 +11,7 @@ Set PICOCHESS_URL to reach PicoChess somewhere other than http://localhost:8080.
 """
 
 import asyncio
+import io
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ import urllib.parse
 import urllib.request
 
 import chess
+import chess.pgn
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -103,6 +105,42 @@ def _game_result(message: dict) -> str:
     """Return the PGN Result tag of a position message; "*" while the game is still open."""
     match = _PGN_RESULT.search(message.get("pgn") or "")
     return match.group(1) if match else "*"
+
+
+_USER_COLORS = {"user_white": chess.WHITE, "user_black": chess.BLACK}
+_PLAYING_MODES = ("normal", "brain", "training")
+
+
+def _game_from_message(message: dict) -> chess.pgn.Game:
+    """Rebuild the game, with its move history, from a position message."""
+    pgn = message.get("pgn")
+    game = chess.pgn.read_game(io.StringIO(pgn)) if pgn else None
+    if game is None:
+        game = chess.pgn.Game()
+        if message.get("fen"):
+            game.setup(chess.Board(message["fen"]))
+    return game
+
+
+def _color_name(color: chess.Color) -> str:
+    return "white" if color == chess.WHITE else "black"
+
+
+def _game_status(board: chess.Board, result: str, info: dict) -> str:
+    """Describe whose turn it is in words the user can act on."""
+    mode = info.get("interaction_mode")
+    user_color = _USER_COLORS.get(info.get("play_mode"))
+    if result != "*":
+        return f"game over ({result})"
+    if mode not in _PLAYING_MODES or user_color is None:
+        return f"{mode} mode, {_color_name(board.turn)} to move"
+    if not board.move_stack:
+        return "new game: waiting for the first move"
+    if info.get("pending_engine_move"):
+        return "the engine has chosen its move: make it on the e-board"
+    if board.turn != user_color:
+        return "the engine is thinking"
+    return "your move"
 
 
 def _parse_move(board: chess.Board, text: str) -> chess.Move:
@@ -220,6 +258,66 @@ async def get_engine() -> dict[str, str | int]:
     if info.get("engine_elo"):
         result["engine_elo"] = info["engine_elo"]
     return result
+
+
+@server.tool(annotations=ToolAnnotations(title="Get the game", read_only_hint=True, open_world_hint=False))
+async def get_game() -> dict[str, str | bool | None]:
+    """Return the current game: the position, the moves so far, and whose turn it is.
+
+    Use this when the user asks about the position, the move list so far, the
+    latest move, what the engine played, or whether it is their move. moves holds
+    every move of the game in SAN; last_move is the latest. Works with and without an
+    e-board. status says what happens next. board is a text diagram with White
+    at the bottom; uppercase letters are White pieces and dots are empty squares.
+    With an e-board, PicoChess reveals which move the engine chose only after it
+    has been made on the board; until then status says the move is pending.
+    """
+    info = await _system_info()
+    message = await _last_move_message()
+    variant = message.get("variant", "chess")
+    if variant != "chess":
+        return {
+            "status": f"PicoChess is playing {variant}; this tool describes standard chess only",
+            "variant": variant,
+            "fen": message.get("fen"),
+            "pgn": message.get("pgn"),
+        }
+
+    game = _game_from_message(message)
+    moves = list(game.mainline_moves())
+    board = game.end().board()
+    result = _game_result(message)
+    # Outside the playing modes there is no user-versus-engine side to name.
+    user_color = None
+    if info.get("interaction_mode") in _PLAYING_MODES:
+        user_color = _USER_COLORS.get(info.get("play_mode"))
+
+    last_move = None
+    last_move_by = None
+    if moves:
+        before = board.copy()
+        before.pop()
+        last_move = before.san(moves[-1])
+        mover = before.turn
+        if user_color is None:
+            last_move_by = _color_name(mover)
+        else:
+            last_move_by = "you" if mover == user_color else "the engine"
+
+    return {
+        "status": _game_status(board, result, info),
+        "to_move": _color_name(board.turn),
+        "your_color": _color_name(user_color) if user_color is not None else None,
+        "last_move": last_move,
+        "last_move_by": last_move_by,
+        "moves": game.board().variation_san(moves) if moves else "",
+        "result": result,
+        "e_board": bool(info.get("has_board")),
+        "engine_move_pending": bool(info.get("pending_engine_move")),
+        "board": str(board),
+        "fen": board.fen(),
+        "pgn": message.get("pgn"),
+    }
 
 
 @server.tool(annotations=ToolAnnotations(title="Make a move", read_only_hint=False, open_world_hint=False))

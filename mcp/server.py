@@ -20,7 +20,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Literal
+from typing import Any, Literal
 
 import chess
 import chess.pgn
@@ -481,6 +481,49 @@ async def get_hint() -> dict[str, str | int | None]:
         "other_candidates": ", ".join(others) or None,
         "depth": analysis.get("depth"),
         "source": analysis.get("source"),
+    }
+
+
+@server.tool(annotations=ToolAnnotations(title="Get the top moves", read_only_hint=True, open_world_hint=False))
+async def get_top_moves() -> dict[str, Any]:
+    """List the best moves PicoChess's analysis has found in the current position, as in the web client.
+
+    Use this when the user asks for the top moves, the candidate moves, or the
+    analysis lines. Each line has its first move, an evaluation (in words, in
+    centipawns from White's point of view, or a mate count), the search depth
+    and the expected continuation. There are up to three lines: three in
+    analysis mode, three in play mode on the user's turn while the Tutor is on,
+    and one otherwise, including while the engine is thinking about its move.
+    """
+    board, info, analysis = await _current_analysis()
+    lines = analysis.get("lines") or [
+        {"depth": analysis.get("depth"), "score": analysis.get("score"), "mate": analysis.get("mate"), "pv": analysis.get("pv")}
+    ]
+    top_moves = []
+    for line in lines:
+        pv = line.get("pv") or []
+        if not pv:
+            continue
+        mate = line.get("mate") or None
+        centipawns = None if mate else line.get("score")
+        top_moves.append(
+            {
+                "move": pv[0],
+                "assessment": _assessment(centipawns, mate),
+                "centipawns_white": centipawns,
+                "mate_white": mate,
+                "depth": line.get("depth"),
+                "line": _line_san(analysis["fen"], pv[:HINT_LINE_PLIES]),
+            }
+        )
+    if not top_moves:
+        raise ToolError("PicoChess's analysis of this position has no moves yet; try again in a moment.")
+    return {
+        "to_move": _color_name(board.turn),
+        "mode": _mode_label(info.get("interaction_mode")),
+        "source": analysis.get("source"),
+        "line_count": len(top_moves),
+        "top_moves": top_moves,
     }
 
 

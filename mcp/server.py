@@ -368,6 +368,70 @@ async def make_move(move: str) -> dict[str, str | None]:
 
 @server.tool(
     annotations=ToolAnnotations(
+        title="Ask for an alternative move",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    )
+)
+async def request_alternative_move() -> dict[str, str | None]:
+    """Ask the engine to replace the move it has chosen but that is not yet made on the e-board.
+
+    Use this when the user wants the engine to play something else, like the
+    play/pause button in the PicoChess web client. It works only with an
+    e-board, after the engine has chosen its move and before the user has made
+    that move on the board. The engine then searches again, excluding moves it
+    already proposed. PicoChess shows the new move on its own displays; the user
+    makes it on the board.
+    """
+    info = await _system_info()
+    if not info.get("has_board"):
+        raise ToolError(
+            "An alternative move can be requested only with an e-board. Without one, "
+            "PicoChess plays the engine's move immediately."
+        )
+    if info.get("interaction_mode") not in _PLAYING_MODES:
+        raise ToolError(f"An alternative move is possible only in a playing mode, not {info.get('interaction_mode')} mode.")
+    if not info.get("pending_engine_move"):
+        raise ToolError(
+            "No engine move is waiting to be made on the board. Ask for an alternative after the "
+            "engine has chosen its move and before making it on the board."
+        )
+
+    # pause_resume means "alternative move" only while an engine move is pending on the
+    # e-board; in other states it starts or stops the clock, hence the checks above.
+    before = await _last_move_message()
+    await _post_channel_action({"action": "pause_resume"})
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    accepted = False
+    while True:
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        info = await _system_info()
+        message = await _last_move_message()
+        pending = bool(info.get("pending_engine_move"))
+        # PicoChess clears the pending flag and publishes a "reload" message when it
+        # discards the announced move; the flag returns when the new move is chosen.
+        if not pending or (message.get("play") == "reload" and message != before):
+            accepted = True
+        elapsed = loop.time() - started
+        if accepted and pending:
+            return {
+                "status": "the engine has chosen another move: it is shown on PicoChess's displays; "
+                "make it on the e-board",
+                "fen": message.get("fen"),
+                "pgn": message.get("pgn"),
+            }
+        if not accepted and elapsed > MOVE_ACCEPT_TIMEOUT_SECONDS:
+            raise ToolError(f"PicoChess did not start an alternative search within {MOVE_ACCEPT_TIMEOUT_SECONDS:.0f} seconds.")
+        if elapsed > ENGINE_REPLY_TIMEOUT_SECONDS:
+            return {"status": "the engine is still searching for an alternative move", "fen": message.get("fen"), "pgn": message.get("pgn")}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
         title="Start a new game", read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
     )
 )

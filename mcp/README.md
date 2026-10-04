@@ -15,6 +15,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
 | `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
 | `get_hint` | Suggests the best move in the current position, like the clock's + button (button 3): the move in SAN, the expected continuation, up to two other candidates, the search depth and the source (Tutor or engine). Read-only. |
+| `get_top_moves` | Lists the best moves from PicoChess's analysis of the current position, as in the web client: for each, the move, an evaluation, the depth and the continuation. Three lines in analysis mode and in play mode on the user's turn with the Tutor on; one line otherwise, including while the engine is thinking. Read-only. |
 | `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
 | `make_move` | Plays the user's move. In play mode it waits for the engine's reply; in analysis mode the user enters moves for both sides and there is no reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns the moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
 | `set_mode` | Switches between `play` (Normal mode: play against the engine) and `analysis` (the menu's Analysis mode: enter moves for both sides while the engine analyses). Switching back to play continues from the analysed position. |
@@ -157,7 +158,7 @@ After posting a move, `make_move` polls `get_last_move` for the engine's reply. 
 handles the new move, that endpoint still returns the previous engine reply, so a reply is
 accepted only if it is legal after the user's move and produces the reported position.
 
-`get_hint` and `get_evaluation` read the analysis PicoChess already runs rather than pressing the
+`get_hint`, `get_evaluation` and `get_top_moves` read the analysis PicoChess already runs rather than pressing the
 clock buttons, so nothing flashes on the clock. They connect to the web client's WebSocket, read
 the messages PicoChess sends a new client (latest position, analysis and system information),
 and disconnect. Each analysis carries the position it was computed for. The tools use only

@@ -230,8 +230,16 @@ def _assessment(centipawns: int | None, mate: int | None) -> str:
 
 _USER_COLORS = {"user_white": chess.WHITE, "user_black": chess.BLACK}
 _PLAYING_MODES = ("normal", "brain", "training")
+# Menu names for interaction modes whose internal names differ.
+_MODE_LABELS = {"ponder": "analysis", "analysis": "move hint", "kibitz": "eval score"}
+# set_mode values: Mode.PONDER is the menu's "Analysis"; PicoChess's "analysis" is "Move Hint".
+_SET_MODE_VALUES = {"play": "normal", "analysis": "ponder"}
 # system_info time_control modes without a running game clock.
 _NO_GAME_CLOCK_MODES = ("fixed", "depth", "nodes")
+
+
+def _mode_label(mode: str | None) -> str:
+    return _MODE_LABELS.get(mode or "", mode or "unknown")
 
 
 def _game_from_message(message: dict) -> chess.pgn.Game:
@@ -256,7 +264,7 @@ def _game_status(board: chess.Board, result: str, info: dict) -> str:
     if result != "*":
         return f"game over ({result})"
     if mode not in _PLAYING_MODES or user_color is None:
-        return f"{mode} mode, {_color_name(board.turn)} to move"
+        return f"{_mode_label(mode)} mode, {_color_name(board.turn)} to move"
     if not board.move_stack:
         return "new game: waiting for the first move"
     if info.get("pending_engine_move"):
@@ -507,26 +515,31 @@ async def get_evaluation() -> dict[str, str | int | None]:
 
 @server.tool(annotations=ToolAnnotations(title="Make a move", read_only_hint=False, open_world_hint=False))
 async def make_move(move: str) -> dict[str, str | None]:
-    """Play the user's move against the PicoChess engine and return the engine's reply.
+    """Play the user's move and, in play mode, return the engine's reply.
 
     Use this when the user plays a move, for example "1. e4", "e2-e4", "Nf3" or
-    "O-O". The first move starts the game. The tool waits for the engine to
-    answer and returns your_move and engine_move in SAN, a status, the
-    resulting FEN, and the game so far as PGN. engine_move is null when the
-    user's move ended the game or the engine is still thinking. With an
-    e-board connected, moves are made on the board and this tool refuses.
+    "O-O". The first move starts the game. In play mode the tool waits for the
+    engine to answer and returns your_move and engine_move in SAN, a status,
+    the resulting FEN, and the game so far as PGN; engine_move is null when the
+    user's move ended the game or the engine is still thinking. In analysis
+    mode the user enters moves for both sides and the engine does not reply;
+    use get_hint or get_evaluation for its view. With an e-board connected,
+    moves are made on the board and this tool refuses.
     """
+    info = await _system_info()
     # Like the web client: with an e-board, the board is the only move input.
-    if (await _system_info()).get("has_board"):
+    if info.get("has_board"):
         raise ToolError(
             "PicoChess is connected to an e-board, so moves are made on the board. "
             "Play the move there; PicoChess shows the engine's reply on its displays."
         )
+    playing = info.get("interaction_mode") in _PLAYING_MODES
     message = await _last_move_message()
     variant = message.get("variant", "chess")
     if variant != "chess":
         raise ToolError(f"Only standard chess is supported by this tool; PicoChess is playing {variant}.")
-    if message.get("play") == "user":
+    # In analysis modes the latest message is always the user's own move.
+    if playing and message.get("play") == "user":
         raise ToolError("The engine is still thinking about its move. Wait for its reply before moving.")
     # PicoChess silently ignores moves after a game end. A lost-on-time game keeps
     # "*", because local play may continue after the flag falls.
@@ -548,7 +561,19 @@ async def make_move(move: str) -> dict[str, str | None]:
             "fen": board.fen(),
         }
     )
-    return await _wait_for_engine_reply(board, user_san)
+    if playing:
+        return await _wait_for_engine_reply(board, user_san)
+
+    # Analysis modes: no engine reply, only confirm that PicoChess shows the move.
+    message = await _wait_for_message(lambda m: _shows_position(m, board), "accept the move")
+    return {
+        "your_move": user_san,
+        "engine_move": None,
+        "status": f"move entered in {_mode_label(info.get('interaction_mode'))} mode; "
+        f"{_color_name(board.turn)} to move",
+        "fen": message.get("fen"),
+        "pgn": message.get("pgn"),
+    }
 
 
 @server.tool(
@@ -573,7 +598,7 @@ async def pause_resume_clock(action: Literal["pause", "resume"]) -> dict[str, st
     message = await _last_move_message()
     user_color = _USER_COLORS.get(info.get("play_mode"))
     if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
-        raise ToolError(f"The clock is paused and resumed only in a playing mode, not {info.get('interaction_mode')} mode.")
+        raise ToolError(f"The clock is paused and resumed only in a playing mode, not {_mode_label(info.get('interaction_mode'))} mode.")
     # Fixed, depth and nodes modes never run PicoChess's game clock, so pause_resume
     # would try to start it instead of stopping it.
     time_mode = (info.get("time_control") or {}).get("mode")
@@ -630,7 +655,7 @@ async def force_engine_move() -> dict[str, str | None]:
     message = await _last_move_message()
     user_color = _USER_COLORS.get(info.get("play_mode"))
     if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
-        raise ToolError(f"The engine plays a move only in a playing mode, not {info.get('interaction_mode')} mode.")
+        raise ToolError(f"The engine plays a move only in a playing mode, not {_mode_label(info.get('interaction_mode'))} mode.")
     result = _game_result(message)
     if result != "*":
         raise ToolError(f"The game is over ({result}).")
@@ -694,7 +719,7 @@ async def request_alternative_move() -> dict[str, str | None]:
             "PicoChess plays the engine's move immediately."
         )
     if info.get("interaction_mode") not in _PLAYING_MODES:
-        raise ToolError(f"An alternative move is possible only in a playing mode, not {info.get('interaction_mode')} mode.")
+        raise ToolError(f"An alternative move is possible only in a playing mode, not {_mode_label(info.get('interaction_mode'))} mode.")
     if not info.get("pending_engine_move"):
         raise ToolError(
             "No engine move is waiting to be made on the board. Ask for an alternative after the "
@@ -774,6 +799,46 @@ async def resign_game() -> dict[str, str | None]:
     await _post_channel_action({"action": "resign_game"})
     message = await _wait_for_message(lambda m: _game_result(m) != "*", "end the game")
     return {"status": "you resigned", "result": _game_result(message), "pgn": message.get("pgn")}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Switch between play and analysis",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def set_mode(mode: Literal["play", "analysis"]) -> dict[str, str | None]:
+    """Switch PicoChess between playing against the engine and free analysis.
+
+    "play" is PicoChess's Normal mode: the user plays one side and the engine
+    replies. "analysis" is the menu's Analysis mode: the user enters moves for
+    both sides, the engine only analyses, and hints and evaluations follow the
+    position. Switching back to play continues from the analysed position.
+    """
+    target = _SET_MODE_VALUES[mode]
+    info = await _system_info()
+    if info.get("interaction_mode") != target:
+        # Re-selecting Analysis mode would replace PicoChess's return-point checkpoint.
+        await _post_channel_action({"action": "set_mode", "mode": target})
+        info = await _wait_until(_system_info, lambda i: i.get("interaction_mode") == target, f"switch to {mode} mode")
+        status = f"switched to {mode} mode"
+    else:
+        status = f"already in {mode} mode"
+
+    board = _game_from_message(await _last_move_message()).end().board()
+    user_color = _USER_COLORS.get(info.get("play_mode")) if mode == "play" else None
+    if mode == "analysis":
+        status += "; enter moves for both sides, the engine analyses without replying"
+    elif user_color is not None:
+        status += f"; you play {_color_name(user_color)}"
+    return {
+        "status": status,
+        "to_move": _color_name(board.turn),
+        "your_color": _color_name(user_color) if user_color is not None else None,
+    }
 
 
 @server.tool(

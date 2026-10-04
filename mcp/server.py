@@ -40,6 +40,8 @@ ENGINE_REPLY_TIMEOUT_SECONDS = 120.0
 ANALYSIS_WAIT_SECONDS = 3.0
 # Half-moves of the expected continuation shown with a hint.
 HINT_LINE_PLIES = 8
+# A new position can take a while with MAME engines, which are set up eagerly.
+SETUP_TIMEOUT_SECONDS = 30.0
 
 _MOVE_NUMBER = re.compile(r"^\d+\s*\.+\s*")
 _PGN_RESULT = re.compile(r'^\[Result "([^"]*)"\]', re.MULTILINE)
@@ -69,7 +71,14 @@ def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict
             body = response.read().decode("utf-8")
     # ToolError reaches the model with its message; other exceptions are reported as crashes.
     except urllib.error.HTTPError as exc:
-        raise ToolError(f"PicoChess rejected the request to {path} (HTTP {exc.code}).") from exc
+        # PicoChess explains rejections in a JSON "error" field, e.g. why a FEN is invalid.
+        reason = ""
+        try:
+            reason = json.loads(exc.read().decode("utf-8")).get("error", "")
+        except (ValueError, AttributeError, OSError):
+            pass
+        detail = f": {reason}" if reason else f" (HTTP {exc.code})"
+        raise ToolError(f"PicoChess rejected the request to {path}{detail}.") from exc
     except OSError as exc:
         raise ToolError(
             f"PicoChess is not reachable at {PICOCHESS_URL}. Start PicoChess and try again. ({exc})"
@@ -92,25 +101,28 @@ async def _post_channel_action(params: dict[str, str]) -> None:
     await asyncio.to_thread(_request_json, "/channel", params, True)
 
 
-async def _wait_until(fetch, accepts, what: str) -> dict:
+async def _wait_until(fetch, accepts, what: str, timeout: float | None = None) -> dict:
     """Poll fetch() until accepts(result) holds, or fail.
 
-    what completes the sentence "PicoChess did not ...".
+    what completes the sentence "PicoChess did not ...". timeout defaults to
+    MOVE_ACCEPT_TIMEOUT_SECONDS.
     """
+    if timeout is None:
+        timeout = MOVE_ACCEPT_TIMEOUT_SECONDS
     loop = asyncio.get_running_loop()
     started = loop.time()
     while True:
         result = await fetch()
         if accepts(result):
             return result
-        if loop.time() - started > MOVE_ACCEPT_TIMEOUT_SECONDS:
-            raise ToolError(f"PicoChess did not {what} within {MOVE_ACCEPT_TIMEOUT_SECONDS:.0f} seconds.")
+        if loop.time() - started > timeout:
+            raise ToolError(f"PicoChess did not {what} within {timeout:.0f} seconds.")
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
-async def _wait_for_message(accepts, what: str) -> dict:
+async def _wait_for_message(accepts, what: str, timeout: float | None = None) -> dict:
     """Poll the latest position message until accepts(message) holds, or fail."""
-    return await _wait_until(_last_move_message, accepts, what)
+    return await _wait_until(_last_move_message, accepts, what, timeout)
 
 
 async def _clock_state() -> dict:
@@ -762,6 +774,116 @@ async def resign_game() -> dict[str, str | None]:
     await _post_channel_action({"action": "resign_game"})
     message = await _wait_for_message(lambda m: _game_result(m) != "*", "end the game")
     return {"status": "you resigned", "result": _game_result(message), "pgn": message.get("pgn")}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Set up a position", read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
+    )
+)
+async def set_position(fen: str) -> dict[str, str | bool | None]:
+    """Replace the current game with the position in a FEN, like Position > Set Pos in the web client.
+
+    The game continues from that position without earlier moves; the FEN's
+    side-to-move field says who moves next. When a game is in progress, ask the
+    user to confirm first. Works with and without an e-board. With an e-board,
+    PicoChess then guides the user by voice to set up the pieces and confirms
+    when the board matches; that can take a while and does not block this tool.
+    """
+    fen = fen.strip()
+    try:
+        chess.Board(fen)
+    except ValueError as exc:
+        raise ToolError(f"This is not a valid FEN: {exc}") from exc
+
+    info = await _system_info()
+    # For a MAME engine on its own turn PicoChess rejects Set Pos and treats the request
+    # as "move now", so refuse here instead.
+    if info.get("is_mame") and info.get("interaction_mode") in _PLAYING_MODES:
+        user_color = _USER_COLORS.get(info.get("play_mode"))
+        current = _game_from_message(await _last_move_message()).end().board()
+        if user_color is not None and current.turn != user_color:
+            raise ToolError("With a MAME engine, a position can be set only on your turn. Wait for the engine's move first.")
+
+    response = await asyncio.to_thread(_request_json, "/channel", {"action": "set_position", "fen": fen}, True)
+    new_fen = response.get("fen") or fen
+    await _wait_for_message(
+        lambda m: _same_position(m.get("fen"), new_fen), "set up the new position", SETUP_TIMEOUT_SECONDS
+    )
+    status = "position set"
+    if info.get("has_board"):
+        status += (
+            ": set up the pieces on the e-board to match. PicoChess guides you by voice "
+            "and confirms when the board matches"
+        )
+    return {
+        "status": status,
+        "fen": new_fen,
+        "to_move": _color_name(chess.Board(new_fen).turn),
+        "e_board": bool(info.get("has_board")),
+    }
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Scan the e-board", read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
+    )
+)
+async def scan_board(
+    side_to_move: Literal["white", "black"] = "white",
+    board_reversed: bool = False,
+    castling: str = "KQkq",
+) -> dict[str, str | None]:
+    """Replace the current game with the position on the e-board, like Position > Scan in the web client.
+
+    E-board only: the user first places the pieces on the board. side_to_move
+    says who moves next. Set board_reversed when the board is turned around, with
+    Black's pieces starting on the near side. castling lists the castling rights
+    still allowed, as in a FEN (default KQkq, or "-" for none); PicoChess drops
+    any the placement makes impossible. When a game is in progress, ask the user
+    to confirm first.
+    """
+    info = await _system_info()
+    if not info.get("has_board"):
+        raise ToolError("Scanning needs an e-board. Without one, set a position with set_position and a FEN.")
+    castling = castling.strip() or "-"
+    if castling != "-" and set(castling) - set("KQkq"):
+        raise ToolError('castling must use the letters K, Q, k and q, or "-" for none.')
+
+    def flag(value: bool) -> str:
+        return "true" if value else "false"
+
+    # The same parameters as the web client's Scan sliders.
+    response = await asyncio.to_thread(
+        _request_json,
+        "/channel",
+        {
+            "action": "scan_board",
+            "sideToPlay": flag(side_to_move == "white"),
+            "boardSide": flag(board_reversed),
+            "uci960": "false",
+            "whiteCastleKing": flag("K" in castling),
+            "whiteCastleQueen": flag("Q" in castling),
+            "blackCastleKing": flag("k" in castling),
+            "blackCastleQueen": flag("q" in castling),
+        },
+        True,
+    )
+    new_fen = response.get("fen")
+    if not response.get("success") or not new_fen:
+        raise ToolError(
+            "PicoChess could not read a legal position from the e-board. Check that every piece is "
+            "placed, both kings are on the board, and the side to move is right."
+        )
+    await _wait_for_message(
+        lambda m: _same_position(m.get("fen"), new_fen), "set up the scanned position", SETUP_TIMEOUT_SECONDS
+    )
+    return {
+        "status": "position scanned from the e-board",
+        "fen": new_fen,
+        "to_move": _color_name(chess.Board(new_fen).turn),
+        "castling": new_fen.split(" ")[2],
+    }
 
 
 if __name__ == "__main__":

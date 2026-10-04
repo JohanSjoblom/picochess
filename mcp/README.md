@@ -20,10 +20,12 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
 | `force_engine_move` | While the engine is thinking, makes it play the best move found so far, like "Move now" in the web client. Without an e-board it returns the engine's move; with one, PicoChess shows the move on its displays. |
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
+| `set_position` | Replaces the current game with the position in a FEN, like Position > Set Pos in the web client. With an e-board, PicoChess then guides the user by voice to set up the pieces. |
+| `scan_board` | With an e-board only: replaces the current game with the position on the board, like Position > Scan. Options: side to move, a reversed board, and the castling rights still allowed. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
 
-`new_game` and `resign_game` are marked destructive, so Claude Code asks before running them.
+`new_game`, `resign_game`, `set_position` and `scan_board` replace or end the game. They are marked destructive, so Claude Code asks before running them.
 
 ## Requirements
 
@@ -130,6 +132,8 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
 | Resign | `POST /channel` with `action=resign_game` |
+| Set a position | `POST /channel` with `action=set_position` and `fen` |
+| Scan the e-board | `POST /channel` with `action=scan_board`, `sideToPlay`, `boardSide` and the four castling flags |
 | Clock state | `GET /info?action=get_clock_state` |
 | Analysis for hints and evaluations | WebSocket `/event`: the snapshot PicoChess sends every new client |
 | Pause or resume the clock | `POST /channel` with `action=pause_resume`, only on the user's turn |

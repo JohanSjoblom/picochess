@@ -4,12 +4,54 @@ import runpy
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from legacy_kiosk import configured_kiosk_port, is_legacy_kiosk_command, stop_legacy_kiosk
+from legacy_kiosk import configured_kiosk_port, has_legacy_windowed_launcher, is_legacy_kiosk_command, stop_legacy_kiosk
 
 
 class TestLegacyKiosk(unittest.TestCase):
+    def test_old_wayland_launcher_without_kiosk_flag_is_recognized(self):
+        with TemporaryDirectory() as directory:
+            home = Path(directory)
+            launcher = home / "kiosk.sh"
+            self.assertFalse(has_legacy_windowed_launcher(home, 80))
+            launcher.write_text(
+                '#!/bin/bash\n/usr/bin/chromium \\\n'
+                '    --password-store=basic \\\n'
+                '    http://127.0.0.1 &\n'
+            )
+            self.assertTrue(has_legacy_windowed_launcher(home, 80))
+            self.assertFalse(has_legacy_windowed_launcher(home, 8080))
+            launcher.write_text('# /usr/bin/chromium --password-store=basic http://127.0.0.1 &\n')
+            self.assertFalse(has_legacy_windowed_launcher(home, 80))
+            launcher.write_text('/usr/bin/chromium --user-data-dir=/tmp/pico --password-store=basic http://127.0.0.1 &\n')
+            self.assertFalse(has_legacy_windowed_launcher(home, 80))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "Linux process cleanup")
+    def test_windowed_browser_cleanup_requires_matching_installed_launcher(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+            process = root / "101"
+            process.mkdir()
+            command = ["chromium", "--password-store=basic", "http://127.0.0.1"]
+            (process / "cmdline").write_bytes("\0".join(command).encode() + b"\0")
+            with patch("legacy_kiosk.os.getuid", return_value=root.stat().st_uid), patch.dict(
+                "os.environ", {"SUDO_USER": "root"}
+            ), patch("pwd.getpwuid", return_value=SimpleNamespace(pw_dir=str(home))), patch(
+                "legacy_kiosk.os.kill"
+            ) as kill:
+                stop_legacy_kiosk(root, web_port=80)
+                kill.assert_not_called()
+                (home / "kiosk.sh").write_text(
+                    "/usr/bin/chromium --password-store=basic http://127.0.0.1 &\n"
+                )
+                stop_legacy_kiosk(root, web_port=80)
+                kill.assert_called_once()
+                self.assertEqual(kill.call_args.args[0], 101)
+
     def test_unsupported_platform_needs_no_unix_modules_or_process_access(self):
         original_import = builtins.__import__
 

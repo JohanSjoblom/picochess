@@ -68,6 +68,11 @@ def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict
     return json.loads(body) if body.strip() else {}
 
 
+async def _system_info() -> dict:
+    """Return PicoChess's system information, as shown by the web client."""
+    return await asyncio.to_thread(_request_json, "/info", {"action": "get_system_info"})
+
+
 async def _last_move_message() -> dict:
     """Return PicoChess's latest position message ({} before the first move of a session)."""
     return await asyncio.to_thread(_request_json, "/dgt", {"action": "get_last_move"})
@@ -207,7 +212,7 @@ async def get_engine() -> dict[str, str | int]:
     Use this when the user asks which engine is loaded or selected. The result
     has engine_name and, when PicoChess has reported it, engine_elo.
     """
-    info = await asyncio.to_thread(_request_json, "/info", {"action": "get_system_info"})
+    info = await _system_info()
     engine_name = info.get("engine_name")
     if not engine_name:
         raise ToolError("PicoChess is running but has not reported an engine yet. It may still be starting up.")
@@ -225,8 +230,15 @@ async def make_move(move: str) -> dict[str, str | None]:
     "O-O". The first move starts the game. The tool waits for the engine to
     answer and returns your_move and engine_move in SAN, a status, the
     resulting FEN, and the game so far as PGN. engine_move is null when the
-    user's move ended the game or the engine is still thinking.
+    user's move ended the game or the engine is still thinking. With an
+    e-board connected, moves are made on the board and this tool refuses.
     """
+    # Like the web client: with an e-board, the board is the only move input.
+    if (await _system_info()).get("has_board"):
+        raise ToolError(
+            "PicoChess is connected to an e-board, so moves are made on the board. "
+            "Play the move there; PicoChess shows the engine's reply on its displays."
+        )
     message = await _last_move_message()
     variant = message.get("variant", "chess")
     if variant != "chess":

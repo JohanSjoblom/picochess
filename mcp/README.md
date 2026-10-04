@@ -13,7 +13,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | Tool | What it does |
 |---|---|
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
-| `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. |
+| `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
 
@@ -21,8 +21,10 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 
 ## Requirements
 
-- PicoChess running on the same machine with `board-type = noeboard` in `picochess.ini`.
-  PicoChess accepts web moves only without an e-board.
+- PicoChess running on the same machine.
+- To play moves through the MCP, `board-type = noeboard` in `picochess.ini`. With an e-board
+  connected, moves are made on the board, as with the web client: `make_move` refuses, and the
+  other tools work as a remote front end for information and game actions.
 - A 64-bit CPython 3.10 or newer. PicoChess uses 3.13.
 - [Claude Code](https://code.claude.com/), or another MCP client that can start a local stdio
   server.

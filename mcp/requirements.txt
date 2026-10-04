@@ -1,2 +1,3 @@
 mcp>=2.3,<3
 chess==1.11.2
+websockets>=13,<18

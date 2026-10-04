@@ -20,6 +20,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Literal
 
 import chess
 import chess.pgn
@@ -85,20 +86,30 @@ async def _post_channel_action(params: dict[str, str]) -> None:
     await asyncio.to_thread(_request_json, "/channel", params, True)
 
 
-async def _wait_for_message(accepts, what: str) -> dict:
-    """Poll the latest position message until accepts(message) holds, or fail.
+async def _wait_until(fetch, accepts, what: str) -> dict:
+    """Poll fetch() until accepts(result) holds, or fail.
 
     what completes the sentence "PicoChess did not ...".
     """
     loop = asyncio.get_running_loop()
     started = loop.time()
     while True:
-        message = await _last_move_message()
-        if accepts(message):
-            return message
+        result = await fetch()
+        if accepts(result):
+            return result
         if loop.time() - started > MOVE_ACCEPT_TIMEOUT_SECONDS:
             raise ToolError(f"PicoChess did not {what} within {MOVE_ACCEPT_TIMEOUT_SECONDS:.0f} seconds.")
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+
+async def _wait_for_message(accepts, what: str) -> dict:
+    """Poll the latest position message until accepts(message) holds, or fail."""
+    return await _wait_until(_last_move_message, accepts, what)
+
+
+async def _clock_state() -> dict:
+    """Return {"running": bool} for the game clock, as the web client reads it."""
+    return await asyncio.to_thread(_request_json, "/info", {"action": "get_clock_state"})
 
 
 def _game_result(message: dict) -> str:
@@ -109,6 +120,8 @@ def _game_result(message: dict) -> str:
 
 _USER_COLORS = {"user_white": chess.WHITE, "user_black": chess.BLACK}
 _PLAYING_MODES = ("normal", "brain", "training")
+# system_info time_control modes without a running game clock.
+_NO_GAME_CLOCK_MODES = ("fixed", "depth", "nodes")
 
 
 def _game_from_message(message: dict) -> chess.pgn.Game:
@@ -364,6 +377,123 @@ async def make_move(move: str) -> dict[str, str | None]:
         }
     )
     return await _wait_for_engine_reply(board, user_san)
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Pause or resume the clock",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def pause_resume_clock(action: Literal["pause", "resume"]) -> dict[str, str | bool]:
+    """Pause or resume the game clock on the user's turn, like the web client's play/pause button.
+
+    Use action "pause" or "resume". It works only on the user's turn and only
+    with a game clock (blitz, Fischer or tournament time); fixed move time,
+    depth and nodes have no game clock. While the engine thinks, use
+    force_engine_move instead. Before the first move, "resume" starts the clock
+    and the game.
+    """
+    info = await _system_info()
+    message = await _last_move_message()
+    user_color = _USER_COLORS.get(info.get("play_mode"))
+    if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
+        raise ToolError(f"The clock is paused and resumed only in a playing mode, not {info.get('interaction_mode')} mode.")
+    # Fixed, depth and nodes modes never run PicoChess's game clock, so pause_resume
+    # would try to start it instead of stopping it.
+    time_mode = (info.get("time_control") or {}).get("mode")
+    if time_mode in _NO_GAME_CLOCK_MODES:
+        label = info.get("time_label") or time_mode
+        raise ToolError(f"The time control ({label}) has no game clock to pause or resume.")
+    result = _game_result(message)
+    if result != "*":
+        raise ToolError(f"The game is over ({result}).")
+    if info.get("pending_engine_move"):
+        raise ToolError("The engine's move is waiting to be made on the e-board; the clock can be paused on your turn.")
+    board = _game_from_message(message).end().board()
+    if board.turn != user_color:
+        raise ToolError(
+            "It is the engine's turn. The clock can be paused only on your turn; "
+            "use force_engine_move to make the engine move now."
+        )
+
+    want_running = action == "resume"
+    if bool((await _clock_state()).get("running")) == want_running:
+        state = "running" if want_running else "paused"
+        return {"status": f"the clock was already {state}", "clock_running": want_running}
+
+    # On the user's turn pause_resume toggles the clock. Should the turn change in the
+    # meantime, PicoChess treats it as the play/pause action for the new state.
+    await _post_channel_action({"action": "pause_resume"})
+    await _wait_until(
+        _clock_state,
+        lambda clock: bool(clock.get("running")) == want_running,
+        f"{action} the clock",
+    )
+    return {"status": "clock running" if want_running else "clock paused", "clock_running": want_running}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Make the engine move now",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    )
+)
+async def force_engine_move() -> dict[str, str | None]:
+    """Make the engine stop thinking and play the best move it has found so far.
+
+    Use this when the user is tired of waiting for the engine, like "Move now"
+    in the PicoChess web client. It works only while the engine is thinking
+    about its move. Without an e-board the result includes the engine's move;
+    with an e-board PicoChess shows the move on its displays and the user makes
+    it on the board.
+    """
+    info = await _system_info()
+    message = await _last_move_message()
+    user_color = _USER_COLORS.get(info.get("play_mode"))
+    if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
+        raise ToolError(f"The engine plays a move only in a playing mode, not {info.get('interaction_mode')} mode.")
+    result = _game_result(message)
+    if result != "*":
+        raise ToolError(f"The game is over ({result}).")
+    if info.get("pending_engine_move"):
+        raise ToolError(
+            "The engine has already chosen its move; make it on the e-board, or ask for a different "
+            "one with request_alternative_move."
+        )
+    board = _game_from_message(message).end().board()
+    if board.turn == user_color:
+        raise ToolError("It is your move, so the engine is not thinking.")
+
+    # pause_resume forces a move only while the engine thinks. Should the engine finish
+    # in the meantime, PicoChess treats it as the next play/pause action instead.
+    await _post_channel_action({"action": "pause_resume"})
+
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    while True:
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        if info.get("has_board"):
+            if (await _system_info()).get("pending_engine_move"):
+                return {
+                    "status": "the engine has chosen its move: it is shown on PicoChess's displays; "
+                    "make it on the e-board",
+                    "engine_move": None,
+                    "fen": board.fen(),
+                }
+        else:
+            message = await _last_move_message()
+            reply = _engine_reply(board, message)
+            if reply is not None:
+                return {"status": "engine moved", "engine_move": board.san(reply), "fen": message.get("fen")}
+        if loop.time() - started > MOVE_ACCEPT_TIMEOUT_SECONDS:
+            raise ToolError(f"The engine did not move within {MOVE_ACCEPT_TIMEOUT_SECONDS:.0f} seconds.")
 
 
 @server.tool(

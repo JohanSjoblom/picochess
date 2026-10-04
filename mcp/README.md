@@ -15,6 +15,8 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
 | `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
 | `make_move` | Plays the user's move and waits for the engine's reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns both moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
+| `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
+| `force_engine_move` | While the engine is thinking, makes it play the best move found so far, like "Move now" in the web client. Without an e-board it returns the engine's move; with one, PicoChess shows the move on its displays. |
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
@@ -126,7 +128,16 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
 | Resign | `POST /channel` with `action=resign_game` |
-| Alternative move | `POST /channel` with `action=pause_resume`, only while an engine move is pending on the e-board (in other states the same action starts or stops the clock) |
+| Clock state | `GET /info?action=get_clock_state` |
+| Pause or resume the clock | `POST /channel` with `action=pause_resume`, only on the user's turn |
+| Move now | `POST /channel` with `action=pause_resume`, only while the engine is thinking |
+| Alternative move | `POST /channel` with `action=pause_resume`, only while an engine move is pending on the e-board |
+
+`pause_resume` is the web client's play/pause button. Its meaning depends on the game state: it
+forces a move while the engine thinks, requests an alternative while an engine move is pending on
+the e-board, and otherwise starts or stops the clock. The tools send it only in their own state.
+If the engine finishes at the very moment the request arrives, PicoChess applies the meaning for
+the new state.
 
 The `fen` posted with a move is the position after the move, as the web client sends it.
 PicoChess accepts the move only when it is legal and produces that position.

@@ -38,20 +38,23 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 #   pico       -> skip system update
 #   small/lite -> choose engine pack (default: small)
 #   noengines  -> skip engine installation
-#   dgt3000    -> install DGTPi clock support
-#   DGT3000    -> install DGTPi clock support
+#   dgt3000    -> select a standalone DGT3000 connected through a DGT eboard
+#   DGT3000    -> select a standalone DGT3000 connected through a DGT eboard
 #   dgtpi      -> install DGTPi clock support
 #   kiosk      -> enable autologin and kiosk autostart
 #   pi3        -> install Bluetooth unblock service for Raspberry Pi 3
 #   master     -> switch checkout back to origin/master before installing
+#   reset      -> back up and reset kiosk.sh and picochess.ini to current defaults
 SKIP_UPDATE=false
 ENGINE_VARIANT="small"
 SKIP_ENGINES=false
 INSTALL_DGTPI=false
+INSTALL_DGT3000=false
 EXPLICIT_ENGINE_VARIANT=false
 INSTALL_KIOSK=false
 INSTALL_PI3_BT=false
 FORCE_MASTER=false
+RESET_SETTINGS=false
 
 # Handle optional "pico" flag (skip system update)
 if [ "$1" = "pico" ]; then
@@ -69,7 +72,10 @@ for arg in "$@"; do
         noengines)
             SKIP_ENGINES=true
             ;;
-        dgt3000|DGT3000|dgtpi|DGTPi|DGTPI)
+        dgt3000|DGT3000)
+            INSTALL_DGT3000=true
+            ;;
+        dgtpi|DGTPi|DGTPI)
             INSTALL_DGTPI=true
             ;;
         kiosk|KIOSK)
@@ -81,8 +87,21 @@ for arg in "$@"; do
         master|MASTER)
             FORCE_MASTER=true
             ;;
+        reset|RESET)
+            RESET_SETTINGS=true
+            ;;
     esac
 done
+
+if [ "$INSTALL_DGTPI" = true ] && [ "$INSTALL_DGT3000" = true ]; then
+    echo "Error: choose either dgtpi or dgt3000, not both." >&2
+    exit 2
+fi
+
+if [ "$RESET_SETTINGS" = true ]; then
+    echo "WARNING: reset mode will replace local kiosk.sh and picochess.ini customizations."
+    echo "Existing files will be retained as one .backup copy before replacement."
+fi
 
 set_ini_setting() {
     ini_file=$1
@@ -166,7 +185,7 @@ configure_dgtpi_clock_timing() {
 
     {
         printf "# BEGIN PicoChess DGTPi clock timing\n"
-        printf "# Keep DGTPi/DGT3000 GPIO clock communication stable on Raspberry Pi 3.\n"
+        printf "# Keep DGTPi GPIO clock communication stable on Raspberry Pi 3.\n"
         printf "[all]\n"
         printf "core_freq=%s\n" "$core_freq_value"
         printf "core_freq_min=%s\n" "$core_freq_min_value"
@@ -518,20 +537,42 @@ if [ -x "$VENV_PYTHON" ]; then
 fi
 
 # picochess.ini
-if [ -f "$REPO_DIR/picochess.ini" ]; then
+# shellcheck source=install-managed-files.sh
+. "$REPO_DIR/install-managed-files.sh"
+INI_PROFILE=$(select_ini_profile \
+    "$INSTALL_DGTPI" "$INSTALL_DGT3000" "$RESET_SETTINGS" "$REPO_DIR/picochess.ini")
+if [ "$RESET_SETTINGS" = true ] && [ "$INSTALL_DGTPI" != true ] && \
+        [ "$INSTALL_DGT3000" != true ] && [ "$INI_PROFILE" = dgtpi ]; then
+    echo "Reset mode detected an existing DGTPi configuration."
+    echo "Use the dgt3000 flag to override this for a standalone DGT3000."
+fi
+
+if [ "$INI_PROFILE" = dgtpi ]; then
+    DEFAULT_INI="$REPO_DIR/picochess.ini.example-dgtpi-clock"
+else
+    DEFAULT_INI="$REPO_DIR/picochess.ini.example-web-$(uname -m)"
+fi
+
+if [ "$RESET_SETTINGS" = true ]; then
+    replace_managed_file \
+        "$DEFAULT_INI" \
+        "$REPO_DIR/picochess.ini" \
+        "$REPO_DIR/picochess.ini.backup" \
+        false false "$INSTALL_USER" || exit 1
+elif [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "picochess.ini already existed - no changes done"
 else
     cd "$REPO_DIR"
-    if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini.example-dgtpi-clock" ]; then
-        cp "$REPO_DIR/picochess.ini.example-dgtpi-clock" "$REPO_DIR/picochess.ini"
-    else
-        cp "$REPO_DIR/picochess.ini.example-web-$(uname -m)" "$REPO_DIR/picochess.ini"
-    fi
+    cp "$DEFAULT_INI" "$REPO_DIR/picochess.ini"
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
 if [ "$INSTALL_DGTPI" = true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
     echo "Applying DGTPi defaults to picochess.ini"
     set_ini_setting "$REPO_DIR/picochess.ini" "dgtpi" "True"
+    chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
+elif [ "$INSTALL_DGT3000" = true ] && [ -f "$REPO_DIR/picochess.ini" ]; then
+    echo "Applying standalone DGT3000 defaults to picochess.ini"
+    set_ini_setting "$REPO_DIR/picochess.ini" "dgtpi" "False"
     chown "$INSTALL_USER" "$REPO_DIR/picochess.ini"
 fi
 
@@ -566,7 +607,7 @@ fi
 
 # Install DGTPi clock support on request.
 if [ "$INSTALL_DGTPI" = true ]; then
-    echo "DGTPi/DGT3000 flag set - installing DGTPi clock support"
+    echo "DGTPi flag set - installing DGTPi clock support"
     configure_dgtpi_clock_timing
     if [ -f "$REPO_DIR/install-dgtpi-clock.sh" ]; then
         cd "$REPO_DIR" || exit 1
@@ -576,7 +617,7 @@ if [ "$INSTALL_DGTPI" = true ]; then
         echo "Warning: install-dgtpi-clock.sh not found; skipping DGTPi clock install" >&2
     fi
 else
-    echo "DGTPi/DGT3000 flag not set - skipping DGTPi clock install"
+    echo "DGTPi flag not set - skipping DGTPi clock install"
 fi
 
 # Install Bluetooth unblock service for Pi3 on request.
@@ -605,6 +646,23 @@ if [ "$INSTALL_KIOSK" = true ]; then
     fi
 else
     echo "Kiosk flag not set - skipping kiosk install"
+fi
+
+# Refresh an existing home-directory kiosk during every normal update without
+# enabling kiosk mode on systems that do not use it. Explicit reset creates the
+# current kiosk even when the deployed copy is missing and overrides opt-out.
+KIOSK_TARGET="$INSTALL_USER_HOME/kiosk.sh"
+if [ "$RESET_SETTINGS" = true ] || [ -f "$KIOSK_TARGET" ]; then
+    if [ "$RESET_SETTINGS" = true ]; then
+        RESPECT_KIOSK_MARKER=false
+    else
+        RESPECT_KIOSK_MARKER=true
+    fi
+    replace_managed_file \
+        "$REPO_DIR/kiosk.sh" \
+        "$KIOSK_TARGET" \
+        "$KIOSK_TARGET.backup" \
+        "$RESPECT_KIOSK_MARKER" true "$INSTALL_USER" || exit 1
 fi
 
 # Python module check
@@ -746,8 +804,10 @@ if [ "$YDOTOOL_INSTALLED" = true ] && [ "$YDOTOOL_RELOGIN_REQUIRED" = true ]; th
 fi
 if [ "$INSTALL_DGTPI" = true ]; then
     echo "DGTPi note: clock service and boot clock timing were configured."
+elif [ "$INSTALL_DGT3000" = true ]; then
+    echo "DGT3000 note: using eboard clock communication; DGTPi support was not enabled."
 else
-    echo "NOTE: If you are on DGTPi clock hardware, rerun this installer with the dgtpi or dgt3000 parameter."
+    echo "NOTE: If you are on DGTPi clock hardware, rerun this installer with the dgtpi parameter."
 fi
 echo "After reboot open a browser to localhost"
 echo "If you have a DGT board you need to change the board type"

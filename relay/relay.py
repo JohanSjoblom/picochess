@@ -304,14 +304,30 @@ class Relay:
             # change.  That is the intended final action after arming.  Other
             # reload producers (takeback, alternative move, position setup)
             # are safe only when they are also genuinely position-neutral.
-            if self.pending_move is not None or endpoint.board is None:
-                raise RelayError(f"{endpoint.name}: unexpected reload while a move is pending")
+            if endpoint.board is None:
+                raise RelayError(f"{endpoint.name}: reload arrived before its position was known")
             other = self._other(endpoint)
             if other.board is None:
                 raise RelayError(f"{endpoint.name}: reload arrived before both positions were known")
             _, reported_fen = self._event_position(endpoint, message)
             current_fen = endpoint.board.fen(en_passant="fen")
             other_fen = other.board.fen(en_passant="fen")
+            if self.pending_move is not None:
+                pending = self.pending_move
+                if (
+                    endpoint is pending.source
+                    and endpoint.board.is_game_over()
+                    and reported_fen == pending.resulting_fen
+                    and reported_fen == current_fen
+                ):
+                    # After a mating or otherwise terminal engine move, the
+                    # source publishes its final PGN as a same-position reload
+                    # before publishing GameEnd.  The destination may not have
+                    # acknowledged the relayed move yet, so keep the pending
+                    # state and wait for either its acknowledgement or GameEnd.
+                    LOGGER.info("accepted terminal-position reload from %s", endpoint.name)
+                    return None
+                raise RelayError(f"{endpoint.name}: unexpected reload while a move is pending")
             if reported_fen != current_fen or reported_fen != other_fen:
                 raise RelayError(
                     f"{endpoint.name}: reload changed the armed position: "

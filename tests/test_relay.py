@@ -138,6 +138,51 @@ class TestRelay(unittest.IsolatedAsyncioTestCase):
                 ),
             )
 
+    async def test_terminal_source_reload_is_accepted_before_destination_ack(self):
+        before_mate = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4"):
+            before_mate.push_uci(move)
+        initial_fen = before_mate.fen(en_passant="fen")
+        first = FakeEndpoint("A", initial_fen)
+        second = FakeEndpoint("B", initial_fen, acknowledge=False)
+        relay = Relay(first, second)
+        await relay.arm()
+        after_mate = before_mate.copy()
+        after_mate.push_uci("d8h4")
+        mate_fen = after_mate.fen(en_passant="fen")
+
+        await relay.process_event(
+            first,
+            position_event(event="Fen", play="computer", fen=mate_fen, move="d8h4"),
+        )
+        result = await relay.process_event(
+            first,
+            position_event(event="Fen", play="reload", fen=mate_fen, move="d8h4"),
+        )
+
+        self.assertIsNone(result)
+        self.assertIsNotNone(relay.pending_move)
+        self.assertTrue(first.board.is_checkmate())
+
+    async def test_nonterminal_source_reload_is_rejected_while_ack_is_pending(self):
+        first = FakeEndpoint("A")
+        second = FakeEndpoint("B", acknowledge=False)
+        relay = Relay(first, second)
+        await relay.arm()
+        moved = chess.Board()
+        moved.push_uci("e2e4")
+        moved_fen = moved.fen(en_passant="fen")
+        await relay.process_event(
+            first,
+            position_event(event="Fen", play="computer", fen=moved_fen, move="e2e4"),
+        )
+
+        with self.assertRaisesRegex(RelayError, "unexpected reload while a move is pending"):
+            await relay.process_event(
+                first,
+                position_event(event="Fen", play="reload", fen=moved_fen, move="e2e4"),
+            )
+
     async def test_new_game_and_game_end_return_normal_stop_reasons(self):
         first = FakeEndpoint("A")
         second = FakeEndpoint("B")

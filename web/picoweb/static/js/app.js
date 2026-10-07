@@ -1012,6 +1012,11 @@ function WebExporter(columns) {
     };
 
     this.put_move = function (board, m) {
+        if (m.variant_fen) {
+            var variant_fen_id = stripFen(m.variant_fen);
+            this.write_token('<span class="gameMove' + m.variant_fullmove + '"><a href="#" class="fen" data-fen="' + m.variant_fen + '" id="' + variant_fen_id + '"> ' + figurinizeMove(m.san) + ' </a></span>');
+            return;
+        }
         var old_fen = board.fen();
         var tmp_board = new Chess(old_fen, chessGameType);
         var out_move = tmp_board.move(m);
@@ -1128,6 +1133,10 @@ function PgnExporter(columns) {
     };
 
     this.put_move = function (board, m) {
+        if (m.variant_fen) {
+            this.write_token(m.san + " ");
+            return;
+        }
         var tmp_board = new Chess(board.fen(), chessGameType);
         var out_move = tmp_board.move(m);
         if (!out_move) {
@@ -1170,8 +1179,10 @@ function exportGame(root_node, exporter, include_comments, include_variations, _
     // a custom root, especially when Black is first to move.
     if (root_node.variations && root_node.variations.length > 0) {
         var main_variation = root_node.variations[0];
-        var startsWithBlack = !root_node.previous && _board.turn() === 'b';
-        exporter.put_fullmove_number(_board.turn(), _board.fullmove_number, _after_variation || startsWithBlack);
+        var move_turn = main_variation.move.variant_turn || _board.turn();
+        var move_number = main_variation.move.variant_fullmove || _board.fullmove_number;
+        var startsWithBlack = !root_node.previous && move_turn === 'b';
+        exporter.put_fullmove_number(move_turn, move_number, _after_variation || startsWithBlack);
         exporter.put_move(_board, main_variation.move);
         if (include_comments) {
             exporter.put_nags(main_variation.nags);
@@ -1219,10 +1230,15 @@ function exportGame(root_node, exporter, include_comments, include_variations, _
         main_variation = root_node.variations[0];
 
         // Recursively append the next moves.
-        _board.move(main_variation.move);
+        var variant_move = Boolean(main_variation.move.variant_fen);
+        if (!variant_move) {
+            _board.move(main_variation.move);
+        }
         _after_variation = (include_variations && (root_node.variations.length > 1));
         exportGame(main_variation, exporter, include_comments, include_variations, _board, _after_variation);
-        _board.undo();
+        if (!variant_move) {
+            _board.undo();
+        }
     }
 }
 
@@ -1819,6 +1835,64 @@ function loadGame(pgn_lines, options) {
     setHeaders(game_headers);
     bindPgnFenLinks();
     syncWebExploreFromCurrentPosition(false);
+}
+
+function applyVariantHistory(history) {
+    if (!history || !history.root_fen || !Array.isArray(history.moves)) {
+        return false;
+    }
+    var parsed = gameHistory || {};
+    var root = {
+        fen: history.root_fen,
+        previous: null,
+        variations: [],
+        gameHeader: parsed.gameHeader,
+        result: parsed.result,
+        originalHeader: parsed.originalHeader
+    };
+    gameHistory = root;
+    setupBoardFen = history.root_fen;
+    fenHash = { first: root };
+    fenHash[root.fen] = root;
+    var parent = root;
+    for (var i = 0; i < history.moves.length; i++) {
+        var item = history.moves[i];
+        if (!item || !item.fen || !item.uci || !item.san) {
+            return false;
+        }
+        var move = {
+            from: item.uci.slice(0, 2),
+            to: item.uci.slice(2, 4),
+            promotion: item.uci.slice(4) || undefined,
+            san: item.san,
+            variant_fen: item.fen,
+            variant_turn: item.turn,
+            variant_fullmove: item.fullmove
+        };
+        var node = {
+            move: move,
+            previous: parent,
+            variations: [],
+            nags: [],
+            half_move_num: i + 1,
+            fen: item.fen,
+            is_mainline: true
+        };
+        parent.variations = [node];
+        parent = node;
+        fenHash[node.fen] = node;
+    }
+    fenHash.last = parent;
+    currentPosition = parent;
+    var exporter = new WebExporter();
+    exportGame(gameHistory, exporter, true, true, undefined, false);
+    writeVariationTree(pgnEl, exporter.toString(), gameHistory);
+    return true;
+}
+
+function loadDgtGame(data, options) {
+    loadGame(data.pgn.split("\n"), options);
+    applyVariantHistory(data.variant_history);
 }
 
 function getFullGame() {
@@ -2603,7 +2677,7 @@ function updateDGTPosition(data) {
         // fresh PGN so the diagram and move list are in sync, even when
         // the target FEN already exists in the current fenHash (i.e. a
         // real move takeback where the previous position is in the list).
-        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged, announceLastMove: false });
+        loadDgtGame(data, { historyMerged: data.history_merged, announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess or edge-cases: force the board to the server FEN.
             forcePosition(data.fen);
@@ -2611,10 +2685,10 @@ function updateDGTPosition(data) {
         return;
     }
     if (data.pgn && !isSameGameAsPgn(data.pgn)) {
-        loadGame(data.pgn.split("\n"), { historyMerged: data.history_merged });
+        loadDgtGame(data, { historyMerged: data.history_merged });
     }
     if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
-        loadGame(data['pgn'].split("\n"), { historyMerged: data.history_merged, announceLastMove: false });
+        loadDgtGame(data, { historyMerged: data.history_merged, announceLastMove: false });
         if (!goToPosition(data.fen, { preserveExplore: preserveExplore })) {
             // Variant chess (e.g. atomic explosions): chess.js computed a different
             // FEN than the server sent.  Force the board to show the server's FEN.
@@ -3747,7 +3821,7 @@ $(function () {
                         clearBrainHint();
                         stopAnalysisClock();
                         if (pgnTextHasMoves(data.pgn)) {
-                            loadGame(data.pgn.split("\n"), { historyMerged: data.history_merged });
+                            loadDgtGame(data, { historyMerged: data.history_merged });
                             if (!goToPosition(data.fen)) {
                                 forcePosition(data.fen);
                             }

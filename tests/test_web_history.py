@@ -1,5 +1,6 @@
 """Exercise browser projection against real PGN trees and raw transport caches."""
 import copy
+import io
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import chess
 import chess.pgn
+import chess.variant
 
 from server import EventHandler, DGTHandler
 from web_history import history_scope, preserve, project_message, read_game, reset_history
@@ -185,7 +187,8 @@ class TestWebHistory(unittest.IsolatedAsyncioTestCase):
         for name in ("loadGame", "addNewMove", "setHeaders", "WebExporter", "exportGame",
                      "getWebGameHeader", "writeVariationTree", "stripFen", "isDefinitiveResult",
                      "goToStart", "goToPosition", "findPositionByFen", "fenWithoutEnPassant",
-                     "goToDGTFen", "updateDGTPosition", "pgnTextHasMoves"):
+                     "goToDGTFen", "applyVariantHistory", "loadDgtGame",
+                     "updateDGTPosition", "pgnTextHasMoves"):
             start = app.index("function " + name + "(")
             end = app.index("\n}", start) + 2
             functions.append(app[start:end])
@@ -240,3 +243,184 @@ assert.equal((rendered.match(/data-fen=/g) || []).length, 4);
 assert.equal(fenWithoutEnPassant(currentPosition.fen), fenWithoutEnPassant(payload.fen));
 """
         subprocess.run(["node", "-e", program], capture_output=True, text=True, check=True, timeout=10)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required")
+    def test_browser_keeps_atomic_custom_root_board_and_complete_move_list(self):
+        root = Path(__file__).parents[1]
+        app = (root / "web/picoweb/static/js/app.js").read_text()
+        functions = []
+        for name in ("loadGame", "addNewMove", "setHeaders", "WebExporter", "exportGame",
+                     "getWebGameHeader", "writeVariationTree", "stripFen", "isDefinitiveResult",
+                     "goToPosition", "findPositionByFen", "fenWithoutEnPassant", "forcePosition",
+                     "applyVariantHistory", "loadDgtGame", "updateDGTPosition", "pgnTextHasMoves"):
+            start = app.index("function " + name + "(")
+            end = app.index("\n}", start) + 2
+            functions.append(app[start:end])
+        payload = {
+            "event": "Fen",
+            "play": "computer",
+            "variant": "atomic",
+            "fen": "8/p4ppp/k7/8/PP4P1/3r4/8/8 w - - 0 15",
+            "pgn": """[Result \"0-1\"]
+[FEN \"r2qk2r/p1p1bppp/1pn1p3/3nPb2/2NP4/5N2/PPPBBPPP/R2Q1RK1 w kq - 0 1\"]
+[SetUp \"1\"]
+[Variant \"Atomic\"]
+
+1. Nxb6 Bxc2 2. Rac1 Ne3 3. fxe3 Bf6 4. Rxc7 Rc8 5. exf6 Kd7
+6. d5 Kc7 7. Rc1+ Kb6 8. Rc6+ exd5 9. Kf2 Rhd8 10. g4 Rd3
+11. a4 Rc2+ 12. Kf1 Ka6 13. b4 Rf2+ 14. Kg1 Rxh2# 0-1""",
+        }
+        game = chess.pgn.read_game(io.StringIO(payload["pgn"]))
+        board = game.board()
+        variant_moves = []
+        for move in game.mainline_moves():
+            item = {
+                "uci": move.uci(),
+                "san": board.san(move),
+                "turn": "w" if board.turn == chess.WHITE else "b",
+                "fullmove": board.fullmove_number,
+            }
+            board.push(move)
+            item["fen"] = board.fen()
+            variant_moves.append(item)
+        payload["variant_history"] = {"root_fen": game.board().fen(), "moves": variant_moves}
+        program = (root / "web/picoweb/static/js/chess960.min.js").read_text() + "\n"
+        program += "\n".join(functions) + "\nvar payload = " + json.dumps(payload) + ";\n"
+        program += r"""
+var assert = require('assert');
+var START_FEN = new Chess().fen(), setupBoardFen = START_FEN, chessGameType = 0;
+var currentPosition = {fen: START_FEN}, gameHistory = {}, fenHash = {};
+var webHistoryMerged = false, webExploreMode = false, computerside = 'w';
+var simpleNags = {}, pgnEl = '#pgn', rendered = '', displayedFen = '', window = {};
+console.log = function () {};
+console.warn = function () {};
+function $(el) { return {html: function (text) {rendered = text;}}; }
+$.isEmptyObject = function (obj) {return Object.keys(obj).length === 0;};
+function setLivePgnTreeActive() {}
+function bindPgnFenLinks() {}
+function applyPgnVariationVisibility() {}
+function syncWebExploreFromCurrentPosition() {}
+function shouldAutoExploreLoadedFinishedPgn() {return false;}
+function formatPgnWindowMove(move) {return move.san;}
+function figurinizeMove(move) {return move;}
+function saymove() {}
+function stopAnalysis() {}
+function updateChessGround() {displayedFen = currentPosition && currentPosition.fen;}
+function updateStatus() {}
+function updateTutorMistakes() {}
+function isSameGameAsPgn() {return false;}
+updateDGTPosition(payload);
+assert.equal(displayedFen, payload.fen);
+assert.equal(currentPosition.fen, payload.fen);
+assert.equal((rendered.match(/data-fen=/g) || []).length, 28);
+var reviewFen = payload.variant_history.moves[10].fen;
+assert(goToPosition(reviewFen));
+assert.equal(displayedFen, reviewFen);
+assert.equal(currentPosition.fen, reviewFen);
+"""
+        result = subprocess.run(
+            ["node", "-e", program], capture_output=True, text=True, timeout=10
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js required")
+    def test_browser_keeps_other_variant_histories_authoritative(self):
+        cases = {
+            "antichess": (
+                chess.variant.AntichessBoard("k3r3/8/8/8/8/8/P7/4K3 w - - 0 1"),
+                ("a2a3",),
+            ),
+            "racingkings": (
+                chess.variant.RacingKingsBoard(),
+                ("h2h3", "a2a3", "h3h4", "a3a4"),
+            ),
+            "3check": (
+                chess.variant.ThreeCheckBoard(),
+                ("e2e4", "e7e5", "f1b5", "b8c6"),
+            ),
+        }
+        root = Path(__file__).parents[1]
+        app = (root / "web/picoweb/static/js/app.js").read_text()
+        functions = []
+        for name in ("loadGame", "addNewMove", "setHeaders", "WebExporter", "exportGame",
+                     "getWebGameHeader", "writeVariationTree", "stripFen", "isDefinitiveResult",
+                     "goToPosition", "findPositionByFen", "fenWithoutEnPassant", "forcePosition",
+                     "applyVariantHistory", "loadDgtGame", "updateDGTPosition", "pgnTextHasMoves"):
+            start = app.index("function " + name + "(")
+            end = app.index("\n}", start) + 2
+            functions.append(app[start:end])
+        javascript = (root / "web/picoweb/static/js/chess960.min.js").read_text() + "\n"
+        javascript += "\n".join(functions)
+
+        for variant, (board, move_ucis) in cases.items():
+            with self.subTest(variant=variant):
+                for move_uci in move_ucis:
+                    board.push_uci(move_uci)
+                replay = board.root()
+                variant_moves = []
+                for move in board.move_stack:
+                    item = {
+                        "uci": move.uci(),
+                        "san": replay.san(move),
+                        "turn": "w" if replay.turn == chess.WHITE else "b",
+                        "fullmove": replay.fullmove_number,
+                    }
+                    replay.push(move)
+                    fen = replay.fen()
+                    if variant == "3check":
+                        fields = fen.split()
+                        fen = " ".join(fields[:4] + fields[5:])
+                    item["fen"] = fen
+                    variant_moves.append(item)
+                live_fen = board.fen()
+                if variant == "3check":
+                    fields = live_fen.split()
+                    live_fen = " ".join(fields[:4] + fields[5:])
+                payload = {
+                    "event": "Fen",
+                    "play": "computer",
+                    "variant": variant,
+                    "fen": live_fen,
+                    "pgn": str(chess.pgn.Game.from_board(board)),
+                    "variant_history": {
+                        "root_fen": board.root().fen(),
+                        "moves": variant_moves,
+                    },
+                }
+                program = javascript + "\nvar payload = " + json.dumps(payload) + ";\n"
+                program += r"""
+var assert = require('assert');
+var START_FEN = new Chess().fen(), setupBoardFen = START_FEN, chessGameType = 0;
+var currentPosition = {fen: START_FEN}, gameHistory = {}, fenHash = {};
+var webHistoryMerged = false, webExploreMode = false, computerside = 'w';
+var simpleNags = {}, pgnEl = '#pgn', rendered = '', displayedFen = '', window = {};
+console.log = function () {};
+console.warn = function () {};
+function $(el) { return {html: function (text) {rendered = text;}}; }
+$.isEmptyObject = function (obj) {return Object.keys(obj).length === 0;};
+function setLivePgnTreeActive() {}
+function bindPgnFenLinks() {}
+function applyPgnVariationVisibility() {}
+function syncWebExploreFromCurrentPosition() {}
+function shouldAutoExploreLoadedFinishedPgn() {return false;}
+function formatPgnWindowMove(move) {return move.san;}
+function figurinizeMove(move) {return move;}
+function saymove() {}
+function stopAnalysis() {}
+function updateChessGround() {displayedFen = currentPosition && currentPosition.fen;}
+function updateStatus() {}
+function updateTutorMistakes() {}
+function isSameGameAsPgn() {return false;}
+updateDGTPosition(payload);
+assert.equal(displayedFen, payload.fen);
+assert.equal(currentPosition.fen, payload.fen);
+assert.equal((rendered.match(/data-fen=/g) || []).length, payload.variant_history.moves.length);
+var reviewFen = payload.variant_history.moves[0].fen;
+assert(goToPosition(reviewFen));
+assert.equal(displayedFen, reviewFen);
+assert.equal(currentPosition.fen, reviewFen);
+"""
+                result = subprocess.run(
+                    ["node", "-e", program], capture_output=True, text=True, timeout=10
+                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)

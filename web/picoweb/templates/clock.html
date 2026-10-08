@@ -1337,8 +1337,7 @@
                 { icon:'📖',  label:'PGN Replay',  action:'mode-pgnreplay', key:'pgnreplay' },
                 { icon:'🧠',  label:'Hand & Brain',action:'mode-handbrain', key:'handbrain' },
                 { icon:'👁️', label:'Two-Player Game', action:'mode-observe', key:'observe'   },
-                { icon:'🌐',  label:'Two-Player Remote', action:'mode-remote', key:'remote'   },
-                { icon:'⚔️', label:'Engine Match', action:'mode-engine_match', key:'engine_match' }
+                { icon:'🌐',  label:'Two-Player Remote', action:'mode-remote', key:'remote'   }
             ];
 
             function renderModeTiles() {
@@ -1346,6 +1345,7 @@
                 if (!gridEl) return;
                 gridEl.innerHTML = '';
                 var current = String((window._picoSystemInfo || {}).interaction_mode || 'normal').toLowerCase();
+                var selectedMode = current === 'engine_match' ? 'remote' : current;
                 var checkpointAvailable = Boolean((window._picoSystemInfo || {}).position_checkpoint_available);
                 var checkpointReturnMode = (window._picoSystemInfo || {}).position_checkpoint_return_mode;
                 var coach   = normalizeTutorSettings(window._picoTutorSettings).tutor_coach;
@@ -1358,7 +1358,7 @@
                 _modeDefs.forEach(function(def) {
                     var isActive = def.key === 'handbrain'
                         ? hbActive
-                        : (current === def.key);
+                        : (selectedMode === def.key);
                     var btn = document.createElement('button');
                     btn.className = 'pico-sub-tile' + (isActive ? ' selected' : '');
                     var lEl = document.createElement('span'); lEl.className = 'pico-sub-tile-label';
@@ -3646,7 +3646,7 @@
                     ponder: 'Analysis',
                     training: 'Practice',
                     remote: 'Two-Player Remote',
-                    engine_match: 'Engine Match',
+                    engine_match: 'Two-Player Remote',
                     pgnreplay: 'PGN Replay'
                 };
                 return menuText(labels[String(mode || '').toLowerCase()] || 'Play');
@@ -3877,7 +3877,6 @@
                     case 'mode-kibitz':
                     case 'mode-observe':
                     case 'mode-remote':
-                    case 'mode-engine_match':
                     case 'mode-ponder':
                     case 'mode-pgnreplay':
                     case 'mode-pgnreplay-fast':

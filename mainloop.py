@@ -192,6 +192,13 @@ def should_report_local_timeout(online_mode: bool, already_reported: bool = Fals
     return not online_mode and not already_reported
 
 
+def configured_interaction_mode(requested_mode: Mode, remote_picochess_url: str) -> Mode:
+    """Resolve the configured REMOTE variant without changing legacy REMOTE behavior."""
+    if requested_mode == Mode.REMOTE and str(remote_picochess_url or "").strip():
+        return Mode.ENGINE_MATCH
+    return requested_mode
+
+
 def log_pgn(state: PicochessState):
     logger.debug("molli pgn: pgn_book_test: %s", str(state.pgn_book_test))
     logger.debug("molli pgn: game turn: %s", state.game.turn)
@@ -3207,9 +3214,9 @@ class MainLoop:
         if self.engine_match_client is not None and self.engine_match_client.armed:
             return True
         reason = None
-        remote_url = str(getattr(self.args, "engine_match_url", "") or "").strip()
+        remote_url = str(getattr(self.args, "remote_picochess_url", "") or "").strip()
         if not remote_url:
-            reason = "engine-match-url is not configured"
+            reason = "remote-picochess-url is not configured"
         elif self.board_type == dgt.util.EBoard.NOEBOARD:
             reason = "Engine Match requires a physical eboard"
         elif self.state.variant != "chess" or self.state.game.chess960:
@@ -3224,7 +3231,7 @@ class MainLoop:
             reason = "Engine Match MVP requires fixed move time"
         if reason:
             logger.error("ENGINE_MATCH not armed: %s", reason)
-            await DisplayMsg.show(Message.SHOW_TEXT(text_string="match error"))
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote error"))
             return False
 
         client = EngineMatchClient(
@@ -3237,13 +3244,13 @@ class MainLoop:
         except RelayError as exc:
             logger.error("ENGINE_MATCH not armed: %s", exc)
             await client.close()
-            await DisplayMsg.show(Message.SHOW_TEXT(text_string="match error"))
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote error"))
             return False
         self.engine_match_client = client
         self.engine_match_remote_move_pending = False
         self.engine_match_task = asyncio.create_task(client.run(), name="engine-match-relay")
         self._track_engine_match_task(self.engine_match_task)
-        await DisplayMsg.show(Message.SHOW_TEXT(text_string="match armed"))
+        await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote ready"))
         return True
 
     async def _stop_engine_match(self) -> None:
@@ -6236,7 +6243,7 @@ class MainLoop:
                 self.state.done_move = chess.Move.null()
                 self.state.legal_fens_after_cmove = []
                 await self.engine_mode()
-                await DisplayMsg.show(Message.SHOW_TEXT(text_string="match stopped"))
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote stopped"))
 
         elif isinstance(event, Event.REMOTE_MOVE):
             self.state.flag_startup = False
@@ -6892,6 +6899,16 @@ class MainLoop:
 
         elif isinstance(event, Event.SET_INTERACTION_MODE):
             self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
+            requested_mode = event.mode
+            event.mode = configured_interaction_mode(
+                requested_mode,
+                getattr(self.args, "remote_picochess_url", ""),
+            )
+            if requested_mode == Mode.REMOTE and event.mode == Mode.ENGINE_MATCH:
+                # REMOTE is the only public mode.  A configured Picochess peer
+                # selects the separate internal state machine so web moves do
+                # not gain the authority of the traditional REMOTE mode.
+                self.state.dgtmenu.set_mode(Mode.REMOTE)
             old_interaction_mode = self.state.interaction_mode
             if event.mode == Mode.ENGINE_MATCH and old_interaction_mode != Mode.ENGINE_MATCH:
                 if not await self._arm_engine_match():

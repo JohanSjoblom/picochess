@@ -38,11 +38,12 @@ new game, game end, connection loss, rejected move, or any position mismatch.
 The default acknowledgement timeout is 10 seconds and can be changed with
 `--timeout`.
 
-## Physical eboard Engine Match MVP
+## Physical eboard Remote engine match MVP
 
-The built-in experimental `Engine Match` mode uses one physical eboard as the
-shared board for two engines. The local Picochess runs the White engine. A
-second Picochess instance runs the Black engine in NOEBOARD mode.
+When `remote-picochess-url` is configured, selecting `Remote` uses one physical
+eboard as the shared board for two engines. The local Picochess runs the White
+engine. A second Picochess instance runs the Black engine in NOEBOARD mode.
+Without this setting, Remote mode keeps its traditional behavior.
 
 Current MVP limitations are intentional:
 
@@ -56,7 +57,7 @@ Current MVP limitations are intentional:
 Configure the physical-board instance in `picochess.ini`:
 
 ```ini
-engine-match-url = http://pico-remote:8080
+remote-picochess-url = http://pico-remote:8080
 ```
 
 Test sequence:
@@ -64,8 +65,8 @@ Test sequence:
 1. Start the remote Picochess with NOEBOARD.
 2. Select the engines and the same fixed move time on both instances.
 3. Start a new standard game on both. Leave both as user White.
-4. On the physical-board Picochess, select **Engine Match**. Wait for
-   `match armed`.
+4. On the physical-board Picochess, select **Remote**. Wait for
+   `Remote ready`.
 5. As the final action, press **Switch Sides** on the physical-board instance.
    Its local engine now plays White.
 6. Execute every announced move on the physical eboard. Neither engine starts
@@ -73,4 +74,4 @@ Test sequence:
 
 The mode stops on a new game, connection loss, illegal protocol transition or
 position mismatch. Correct the setup, start a new game on both instances and
-select Engine Match again.
+select Remote again.

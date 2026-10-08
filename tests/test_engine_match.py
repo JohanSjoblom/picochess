@@ -2,6 +2,8 @@ import unittest
 
 import chess
 
+from dgt.util import Mode, ModeLoop
+from mainloop import configured_interaction_mode
 from relay.engine_match import EngineMatchClient
 from relay.relay import RelayError
 from tests.test_relay import FakeEndpoint, START_FEN, position_event
@@ -97,6 +99,22 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(["remote connection closed"], self.stops)
         self.assertTrue(endpoint.closed)
+
+
+class TestEngineMatchModeSelection(unittest.TestCase):
+    def test_remote_without_peer_url_keeps_legacy_mode(self):
+        self.assertEqual(Mode.REMOTE, configured_interaction_mode(Mode.REMOTE, ""))
+
+    def test_remote_with_peer_url_selects_internal_engine_match(self):
+        self.assertEqual(
+            Mode.ENGINE_MATCH,
+            configured_interaction_mode(Mode.REMOTE, " http://pico-remote:8080 "),
+        )
+
+    def test_engine_match_is_not_in_user_mode_cycle(self):
+        self.assertNotIn(Mode.ENGINE_MATCH, Mode.menu_items())
+        self.assertEqual(Mode.PONDER, ModeLoop.next(Mode.REMOTE))
+        self.assertEqual(Mode.REMOTE, ModeLoop.prev(Mode.PONDER))
 
 
 if __name__ == "__main__":

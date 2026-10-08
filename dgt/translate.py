@@ -6026,7 +6026,7 @@ class DgtTranslate(object):
                 medium_text="Osserva ",
                 small_text="osserv",
             )
-        if text_id == "mode_remote_menu":
+        if text_id in ("mode_remote_menu", "mode_engine_match_menu"):
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",
                 large_text="Remote     ",
@@ -6063,16 +6063,6 @@ class DgtTranslate(object):
                 medium_text="Remoto  ",
                 small_text="remoto",
             )
-        if text_id == "mode_engine_match_menu":
-            # Experimental mode: keep one short, recognizable name in every
-            # language until the workflow and final terminology settle.
-            entxt = Dgt.DISPLAY_TEXT(
-                web_text="Engine Match",
-                large_text="EngineMatch",
-                medium_text="EngMatch",
-                small_text="match ",
-            )
-            detxt = nltxt = frtxt = estxt = ittxt = entxt
         if text_id == "mode_ponder_menu":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="",

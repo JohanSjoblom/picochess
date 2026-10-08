@@ -55,7 +55,7 @@ Current MVP limitations are intentional:
 - standard chess and the normal starting position only;
 - the local engine is White and the remote engine is Black;
 - both instances must use fixed move time;
-- clocks, engine selection, New Game and recovery are not synchronized;
+- clocks, engine selection and recovery are not synchronized;
 - there is no reconnect, takeback, alternative move or position setup;
 - the remote instance must be reachable without authentication.
 
@@ -77,6 +77,11 @@ Test sequence:
 6. Execute every announced move on the physical eboard. Neither engine starts
    its reply until the preceding move has been physically completed.
 
-The mode stops on a new game, connection loss, illegal protocol transition or
-position mismatch. Correct the setup, start a new game on both instances and
-select Remote again.
+For another game, select **New Game** on the physical-board Picochess. It sends
+New Game to the peer, displays `Please wait`, and then displays `Remote ready`
+after both games have returned to the starting position. Press **Switch Sides**
+again to let the local White engine start.
+
+The mode stops on a New Game initiated independently on the remote instance,
+connection loss, illegal protocol transition or position mismatch. Correct the
+setup, start a new game on both instances and select Remote again.

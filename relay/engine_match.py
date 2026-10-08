@@ -43,6 +43,7 @@ class EngineMatchClient:
         self.pending_local_move: tuple[chess.Move, str] | None = None
         self.pending_remote_move: tuple[chess.Move, str] | None = None
         self._pending_remote_since: float | None = None
+        self._new_game_waiter: asyncio.Future[str] | None = None
         self.armed = False
         self._closing = False
 
@@ -153,11 +154,59 @@ class EngineMatchClient:
             canonical_result,
         )
 
+    async def request_new_game(self) -> str:
+        """Reset the peer and wait for its standard starting-position event."""
+
+        if not self.armed:
+            raise RelayError("engine match is not armed")
+        if self._new_game_waiter is not None:
+            raise RelayError("remote new game is already pending")
+        waiter = asyncio.get_running_loop().create_future()
+        self._new_game_waiter = waiter
+        try:
+            await self.endpoint.send_new_game()
+            async with asyncio.timeout(self.timeout):
+                return await asyncio.shield(waiter)
+        except TimeoutError as exc:
+            raise RelayError("remote: timed out waiting for new game confirmation") from exc
+        finally:
+            if self._new_game_waiter is waiter:
+                self._new_game_waiter = None
+                if not waiter.done():
+                    waiter.cancel()
+
     async def _process_message(self, message: dict[str, Any]) -> str | None:
         event = message.get("event")
+        if self._new_game_waiter is not None:
+            if event == "Game":
+                remote_board, remote_fen = self._event_position(message)
+                if remote_fen != chess.STARTING_FEN:
+                    raise RelayError(
+                        "remote new game reported unexpected position: "
+                        f"expected {chess.STARTING_FEN}, got {remote_fen}"
+                    )
+                self.endpoint.board = remote_board
+                self.pending_local_move = None
+                self.pending_remote_move = None
+                self._pending_remote_since = None
+                waiter = self._new_game_waiter
+                self._new_game_waiter = None
+                waiter.set_result(remote_fen)
+                LOGGER.info("REMOTE peer confirmed new game")
+                return None
+            LOGGER.debug("REMOTE ignoring %s event while waiting for new game", event)
+            return None
         if event == "Game":
             return "remote started a new game"
         if event == "GameEnd":
+            if self.pending_local_move and self.endpoint.board:
+                pending_move, pending_fen = self.pending_local_move
+                completed = self.endpoint.board.copy(stack=True)
+                if pending_move in completed.legal_moves:
+                    completed.push(pending_move)
+                    if completed.fen(en_passant="fen") == pending_fen and completed.is_game_over():
+                        self.endpoint.board = completed
+                        self.pending_local_move = None
             if self.endpoint.board and self.endpoint.board.is_game_over():
                 LOGGER.info("remote game ended in the synchronized terminal position")
                 return None
@@ -264,6 +313,11 @@ class EngineMatchClient:
         finally:
             self.armed = False
             self._pending_remote_since = None
+            if self._new_game_waiter is not None:
+                waiter = self._new_game_waiter
+                self._new_game_waiter = None
+                if not waiter.done():
+                    waiter.set_exception(RelayError(reason or "remote connection closed"))
             await self.endpoint.close()
         if reason and not self._closing:
             await self.on_stop(reason)
@@ -272,4 +326,9 @@ class EngineMatchClient:
         self._closing = True
         self.armed = False
         self._pending_remote_since = None
+        if self._new_game_waiter is not None:
+            waiter = self._new_game_waiter
+            self._new_game_waiter = None
+            if not waiter.done():
+                waiter.set_exception(RelayError("engine match closed"))
         await self.endpoint.close()

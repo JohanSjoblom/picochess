@@ -14,6 +14,7 @@ from .relay import PicoEndpoint, RelayEndpoint, RelayError, _canonical_fen
 
 
 LOGGER = logging.getLogger(__name__)
+INITIAL_POSITION_GRACE_SECONDS = 2.0
 
 RemoteMoveCallback = Callable[[chess.Move, str], Awaitable[None]]
 StopCallback = Callable[[str], Awaitable[None]]
@@ -53,7 +54,7 @@ class EngineMatchClient:
         local_board, canonical_local_fen = _canonical_fen(local_fen)
         await self.endpoint.connect()
         try:
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(min(self.timeout, INITIAL_POSITION_GRACE_SECONDS)):
                 while True:
                     message = await self.endpoint.receive()
                     if message is None:
@@ -75,7 +76,15 @@ class EngineMatchClient:
                     LOGGER.debug("REMOTE matched initial position fen=%s", canonical_local_fen)
                     return canonical_local_fen
         except TimeoutError as exc:
-            raise RelayError("remote: timed out waiting for an initial position") from exc
+            if canonical_local_fen != chess.STARTING_FEN:
+                raise RelayError("remote: timed out waiting for an initial position") from exc
+            # Temporary compatibility for a cold-started Picochess web server:
+            # it currently has no cached board event until the first game event.
+            self.endpoint.board = local_board
+            self.armed = True
+            LOGGER.info("REMOTE peer has no published position; assuming standard starting position")
+            LOGGER.debug("REMOTE inferred initial position fen=%s", canonical_local_fen)
+            return canonical_local_fen
         except Exception:
             await self.endpoint.close()
             raise

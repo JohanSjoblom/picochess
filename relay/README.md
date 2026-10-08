@@ -45,6 +45,11 @@ eboard as the shared board for two engines. The local Picochess runs the White
 engine. A second Picochess instance runs the Black engine in NOEBOARD mode.
 Without this setting, Remote mode keeps its traditional behavior.
 
+A cold-started remote Picochess may not yet publish a board position. During
+this MVP, a connected peer that remains silent for two seconds is assumed to
+be at the standard starting position. Any position it does publish is still
+validated normally.
+
 Current MVP limitations are intentional:
 
 - standard chess and the normal starting position only;

@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 
 import chess
@@ -36,6 +37,42 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(START_FEN, armed_fen)
         self.assertTrue(client.armed)
+
+    async def test_arm_assumes_start_position_for_silent_connected_peer(self):
+        endpoint = FakeEndpoint("remote")
+        endpoint.messages = asyncio.Queue()
+        endpoint.messages.put_nowait({"event": "SystemInfo", "msg": {}})
+        client = EngineMatchClient(
+            "http://unused",
+            self.on_move,
+            self.on_stop,
+            timeout=0.01,
+            endpoint=endpoint,
+        )
+
+        with self.assertLogs("relay.engine_match", level="INFO") as captured:
+            armed_fen = await client.arm(START_FEN)
+
+        self.assertEqual(START_FEN, armed_fen)
+        self.assertEqual(START_FEN, endpoint.board.fen(en_passant="fen"))
+        self.assertTrue(client.armed)
+        self.assertIn("assuming standard starting position", captured.output[0])
+
+    async def test_silent_peer_is_not_assumed_for_nonstarting_position(self):
+        endpoint = FakeEndpoint("remote")
+        endpoint.messages = asyncio.Queue()
+        client = EngineMatchClient(
+            "http://unused",
+            self.on_move,
+            self.on_stop,
+            timeout=0.01,
+            endpoint=endpoint,
+        )
+        moved = chess.Board()
+        moved.push_uci("e2e4")
+
+        with self.assertRaisesRegex(RelayError, "timed out waiting for an initial position"):
+            await client.arm(moved.fen(en_passant="fen"))
 
     async def test_local_move_waits_for_remote_acknowledgement(self):
         endpoint = FakeEndpoint("remote", acknowledge=False)

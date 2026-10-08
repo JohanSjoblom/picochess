@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -40,6 +41,7 @@ class EngineMatchClient:
         self.timeout = timeout
         self.pending_local_move: tuple[chess.Move, str] | None = None
         self.pending_remote_move: tuple[chess.Move, str] | None = None
+        self._pending_remote_since: float | None = None
         self.armed = False
         self._closing = False
 
@@ -69,7 +71,8 @@ class EngineMatchClient:
                         )
                     self.endpoint.board = remote_board
                     self.armed = True
-                    LOGGER.info("ENGINE_MATCH ARMED at %s", canonical_local_fen)
+                    LOGGER.info("REMOTE match ready")
+                    LOGGER.debug("REMOTE matched initial position fen=%s", canonical_local_fen)
                     return canonical_local_fen
         except TimeoutError as exc:
             raise RelayError("remote: timed out waiting for an initial position") from exc
@@ -110,7 +113,11 @@ class EngineMatchClient:
         except Exception:
             self.pending_local_move = None
             raise
-        LOGGER.info("ENGINE_MATCH sent local move %s", move.uci())
+        LOGGER.debug(
+            "REMOTE forwarded local move %s expected_fen=%s",
+            move.uci(),
+            expected_fen,
+        )
 
     def confirm_remote_move(self, move: chess.Move, resulting_fen: str) -> None:
         """Confirm that the announced remote move was executed on the eboard."""
@@ -124,7 +131,18 @@ class EngineMatchClient:
                 f"physical confirmation does not match remote move {pending[0].uci()}"
             )
         self.pending_remote_move = None
-        LOGGER.info("ENGINE_MATCH confirmed remote move %s on eboard", move.uci())
+        wait_seconds = (
+            time.monotonic() - self._pending_remote_since
+            if self._pending_remote_since is not None
+            else 0.0
+        )
+        self._pending_remote_since = None
+        LOGGER.debug(
+            "REMOTE confirmed peer move %s on eboard after %.1fs fen=%s",
+            move.uci(),
+            wait_seconds,
+            canonical_result,
+        )
 
     async def _process_message(self, message: dict[str, Any]) -> str | None:
         event = message.get("event")
@@ -160,6 +178,11 @@ class EngineMatchClient:
                 raise RelayError("remote acknowledgement produced a different position")
             self.endpoint.board = updated
             self.pending_local_move = None
+            LOGGER.debug(
+                "REMOTE received acknowledgement for local move %s fen=%s",
+                move.uci(),
+                reported_fen,
+            )
             return None
 
         if play == "computer":
@@ -180,7 +203,12 @@ class EngineMatchClient:
                 )
             self.endpoint.board = updated
             self.pending_remote_move = (move, expected_fen)
-            LOGGER.info("ENGINE_MATCH received remote move %s", move.uci())
+            self._pending_remote_since = time.monotonic()
+            LOGGER.debug(
+                "REMOTE received peer move %s; waiting for eboard expected_fen=%s",
+                move.uci(),
+                expected_fen,
+            )
             await self.on_remote_move(move, expected_fen)
             return None
 
@@ -192,7 +220,7 @@ class EngineMatchClient:
                 )
             if (self.pending_local_move or self.pending_remote_move) and not self.endpoint.board.is_game_over():
                 raise RelayError("remote: unexpected reload while a move is pending")
-            LOGGER.info("ENGINE_MATCH accepted same-position reload from remote")
+            LOGGER.debug("REMOTE accepted same-position reload from peer fen=%s", reported_fen)
             return None
 
         if play in ("review", "newgame"):
@@ -224,15 +252,15 @@ class EngineMatchClient:
             raise
         except Exception as exc:
             reason = str(exc)
-            LOGGER.error("ENGINE_MATCH STOPPED: %s", reason)
         finally:
             self.armed = False
+            self._pending_remote_since = None
             await self.endpoint.close()
         if reason and not self._closing:
-            LOGGER.info("ENGINE_MATCH STOPPED: %s", reason)
             await self.on_stop(reason)
 
     async def close(self) -> None:
         self._closing = True
         self.armed = False
+        self._pending_remote_since = None
         await self.endpoint.close()

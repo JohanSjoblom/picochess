@@ -46,14 +46,16 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
         after.push(move)
         resulting_fen = after.fen(en_passant="fen")
 
-        await client.send_local_move(move, resulting_fen)
-        self.assertEqual((move, resulting_fen), client.pending_local_move)
-        await client._process_message(
-            position_event(event="Fen", play="user", fen=resulting_fen, move="e2e4")
-        )
+        with self.assertLogs("relay.engine_match", level="DEBUG") as captured:
+            await client.send_local_move(move, resulting_fen)
+            self.assertEqual((move, resulting_fen), client.pending_local_move)
+            await client._process_message(
+                position_event(event="Fen", play="user", fen=resulting_fen, move="e2e4")
+            )
 
         self.assertIsNone(client.pending_local_move)
         self.assertEqual(resulting_fen, endpoint.board.fen(en_passant="fen"))
+        self.assertTrue(all(record.levelno < 20 for record in captured.records))
 
     async def test_remote_move_is_announced_then_waits_for_physical_confirmation(self):
         endpoint = FakeEndpoint("remote")
@@ -64,14 +66,18 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
         after.push(move)
         resulting_fen = after.fen(en_passant="fen")
 
-        await client._process_message(
-            position_event(event="Fen", play="computer", fen=resulting_fen, move="e2e4")
-        )
+        with self.assertLogs("relay.engine_match", level="DEBUG") as captured:
+            await client._process_message(
+                position_event(event="Fen", play="computer", fen=resulting_fen, move="e2e4")
+            )
+            self.assertEqual((move, resulting_fen), client.pending_remote_move)
+            client.confirm_remote_move(move, resulting_fen)
 
         self.assertEqual([(move, resulting_fen)], self.moves)
-        self.assertEqual((move, resulting_fen), client.pending_remote_move)
-        client.confirm_remote_move(move, resulting_fen)
         self.assertIsNone(client.pending_remote_move)
+        self.assertTrue(all(record.levelno < 20 for record in captured.records))
+        self.assertIn("waiting for eboard", captured.output[0])
+        self.assertIn("confirmed peer move e2e4", captured.output[1])
 
     async def test_second_remote_move_is_rejected_before_eboard_confirmation(self):
         endpoint = FakeEndpoint("remote")

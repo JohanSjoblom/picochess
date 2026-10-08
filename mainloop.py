@@ -339,6 +339,7 @@ class MainLoop:
         self.engine_match_client: EngineMatchClient | None = None
         self.engine_match_task: asyncio.Task | None = None
         self.engine_match_remote_move_pending = False
+        self.engine_match_local_move_wait_started: float | None = None
         self._board_clock_transition_lock = asyncio.Lock()
         self.shutdown_task: asyncio.Task | None = None
         self.shutdown_requested = shutdown_requested
@@ -2297,7 +2298,7 @@ class MainLoop:
             and self.state.interaction_mode == Mode.ENGINE_MATCH
             and self.engine_match_remote_move_pending
         ):
-            logger.info("remote engine move completed on physical board")
+            logger.debug("REMOTE peer move completed on physical board")
             move = self.state.done_move
             game_after = self.state.game.copy()
             game_after.push(move)
@@ -2323,7 +2324,20 @@ class MainLoop:
 
         # Player has done the local computer move on the board
         elif fen == self.state.done_computer_fen:
-            logger.info("done move detected")
+            if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                wait_seconds = (
+                    time.monotonic() - self.engine_match_local_move_wait_started
+                    if self.engine_match_local_move_wait_started is not None
+                    else 0.0
+                )
+                logger.debug(
+                    "REMOTE local engine move %s completed on eboard after %.1fs",
+                    self.state.done_move.uci(),
+                    wait_seconds,
+                )
+                self.engine_match_local_move_wait_started = None
+            else:
+                logger.info("done move detected")
             assert self.state.interaction_mode in (
                 Mode.NORMAL,
                 Mode.BRAIN,
@@ -2369,7 +2383,7 @@ class MainLoop:
             game_end = self.state.check_game_state()
             if game_end:
                 if self.state.interaction_mode == Mode.ENGINE_MATCH:
-                    logger.info("ENGINE_MATCH completed at local terminal position")
+                    logger.info("REMOTE match completed at local terminal position")
                     await self._stop_engine_match()
                 await self.update_elo(game_end.result)
                 self.state.legal_fens = []
@@ -2919,7 +2933,7 @@ class MainLoop:
                 game_end = self.state.check_game_state()
                 if game_end:
                     if self.state.interaction_mode == Mode.ENGINE_MATCH:
-                        logger.info("ENGINE_MATCH completed at remote terminal position")
+                        logger.info("REMOTE match completed at peer terminal position")
                         await self._stop_engine_match()
                     await self.update_elo(game_end.result)
                     # molli: for online/emulation mode we have to publish this move as well to the engine
@@ -3230,7 +3244,7 @@ class MainLoop:
         elif self.state.time_control.mode != TimeMode.FIXED:
             reason = "Engine Match MVP requires fixed move time"
         if reason:
-            logger.error("ENGINE_MATCH not armed: %s", reason)
+            logger.error("REMOTE not ready: %s", reason)
             await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote error"))
             return False
 
@@ -3240,9 +3254,10 @@ class MainLoop:
             self._engine_match_stopped,
         )
         try:
+            logger.info("REMOTE connecting to Picochess peer %s", remote_url)
             await client.arm(self.state.game.fen(en_passant="fen"))
         except RelayError as exc:
-            logger.error("ENGINE_MATCH not armed: %s", exc)
+            logger.error("REMOTE not ready: %s", exc)
             await client.close()
             await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote error"))
             return False
@@ -3259,6 +3274,7 @@ class MainLoop:
         self.engine_match_client = None
         self.engine_match_task = None
         self.engine_match_remote_move_pending = False
+        self.engine_match_local_move_wait_started = None
         if client is not None:
             await client.close()
         if task is not None and not task.done():
@@ -4016,7 +4032,10 @@ class MainLoop:
                             await DisplayMsg.show(Message.WRONG_FEN())
 
             else:
-                logger.info("wrong fen %s for 4 secs", self.state.error_fen)
+                if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                    logger.debug("REMOTE incorrect eboard position after 4s fen=%s", self.state.error_fen)
+                else:
+                    logger.info("wrong fen %s for 4 secs", self.state.error_fen)
                 if self.online_mode():
                     # show computer opponents move again
                     if self.state.seeking_flag:
@@ -5566,7 +5585,7 @@ class MainLoop:
             self._clear_position_checkpoint()
             clear_preserved_mame_history(self.shared)
             if getattr(self.state, "interaction_mode", None) == Mode.ENGINE_MATCH:
-                logger.info("ENGINE_MATCH stopped by new game")
+                logger.info("REMOTE match stopped by new game")
                 await self._stop_engine_match()
                 self.state.interaction_mode = Mode.NORMAL
                 self.state.dgtmenu.set_mode(Mode.NORMAL)
@@ -6233,7 +6252,7 @@ class MainLoop:
                 self._prepare_engine_move(game_copy, event.move)
 
         elif isinstance(event, Event.ENGINE_MATCH_STOP):
-            logger.error("ENGINE_MATCH STOPPED: %s", event.reason)
+            logger.error("REMOTE match stopped: %s", event.reason)
             await self._stop_engine_match()
             if self.state.interaction_mode == Mode.ENGINE_MATCH:
                 await self.stop_search_and_clock()
@@ -6716,6 +6735,13 @@ class MainLoop:
                             event.move,
                             event.ponder if event.ponder and not event.inbook else chess.Move.null(),
                         )
+                        if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                            self.engine_match_local_move_wait_started = time.monotonic()
+                            logger.debug(
+                                "REMOTE local engine move %s announced; waiting for eboard expected_fen=%s",
+                                event.move.uci(),
+                                game_copy.fen(en_passant="fen"),
+                            )
 
                         if self.pgn_mode():
                             # molli pgn: reset pgn guess counters

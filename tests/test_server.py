@@ -1002,6 +1002,60 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Ra2", end_position["pgn"])
 
 
+class TestServerEngineMatchHeaders(unittest.IsolatedAsyncioTestCase):
+    async def test_engine_match_uses_clean_local_and_remote_engine_names(self):
+        shared = {
+            "system_info": {
+                "engine_name": "Boris",
+                "engine_elo": "985",
+                "engine_match_remote_engine_name": "Lc0 v0.32.0",
+                "engine_match_remote_engine_elo": "2500",
+            },
+            "game_info": {
+                "interaction_mode": Mode.ENGINE_MATCH,
+                "play_mode": PlayMode.USER_BLACK,
+                "level_text": Mock(large_text="2-Bad Gyal"),
+                "level_name": "2-Bad Gyal",
+            },
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+        game = chess.pgn.Game()
+
+        display._build_game_header(game)
+
+        self.assertEqual("Boris", game.headers["White"])
+        self.assertEqual("Lc0 v0.32.0", game.headers["Black"])
+        self.assertEqual("985", game.headers["WhiteElo"])
+        self.assertEqual("2500", game.headers["BlackElo"])
+
+    async def test_remote_engine_metadata_rebuilds_live_headers(self):
+        shared = {
+            "headers": {},
+            "system_info": {"engine_name": "Boris", "engine_elo": "985"},
+            "game_info": {
+                "interaction_mode": Mode.ENGINE_MATCH,
+                "play_mode": PlayMode.USER_BLACK,
+            },
+        }
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            await display.task(
+                Message.SYSTEM_INFO(
+                    info={
+                        "engine_match_remote_engine_name": "Lc0",
+                        "engine_match_remote_engine_elo": "2500",
+                    }
+                )
+            )
+
+        self.assertEqual("Boris", shared["headers"]["White"])
+        self.assertEqual("Lc0", shared["headers"]["Black"])
+        write_to_clients.assert_any_call(
+            {"event": "Header", "headers": dict(shared["headers"])}
+        )
+
+
 class TestServerWebDisplayBattery(unittest.IsolatedAsyncioTestCase):
     async def test_battery_update_is_cached_and_pushed_to_clients(self):
         shared = {}

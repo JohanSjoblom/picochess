@@ -529,6 +529,8 @@ class PgnDisplay(DisplayMsg):
         self.emailer = emailer
 
         self.engine_name = "?"
+        self.engine_match_remote_engine_name = "Remote"
+        self.engine_match_remote_engine_elo = "-"
         self.old_engine = ""
         self.user_name = "?"
         self.old_user_name = "?"
@@ -625,7 +627,12 @@ class PgnDisplay(DisplayMsg):
         else:
             comp_elo = self.engine_elo
 
-        if ModeInfo.get_online_mode():
+        if getattr(message, "mode", None) == Mode.ENGINE_MATCH:
+            pgn_game.headers["White"] = self._sanitize(self.engine_name)
+            pgn_game.headers["Black"] = self._sanitize(self.engine_match_remote_engine_name or "Remote")
+            pgn_game.headers["WhiteElo"] = str(self.engine_elo)
+            pgn_game.headers["BlackElo"] = str(self.engine_match_remote_engine_elo or "-")
+        elif ModeInfo.get_online_mode():
             help1 = ModeInfo.get_online_opponent()
             help2 = "(Opp.)"
             logger.debug("Opp name %s", ModeInfo.get_online_opponent())
@@ -920,6 +927,12 @@ class PgnDisplay(DisplayMsg):
                 self.engine_elo = message.info["engine_elo"]
             if "rspeed" in message.info:
                 self.rspeed = message.info["rspeed"]
+            if "engine_match_remote_engine_name" in message.info:
+                self.engine_match_remote_engine_name = (
+                    str(message.info["engine_match_remote_engine_name"] or "Remote")
+                )
+            if "engine_match_remote_engine_elo" in message.info:
+                self.engine_match_remote_engine_elo = message.info["engine_match_remote_engine_elo"] or "-"
 
         elif isinstance(message, Message.IP_INFO):
             self.location = message.info["location"]

@@ -15,6 +15,7 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.moves = []
         self.stops = []
+        self.remote_info = []
 
     async def on_move(self, move, fen):
         self.moves.append((move, fen))
@@ -22,12 +23,16 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
     async def on_stop(self, reason):
         self.stops.append(reason)
 
+    async def on_remote_info(self, info):
+        self.remote_info.append(info)
+
     def client(self, endpoint):
         return EngineMatchClient(
             "http://unused",
             self.on_move,
             self.on_stop,
             endpoint=endpoint,
+            on_remote_info=self.on_remote_info,
         )
 
     async def test_arm_requires_identical_standard_position(self):
@@ -58,6 +63,43 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(START_FEN, endpoint.board.fen(en_passant="fen"))
         self.assertTrue(client.armed)
         self.assertIn("assuming standard starting position", captured.output[0])
+
+    async def test_remote_engine_metadata_is_captured_without_protocol_changes(self):
+        endpoint = FakeEndpoint("remote")
+        endpoint.messages = asyncio.Queue()
+        endpoint.messages.put_nowait(
+            {
+                "event": "SystemInfo",
+                "msg": {"engine_name": "Lc0 v0.32.0", "engine_elo": 2500},
+            }
+        )
+        endpoint.messages.put_nowait(position_event())
+        client = self.client(endpoint)
+
+        await client.arm(START_FEN)
+
+        expected = {
+            "engine_name": "Lc0 v0.32.0",
+            "engine_elo": 2500,
+        }
+        self.assertEqual(expected, client.remote_info)
+        self.assertEqual([expected], self.remote_info)
+
+    async def test_remote_engine_metadata_can_arrive_after_arming(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+
+        result = await client._process_message(
+            {
+                "event": "SystemInfo",
+                "msg": {"engine_name": "Lc0", "engine_elo": 2500},
+            }
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual("Lc0", client.remote_info["engine_name"])
+        self.assertEqual("Lc0", self.remote_info[-1]["engine_name"])
 
     async def test_silent_peer_is_not_assumed_for_nonstarting_position(self):
         endpoint = FakeEndpoint("remote")

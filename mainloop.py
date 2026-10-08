@@ -83,6 +83,7 @@ from move_policy import (
     analysis_event_matches_position,
     engine_move_event_matches_state,
     remote_move_matches_current_position,
+    should_auto_takeback_mame_blunder,
     should_block_takeback,
     should_process_sliding_move,
     should_reject_user_move_after_game_end,
@@ -2973,7 +2974,12 @@ class MainLoop:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.ENGINE_MATCH):
                         if not self.state.check_game_state():
                             # molli: automatic takeback of blunder moves for mame engines
-                            if self.emulation_mode() and eval_str == "??" and self.state.last_move != move:
+                            if should_auto_takeback_mame_blunder(
+                                self.state.interaction_mode,
+                                self.emulation_mode(),
+                                eval_str,
+                                self.state.last_move == move,
+                            ):
                                 # Ensure tutor feedback is shown before takeback prompt/move display.
                                 await self._deliver_picotutor_messages(
                                     pending_picotutor_msgs, user_move_owner

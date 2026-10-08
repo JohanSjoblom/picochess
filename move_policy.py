@@ -144,3 +144,18 @@ def should_block_takeback(
         or online_mode
         or (emulation_mode and not automatic_takeback)
     )
+
+
+def should_auto_takeback_mame_blunder(
+    interaction_mode: Mode,
+    emulation_mode: bool,
+    evaluation: str,
+    repeated_move: bool,
+) -> bool:
+    """Request a MAME blunder takeback only in human-versus-engine play."""
+    return bool(
+        interaction_mode != Mode.ENGINE_MATCH
+        and emulation_mode
+        and evaluation == "??"
+        and not repeated_move
+    )

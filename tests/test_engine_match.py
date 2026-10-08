@@ -5,6 +5,7 @@ import chess
 
 from dgt.util import Mode, ModeLoop
 from mainloop import configured_interaction_mode
+from move_policy import should_auto_takeback_mame_blunder
 from relay.engine_match import EngineMatchClient
 from relay.relay import RelayError
 from tests.test_relay import FakeEndpoint, START_FEN, position_event
@@ -192,6 +193,26 @@ class TestEngineMatchModeSelection(unittest.TestCase):
         self.assertNotIn(Mode.ENGINE_MATCH, Mode.menu_items())
         self.assertEqual(Mode.PONDER, ModeLoop.next(Mode.REMOTE))
         self.assertEqual(Mode.REMOTE, ModeLoop.prev(Mode.PONDER))
+
+    def test_engine_match_does_not_auto_takeback_mame_blunder(self):
+        self.assertFalse(
+            should_auto_takeback_mame_blunder(
+                Mode.ENGINE_MATCH,
+                emulation_mode=True,
+                evaluation="??",
+                repeated_move=False,
+            )
+        )
+
+    def test_normal_mode_keeps_mame_blunder_auto_takeback(self):
+        self.assertTrue(
+            should_auto_takeback_mame_blunder(
+                Mode.NORMAL,
+                emulation_mode=True,
+                evaluation="??",
+                repeated_move=False,
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -127,6 +127,7 @@ from server import EventHandler, clear_preserved_mame_history, publish_preserved
 from picotalker import PicoTalkerDisplay
 from web_history import history_scope
 from dispatcher import Dispatcher
+from relay import EngineMatchClient, RelayError
 
 from dgt.api import Message, Event
 from dgt.util import (
@@ -328,6 +329,9 @@ class MainLoop:
         self.shared.setdefault("system_info", {})["game_started"] = self.state.game_started
         self.non_main_tasks = non_main_tasks
         self.event_tasks: set[asyncio.Task] = set()
+        self.engine_match_client: EngineMatchClient | None = None
+        self.engine_match_task: asyncio.Task | None = None
+        self.engine_match_remote_move_pending = False
         self._board_clock_transition_lock = asyncio.Lock()
         self.shutdown_task: asyncio.Task | None = None
         self.shutdown_requested = shutdown_requested
@@ -981,7 +985,7 @@ class MainLoop:
             self.engine.is_waiting(),
             "".join(traceback.format_stack(limit=6)),
         )
-        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH):
             await self.state.stop_clock()
             if self.engine.is_waiting():
                 logger.debug("engine already waiting")
@@ -1643,7 +1647,7 @@ class MainLoop:
         if not self.state.done_computer_fen:
             self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
             self.state.last_legal_fens = []
-        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN):  # @todo handle Mode.REMOTE too and TRAINING?
+        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.ENGINE_MATCH):
             if self.state.done_computer_fen:
                 logger.debug("best move displayed, dont search and also keep play mode: %s", self.state.play_mode)
                 start_search = False
@@ -2031,7 +2035,7 @@ class MainLoop:
             self.state.interaction_mode,
             self.state.game_declared,
             ModeInfo.get_game_ending(),
-        ) and (
+        ) and self.state.interaction_mode != Mode.ENGINE_MATCH and (
             self.state.interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.REMOTE)
             or not should_block_takeback(
                 take_back_locked=self.state.take_back_locked,
@@ -2162,7 +2166,11 @@ class MainLoop:
                 handled_fen = False
 
         # standard legal move
-        elif fen in self.state.legal_fens and fen != self.state.done_computer_fen:
+        elif (
+            fen in self.state.legal_fens
+            and fen != self.state.done_computer_fen
+            and self.state.interaction_mode != Mode.ENGINE_MATCH
+        ):
             # Verify the move is actually legal from the CURRENT position.
             # legal_fens may be stale if left over from a previous game that
             # executed concurrently (asyncio.create_task per event).
@@ -2277,6 +2285,36 @@ class MainLoop:
             self.state.last_legal_fens = []
 
         # Player has done the computer or remote move on the board
+        elif (
+            fen == self.state.done_computer_fen
+            and self.state.interaction_mode == Mode.ENGINE_MATCH
+            and self.engine_match_remote_move_pending
+        ):
+            logger.info("remote engine move completed on physical board")
+            move = self.state.done_move
+            game_after = self.state.game.copy()
+            game_after.push(move)
+            await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
+            self.state.done_computer_fen = None
+            self.state.done_move = chess.Move.null()
+            self.state.best_move_posted = False
+            self.engine_match_remote_move_pending = False
+            try:
+                if self.engine_match_client is None:
+                    raise RelayError("engine match client is unavailable")
+                self.engine_match_client.confirm_remote_move(
+                    move,
+                    game_after.fen(en_passant="fen"),
+                )
+            except RelayError as exc:
+                await Observable.fire(Event.ENGINE_MATCH_STOP(reason=str(exc)))
+                handled_fen = False
+            else:
+                ok = await self.user_move(move, sliding=False)
+                if not ok:
+                    handled_fen = False
+
+        # Player has done the local computer move on the board
         elif fen == self.state.done_computer_fen:
             logger.info("done move detected")
             assert self.state.interaction_mode in (
@@ -2284,6 +2322,7 @@ class MainLoop:
                 Mode.BRAIN,
                 Mode.REMOTE,
                 Mode.TRAINING,
+                Mode.ENGINE_MATCH,
                 Mode.PGNREPLAY,
             ), (
                 "wrong mode: %s" % self.state.interaction_mode
@@ -2291,12 +2330,24 @@ class MainLoop:
             await DisplayMsg.show(Message.COMPUTER_MOVE_DONE())
 
             self.state.best_move_posted = False
-            self.state.push_move(self.state.done_move)
+            completed_engine_move = self.state.done_move
+            self.state.push_move(completed_engine_move)
             self._update_variant_shared()
             # Keep this clear after push_move(): analysis gating uses done_computer_fen
             # to block stale analysis while waiting for the engine move to be executed.
             self.state.done_computer_fen = None
             self.state.done_move = chess.Move.null()
+
+            if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                try:
+                    if self.engine_match_client is None:
+                        raise RelayError("engine match client is unavailable")
+                    await self.engine_match_client.send_local_move(
+                        completed_engine_move,
+                        self.state.game.fen(en_passant="fen"),
+                    )
+                except RelayError as exc:
+                    await Observable.fire(Event.ENGINE_MATCH_STOP(reason=str(exc)))
 
             if self.online_mode() or self.emulation_mode():
                 # for online or emulation engine the user time alraedy runs with move announcement
@@ -2310,6 +2361,9 @@ class MainLoop:
 
             game_end = self.state.check_game_state()
             if game_end:
+                if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                    logger.info("ENGINE_MATCH completed at local terminal position")
+                    await self._stop_engine_match()
                 await self.update_elo(game_end.result)
                 self.state.legal_fens = []
                 self.state.legal_fens_after_cmove = []
@@ -2384,6 +2438,7 @@ class MainLoop:
             fen in self.state.legal_fens_after_cmove
             and self.state.flag_premove
             and self.state.done_move != chess.Move.null()
+            and self.state.interaction_mode != Mode.ENGINE_MATCH
         ):  # and self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
             logger.info("standard move after computer move detected")
             # molli: execute computer move first
@@ -2569,6 +2624,7 @@ class MainLoop:
             Mode.BRAIN,
             Mode.REMOTE,
             Mode.TRAINING,
+            Mode.ENGINE_MATCH,
         ):
             self.state.legal_fens = []
         else:
@@ -2703,7 +2759,8 @@ class MainLoop:
             #
             await self.stop_search_and_clock(ponder_hit=ponder_hit)
             if (
-                self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.OBSERVE, Mode.REMOTE, Mode.TRAINING)
+                self.state.interaction_mode
+                in (Mode.NORMAL, Mode.BRAIN, Mode.OBSERVE, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
                 and not sliding
             ):
                 self.state.time_control.add_time(self.state.game.turn)
@@ -2834,7 +2891,7 @@ class MainLoop:
             #
             # Start engine think
             #
-            if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH):
                 msg = Message.USER_MOVE_DONE(
                     move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                 )
@@ -2854,6 +2911,9 @@ class MainLoop:
                         self.state.brain_best_move = None
                 game_end = self.state.check_game_state()
                 if game_end:
+                    if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                        logger.info("ENGINE_MATCH completed at remote terminal position")
+                        await self._stop_engine_match()
                     await self.update_elo(game_end.result)
                     # molli: for online/emulation mode we have to publish this move as well to the engine
                     if self.online_mode():
@@ -2891,7 +2951,7 @@ class MainLoop:
                         await DisplayMsg.show(game_end)
                         self.state.legal_fens_after_cmove = []  # molli
                 else:
-                    if self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING):
+                    if self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.ENGINE_MATCH):
                         if not self.state.check_game_state():
                             # molli: automatic takeback of blunder moves for mame engines
                             if self.emulation_mode() and eval_str == "??" and self.state.last_move != move:
@@ -3119,6 +3179,85 @@ class MainLoop:
                     Message.SYSTEM_INFO(info={"user_elo": user_elo, "engine_elo": self.engine.engine_rating})
                 )
 
+    async def _engine_match_remote_move(self, move: chess.Move, fen: str) -> None:
+        await Observable.fire(Event.ENGINE_MATCH_MOVE(move=move, fen=fen))
+
+    async def _engine_match_stopped(self, reason: str) -> None:
+        await Observable.fire(Event.ENGINE_MATCH_STOP(reason=reason))
+
+    def _track_engine_match_task(self, task: asyncio.Task) -> None:
+        self.non_main_tasks.add(task)
+
+        def done(completed: asyncio.Task) -> None:
+            self.non_main_tasks.discard(completed)
+            if self.engine_match_task is completed:
+                self.engine_match_task = None
+            try:
+                completed.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Unhandled Engine Match relay failure")
+
+        task.add_done_callback(done)
+
+    async def _arm_engine_match(self) -> bool:
+        """Validate the deliberately narrow MVP setup and connect its peer."""
+
+        if self.engine_match_client is not None and self.engine_match_client.armed:
+            return True
+        reason = None
+        remote_url = str(getattr(self.args, "engine_match_url", "") or "").strip()
+        if not remote_url:
+            reason = "engine-match-url is not configured"
+        elif self.board_type == dgt.util.EBoard.NOEBOARD:
+            reason = "Engine Match requires a physical eboard"
+        elif self.state.variant != "chess" or self.state.game.chess960:
+            reason = "Engine Match MVP supports standard chess only"
+        elif self.state.game.fen(en_passant="fen") != chess.STARTING_FEN or self.state.game.move_stack:
+            reason = "Engine Match must be armed from a new starting position"
+        elif self.state.game_started:
+            reason = "Engine Match must be armed before the game starts"
+        elif self.state.play_mode != PlayMode.USER_WHITE:
+            reason = "Engine Match must be armed with user White"
+        elif self.state.time_control.mode != TimeMode.FIXED:
+            reason = "Engine Match MVP requires fixed move time"
+        if reason:
+            logger.error("ENGINE_MATCH not armed: %s", reason)
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="match error"))
+            return False
+
+        client = EngineMatchClient(
+            remote_url,
+            self._engine_match_remote_move,
+            self._engine_match_stopped,
+        )
+        try:
+            await client.arm(self.state.game.fen(en_passant="fen"))
+        except RelayError as exc:
+            logger.error("ENGINE_MATCH not armed: %s", exc)
+            await client.close()
+            await DisplayMsg.show(Message.SHOW_TEXT(text_string="match error"))
+            return False
+        self.engine_match_client = client
+        self.engine_match_remote_move_pending = False
+        self.engine_match_task = asyncio.create_task(client.run(), name="engine-match-relay")
+        self._track_engine_match_task(self.engine_match_task)
+        await DisplayMsg.show(Message.SHOW_TEXT(text_string="match armed"))
+        return True
+
+    async def _stop_engine_match(self) -> None:
+        client = self.engine_match_client
+        task = self.engine_match_task
+        self.engine_match_client = None
+        self.engine_match_task = None
+        self.engine_match_remote_move_pending = False
+        if client is not None:
+            await client.close()
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
     def start_fen_timer(self):
         """Start the fen timer in case an unhandled fen string been received from board."""
         delay = 0
@@ -3218,7 +3357,9 @@ class MainLoop:
 
     def eng_plays(self) -> bool:
         """return true if engine is playing moves"""
-        return bool(self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING))
+        return bool(
+            self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH)
+        )
 
     def playing_game_analysis_stopped(self) -> bool:
         """Return true when a completed playing-mode game must not analyse."""
@@ -4489,7 +4630,7 @@ class MainLoop:
             await self.state.picotutor.set_analysis_enabled(tutor_analysis_enabled)
         if not tutor_analysis_enabled:
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "tutor", "clear": True}))
-        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+        if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH):
             # optimisation, dont ask for ponder unless needed
             ponder_mode = True if self.state.interaction_mode == Mode.BRAIN else False
             self.engine.set_mode(ponder=ponder_mode)
@@ -4529,7 +4670,13 @@ class MainLoop:
     def _can_run_user_clock_after_board_reconnect(self) -> bool:
         if self.board_type == dgt.util.EBoard.NOEBOARD or self.online_mode():
             return False
-        if self.state.interaction_mode not in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING):
+        if self.state.interaction_mode not in (
+            Mode.NORMAL,
+            Mode.BRAIN,
+            Mode.REMOTE,
+            Mode.TRAINING,
+            Mode.ENGINE_MATCH,
+        ):
             return False
         if self.state.game_declared or ModeInfo.get_game_ending() != "*":
             return False
@@ -4587,6 +4734,7 @@ class MainLoop:
         """First immediate cleanups before exit or reboot"""
         logger.debug("pre exit_or_reboot_cleanups")
         self.shutdown_requested.set()
+        await self._stop_engine_match()
         if self.state.fen_timer_running:
             self.state.stop_fen_timer()
         # @todo are there other timers to stop here?
@@ -5110,6 +5258,7 @@ class MainLoop:
                 Mode.NORMAL,
                 Mode.BRAIN,
                 Mode.TRAINING,
+                Mode.ENGINE_MATCH,
             ):  # engine isnt started/searching => stop the clock
                 await self.state.stop_clock()
             self.state.engine_text = self.state.dgtmenu.get_current_engine_name()
@@ -5409,6 +5558,11 @@ class MainLoop:
             self._clear_set_position_ack()
             self._clear_position_checkpoint()
             clear_preserved_mame_history(self.shared)
+            if getattr(self.state, "interaction_mode", None) == Mode.ENGINE_MATCH:
+                logger.info("ENGINE_MATCH stopped by new game")
+                await self._stop_engine_match()
+                self.state.interaction_mode = Mode.NORMAL
+                self.state.dgtmenu.set_mode(Mode.NORMAL)
             await self.get_rid_of_engine_move()
             self._set_game_started(False)
             self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
@@ -5822,6 +5976,13 @@ class MainLoop:
         ):
             await self._set_ponder_turn(not self.state.game.turn)
 
+        elif (
+            isinstance(event, Event.SWITCH_SIDES)
+            and self.state.interaction_mode == Mode.ENGINE_MATCH
+            and self.state.game_started
+        ):
+            await Observable.fire(Event.ENGINE_MATCH_STOP(reason="Switch Sides is only the match start action"))
+
         elif isinstance(event, Event.SWITCH_SIDES):
             self.state.best_sent_depth.reset()  # safest to drop optimisation when switching sides
             await self.get_rid_of_engine_move()
@@ -5873,7 +6034,7 @@ class MainLoop:
                     await DisplayMsg.show(Message.WRONG_FEN())
                     await DisplayMsg.show(Message.EXIT_MENU())
 
-            elif self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            elif self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH):
                 if not self.engine.is_waiting():
                     await self.stop_search_and_clock()
                 self.state.automatic_takeback = False
@@ -6033,6 +6194,50 @@ class MainLoop:
                 self.state.legal_fens_after_cmove = []
                 await self.update_elo(event.result)
 
+        elif isinstance(event, Event.ENGINE_MATCH_MOVE):
+            if self.state.interaction_mode != Mode.ENGINE_MATCH:
+                logger.warning("ignoring Engine Match move outside Engine Match mode")
+            elif self.state.done_computer_fen is not None or self.engine_match_remote_move_pending:
+                await Observable.fire(
+                    Event.ENGINE_MATCH_STOP(reason="remote move arrived while another move is pending")
+                )
+            elif not self.state.is_user_turn():
+                await Observable.fire(Event.ENGINE_MATCH_STOP(reason="remote engine moved out of turn"))
+            elif not remote_move_matches_current_position(
+                event.move,
+                event.fen,
+                self.state.get_move_check_board(),
+            ):
+                await Observable.fire(Event.ENGINE_MATCH_STOP(reason="remote move does not match local position"))
+            else:
+                await self.state.stop_clock()
+                await DisplayMsg.show(
+                    Message.COMPUTER_MOVE(
+                        move=event.move,
+                        ponder=chess.Move.null(),
+                        game=self.state.game_copy(),
+                        wait=False,
+                        is_user_move=False,
+                    )
+                )
+                game_copy = self.state.game.copy()
+                game_copy.push(event.move)
+                self.engine_match_remote_move_pending = True
+                self._prepare_engine_move(game_copy, event.move)
+
+        elif isinstance(event, Event.ENGINE_MATCH_STOP):
+            logger.error("ENGINE_MATCH STOPPED: %s", event.reason)
+            await self._stop_engine_match()
+            if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                await self.stop_search_and_clock()
+                self.state.interaction_mode = Mode.NORMAL
+                self.state.dgtmenu.set_mode(Mode.NORMAL)
+                self.state.done_computer_fen = None
+                self.state.done_move = chess.Move.null()
+                self.state.legal_fens_after_cmove = []
+                await self.engine_mode()
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="match stopped"))
+
         elif isinstance(event, Event.REMOTE_MOVE):
             self.state.flag_startup = False
             if event.move.from_square == event.move.to_square:
@@ -6125,7 +6330,7 @@ class MainLoop:
             self.state.takeback_active = False
             self.state.engine_move_was_book = bool(event.inbook) if self.eng_plays() else False
 
-            if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH):
                 if self.state.is_not_user_turn():
                     # clock must be stopped BEFORE the "book_move" event cause SetNRun resets the clock display
                     clock_was_running = self.state.time_control.internal_running()
@@ -6688,6 +6893,12 @@ class MainLoop:
         elif isinstance(event, Event.SET_INTERACTION_MODE):
             self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
             old_interaction_mode = self.state.interaction_mode
+            if event.mode == Mode.ENGINE_MATCH and old_interaction_mode != Mode.ENGINE_MATCH:
+                if not await self._arm_engine_match():
+                    self.state.dgtmenu.set_mode(old_interaction_mode)
+                    return
+            elif old_interaction_mode == Mode.ENGINE_MATCH and event.mode != Mode.ENGINE_MATCH:
+                await self._stop_engine_match()
             entering_ponder = old_interaction_mode != Mode.PONDER and event.mode == Mode.PONDER
             leaving_ponder = old_interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
             returning_restored_checkpoint = bool(
@@ -6695,18 +6906,29 @@ class MainLoop:
             )
             preserve_checkpoint_play_mode = bool(
                 returning_restored_checkpoint
-                and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
+                and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH)
             )
-            if self.eng_plays() and event.mode not in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            if self.eng_plays() and event.mode not in (
+                Mode.NORMAL,
+                Mode.BRAIN,
+                Mode.TRAINING,
+                Mode.ENGINE_MATCH,
+            ):
                 # things to do when we change from a playing mode to non-playing
                 await self.get_rid_of_engine_move()  # force/get-rid of engine move
             if self.state.interaction_mode == Mode.PGNREPLAY and event.mode != Mode.PGNREPLAY:
                 self._set_pgn_replay_autoplay(False, mode=event.mode)
-            elif not self.eng_plays() and event.mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
+            elif not self.eng_plays() and event.mode in (
+                Mode.NORMAL,
+                Mode.BRAIN,
+                Mode.TRAINING,
+                Mode.ENGINE_MATCH,
+            ):
                 # things to do i we change from a non-playing mode to a playing mode
                 self._set_pgn_replay_autoplay(False, mode=event.mode)  # stop possible auto replay of pgn file
             if (
-                event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING) and self.state.done_computer_fen
+                event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
+                and self.state.done_computer_fen
             ):  # @todo check why still needed
                 self.state.dgtmenu.set_mode(self.state.interaction_mode)  # undo the button4 stuff
                 logger.warning("mode cant be changed to a pondering mode as long as a move is displayed")
@@ -7055,6 +7277,9 @@ class MainLoop:
                 await self.update_elo_display()
 
         elif isinstance(event, Event.TAKE_BACK):
+            if self.state.interaction_mode == Mode.ENGINE_MATCH:
+                await Observable.fire(Event.ENGINE_MATCH_STOP(reason="takeback is not supported"))
+                return
             self.state.best_sent_depth.reset()
             if self.state.game.move_stack and (
                 event.take_back == "PGN_TAKEBACK"

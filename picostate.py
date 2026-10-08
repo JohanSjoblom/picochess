@@ -455,6 +455,7 @@ class PicochessState:
             Mode.BRAIN,
             Mode.OBSERVE,
             Mode.REMOTE,
+            Mode.ENGINE_MATCH,
             Mode.TRAINING,
         ):
             self.game_started = True
@@ -478,6 +479,7 @@ class PicochessState:
             Mode.BRAIN,
             Mode.OBSERVE,
             Mode.REMOTE,
+            Mode.ENGINE_MATCH,
             Mode.TRAINING,
         ):
             self.time_control.stop_internal(refund_seconds=refund_seconds)
@@ -512,7 +514,13 @@ class PicochessState:
 
     def is_not_user_turn(self) -> bool:
         """Return True if it is NOT users turn (only valid in normal, brain or remote mode)."""
-        assert self.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.REMOTE, Mode.TRAINING), (
+        assert self.interaction_mode in (
+            Mode.NORMAL,
+            Mode.BRAIN,
+            Mode.REMOTE,
+            Mode.ENGINE_MATCH,
+            Mode.TRAINING,
+        ), (
             "wrong mode: %s" % self.interaction_mode
         )
         condition1 = self.play_mode == PlayMode.USER_WHITE and self.game.turn == chess.BLACK

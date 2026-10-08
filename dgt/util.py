@@ -348,6 +348,7 @@ class Mode(MyEnum):
     KIBITZ = "B00_mode_kibitz_menu"
     OBSERVE = "B00_mode_observe_menu"
     REMOTE = "B00_mode_remote_menu"
+    ENGINE_MATCH = "B00_mode_engine_match_menu"
     PONDER = "B00_mode_ponder_menu"
     PGNREPLAY = "B00_mode_pgnreplay_menu"
 
@@ -361,6 +362,7 @@ class Mode(MyEnum):
             Mode.KIBITZ,
             Mode.OBSERVE,
             Mode.REMOTE,
+            Mode.ENGINE_MATCH,
             Mode.PONDER,
             Mode.PGNREPLAY,
         ]

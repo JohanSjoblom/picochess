@@ -54,6 +54,8 @@ class EventApi:
     DRAWRESIGN = "EVT_DRAWRESIGN"  # User declares a resignation or draw
     KEYBOARD_MOVE = "EVT_KEYBOARD_MOVE"  # Keyboard sends a move (to be transfered to a fen)
     REMOTE_MOVE = "EVT_REMOTE_MOVE"  # Remote player move
+    ENGINE_MATCH_MOVE = "EVT_ENGINE_MATCH_MOVE"  # Remote engine move for physical-board match
+    ENGINE_MATCH_STOP = "EVT_ENGINE_MATCH_STOP"  # Relay peer disconnected or desynchronized
     PROMOTION = "EVT_PROMOTION"  # Promotion piece selected
     SET_OPENING_BOOK = "EVT_SET_OPENING_BOOK"  # User chooses an opening book
     NEW_ENGINE = "EVT_NEW_ENGINE"  # Change engine
@@ -358,6 +360,8 @@ class Event:
     DRAWRESIGN = ClassFactory(EventApi.DRAWRESIGN, ["result"])
     KEYBOARD_MOVE = ClassFactory(EventApi.KEYBOARD_MOVE, ["move"])
     REMOTE_MOVE = ClassFactory(EventApi.REMOTE_MOVE, ["move", "fen"])
+    ENGINE_MATCH_MOVE = ClassFactory(EventApi.ENGINE_MATCH_MOVE, ["move", "fen"])
+    ENGINE_MATCH_STOP = ClassFactory(EventApi.ENGINE_MATCH_STOP, ["reason"])
     PROMOTION = ClassFactory(EventApi.PROMOTION, ["move", "fen"])
     SET_OPENING_BOOK = ClassFactory(EventApi.SET_OPENING_BOOK, ["book", "book_text", "show_ok"])
     NEW_ENGINE = ClassFactory(EventApi.NEW_ENGINE, ["eng", "eng_text", "options", "show_ok"])

@@ -1030,7 +1030,7 @@
                         var systemInfo = window._picoSystemInfo || {};
                         var pgnReplayMode = systemInfo.interaction_mode === 'pgnreplay';
                         var pgnReplayRunning = pgnReplayMode && systemInfo.pgn_replay_autoplay === true;
-                        var engineMode = ['normal', 'brain', 'training'].indexOf(systemInfo.interaction_mode) !== -1;
+                        var engineMode = ['normal', 'brain', 'training', 'engine_match'].indexOf(systemInfo.interaction_mode) !== -1;
                         var hasUserColor = systemInfo.play_mode === 'user_white' || systemInfo.play_mode === 'user_black';
                         var userColor = systemInfo.play_mode === 'user_black' ? 'black' : 'white';
                         var turnColor = getFenTurnColor();
@@ -1276,7 +1276,7 @@
             function refreshEngineTurnFromPosition() {
                 var sysInfo = window._picoSystemInfo || {};
                 var mode = String(sysInfo.interaction_mode || '').toLowerCase();
-                var engineMode = ['normal', 'brain', 'training'].indexOf(mode) !== -1;
+                var engineMode = ['normal', 'brain', 'training', 'engine_match'].indexOf(mode) !== -1;
                 var userColor = sysInfo.play_mode === 'user_black' ? 'black' :
                     (sysInfo.play_mode === 'user_white' ? 'white' : '');
                 var turnColor = overlayTurnColor();
@@ -1337,7 +1337,8 @@
                 { icon:'📖',  label:'PGN Replay',  action:'mode-pgnreplay', key:'pgnreplay' },
                 { icon:'🧠',  label:'Hand & Brain',action:'mode-handbrain', key:'handbrain' },
                 { icon:'👁️', label:'Two-Player Game', action:'mode-observe', key:'observe'   },
-                { icon:'🌐',  label:'Two-Player Remote', action:'mode-remote', key:'remote'   }
+                { icon:'🌐',  label:'Two-Player Remote', action:'mode-remote', key:'remote'   },
+                { icon:'⚔️', label:'Engine Match', action:'mode-engine_match', key:'engine_match' }
             ];
 
             function renderModeTiles() {
@@ -3645,6 +3646,7 @@
                     ponder: 'Analysis',
                     training: 'Practice',
                     remote: 'Two-Player Remote',
+                    engine_match: 'Engine Match',
                     pgnreplay: 'PGN Replay'
                 };
                 return menuText(labels[String(mode || '').toLowerCase()] || 'Play');
@@ -3875,6 +3877,7 @@
                     case 'mode-kibitz':
                     case 'mode-observe':
                     case 'mode-remote':
+                    case 'mode-engine_match':
                     case 'mode-ponder':
                     case 'mode-pgnreplay':
                     case 'mode-pgnreplay-fast':

@@ -70,6 +70,12 @@ class Configuration:
             default="",
         )
         self.parser.add_argument(
+            "--engine-match-url",
+            type=str,
+            default="",
+            help="NOEBOARD Picochess URL used by experimental Engine Match mode",
+        )
+        self.parser.add_argument(
             "-d",
             "--dgt-port",
             type=str,

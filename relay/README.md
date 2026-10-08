@@ -37,3 +37,40 @@ The relay forwards only `play=computer` moves. It consumes matching
 new game, game end, connection loss, rejected move, or any position mismatch.
 The default acknowledgement timeout is 10 seconds and can be changed with
 `--timeout`.
+
+## Physical eboard Engine Match MVP
+
+The built-in experimental `Engine Match` mode uses one physical eboard as the
+shared board for two engines. The local Picochess runs the White engine. A
+second Picochess instance runs the Black engine in NOEBOARD mode.
+
+Current MVP limitations are intentional:
+
+- standard chess and the normal starting position only;
+- the local engine is White and the remote engine is Black;
+- both instances must use fixed move time;
+- clocks, engine selection, New Game and recovery are not synchronized;
+- there is no reconnect, takeback, alternative move or position setup;
+- the remote instance must be reachable without authentication.
+
+Configure the physical-board instance in `picochess.ini`:
+
+```ini
+engine-match-url = http://pico-remote:8080
+```
+
+Test sequence:
+
+1. Start the remote Picochess with NOEBOARD.
+2. Select the engines and the same fixed move time on both instances.
+3. Start a new standard game on both. Leave both as user White.
+4. On the physical-board Picochess, select **Engine Match**. Wait for
+   `match armed`.
+5. As the final action, press **Switch Sides** on the physical-board instance.
+   Its local engine now plays White.
+6. Execute every announced move on the physical eboard. Neither engine starts
+   its reply until the preceding move has been physically completed.
+
+The mode stops on a new game, connection loss, illegal protocol transition or
+position mismatch. Correct the setup, start a new game on both instances and
+select Engine Match again.

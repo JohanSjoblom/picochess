@@ -1,0 +1,103 @@
+import unittest
+
+import chess
+
+from relay.engine_match import EngineMatchClient
+from relay.relay import RelayError
+from tests.test_relay import FakeEndpoint, START_FEN, position_event
+
+
+class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.moves = []
+        self.stops = []
+
+    async def on_move(self, move, fen):
+        self.moves.append((move, fen))
+
+    async def on_stop(self, reason):
+        self.stops.append(reason)
+
+    def client(self, endpoint):
+        return EngineMatchClient(
+            "http://unused",
+            self.on_move,
+            self.on_stop,
+            endpoint=endpoint,
+        )
+
+    async def test_arm_requires_identical_standard_position(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+
+        armed_fen = await client.arm(START_FEN)
+
+        self.assertEqual(START_FEN, armed_fen)
+        self.assertTrue(client.armed)
+
+    async def test_local_move_waits_for_remote_acknowledgement(self):
+        endpoint = FakeEndpoint("remote", acknowledge=False)
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+        after = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        after.push(move)
+        resulting_fen = after.fen(en_passant="fen")
+
+        await client.send_local_move(move, resulting_fen)
+        self.assertEqual((move, resulting_fen), client.pending_local_move)
+        await client._process_message(
+            position_event(event="Fen", play="user", fen=resulting_fen, move="e2e4")
+        )
+
+        self.assertIsNone(client.pending_local_move)
+        self.assertEqual(resulting_fen, endpoint.board.fen(en_passant="fen"))
+
+    async def test_remote_move_is_announced_then_waits_for_physical_confirmation(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+        after = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        after.push(move)
+        resulting_fen = after.fen(en_passant="fen")
+
+        await client._process_message(
+            position_event(event="Fen", play="computer", fen=resulting_fen, move="e2e4")
+        )
+
+        self.assertEqual([(move, resulting_fen)], self.moves)
+        self.assertEqual((move, resulting_fen), client.pending_remote_move)
+        client.confirm_remote_move(move, resulting_fen)
+        self.assertIsNone(client.pending_remote_move)
+
+    async def test_second_remote_move_is_rejected_before_eboard_confirmation(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+        after = chess.Board()
+        after.push_uci("e2e4")
+        first_fen = after.fen(en_passant="fen")
+        await client._process_message(
+            position_event(event="Fen", play="computer", fen=first_fen, move="e2e4")
+        )
+
+        with self.assertRaisesRegex(RelayError, "previous move is still on the eboard"):
+            await client._process_message(
+                position_event(event="Fen", play="computer", fen=first_fen, move="e7e5")
+            )
+
+    async def test_run_reports_connection_loss(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+        endpoint.messages.put_nowait(None)
+
+        await client.run()
+
+        self.assertEqual(["remote connection closed"], self.stops)
+        self.assertTrue(endpoint.closed)
+
+
+if __name__ == "__main__":
+    unittest.main()

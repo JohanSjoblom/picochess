@@ -832,6 +832,7 @@ class DgtDisplay(DisplayMsg):
             Mode.BRAIN,
             Mode.OBSERVE,
             Mode.REMOTE,
+            Mode.ENGINE_MATCH,
             Mode.TRAINING,
         ):
             await self._set_clock()
@@ -1265,6 +1266,7 @@ class DgtDisplay(DisplayMsg):
             Mode.NORMAL,
             Mode.BRAIN,
             Mode.REMOTE,
+            Mode.ENGINE_MATCH,
             Mode.TRAINING,
         ):
             side = self._get_clock_side(self.play_turn)

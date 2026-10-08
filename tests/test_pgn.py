@@ -76,6 +76,31 @@ class TestPgnDisplay(unittest.TestCase):
 
         self.assertEqual(str(pgn), empty_game)
 
+    def test_engine_match_uses_clean_local_and_remote_engine_names(self):
+        game = chess.Board()
+        msg = FakeMessage(game, PlayMode.USER_BLACK)
+        msg.mode = Mode.ENGINE_MATCH
+        self.testee.engine_name = "Boris"
+        self.testee.engine_elo = "985"
+        self.testee.level_text = Mock(large_text="2-Bad Gyal")
+        self.loop.run_until_complete(
+            self.testee._process_message(
+                Message.SYSTEM_INFO(
+                    info={
+                        "engine_match_remote_engine_name": "Lc0 v0.32.0",
+                        "engine_match_remote_engine_elo": "2500",
+                    }
+                )
+            )
+        )
+
+        pgn = self.testee._generate_pgn_from_message(msg)
+
+        self.assertEqual("Boris", pgn.headers["White"])
+        self.assertEqual("Lc0 v0.32.0", pgn.headers["Black"])
+        self.assertEqual("985", pgn.headers["WhiteElo"])
+        self.assertEqual("2500", pgn.headers["BlackElo"])
+
     def test_add_picotutor_evaluation_adds_better_pv_as_sibling_variation(self):
         board = chess.Board()
         user_move = chess.Move.from_uci("e2e4")

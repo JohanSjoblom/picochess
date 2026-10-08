@@ -18,6 +18,7 @@ INITIAL_POSITION_GRACE_SECONDS = 2.0
 
 RemoteMoveCallback = Callable[[chess.Move, str], Awaitable[None]]
 StopCallback = Callable[[str], Awaitable[None]]
+RemoteInfoCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class EngineMatchClient:
@@ -35,10 +36,12 @@ class EngineMatchClient:
         on_stop: StopCallback,
         timeout: float = 10.0,
         endpoint: RelayEndpoint | None = None,
+        on_remote_info: RemoteInfoCallback | None = None,
     ) -> None:
         self.endpoint = endpoint or PicoEndpoint("remote", remote_url, timeout)
         self.on_remote_move = on_remote_move
         self.on_stop = on_stop
+        self.on_remote_info = on_remote_info
         self.timeout = timeout
         self.pending_local_move: tuple[chess.Move, str] | None = None
         self.pending_remote_move: tuple[chess.Move, str] | None = None
@@ -46,6 +49,7 @@ class EngineMatchClient:
         self._new_game_waiter: asyncio.Future[str] | None = None
         self.armed = False
         self._closing = False
+        self.remote_info: dict[str, Any] = {}
 
     async def arm(self, local_fen: str) -> str:
         """Connect and require the peer to have exactly the local position."""
@@ -60,6 +64,7 @@ class EngineMatchClient:
                     message = await self.endpoint.receive()
                     if message is None:
                         raise RelayError("remote: connection closed while arming")
+                    await self._capture_remote_info(message)
                     event = message.get("event")
                     if event == "GameEnd":
                         raise RelayError("remote: game has already ended")
@@ -176,6 +181,7 @@ class EngineMatchClient:
                     waiter.cancel()
 
     async def _process_message(self, message: dict[str, Any]) -> str | None:
+        await self._capture_remote_info(message)
         event = message.get("event")
         if self._new_game_waiter is not None:
             if event == "Game":
@@ -284,6 +290,28 @@ class EngineMatchClient:
         if play in ("review", "newgame"):
             return f"remote changed position ({play})"
         raise RelayError(f"remote: unrecognized Fen event play={play!r}")
+
+    async def _capture_remote_info(self, message: dict[str, Any]) -> None:
+        """Retain selected peer-engine metadata already published to web clients."""
+
+        if message.get("event") != "SystemInfo":
+            return
+        info = message.get("msg")
+        if not isinstance(info, dict):
+            return
+        engine_name = str(info.get("engine_name") or "").strip()
+        if not engine_name:
+            return
+        remote_info = {
+            "engine_name": engine_name,
+            "engine_elo": info.get("engine_elo") or "-",
+        }
+        if remote_info == self.remote_info:
+            return
+        self.remote_info = remote_info
+        LOGGER.info("REMOTE peer engine is %s", engine_name)
+        if self.on_remote_info is not None:
+            await self.on_remote_info(dict(remote_info))
 
     @staticmethod
     def _message_move(message: dict[str, Any], description: str) -> chess.Move:

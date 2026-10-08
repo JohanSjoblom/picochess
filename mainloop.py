@@ -3210,6 +3210,18 @@ class MainLoop:
     async def _engine_match_stopped(self, reason: str) -> None:
         await Observable.fire(Event.ENGINE_MATCH_STOP(reason=reason))
 
+    async def _engine_match_remote_info(self, info: dict[str, Any]) -> None:
+        """Publish peer-engine identity without replacing the selected local engine."""
+
+        await DisplayMsg.show(
+            Message.SYSTEM_INFO(
+                info={
+                    "engine_match_remote_engine_name": str(info.get("engine_name") or "Remote"),
+                    "engine_match_remote_engine_elo": info.get("engine_elo") or "-",
+                }
+            )
+        )
+
     def _track_engine_match_task(self, task: asyncio.Task) -> None:
         self.non_main_tasks.add(task)
 
@@ -3257,8 +3269,10 @@ class MainLoop:
             remote_url,
             self._engine_match_remote_move,
             self._engine_match_stopped,
+            on_remote_info=self._engine_match_remote_info,
         )
         try:
+            await self._engine_match_remote_info({})
             logger.info("REMOTE connecting to Picochess peer %s", remote_url)
             await client.arm(self.state.game.fen(en_passant="fen"))
         except RelayError as exc:

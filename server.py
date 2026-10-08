@@ -3332,7 +3332,15 @@ class WebDisplay(DisplayMsg):
                     if suffix.isdigit():
                         comp_elo = int(suffix)
                         engine_level = ""
-            if "play_mode" in self.shared["game_info"]:
+            if self.shared["game_info"].get("interaction_mode") == Mode.ENGINE_MATCH:
+                system_info = self.shared.get("system_info", {})
+                remote_name = system_info.get("engine_match_remote_engine_name") or "Remote"
+                remote_elo = system_info.get("engine_match_remote_engine_elo") or "-"
+                pgn_game.headers["White"] = WebDisplay.engine_name
+                pgn_game.headers["Black"] = str(remote_name)
+                pgn_game.headers["WhiteElo"] = str(system_info.get("engine_elo") or "-")
+                pgn_game.headers["BlackElo"] = str(remote_elo)
+            elif "play_mode" in self.shared["game_info"]:
                 if self.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE:
                     pgn_game.headers["White"] = user_name
                     pgn_game.headers["Black"] = WebDisplay.engine_name + engine_level + retro_speed_str
@@ -3614,6 +3622,9 @@ class WebDisplay(DisplayMsg):
                 self.shared["system_info"]["user_name_orig"] = self.shared["system_info"]["user_name"]
             if "user_elo" in self.shared["system_info"]:
                 WebDisplay.user_elo_sav = self.shared["system_info"]["user_elo"]
+            if "engine_match_remote_engine_name" in message.info:
+                _build_headers()
+                _send_headers()
 
         elif isinstance(message, Message.ENGINE_STARTUP):
             for index in range(0, len(message.installed_engines)):

@@ -433,7 +433,7 @@ def _mode_label(mode: Mode) -> str:
         Mode.KIBITZ: "Eval.Score",
         Mode.OBSERVE: "Observe",
         Mode.REMOTE: "Remote",
-        Mode.ENGINE_MATCH: "Engine Match",
+        Mode.ENGINE_MATCH: "Remote",
         Mode.PONDER: "Analysis",
         Mode.PGNREPLAY: "PGN Replay",
     }
@@ -1551,7 +1551,6 @@ class ChannelHandler(ServerRequestHandler):
                 "kibitz": (Mode.KIBITZ, "Eval.Score"),
                 "observe": (Mode.OBSERVE, "Observe"),
                 "remote": (Mode.REMOTE, "Remote"),
-                "engine_match": (Mode.ENGINE_MATCH, "Engine Match"),
                 "ponder": (Mode.PONDER, "Analysis"),
                 "pgnreplay": (Mode.PGNREPLAY, "PGN Replay"),
             }

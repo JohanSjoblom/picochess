@@ -70,10 +70,12 @@ class Configuration:
             default="",
         )
         self.parser.add_argument(
+            "--remote-picochess-url",
             "--engine-match-url",
+            dest="remote_picochess_url",
             type=str,
             default="",
-            help="NOEBOARD Picochess URL used by experimental Engine Match mode",
+            help="NOEBOARD Picochess URL used by the experimental Remote engine match",
         )
         self.parser.add_argument(
             "-d",

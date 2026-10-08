@@ -102,8 +102,8 @@ engine-level = Elo@2200
 ## authentication. Server must already have your public key.
 #engine-remote-key = your_private_key
 
-## Picochess URL used by the experimental physical-eboard Engine Match mode
-#engine-match-url = http://pico-remote:8080
+## Optional Picochess peer used when Remote mode is selected on a physical eboard
+#remote-picochess-url = http://pico-remote:8080
 
 ### ==========================
 ### = Opening book selection =

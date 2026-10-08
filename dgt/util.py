@@ -367,6 +367,11 @@ class Mode(MyEnum):
             Mode.PGNREPLAY,
         ]
 
+    @classmethod
+    def menu_items(cls):
+        """Return modes exposed to users; ENGINE_MATCH is a configured REMOTE variant."""
+        return [mode for mode in cls.items() if mode != Mode.ENGINE_MATCH]
+
 
 class ModeLoop(object):
     """ModeLoop Class."""
@@ -377,12 +382,12 @@ class ModeLoop(object):
     @staticmethod
     def next(item: Mode):
         """Get next item."""
-        return next_item(Mode.items(), item, "errModeNext")
+        return next_item(Mode.menu_items(), item, "errModeNext")
 
     @staticmethod
     def prev(item: Mode):
         """Get previous item."""
-        return prev_item(Mode.items(), item, "errModePrev")
+        return prev_item(Mode.menu_items(), item, "errModePrev")
 
 
 @enum.unique

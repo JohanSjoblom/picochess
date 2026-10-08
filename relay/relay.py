@@ -31,13 +31,20 @@ class RelayEndpoint(Protocol):
     name: str
     board: chess.Board | None
 
-    async def connect(self) -> None: ...
+    async def connect(self) -> None:
+        ...
 
-    async def receive(self) -> dict[str, Any] | None: ...
+    async def receive(self) -> dict[str, Any] | None:
+        ...
 
-    async def send_move(self, move: chess.Move, resulting_fen: str) -> None: ...
+    async def send_move(self, move: chess.Move, resulting_fen: str) -> None:
+        ...
 
-    async def close(self) -> None: ...
+    async def send_new_game(self) -> None:
+        ...
+
+    async def close(self) -> None:
+        ...
 
 
 def _canonical_fen(fen: str) -> tuple[chess.Board, str]:
@@ -115,15 +122,23 @@ class PicoEndpoint:
 
     async def send_move(self, move: chess.Move, resulting_fen: str) -> None:
         uci = move.uci()
-        body = urlencode(
+        await self._post_action(
             {
                 "action": "move",
                 "fen": resulting_fen,
                 "source": uci[:2],
                 "target": uci[2:4],
                 "promotion": uci[4:],
-            }
+            },
+            "move",
         )
+
+    async def send_new_game(self) -> None:
+        """Request a standard new game through Picochess's existing web action."""
+        await self._post_action({"action": "new_game", "pos960": "518"}, "new game")
+
+    async def _post_action(self, fields: dict[str, str], description: str) -> None:
+        body = urlencode(fields)
         request = HTTPRequest(
             self.channel_url,
             method="POST",
@@ -135,11 +150,11 @@ class PicoEndpoint:
         try:
             response = await self._http.fetch(request, raise_error=False)
         except Exception as exc:
-            raise RelayError(f"{self.name}: move POST failed: {exc}") from exc
+            raise RelayError(f"{self.name}: {description} POST failed: {exc}") from exc
         if response.code < 200 or response.code >= 300:
             detail = response.body.decode("utf-8", errors="replace").strip()
             raise RelayError(
-                f"{self.name}: move POST returned HTTP {response.code}"
+                f"{self.name}: {description} POST returned HTTP {response.code}"
                 + (f": {detail}" if detail else "")
             )
 

@@ -27,6 +27,7 @@ class FakeEndpoint:
         self.closed = False
         self.acknowledge = acknowledge
         self.sent = []
+        self.new_games = 0
         self.messages = asyncio.Queue()
         self.messages.put_nowait(position_event(fen=initial_fen))
 
@@ -42,6 +43,10 @@ class FakeEndpoint:
             self.messages.put_nowait(
                 position_event(event="Fen", play="user", fen=resulting_fen, move=move.uci())
             )
+
+    async def send_new_game(self):
+        self.new_games += 1
+        self.messages.put_nowait(position_event())
 
     async def close(self):
         self.closed = True

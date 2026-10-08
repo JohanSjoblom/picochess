@@ -132,6 +132,40 @@ class TestEngineMatchClient(unittest.IsolatedAsyncioTestCase):
                 position_event(event="Fen", play="computer", fen=first_fen, move="e7e5")
             )
 
+    async def test_new_game_request_waits_for_peer_confirmation(self):
+        endpoint = FakeEndpoint("remote")
+        client = self.client(endpoint)
+        await client.arm(START_FEN)
+        run_task = asyncio.create_task(client.run())
+
+        confirmed_fen = await client.request_new_game()
+
+        self.assertEqual(START_FEN, confirmed_fen)
+        self.assertEqual(1, endpoint.new_games)
+        self.assertTrue(client.armed)
+        self.assertEqual([], self.stops)
+        await client.close()
+        run_task.cancel()
+        await asyncio.gather(run_task, return_exceptions=True)
+
+    async def test_game_end_completes_pending_local_mating_move(self):
+        before_mate = chess.Board()
+        for move in ("f2f3", "e7e5", "g2g4"):
+            before_mate.push_uci(move)
+        endpoint = FakeEndpoint("remote", before_mate.fen(en_passant="fen"), acknowledge=False)
+        client = self.client(endpoint)
+        await client.arm(before_mate.fen(en_passant="fen"))
+        mate = chess.Move.from_uci("d8h4")
+        after_mate = before_mate.copy()
+        after_mate.push(mate)
+
+        await client.send_local_move(mate, after_mate.fen(en_passant="fen"))
+        result = await client._process_message({"event": "GameEnd", "result": "0-1"})
+
+        self.assertIsNone(result)
+        self.assertIsNone(client.pending_local_move)
+        self.assertTrue(endpoint.board.is_checkmate())
+
     async def test_run_reports_connection_loss(self):
         endpoint = FakeEndpoint("remote")
         client = self.client(endpoint)

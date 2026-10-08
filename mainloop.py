@@ -2384,7 +2384,6 @@ class MainLoop:
             if game_end:
                 if self.state.interaction_mode == Mode.ENGINE_MATCH:
                     logger.info("REMOTE match completed at local terminal position")
-                    await self._stop_engine_match()
                 await self.update_elo(game_end.result)
                 self.state.legal_fens = []
                 self.state.legal_fens_after_cmove = []
@@ -2934,7 +2933,6 @@ class MainLoop:
                 if game_end:
                     if self.state.interaction_mode == Mode.ENGINE_MATCH:
                         logger.info("REMOTE match completed at peer terminal position")
-                        await self._stop_engine_match()
                     await self.update_elo(game_end.result)
                     # molli: for online/emulation mode we have to publish this move as well to the engine
                     if self.online_mode():
@@ -3227,6 +3225,7 @@ class MainLoop:
 
         if self.engine_match_client is not None and self.engine_match_client.armed:
             return True
+        await DisplayMsg.show(Message.SHOW_TEXT(text_string="POSITION_WAIT"))
         reason = None
         remote_url = str(getattr(self.args, "remote_picochess_url", "") or "").strip()
         if not remote_url:
@@ -5584,12 +5583,23 @@ class MainLoop:
             self._clear_set_position_ack()
             self._clear_position_checkpoint()
             clear_preserved_mame_history(self.shared)
-            if getattr(self.state, "interaction_mode", None) == Mode.ENGINE_MATCH:
-                logger.info("REMOTE match stopped by new game")
-                await self._stop_engine_match()
-                self.state.interaction_mode = Mode.NORMAL
-                self.state.dgtmenu.set_mode(Mode.NORMAL)
+            engine_match_new_game = getattr(self.state, "interaction_mode", None) == Mode.ENGINE_MATCH
             await self.get_rid_of_engine_move()
+            remote_new_game_ready = False
+            remote_new_game_error = None
+            if engine_match_new_game:
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="POSITION_WAIT"))
+                try:
+                    if self.engine_match_client is None:
+                        raise RelayError("engine match client is unavailable")
+                    await self.engine_match_client.request_new_game()
+                    remote_new_game_ready = True
+                except RelayError as exc:
+                    remote_new_game_error = str(exc)
+                    logger.error("REMOTE new game failed: %s", exc)
+                    await self._stop_engine_match()
+                    self.state.interaction_mode = Mode.NORMAL
+                    self.state.dgtmenu.set_mode(Mode.NORMAL)
             self._set_game_started(False)
             self._set_pgn_replay_autoplay(False)  # stop auto replay of pgn file if new game started
             self._reset_loaded_pgn_lifecycle()
@@ -5907,6 +5917,11 @@ class MainLoop:
                             if self.state.no_guess_white > self.state.max_guess_white:
                                 self.state.last_legal_fens = []
                                 await self.get_next_pgn_move()
+            if remote_new_game_ready:
+                logger.info("REMOTE match ready for new game")
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote ready"))
+            elif remote_new_game_error is not None:
+                await DisplayMsg.show(Message.SHOW_TEXT(text_string="remote error"))
 
         elif isinstance(event, Event.PAUSE_RESUME):
             if self.pgn_mode():

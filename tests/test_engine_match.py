@@ -1,10 +1,12 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 
-from dgt.util import Mode, ModeLoop
-from mainloop import configured_interaction_mode
+from dgt.util import EBoard, Mode, ModeLoop, PlayMode, TimeMode
+from mainloop import MainLoop, configured_interaction_mode
 from move_policy import should_auto_takeback_mame_blunder
 from relay.engine_match import EngineMatchClient
 from relay.relay import RelayError
@@ -255,6 +257,40 @@ class TestEngineMatchModeSelection(unittest.TestCase):
                 repeated_move=False,
             )
         )
+
+
+class TestEngineMatchArming(unittest.IsolatedAsyncioTestCase):
+    async def test_clean_start_can_arm_when_game_started_flag_is_stale(self):
+        controller = MainLoop.__new__(MainLoop)
+        controller.engine_match_client = None
+        controller.engine_match_task = None
+        controller.engine_match_remote_move_pending = False
+        controller.non_main_tasks = set()
+        controller.args = SimpleNamespace(remote_picochess_url="http://pico-remote:8080")
+        controller.board_type = EBoard.DGT
+        controller.state = SimpleNamespace(
+            variant="chess",
+            game=chess.Board(),
+            game_started=True,
+            play_mode=PlayMode.USER_WHITE,
+            time_control=SimpleNamespace(mode=TimeMode.FIXED),
+        )
+        controller._engine_match_remote_info = AsyncMock()
+        controller._track_engine_match_task = Mock()
+
+        client = Mock(armed=False)
+        client.arm = AsyncMock()
+        client.run = AsyncMock()
+
+        with (
+            patch("mainloop.DisplayMsg.show", new=AsyncMock()),
+            patch("mainloop.EngineMatchClient", return_value=client),
+        ):
+            armed = await controller._arm_engine_match()
+            await asyncio.sleep(0)
+
+        self.assertTrue(armed)
+        client.arm.assert_awaited_once_with(chess.STARTING_FEN)
 
 
 if __name__ == "__main__":

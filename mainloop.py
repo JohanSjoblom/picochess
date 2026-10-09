@@ -3254,8 +3254,6 @@ class MainLoop:
             reason = "Engine Match MVP supports standard chess only"
         elif self.state.game.fen(en_passant="fen") != chess.STARTING_FEN or self.state.game.move_stack:
             reason = "Engine Match must be armed from a new starting position"
-        elif self.state.game_started:
-            reason = "Engine Match must be armed before the game starts"
         elif self.state.play_mode != PlayMode.USER_WHITE:
             reason = "Engine Match must be armed with user White"
         elif self.state.time_control.mode != TimeMode.FIXED:

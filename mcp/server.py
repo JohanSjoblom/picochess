@@ -11,6 +11,7 @@ Set PICOCHESS_URL to reach PicoChess somewhere other than http://localhost:8080.
 """
 
 import asyncio
+import csv
 import io
 import json
 import logging
@@ -241,7 +242,6 @@ _MODE_LABELS = {"ponder": "analysis", "analysis": "move hint", "kibitz": "eval s
 _SET_MODE_VALUES = {"play": "normal", "analysis": "ponder"}
 # system_info time_control modes without a running game clock.
 _NO_GAME_CLOCK_MODES = ("fixed", "depth", "nodes")
-_COACH_VALUES = ("off", "on", "lift", "brain", "hand")
 # Coach modes that respond to lifting pieces on an e-board.
 _LIFT_COACH_VALUES = ("lift", "hand")
 
@@ -275,6 +275,96 @@ def _game_from_message(message: dict) -> chess.pgn.Game:
         if message.get("fen"):
             game.setup(chess.Board(message["fen"]))
     return game
+
+
+def _move_label(board: chess.Board, move: chess.Move) -> str:
+    """Return a move with its number, like "12. Nf3" or "12... Nf6", for the position before it."""
+    dots = "." if board.turn == chess.WHITE else "..."
+    return f"{board.fullmove_number}{dots} {board.san(move)}"
+
+
+def _played_moves(game: chess.pgn.Game) -> list[tuple[chess.Board, chess.Move]]:
+    """Return each mainline move with the position before it."""
+    played = []
+    board = game.board()
+    for move in game.mainline_moves():
+        played.append((board.copy(stack=False), move))
+        board.push(move)
+    return played
+
+
+def _tutor_marks(message: dict, played: list[tuple[chess.Board, chess.Move]]) -> dict[int, dict]:
+    """Return PicoTutor's ratings of moves in this game, by their index in played.
+
+    PicoTutor keeps the moves it marked or found inaccurate (its web WATCHER
+    list), keyed by the half-move count after the move. Its list can outlive a
+    takeback, so a rating counts only when the game's move at that point is the
+    rated move.
+    """
+    by_ply = {before.ply() + 1: (index, before.san(move)) for index, (before, move) in enumerate(played)}
+    marks = {}
+    for mistake in message.get("mistakes") or []:
+        index, san = by_ply.get(mistake.get("halfmove"), (None, None))
+        if index is None or san != mistake.get("user_move"):
+            continue
+        mark = {"rating": mistake.get("nag") or "inaccurate", "best_move": mistake.get("best_move")}
+        if mistake.get("centipawn_loss") is not None:
+            mark["centipawn_loss"] = mistake["centipawn_loss"]
+        marks[index] = mark
+    return marks
+
+
+_REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_openings: tuple[dict[str, tuple[str, str]], dict[str, str]] | None = None
+
+
+def _opening_books() -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
+    """Load the opening names PicoTutor's Explorer uses, once.
+
+    Returns names by SAN move sequence from the standard start position, as
+    (ECO code, name), and names by board FEN, which also recognise
+    transpositions.
+    """
+    global _openings
+    if _openings is None:
+        by_moves: dict[str, tuple[str, str]] = {}
+        by_fen: dict[str, str] = {}
+        try:
+            with open(os.path.join(_REPO_DIR, "chess-eco_pos.txt"), encoding="utf-8", errors="replace") as file:
+                rows = csv.DictReader((line for line in file if not line.startswith("#")), delimiter="|")
+                for row in rows:
+                    if row.get("moves"):
+                        by_moves[row["moves"]] = (row.get("eco") or "", row.get("opening_name") or "")
+        except OSError as exc:
+            logger.warning("opening names by moves unavailable: %s", exc)
+        try:
+            with open(os.path.join(_REPO_DIR, "opening_name_fen.txt"), encoding="utf-8", errors="replace") as file:
+                lines = file.read().splitlines()
+            # The file alternates a FEN line and the opening name.
+            for fen_line, name in zip(lines[0::2], lines[1::2]):
+                if fen_line.split() and name.strip():
+                    by_fen[fen_line.split()[0]] = name.strip()
+        except OSError as exc:
+            logger.warning("opening names by position unavailable: %s", exc)
+        _openings = (by_moves, by_fen)
+    return _openings
+
+
+def _opening(game: chess.pgn.Game, played: list[tuple[chess.Board, chess.Move]]) -> str | None:
+    """Name the opening of the latest named position in the game, as PicoTutor's Explorer does."""
+    by_moves, by_fen = _opening_books()
+    from_start = game.board().fen() == chess.STARTING_FEN
+    sans = [before.san(move) for before, move in played]
+    for count in range(len(played), 0, -1):
+        if from_start and " ".join(sans[:count]) in by_moves:
+            eco, name = by_moves[" ".join(sans[:count])]
+            return f"{eco} {name}".strip()
+        before, move = played[count - 1]
+        after = before.copy(stack=False)
+        after.push(move)
+        if after.board_fen() in by_fen:
+            return by_fen[after.board_fen()]
+    return None
 
 
 def _color_name(color: chess.Color) -> str:
@@ -416,19 +506,26 @@ async def get_engine() -> dict[str, str | int]:
 
 
 @server.tool(annotations=ToolAnnotations(title="Get the game", read_only_hint=True, open_world_hint=False))
-async def get_game() -> dict[str, str | bool | None]:
-    """Return the current game: the position, the moves so far, and whose turn it is.
+async def get_game() -> dict[str, Any]:
+    """Return the current game: the position, the moves so far, whose turn it is, and the Tutor's feedback.
 
     Use this when the user asks about the position, the move list so far, the
-    latest move, what the engine played, or whether it is their move. moves holds
-    every move of the game in SAN; last_move is the latest. Works with and without an
-    e-board. status says what happens next. board is a text diagram with White
-    at the bottom; uppercase letters are White pieces and dots are empty squares.
+    latest move, what the engine played, whether it is their move, how good
+    their moves were, or which opening this is. moves holds every move of the
+    game in SAN; last_move is the latest. Works with and without an e-board.
+    status says what happens next. board is a text diagram with White at the
+    bottom; uppercase letters are White pieces and dots are empty squares.
     With an e-board, PicoChess reveals which move the engine chose only after it
     has been made on the board; until then status says the move is pending.
+
+    opening names the latest position found in PicoTutor Explorer's opening
+    lists. tutor_ratings lists the moves PicoTutor's Watcher marked (!!, !,
+    !?, ?!, ?, ??) or found inaccurate, with the better move; moves it found
+    fine are not listed. tutor_last_rating is its verdict on the user's latest
+    move, or the latest move outside play mode: "no remark" means the Watcher
+    rated it without objection or has not rated it yet.
     """
-    info = await _system_info()
-    message = await _last_move_message()
+    info, message, settings = await asyncio.gather(_system_info(), _last_move_message(), _tutor_settings())
     variant = message.get("variant", "chess")
     if variant != "chess":
         return {
@@ -459,8 +556,36 @@ async def get_game() -> dict[str, str | bool | None]:
         else:
             last_move_by = "you" if mover == user_color else "the engine"
 
+    played = _played_moves(game)
+    marks = _tutor_marks(message, played)
+    tutor_ratings = []
+    for index, mark in sorted(marks.items()):
+        before, move = played[index]
+        notes = []
+        if mark.get("best_move") and mark["best_move"] != before.san(move):
+            notes.append(f"best was {mark['best_move']}")
+        if mark.get("centipawn_loss"):
+            notes.append(f"{mark['centipawn_loss']} centipawns lost")
+        detail = f" ({', '.join(notes)})" if notes else ""
+        tutor_ratings.append(f"{_move_label(before, move)} {mark['rating']}{detail}")
+
+    # The Tutor's verdict on the move the user most likely asks about: their own latest
+    # move when playing the engine, otherwise the latest move.
+    tutor_last_rating = None
+    rated = [i for i, (before, _) in enumerate(played) if user_color is None or before.turn == user_color]
+    tutor_active = settings.get("tutor_watcher") and info.get("interaction_mode") != "ponder"
+    if rated and (rated[-1] in marks or tutor_active):
+        before, move = played[rated[-1]]
+        mark = marks.get(rated[-1])
+        tutor_last_rating = {"move": _move_label(before, move), "rating": "no remark"}
+        if mark:
+            tutor_last_rating.update(mark)
+
     return {
         "status": _game_status(board, result, info),
+        "opening": _opening(game, played),
+        "tutor_last_rating": tutor_last_rating,
+        "tutor_ratings": tutor_ratings,
         "to_move": _color_name(board.turn),
         "your_color": _color_name(user_color) if user_color is not None else None,
         "last_move": last_move,

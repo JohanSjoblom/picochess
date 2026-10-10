@@ -649,7 +649,8 @@ async def get_game() -> dict[str, Any]:
     Use this when the user asks about the position, the move list so far, the
     latest move, what the engine played, whether it is their move, how good
     their moves were, or which opening this is. moves holds every move of the
-    game in SAN; last_move is the latest. Works with and without an e-board.
+    game in SAN; last_move is the latest. time_control is, for example, "5+3".
+    Works with and without an e-board.
     status says what happens next. board is a text diagram with White at the
     bottom; uppercase letters are White pieces and dots are empty squares.
     With an e-board, PicoChess reveals which move the engine chose only after it
@@ -731,6 +732,7 @@ async def get_game() -> dict[str, Any]:
         "result": result,
         "e_board": bool(info.get("has_board")),
         "engine_move_pending": bool(info.get("pending_engine_move")),
+        "time_control": info.get("time_label"),
         "board": str(board),
         "fen": board.fen(),
         "pgn": message.get("pgn"),
@@ -1173,6 +1175,75 @@ async def play_as(color: Literal["white", "black"]) -> dict[str, Any]:
                 break
             await asyncio.sleep(POLL_INTERVAL_SECONDS)
     return result
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Set the time control",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def set_time_control(
+    minutes: int | None = None,
+    increment_seconds: int = 0,
+    seconds_per_move: int | None = None,
+    depth: int | None = None,
+) -> dict[str, Any]:
+    """Set the time control, like the web client's Time menu. Give exactly one kind.
+
+    - minutes, with optional increment_seconds: a game clock for each side,
+      such as 5 minutes, or 15 minutes plus 10 seconds per move ("15+10").
+    - seconds_per_move: the engine thinks for that long on each move; there
+      is no game clock.
+    - depth: the engine searches to that many half-moves on each move; there
+      is no game clock.
+    The new time control applies at once: both clocks restart with the full
+    time, also in a game in progress. PicoChess saves it for later games. Not
+    while the engine is thinking.
+    """
+    kinds = [kind for kind in (minutes, seconds_per_move, depth) if kind is not None]
+    if len(kinds) != 1:
+        raise ToolError("Give exactly one of minutes, seconds_per_move or depth.")
+    if kinds[0] < 1 or increment_seconds < 0:
+        raise ToolError("Times and depths must be positive, and the increment cannot be negative.")
+    if increment_seconds and minutes is None:
+        raise ToolError("increment_seconds goes with minutes.")
+
+    if minutes is not None and increment_seconds:
+        params = {"time_mode": "2", "time": str(minutes), "fischer": str(increment_seconds)}
+        expected: dict[str, Any] = {"mode": "fischer", "value": [minutes, increment_seconds]}
+    elif minutes is not None:
+        params = {"time_mode": "1", "time": str(minutes)}
+        expected = {"mode": "blitz", "value": minutes}
+    elif seconds_per_move is not None:
+        params = {"time_mode": "0", "time": str(seconds_per_move)}
+        expected = {"mode": "fixed", "value": seconds_per_move}
+    else:
+        params = {"time_mode": "4", "time": str(depth)}
+        expected = {"mode": "depth", "value": depth}
+
+    info, message = await asyncio.gather(_system_info(), _last_move_message())
+    board = _game_from_message(message).end().board()
+    user_color = _USER_COLORS.get(info.get("play_mode"))
+    engine_turn = (
+        info.get("interaction_mode") in _PLAYING_MODES
+        and user_color is not None
+        and board.turn != user_color
+        and not board.is_game_over()
+        and not info.get("pending_engine_move")
+    )
+    if engine_turn:
+        raise ToolError("The engine is thinking. Change the time control on your turn, or between games.")
+
+    await _post_channel_action({"action": "new_time", **params})
+    await _wait_until(
+        _current_settings, lambda s: s.get("time_control") == expected, "change the time control"
+    )
+    info = await _system_info()
+    return {"status": "time control changed", "time_control": info.get("time_label")}
 
 
 def _move_count(message: dict) -> int:

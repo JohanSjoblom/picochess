@@ -43,6 +43,9 @@ ANALYSIS_WAIT_SECONDS = 3.0
 HINT_LINE_PLIES = 8
 # A new position can take a while with MAME engines, which are set up eagerly.
 SETUP_TIMEOUT_SECONDS = 30.0
+# How long to wait for PicoChess to save or restore the analysis-mode checkpoint before
+# reporting; with an e-board, the restore then waits for the user to set up the pieces.
+CHECKPOINT_WAIT_SECONDS = 5.0
 
 _MOVE_NUMBER = re.compile(r"^\d+\s*\.+\s*")
 _PGN_RESULT = re.compile(r'^\[Result "([^"]*)"\]', re.MULTILINE)
@@ -1002,29 +1005,101 @@ async def resign_game() -> dict[str, str | None]:
         open_world_hint=False,
     )
 )
-async def set_mode(mode: Literal["play", "analysis"]) -> dict[str, str | None]:
+async def set_mode(mode: Literal["play", "analysis"], keep_analysis_position: bool = False) -> dict[str, str | None]:
     """Switch PicoChess between playing against the engine and free analysis.
 
     "play" is PicoChess's Normal mode: the user plays one side and the engine
     replies. "analysis" is the menu's Analysis mode: the user enters moves for
     both sides, the engine only analyses, and hints and evaluations follow the
-    position. Switching back to play continues from the analysed position.
+    position.
+
+    Entering analysis mode saves the game as it is. Switching back to play
+    returns to that saved game, discarding the analysed moves, like the menu's
+    "Return to" tile; the game continues where it was left. With an e-board,
+    PicoChess then asks the user to set the pieces back and returns to play
+    once the board matches; status says so, and board and fen show the
+    position to set up. To continue playing from the analysed position
+    instead, pass keep_analysis_position=true; ask the user which they want
+    if it is unclear.
     """
     target = _SET_MODE_VALUES[mode]
     info = await _system_info()
-    if info.get("interaction_mode") != target:
+    current = info.get("interaction_mode")
+    if current == target:
         # Re-selecting Analysis mode would replace PicoChess's return-point checkpoint.
+        status = f"already in {mode} mode"
+    elif (
+        mode == "play"
+        and current == "ponder"
+        and info.get("position_checkpoint_available")
+        and not keep_analysis_position
+    ):
+        return await _return_from_analysis(info)
+    else:
         await _post_channel_action({"action": "set_mode", "mode": target})
         info = await _wait_until(_system_info, lambda i: i.get("interaction_mode") == target, f"switch to {mode} mode")
         status = f"switched to {mode} mode"
-    else:
-        status = f"already in {mode} mode"
+        if mode == "play" and current == "ponder":
+            status += ", continuing from the analysed position"
 
     board = _game_from_message(await _last_move_message()).end().board()
     user_color = _USER_COLORS.get(info.get("play_mode")) if mode == "play" else None
     if mode == "analysis":
         status += "; enter moves for both sides, the engine analyses without replying"
+        if current != target:
+            # PicoChess saves the game on entering analysis mode and publishes it moments later.
+            try:
+                await _wait_until(
+                    _system_info,
+                    lambda i: i.get("position_checkpoint_available"),
+                    "save the game",
+                    CHECKPOINT_WAIT_SECONDS,
+                )
+                status += "; the game is saved, and switching back to play returns to it"
+            except ToolError:
+                pass
     elif user_color is not None:
+        status += f"; you play {_color_name(user_color)}"
+    return {
+        "status": status,
+        "to_move": _color_name(board.turn),
+        "your_color": _color_name(user_color) if user_color is not None else None,
+    }
+
+
+async def _return_from_analysis(info: dict) -> dict[str, str | None]:
+    """Restore the game saved when analysis mode began, like the menu's "Return to" tile."""
+    return_mode = info.get("position_checkpoint_return_mode") or "normal"
+    return_label = "play" if return_mode == "normal" else _mode_label(return_mode)
+    await _post_channel_action({"action": "restore_position_checkpoint"})
+
+    def returned(i: dict) -> bool:
+        return i.get("interaction_mode") == return_mode
+
+    what = "return to the game saved when analysis mode began"
+    if info.get("has_board"):
+        # PicoChess returns only once the e-board shows the restored position, which may take the user a while.
+        try:
+            info = await _wait_until(_system_info, returned, what, CHECKPOINT_WAIT_SECONDS)
+        except ToolError:
+            board = _game_from_message(await _last_move_message()).end().board()
+            return {
+                "status": (
+                    "restoring the game saved when analysis mode began: set the pieces on the e-board as in "
+                    f"board; PicoChess confirms when they match and then returns to {return_label} mode"
+                ),
+                "to_move": _color_name(board.turn),
+                "your_color": None,
+                "board": str(board),
+                "fen": board.fen(),
+            }
+    else:
+        info = await _wait_until(_system_info, returned, what)
+
+    board = _game_from_message(await _last_move_message()).end().board()
+    user_color = _USER_COLORS.get(info.get("play_mode")) if return_mode in _PLAYING_MODES else None
+    status = f"returned to the game saved when analysis mode began, in {return_label} mode"
+    if user_color is not None:
         status += f"; you play {_color_name(user_color)}"
     return {
         "status": status,

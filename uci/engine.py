@@ -1241,6 +1241,12 @@ class UciEngine(object):
         self.shell = None  # check if uci files can be used any more
         self.whoami = engine_debug_name
         self.engine_lock = asyncio.Lock()
+        # A protocol failure can be observed by both the analyser task and a
+        # concurrent caller such as newgame().  Keep the complete restart and
+        # configure sequence atomic, and coalesce requests that belong to the
+        # same failed engine generation.
+        self._recovery_lock = asyncio.Lock()
+        self._recovery_generation = 0
         self.engine_lease: EngineLease | None = None
         self._last_analyser_stop_was_forced = False
         self._analysis_allowed = False
@@ -1470,37 +1476,49 @@ class UciEngine(object):
 
     async def _recover_from_failed_analyser_stop(self, reason: str) -> bool:
         """Restart the engine before releasing the lease after a dirty analysis stop."""
-        if self._shutting_down:
-            logger.debug("%s recovery skipped while engine is shutting down", reason)
-            if self.analyser:
-                self.analyser.clear_failure()
-            return True
-        logger.warning("%s - restarting engine %s", reason, self.engine_name)
-        should_send_options = False
-        async with self.engine_lock:
-            try:
-                await self._shutdown_standard_engine()
-                await self._start_engine_process()
+        requested_generation = self._recovery_generation
+        async with self._recovery_lock:
+            if self._shutting_down:
+                logger.debug("%s recovery skipped while engine is shutting down", reason)
+                if self.analyser:
+                    self.analyser.clear_failure()
+                return True
+            if requested_generation != self._recovery_generation:
+                logger.debug("%s recovery already completed by another caller", reason)
+                return self.engine is not None
 
-                if self.analyser and self.playing and self.engine_lease:
-                    self._attach_engine_to_sisters()
-                else:
-                    await self._after_engine_started()
+            logger.warning("%s - restarting engine %s", reason, self.engine_name)
+            should_send_options = False
+            async with self.engine_lock:
+                try:
+                    await self._shutdown_standard_engine()
+                    await self._start_engine_process()
 
-                if self.engine and self._set_engine_name():
-                    self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
-                    should_send_options = True
-            except Exception:
-                logger.exception("failed to recover engine after dirty analyser stop")
-                self.transport = None
-                self.engine = None
-                await self._close_remote_connection()
-                return False
-        if should_send_options:
-            await self.send()
-            self._analysis_allowed = True
-            return True
-        return False
+                    if self.analyser and self.playing and self.engine_lease:
+                        self._attach_engine_to_sisters()
+                    else:
+                        await self._after_engine_started()
+
+                    if self.engine and self._set_engine_name():
+                        self._variant_sent = False  # new engine process — allow UCI_Variant to be sent again
+                        should_send_options = True
+                except Exception:
+                    logger.exception("failed to recover engine after dirty analyser stop")
+                    self.transport = None
+                    self.engine = None
+                    await self._close_remote_connection()
+                    return False
+            if should_send_options:
+                # Keep configuration inside the recovery transaction.  send()
+                # takes engine_lock for configure(), while recovery_lock keeps a
+                # second recovery from replacing this freshly started engine.
+                await self.send()
+                self._analysis_allowed = True
+                if self.analyser:
+                    self.analyser.clear_failure()
+                self._recovery_generation += 1
+                return True
+            return False
 
     def loaded_ok(self) -> bool:
         """check if engine was loaded ok"""
@@ -1560,7 +1578,12 @@ class UciEngine(object):
         Return a new dict containing only the keys from `wanted`
         that are present in `allowed`.
         """
-        return {k: v for k, v in wanted.items() if k in allowed}
+        managed = set(chess.engine.MANAGED_OPTIONS)
+        return {
+            k: v
+            for k, v in wanted.items()
+            if k in allowed and k.lower() not in managed
+        }
 
     async def send(self):
         """Send options to engine."""

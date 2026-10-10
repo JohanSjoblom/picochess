@@ -349,7 +349,7 @@ class MainLoop:
         self.git_status = None
         ###########################################
 
-        # Keep the normal startup path untouched unless the configured engine has gone missing.
+        # Resolve the configured engine to its catalog entry, falling back when it has gone missing.
         self.requested_engine_file = self.args.engine
         self.state.engine_file = self.requested_engine_file
         if self.state.engine_file is None:
@@ -359,7 +359,12 @@ class MainLoop:
                 self.state.engine_file = ""
             else:
                 self.state.engine_file = resolved_engine["file"]
-        elif not EngineProvider.has_engine(self.state.engine_file):
+        elif EngineProvider.has_engine(self.state.engine_file):
+            # The ini may name the engine by a relative path, as on Windows. Use the
+            # catalog's absolute path so exact engine-file lookups, such as the
+            # configured engine level and the engine Elo, find it.
+            self.state.engine_file = EngineProvider.resolve_engine(self.state.engine_file)["file"]
+        else:
             resolved_engine = EngineProvider.resolve_engine(self.state.engine_file)
             if resolved_engine is None:
                 logger.error("no installed engines available at startup")

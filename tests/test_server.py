@@ -702,10 +702,13 @@ class TestServerWebDisplayStartup(unittest.IsolatedAsyncioTestCase):
                 shared = {}
                 display = WebDisplay(shared, asyncio.get_running_loop())
                 client_info = {}
+                positions = []
 
                 def receive(payload):
                     if payload.get("event") == "SystemInfo":
                         client_info.update(json.loads(json.dumps(payload["msg"])))
+                    elif payload.get("event") in ("Game", "Fen"):
+                        positions.append(payload)
 
                 with (
                     patch("server.ModeInfo.get_eboard_type", return_value=board_type),
@@ -717,6 +720,7 @@ class TestServerWebDisplayStartup(unittest.IsolatedAsyncioTestCase):
                         "mame_capabilities": {"position": True, "edit": False, "info": True},
                     }))
                     await display.task(Message.STARTUP_INFO(info={
+                        "game": chess.Board(),
                         "interaction_mode": mode,
                         "play_mode": play_mode,
                         "books": [],
@@ -728,6 +732,22 @@ class TestServerWebDisplayStartup(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(play_mode.name.lower(), client_info["play_mode"])
                 self.assertEqual("Mephisto MM V", client_info["engine_name"])
                 self.assertFalse(client_info["mame_capabilities"]["edit"])
+                self.assertNotIn("game", shared["game_info"])
+                self.assertEqual(
+                    {
+                        "event": "Game",
+                        "play": "newgame",
+                        "move": "0000",
+                        "fen": chess.STARTING_FEN,
+                        "variant": "chess",
+                    },
+                    {
+                        key: shared["last_dgt_move_msg"][key]
+                        for key in ("event", "play", "move", "fen", "variant")
+                    },
+                )
+                self.assertTrue(shared["last_dgt_move_msg"]["pgn"])
+                self.assertEqual([shared["last_dgt_move_msg"]], positions)
 
 
 class TestServerWebDisplayTutorCoach(unittest.IsolatedAsyncioTestCase):

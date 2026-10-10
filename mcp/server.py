@@ -1107,6 +1107,74 @@ async def new_game() -> dict[str, str | None]:
     return {"status": "new game started", "fen": message.get("fen"), "pgn": message.get("pgn")}
 
 
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Choose your colour",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def play_as(color: Literal["white", "black"]) -> dict[str, Any]:
+    """Choose which colour the user plays against the engine, like the web client's Switch sides button.
+
+    Use this when the user wants to play Black or White, or to swap sides. The
+    game keeps its moves. If it becomes the engine's turn, the engine moves:
+    choosing black before the first move lets the engine open as White.
+    Without an e-board this returns the engine's move; with one, PicoChess
+    shows it on its displays for the user to make on the board. Choosing the
+    side to move while the engine is thinking stops it, and the user moves for
+    that side instead. Play mode only; in analysis mode the user enters moves
+    for both sides.
+    """
+    info = await _system_info()
+    if info.get("interaction_mode") not in _PLAYING_MODES:
+        raise ToolError(
+            f"PicoChess is in {_mode_label(info.get('interaction_mode'))} mode, where you enter moves for both "
+            "sides. Switch to play mode with set_mode first."
+        )
+    wanted = chess.WHITE if color == "white" else chess.BLACK
+    board = _game_from_message(await _last_move_message()).end().board()
+    if _USER_COLORS.get(info.get("play_mode")) == wanted:
+        status = f"you already play {color}"
+        switched = False
+    else:
+        # The web client's Switch sides button acts like the clock's lever.
+        await _post_channel_action({"action": "clockbutton", "button": "64"})
+        info = await _wait_until(
+            _system_info, lambda i: _USER_COLORS.get(i.get("play_mode")) == wanted, f"switch you to {color}"
+        )
+        status = f"you now play {color}"
+        switched = True
+
+    result: dict[str, Any] = {"status": status, "your_color": color, "engine_move": None, "fen": board.fen()}
+    if board.is_game_over():
+        result["status"] += f"; {_game_over_status(board)}"
+    elif board.turn == wanted:
+        result["status"] += "; your move"
+    elif info.get("has_board") or not switched:
+        result["status"] += "; the engine is thinking"
+        if info.get("has_board"):
+            result["status"] += ", and PicoChess shows its move on its displays for you to make on the e-board"
+    else:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        result["status"] += "; the engine is thinking"
+        while loop.time() - started <= ENGINE_REPLY_TIMEOUT_SECONDS:
+            message = await _last_move_message()
+            reply = _engine_reply(board, message)
+            if reply is not None:
+                after = board.copy(stack=False)
+                after.push(reply)
+                result["status"] = f"{status}; " + (_game_over_status(after) or "the engine moved, your move")
+                result["engine_move"] = board.san(reply)
+                result["fen"] = message.get("fen")
+                break
+            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+    return result
+
+
 def _move_count(message: dict) -> int:
     return len(list(_game_from_message(message).mainline_moves()))
 

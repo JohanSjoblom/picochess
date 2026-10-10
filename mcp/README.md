@@ -28,6 +28,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
 | `set_position` | Replaces the current game with the position in a FEN, like Position > Set Pos in the web client. With an e-board, PicoChess then guides the user by voice to set up the pieces. |
 | `scan_board` | With an e-board only: replaces the current game with the position on the board, like Position > Scan. Options: side to move, a reversed board, and the castling rights still allowed. |
+| `play_as` | Chooses the colour the user plays, like the web client's Switch sides button. If it becomes the engine's turn, the engine moves, so choosing `black` before the first move lets the engine open. Play mode only. |
 | `take_back` | Takes back the user's latest move: after the engine's reply both moves, so it is the user's turn again, or a given number of half-moves. With an e-board, the user takes the moves back on the board too. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
@@ -122,8 +123,6 @@ Claude Code starts the server when the session begins. After changing `server.py
 ## Limitations
 
 - Standard chess only. Variants are refused.
-- In play mode the user plays the side to move after the engine's reply, the normal
-  `Mode.NORMAL` case. Side switching is not supported yet.
 - Losing on time does not end a local PicoChess game, so play can continue after the flag falls.
   After resignation, checkmate or a draw, `make_move` reports that the game is over.
 - With an e-board, PicoChess publishes which move the engine chose only after it has been made on
@@ -138,6 +137,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Current position, PGN, last move and the Tutor's move ratings | `GET /dgt?action=get_last_move` |
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
+| Switch sides | `POST /channel` with `action=clockbutton` and `button=64` (the clock lever) |
 | Take back a move | `POST /channel` with `action=take_back`, once per half-move |
 | Installed engines and levels | `GET /info?action=get_engines` |
 | Change engine or level | `POST /channel` with `action=new_engine`, `file` and `level` |

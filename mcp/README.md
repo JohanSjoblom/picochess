@@ -28,6 +28,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
 | `set_position` | Replaces the current game with the position in a FEN, like Position > Set Pos in the web client. With an e-board, PicoChess then guides the user by voice to set up the pieces. |
 | `scan_board` | With an e-board only: replaces the current game with the position on the board, like Position > Scan. Options: side to move, a reversed board, and the castling rights still allowed. |
+| `set_time_control` | Sets the time control, like the web client's Time menu: a game clock in minutes with an optional increment (`15+10`), fixed seconds per move, or a fixed search depth. Both clocks restart with the full time, also mid-game; not while the engine is thinking. `get_game` reports the current time control. |
 | `play_as` | Chooses the colour the user plays, like the web client's Switch sides button. If it becomes the engine's turn, the engine moves, so choosing `black` before the first move lets the engine open. Play mode only. |
 | `take_back` | Takes back the user's latest move: after the engine's reply both moves, so it is the user's turn again, or a given number of half-moves. With an e-board, the user takes the moves back on the board too. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
@@ -137,6 +138,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Current position, PGN, last move and the Tutor's move ratings | `GET /dgt?action=get_last_move` |
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
+| Time control | `POST /channel` with `action=new_time`, `time_mode` (0 fixed, 1 blitz, 2 Fischer, 4 depth), `time` and `fischer` |
 | Switch sides | `POST /channel` with `action=clockbutton` and `button=64` (the clock lever) |
 | Take back a move | `POST /channel` with `action=take_back`, once per half-move |
 | Installed engines and levels | `GET /info?action=get_engines` |

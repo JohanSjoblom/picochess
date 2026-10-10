@@ -31,11 +31,15 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `set_time_control` | Sets the time control, like the web client's Time menu: a game clock in minutes with an optional increment (`15+10`), fixed seconds per move, or a fixed search depth. Both clocks restart with the full time, also mid-game; not while the engine is thinking. `get_game` reports the current time control. |
 | `play_as` | Chooses the colour the user plays, like the web client's Switch sides button. If it becomes the engine's turn, the engine moves, so choosing `black` before the first move lets the engine open. Play mode only. |
 | `take_back` | Takes back the user's latest move: after the engine's reply both moves, so it is the user's turn again, or a given number of half-moves. With an e-board, the user takes the moves back on the board too. |
+| `list_saved_games` | Describes the games in PicoChess's save slots 1-3, the automatically saved last game, and the last PGN replay: players, date, result, moves and when saved. Reads the `games` folder, so it needs the MCP on the PicoChess machine. Read-only. |
+| `save_game` | Saves the current game to slot 1, 2 or 3, like Save to Slot in the web client's Game menu. Replaces the game in that slot. |
+| `load_game` | Replaces the current game with one from a slot, the last game or the last replay, like Load from Slot. An unfinished game continues in play mode. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
 | `end_game` | Ends the game as a draw, a white win or a black win, like Set Result in the web client's Game menu: for an agreed draw, or a loss on time, which PicoChess does not end by itself. Returns the final result and PGN. |
 
-`new_game`, `resign_game`, `end_game`, `set_position` and `scan_board` replace or end the game. They are marked destructive, so Claude Code asks before running them.
+`new_game`, `resign_game`, `end_game`, `load_game`, `set_position` and `scan_board` replace or end the game,
+and `save_game` replaces a saved game. They are marked destructive, so Claude Code asks before running them.
 
 ## Requirements
 
@@ -145,6 +149,8 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Installed engines and levels | `GET /info?action=get_engines` |
 | Change engine or level | `POST /channel` with `action=new_engine`, `file` and `level` |
 | Resign | `POST /channel` with `action=resign_game` |
+| Save to a slot | `POST /channel` with `action=save_game` and `slot` 1-3; PicoChess writes `games/picochess_game_<slot>.pgn` |
+| Load from a slot | `POST /channel` with `action=load_game` and `slot`: 0 last game, 1-3, 4 last replay |
 | Set the result | `POST /channel` with `action=game_end` and `result=white`, `black` or `draw` |
 | Set a position | `POST /channel` with `action=set_position` and `fen` |
 | Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |

@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1247,6 +1248,145 @@ async def set_time_control(
     )
     info = await _system_info()
     return {"status": "time control changed", "time_control": info.get("time_label")}
+
+
+_GAMES_DIR = os.path.join(_REPO_DIR, "games")
+# Load slots as the web client's "Load from Slot" menu offers them, with PicoChess's slot numbers.
+_LOAD_SLOTS = {"last game": "0", "1": "1", "2": "2", "3": "3", "last replay": "4"}
+_SLOT_FILES = {
+    "last game": "last_game.pgn",
+    "1": "picochess_game_1.pgn",
+    "2": "picochess_game_2.pgn",
+    "3": "picochess_game_3.pgn",
+    "last replay": "last_replay.pgn",
+}
+
+
+def _read_slot(slot: str) -> tuple[chess.pgn.Game | None, float | None]:
+    """Return the game saved in a slot and the file's modification time, or (None, None)."""
+    path = os.path.join(_GAMES_DIR, _SLOT_FILES[slot])
+    try:
+        modified = os.path.getmtime(path)
+        with open(path, encoding="utf-8", errors="replace") as file:
+            return chess.pgn.read_game(file), modified
+    except OSError:
+        return None, None
+
+
+def _slot_summary(slot: str) -> dict[str, Any]:
+    game, modified = _read_slot(slot)
+    if game is None:
+        return {"slot": slot, "saved": False}
+    headers = game.headers
+    moves = list(game.mainline_moves())
+    summary: dict[str, Any] = {
+        "slot": slot,
+        "saved": True,
+        "white": headers.get("White"),
+        "black": headers.get("Black"),
+        "date": headers.get("Date"),
+        "result": headers.get("Result"),
+        "moves": len(moves),
+        "saved_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(modified)),
+    }
+    if headers.get("FEN"):
+        summary["from_position"] = headers["FEN"]
+    return summary
+
+
+def _loaded_board(game: chess.pgn.Game) -> chess.Board:
+    """Return the position PicoChess shows after loading game: PicoStop limits the moves applied."""
+    board = game.board()
+    moves = list(game.mainline_moves())
+    stop = game.headers.get("PicoStop")
+    if stop is not None and stop.strip().isdigit():
+        moves = moves[: int(stop)]
+    for move in moves:
+        board.push(move)
+    return board
+
+
+@server.tool(annotations=ToolAnnotations(title="List saved games", read_only_hint=True, open_world_hint=False))
+async def list_saved_games() -> dict[str, Any]:
+    """Describe the games in PicoChess's save slots, like the web client's Load from Slot menu.
+
+    Slots "1", "2" and "3" hold games saved with save_game. "last game" is
+    the game PicoChess saved automatically when it last ended or was replaced,
+    and "last replay" the latest PGN replay. For each saved slot: the players,
+    date, result, number of half-moves, and when it was saved. Use this
+    before save_game, to avoid overwriting a slot the user wants to keep, and
+    before load_game. Reads PicoChess's games folder, so it works only on the
+    machine that runs PicoChess.
+    """
+    if not os.path.isdir(_GAMES_DIR):
+        raise ToolError(f"PicoChess's games folder is not on this machine ({_GAMES_DIR}).")
+    return {"slots": [_slot_summary(slot) for slot in _SLOT_FILES]}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Save the game",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=False,
+    )
+)
+async def save_game(slot: Literal["1", "2", "3"]) -> dict[str, Any]:
+    """Save the current game to slot 1, 2 or 3, like Save to Slot in the web client's Game menu.
+
+    A slot holds one game, so saving replaces the game in it: when
+    list_saved_games shows the slot is in use, ask the user first. A game can
+    be saved at any point, also before the first move, and continues
+    afterwards. PicoChess stops the game clock while saving; resume it with
+    pause_resume_clock if it should run on.
+    """
+    _, before = _read_slot(slot)
+    await _post_channel_action({"action": "save_game", "slot": slot})
+    if not os.path.isdir(_GAMES_DIR):
+        return {"status": f"asked PicoChess to save the game to slot {slot}"}
+
+    def saved(state: tuple[chess.pgn.Game | None, float | None]) -> bool:
+        return state[1] is not None and state[1] != before
+
+    async def fetch() -> tuple[chess.pgn.Game | None, float | None]:
+        return _read_slot(slot)
+
+    await _wait_until(fetch, saved, f"save the game to slot {slot}")
+    return {"status": f"game saved to slot {slot}", **_slot_summary(slot)}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Load a saved game",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def load_game(slot: Literal["1", "2", "3", "last game", "last replay"]) -> dict[str, Any]:
+    """Replace the current game with a saved one, like Load from Slot in the web client's Game menu.
+
+    See list_saved_games for the slots. When a game is in progress, ask the
+    user to confirm first. An unfinished game continues in play mode; a
+    finished game opens for review. With an e-board, PicoChess then guides
+    the user to set up the pieces. Returns the loaded game, as get_game does.
+    """
+    game, _ = _read_slot(slot)
+    if game is None and os.path.isdir(_GAMES_DIR):
+        raise ToolError(f"Slot {slot} is empty. Use list_saved_games to see the saved games.")
+    await _post_channel_action({"action": "load_game", "slot": _LOAD_SLOTS[slot]})
+    if game is not None:
+        expected = _loaded_board(game)
+        await _wait_for_message(
+            lambda m: _same_position(m.get("fen"), expected.fen()) and _move_count(m) == len(expected.move_stack),
+            f"load the game from slot {slot}",
+            SETUP_TIMEOUT_SECONDS,
+        )
+    result = await get_game()
+    result["status"] = f"loaded slot {slot}; {result['status']}"
+    return result
 
 
 def _move_count(message: dict) -> int:

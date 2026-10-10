@@ -125,6 +125,11 @@ async def _wait_for_message(accepts, what: str, timeout: float | None = None) ->
     return await _wait_until(_last_move_message, accepts, what, timeout)
 
 
+async def _tutor_settings() -> dict:
+    """Return PicoChess's current settings, including the PicoTutor ones the web Tutor menu shows."""
+    return await asyncio.to_thread(_request_json, "/info", {"action": "get_current_settings"})
+
+
 async def _clock_state() -> dict:
     """Return {"running": bool} for the game clock, as the web client reads it."""
     return await asyncio.to_thread(_request_json, "/info", {"action": "get_clock_state"})
@@ -236,6 +241,25 @@ _MODE_LABELS = {"ponder": "analysis", "analysis": "move hint", "kibitz": "eval s
 _SET_MODE_VALUES = {"play": "normal", "analysis": "ponder"}
 # system_info time_control modes without a running game clock.
 _NO_GAME_CLOCK_MODES = ("fixed", "depth", "nodes")
+_COACH_VALUES = ("off", "on", "lift", "brain", "hand")
+# Coach modes that respond to lifting pieces on an e-board.
+_LIFT_COACH_VALUES = ("lift", "hand")
+
+
+def _tutor_summary(settings: dict, info: dict) -> dict[str, str | bool]:
+    """Describe the PicoTutor settings and when they have an effect."""
+    watcher = bool(settings.get("tutor_watcher"))
+    coach = str(settings.get("tutor_coach", "off"))
+    explorer = bool(settings.get("tutor_explorer"))
+    notes = []
+    if info.get("interaction_mode") == "ponder":
+        notes.append("PicoTutor is inactive in analysis mode; Watcher and Coach apply again in play mode")
+    if coach in _LIFT_COACH_VALUES and not info.get("has_board"):
+        notes.append(f"Coach {coach} responds to lifting pieces, which needs an e-board")
+    result: dict[str, str | bool] = {"watcher": watcher, "coach": coach, "explorer": explorer}
+    if notes:
+        result["note"] = "; ".join(notes)
+    return result
 
 
 def _mode_label(mode: str | None) -> str:
@@ -882,6 +906,76 @@ async def set_mode(mode: Literal["play", "analysis"]) -> dict[str, str | None]:
         "to_move": _color_name(board.turn),
         "your_color": _color_name(user_color) if user_color is not None else None,
     }
+
+
+@server.tool(annotations=ToolAnnotations(title="Get PicoTutor settings", read_only_hint=True, open_world_hint=False))
+async def get_tutor() -> dict[str, str | bool]:
+    """Return PicoTutor's Watcher, Coach and Explorer settings, as in the web client's Tutor menu.
+
+    Use this when the user asks whether the Tutor, Watcher, Coach or Explorer
+    is on. See set_tutor for what each setting does. note, when present, says
+    when a setting has no effect.
+    """
+    settings, info = await asyncio.gather(_tutor_settings(), _system_info())
+    return _tutor_summary(settings, info)
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Change PicoTutor settings",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def set_tutor(
+    watcher: bool | None = None,
+    coach: Literal["off", "on", "lift", "brain", "hand"] | None = None,
+    explorer: bool | None = None,
+) -> dict[str, str | bool]:
+    """Turn PicoTutor's Watcher, Coach or Explorer on or off, like the web client's Tutor menu.
+
+    Pass only the settings to change; the others keep their values. PicoChess
+    saves them, so they also apply after a restart.
+    - watcher: PicoTutor rates each of the user's moves (!!, !, !?, ?!, ?, ??),
+      warns of mates, and after a blunder shows the threat and a better move.
+    - coach: how PicoTutor helps on the user's turn. Any value other than "off"
+      also makes PicoTutor analyse, so hints and evaluations come from it.
+      "on": hints and evaluations on request. "lift": as "on", and lifting the
+      king and putting it back asks for a hint and an evaluation. "brain":
+      Hand & Brain training; PicoChess names the kind of piece to move.
+      "hand": lifting a piece and putting it back asks whether that piece is
+      part of a good move. "lift" and "hand" need an e-board.
+    - explorer: PicoChess names the opening of the current position.
+    PicoChess shows and announces the Tutor's feedback on its own displays.
+    In analysis mode PicoTutor is inactive. note, when present, says when a
+    setting has no effect.
+    """
+    if watcher is None and coach is None and explorer is None:
+        raise ToolError("Give at least one of watcher, coach or explorer to change.")
+    wanted: dict[str, Any] = {}
+    if watcher is not None:
+        wanted["tutor_watcher"] = watcher
+    if coach is not None:
+        wanted["tutor_coach"] = coach
+    if explorer is not None:
+        wanted["tutor_explorer"] = explorer
+
+    current = await _tutor_settings()
+    # PicoChess applies each setting in turn, so send them one at a time like the Tutor menu does.
+    for key, value in wanted.items():
+        if current.get(key) == value:
+            continue
+        val = value if isinstance(value, str) else ("true" if value else "false")
+        await _post_channel_action({"action": "picotutor", "tutor": key.removeprefix("tutor_"), "val": val})
+
+    settings = await _wait_until(
+        _tutor_settings,
+        lambda s: all(s.get(key) == value for key, value in wanted.items()),
+        "apply the Tutor settings",
+    )
+    return _tutor_summary(settings, await _system_info())
 
 
 @server.tool(

@@ -19,6 +19,8 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
 | `make_move` | Plays the user's move. In play mode it waits for the engine's reply; in analysis mode the user enters moves for both sides and there is no reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns the moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
 | `set_mode` | Switches between `play` (Normal mode: play against the engine) and `analysis` (the menu's Analysis mode: enter moves for both sides while the engine analyses). Switching back to play continues from the analysed position. |
+| `get_tutor` | Returns PicoTutor's Watcher, Coach and Explorer settings, as in the web client's Tutor menu. Read-only. |
+| `set_tutor` | Turns Watcher, Coach or Explorer on or off; only the settings given change. Watcher rates each of the user's moves and points out blunders. Coach is `off`, `on`, `lift`, `brain` or `hand`; `lift` and `hand` respond to lifting pieces on an e-board. Explorer names the opening. PicoChess saves the settings, and shows the Tutor's feedback on its own displays. |
 | `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
 | `force_engine_move` | While the engine is thinking, makes it play the best move found so far, like "Move now" in the web client. Without an e-board it returns the engine's move; with one, PicoChess shows the move on its displays. |
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
@@ -140,6 +142,8 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |
 | Scan the e-board | `POST /channel` with `action=scan_board`, `sideToPlay`, `boardSide` and the four castling flags |
 | Clock state | `GET /info?action=get_clock_state` |
+| Tutor settings | `GET /info?action=get_current_settings` |
+| Change a Tutor setting | `POST /channel` with `action=picotutor`, `tutor=watcher`, `coach` or `explorer`, and `val` |
 | Analysis for hints and evaluations | WebSocket `/event`: the snapshot PicoChess sends every new client |
 | Pause or resume the clock | `POST /channel` with `action=pause_resume`, only on the user's turn |
 | Move now | `POST /channel` with `action=pause_resume`, only while the engine is thinking |

@@ -18,7 +18,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `get_top_moves` | Lists the best moves from PicoChess's analysis of the current position, as in the web client: for each, the move, an evaluation, the depth and the continuation. Three lines in analysis mode and in play mode on the user's turn with the Tutor on; one line otherwise, including while the engine is thinking. Read-only. |
 | `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
 | `make_move` | Plays the user's move. In play mode it waits for the engine's reply; in analysis mode the user enters moves for both sides and there is no reply. Accepts `1. e4`, `e2-e4`, `e2e4`, `Nf3`, `O-O`, `e8=Q` and similar. Returns the moves in SAN, the new FEN, and the game so far as PGN. The first move starts the game. Without an e-board only; see below. |
-| `set_mode` | Switches between `play` (Normal mode: play against the engine) and `analysis` (the menu's Analysis mode: enter moves for both sides while the engine analyses). Switching back to play continues from the analysed position. |
+| `set_mode` | Switches between `play` (Normal mode: play against the engine) and `analysis` (the menu's Analysis mode: enter moves for both sides while the engine analyses). Entering analysis mode saves the game; switching back to play returns to it, like the menu's "Return to" tile. With an e-board, PicoChess first asks the user to set the pieces back. `keep_analysis_position` continues playing from the analysed position instead. |
 | `get_tutor` | Returns PicoTutor's Watcher, Coach and Explorer settings, as in the web client's Tutor menu. Read-only. |
 | `set_tutor` | Turns Watcher, Coach or Explorer on or off; only the settings given change. Watcher rates each of the user's moves and points out blunders. Coach is `off`, `on`, `lift`, `brain` or `hand`; `lift` and `hand` respond to lifting pieces on an e-board. Explorer names the opening. PicoChess saves the settings, and shows the Tutor's feedback on its own displays. |
 | `pause_resume_clock` | On the user's turn, pauses or resumes the game clock (`action` is `pause` or `resume`), like the web client's play/pause button. Before the first move, `resume` starts the clock and the game. Confirms the new state from the clock. Only with a game clock (blitz, Fischer or tournament time); fixed move time, depth and nodes have none. |
@@ -121,8 +121,6 @@ Claude Code starts the server when the session begins. After changing `server.py
 - Standard chess only. Variants are refused.
 - In play mode the user plays the side to move after the engine's reply, the normal
   `Mode.NORMAL` case. Side switching is not supported yet.
-- Leaving analysis mode keeps the analysed position. PicoChess's Mode menu can also return to the
-  position saved when analysis mode started; the MCP does not offer that yet.
 - Losing on time does not end a local PicoChess game, so play can continue after the flag falls.
   After resignation, checkmate or a draw, `make_move` reports that the game is over.
 - With an e-board, PicoChess publishes which move the engine chose only after it has been made on
@@ -140,6 +138,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Resign | `POST /channel` with `action=resign_game` |
 | Set a position | `POST /channel` with `action=set_position` and `fen` |
 | Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |
+| Return from analysis mode to the saved game | `POST /channel` with `action=restore_position_checkpoint`, when `get_system_info` reports `position_checkpoint_available` |
 | Scan the e-board | `POST /channel` with `action=scan_board`, `sideToPlay`, `boardSide` and the four castling flags |
 | Clock state | `GET /info?action=get_clock_state` |
 | Tutor settings | `GET /info?action=get_current_settings` |

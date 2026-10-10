@@ -46,6 +46,8 @@ SETUP_TIMEOUT_SECONDS = 30.0
 # How long to wait for PicoChess to save or restore the analysis-mode checkpoint before
 # reporting; with an e-board, the restore then waits for the user to set up the pieces.
 CHECKPOINT_WAIT_SECONDS = 5.0
+# After a restarted engine reports ready, PicoChess publishes its playing Elo within about a second.
+ENGINE_SETTLE_SECONDS = 1.5
 
 _MOVE_NUMBER = re.compile(r"^\d+\s*\.+\s*")
 _PGN_RESULT = re.compile(r'^\[Result "([^"]*)"\]', re.MULTILINE)
@@ -129,8 +131,8 @@ async def _wait_for_message(accepts, what: str, timeout: float | None = None) ->
     return await _wait_until(_last_move_message, accepts, what, timeout)
 
 
-async def _tutor_settings() -> dict:
-    """Return PicoChess's current settings, including the PicoTutor ones the web Tutor menu shows."""
+async def _current_settings() -> dict:
+    """Return the current settings the web menus show: engine and level, PicoTutor and more."""
     return await asyncio.to_thread(_request_json, "/info", {"action": "get_current_settings"})
 
 
@@ -493,19 +495,151 @@ async def _wait_for_engine_reply(board: chess.Board, user_san: str) -> dict[str,
 
 @server.tool(annotations=ToolAnnotations(title="Get engine", read_only_hint=True, open_world_hint=False))
 async def get_engine() -> dict[str, str | int]:
-    """Return the chess engine PicoChess is currently using.
+    """Return the chess engine PicoChess is currently using, and its level.
 
-    Use this when the user asks which engine is loaded or selected. The result
-    has engine_name and, when PicoChess has reported it, engine_elo.
+    Use this when the user asks which engine is loaded or selected, or how
+    strong it plays. The result has engine_name and, when PicoChess has
+    reported them, engine_elo and engine_level, such as "Elo@2200". Without a
+    level the engine plays at its full strength.
     """
-    info = await _system_info()
+    info, settings = await asyncio.gather(_system_info(), _current_settings())
     engine_name = info.get("engine_name")
     if not engine_name:
         raise ToolError("PicoChess is running but has not reported an engine yet. It may still be starting up.")
     result: dict[str, str | int] = {"engine_name": engine_name}
     if info.get("engine_elo"):
         result["engine_elo"] = info["engine_elo"]
+    if settings.get("engine_level"):
+        result["engine_level"] = settings["engine_level"]
     return result
+
+
+async def _engine_catalog() -> list[dict]:
+    """Return the installed engines once each, in PicoChess's menu order, with their menu category."""
+    payload = await asyncio.to_thread(_request_json, "/info", {"action": "get_engines"})
+    engines: dict[str, dict] = {}
+    for engine in payload.get("engines") or []:
+        # The Special (favorites) list repeats engines from the other lists.
+        engines.setdefault(engine.get("file", ""), engine)
+    return list(engines.values())
+
+
+def _find_engine(engines: list[dict], name: str) -> dict:
+    """Find an engine by its name, exactly or by a unique part of it, ignoring case."""
+    wanted = name.strip().casefold()
+    exact = [engine for engine in engines if engine.get("name", "").casefold() == wanted]
+    matches = exact or [engine for engine in engines if wanted in engine.get("name", "").casefold()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ToolError(f"No installed engine is called {name!r}. Use list_engines to see the installed engines.")
+    names = ", ".join(sorted({engine.get("name", "") for engine in matches}))
+    raise ToolError(f"{name!r} matches several engines: {names}. Give the full name.")
+
+
+def _find_level(engine: dict, level: str) -> str:
+    """Find an engine level by its name, or by its number, as in "1800" for "Elo@1800"."""
+    levels = engine.get("levels") or []
+    wanted = level.strip().casefold()
+    for name in levels:
+        if name.casefold() == wanted or name.casefold().split("@")[-1] == wanted:
+            return name
+    if not levels:
+        raise ToolError(f"{engine.get('name')} has no levels; it always plays at its own strength.")
+    raise ToolError(f"{engine.get('name')} has no level {level!r}. Its levels are: {', '.join(levels)}.")
+
+
+@server.tool(annotations=ToolAnnotations(title="List engines", read_only_hint=True, open_world_hint=False))
+async def list_engines() -> dict[str, Any]:
+    """List the chess engines installed in PicoChess, with their levels.
+
+    Use this when the user asks which engines or strengths are available. Each
+    engine has its name, its Elo at full strength when known, its menu category
+    ("modern", or "retro" for emulated chess computers) and its levels, such
+    as "Elo@1800". Engines without levels play at their own fixed strength.
+    """
+    engines = await _engine_catalog()
+    return {
+        "engines": [
+            {
+                "name": engine.get("name"),
+                "elo": engine.get("elo") or None,
+                "category": engine.get("category"),
+                "levels": engine.get("levels") or [],
+            }
+            for engine in engines
+        ]
+    }
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Change engine or level",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=False,
+    )
+)
+async def set_engine(engine: str | None = None, level: str | None = None) -> dict[str, str | int]:
+    """Change PicoChess's engine, its playing strength, or both, like the web client's Engine menu.
+
+    engine is an engine name from list_engines, or a unique part of it; leave
+    it out to change only the level of the current engine. level is a level
+    name such as "Elo@1800", or just its number, "1800"; leave it out to use
+    the engine's default strength. A game in progress continues with the new
+    engine, except that a retro engine (an emulated chess computer) starts a
+    new game: ask the user first when a game is in progress. If the engine is
+    thinking, it stops and thinks again with the new settings.
+    """
+    if engine is None and level is None:
+        raise ToolError("Give an engine, a level, or both.")
+    engines = await _engine_catalog()
+    settings = await _current_settings()
+    if engine is None:
+        target = next((e for e in engines if e.get("file") == settings.get("engine_file")), None)
+        if target is None:
+            raise ToolError("PicoChess has not reported its current engine. Name the engine to use.")
+    else:
+        target = _find_engine(engines, engine)
+    level_name = _find_level(target, level) if level is not None else ""
+
+    await _post_channel_action({"action": "new_engine", "file": target["file"], "level": level_name})
+
+    # PicoChess restarts the engine even for a new level, and reports the selection before the
+    # engine is ready. When it is, system information briefly shows the engine's catalog Elo,
+    # and then, for an Elo level, the level's Elo.
+    expected_elo = level_name.split("@")[-1] if level_name.casefold().startswith("elo@") else None
+    loop = asyncio.get_running_loop()
+    ready_since: float | None = None
+
+    async def fetch() -> tuple[dict, dict]:
+        current, info = await asyncio.gather(_current_settings(), _system_info())
+        return current, info
+
+    def ready(state: tuple[dict, dict]) -> bool:
+        nonlocal ready_since
+        current, info = state
+        if current.get("engine_file") != target["file"] or (current.get("engine_level") or "") != level_name:
+            return False
+        if info.get("engine_name") in (None, "", "NN"):
+            return False
+        if ready_since is None and str(info.get("engine_elo")) == str(target.get("elo")):
+            ready_since = loop.time()
+        if expected_elo is not None:
+            return str(info.get("engine_elo")) == expected_elo
+        return ready_since is not None and loop.time() - ready_since >= ENGINE_SETTLE_SECONDS
+
+    # Starting an engine can take a while, and an emulated chess computer longer still.
+    try:
+        await _wait_until(fetch, ready, "change the engine", SETUP_TIMEOUT_SECONDS)
+    except ToolError as exc:
+        raise ToolError(
+            f"PicoChess did not switch to {target.get('name')} {level_name} within "
+            f"{SETUP_TIMEOUT_SECONDS:.0f} seconds. The engine may have failed to start; PicoChess then keeps "
+            "the previous engine. Check with get_engine."
+        ) from exc
+    return await get_engine()
 
 
 @server.tool(annotations=ToolAnnotations(title="Get the game", read_only_hint=True, open_world_hint=False))
@@ -528,7 +662,7 @@ async def get_game() -> dict[str, Any]:
     move, or the latest move outside play mode: "no remark" means the Watcher
     rated it without objection or has not rated it yet.
     """
-    info, message, settings = await asyncio.gather(_system_info(), _last_move_message(), _tutor_settings())
+    info, message, settings = await asyncio.gather(_system_info(), _last_move_message(), _current_settings())
     variant = message.get("variant", "chess")
     if variant != "chess":
         return {
@@ -973,6 +1107,77 @@ async def new_game() -> dict[str, str | None]:
     return {"status": "new game started", "fen": message.get("fen"), "pgn": message.get("pgn")}
 
 
+def _move_count(message: dict) -> int:
+    return len(list(_game_from_message(message).mainline_moves()))
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="Take back moves",
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=False,
+    )
+)
+async def take_back(half_moves: int | None = None) -> dict[str, Any]:
+    """Take back moves, like Takeback in the web client's Position menu.
+
+    By default this takes back the user's latest move: in play mode, the
+    engine's reply and the user's move before it, so it is the user's turn
+    again; while the engine is still thinking, only the user's move. In
+    analysis mode it takes back the latest move. half_moves takes back exactly
+    that many moves instead, counting each side's move separately. After an
+    odd number in play mode, the user continues with the other colour, as
+    after a takeback on an e-board; their colour is in your_color.
+
+    With an e-board, take the moves back on the board as well; board and fen
+    show the position to set up. PicoChess refuses takebacks with online
+    engines, with retro engines in play mode, and when its takeback lock is on.
+    """
+    info, message = await asyncio.gather(_system_info(), _last_move_message())
+    played = _played_moves(_game_from_message(message))
+    if not played:
+        raise ToolError("There are no moves to take back.")
+    if half_moves is None:
+        user_color = _USER_COLORS.get(info.get("play_mode")) if info.get("interaction_mode") in _PLAYING_MODES else None
+        if user_color is None:
+            half_moves = 1
+        else:
+            user_moves = [i for i, (before, _) in enumerate(played) if before.turn == user_color]
+            if not user_moves:
+                raise ToolError("You have not made a move yet, so there is none of yours to take back.")
+            half_moves = len(played) - user_moves[-1]
+    if not 1 <= half_moves <= len(played):
+        raise ToolError(f"half_moves must be between 1 and {len(played)}, the number of moves played.")
+
+    # PicoChess takes back one move per request.
+    for taken in range(1, half_moves + 1):
+        expected = len(played) - taken
+        await _post_channel_action({"action": "take_back"})
+        try:
+            message = await _wait_for_message(lambda m: _move_count(m) == expected, "take back the move")
+        except ToolError as exc:
+            done = f" after taking back {taken - 1} of {half_moves}" if taken > 1 else ""
+            raise ToolError(
+                f"PicoChess did not take back the move{done}. It refuses takebacks with online engines, "
+                "with retro engines in play mode, and when its takeback lock is on."
+            ) from exc
+
+    game = await get_game()
+    result: dict[str, Any] = {
+        "status": f"took back {half_moves} half-move{'s' if half_moves > 1 else ''}; {game['status']}",
+        "your_color": game["your_color"],
+        "last_move": game["last_move"],
+        "moves": game["moves"],
+        "fen": game["fen"],
+    }
+    if game["e_board"]:
+        result["status"] += "; take the moves back on the e-board too"
+        result["board"] = game["board"]
+    return result
+
+
 @server.tool(
     annotations=ToolAnnotations(
         title="Resign the game", read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
@@ -1116,7 +1321,7 @@ async def get_tutor() -> dict[str, str | bool]:
     is on. See set_tutor for what each setting does. note, when present, says
     when a setting has no effect.
     """
-    settings, info = await asyncio.gather(_tutor_settings(), _system_info())
+    settings, info = await asyncio.gather(_current_settings(), _system_info())
     return _tutor_summary(settings, info)
 
 
@@ -1162,7 +1367,7 @@ async def set_tutor(
     if explorer is not None:
         wanted["tutor_explorer"] = explorer
 
-    current = await _tutor_settings()
+    current = await _current_settings()
     # PicoChess applies each setting in turn, so send them one at a time like the Tutor menu does.
     for key, value in wanted.items():
         if current.get(key) == value:
@@ -1171,7 +1376,7 @@ async def set_tutor(
         await _post_channel_action({"action": "picotutor", "tutor": key.removeprefix("tutor_"), "val": val})
 
     settings = await _wait_until(
-        _tutor_settings,
+        _current_settings,
         lambda s: all(s.get(key) == value for key, value in wanted.items()),
         "apply the Tutor settings",
     )

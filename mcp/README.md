@@ -12,7 +12,9 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 
 | Tool | What it does |
 |---|---|
-| `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
+| `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, its Elo when known, and its level, for example `Elo@2200`. Read-only. |
+| `list_engines` | Lists the installed engines with their Elo, menu category (modern or retro) and levels. Read-only. |
+| `set_engine` | Changes the engine, its level, or both, like the web client's Engine menu. A level can be given as `Elo@1800` or `1800`. A game in progress continues, except that a retro engine starts a new game. Returns once the engine has restarted. |
 | `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Also the opening, and PicoTutor's feedback: the moves its Watcher marked or found inaccurate, with the better move, and its verdict on the user's latest move. Works with and without an e-board. Read-only. |
 | `get_hint` | Suggests the best move in the current position, like the clock's + button (button 3): the move in SAN, the expected continuation, up to two other candidates, the search depth and the source (Tutor or engine). Read-only. |
 | `get_top_moves` | Lists the best moves from PicoChess's analysis of the current position, as in the web client: for each, the move, an evaluation, the depth and the continuation. Three lines in analysis mode and in play mode on the user's turn with the Tutor on; one line otherwise, including while the engine is thinking. Read-only. |
@@ -26,6 +28,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `request_alternative_move` | With an e-board only: asks the engine to replace the move it has chosen but that is not yet made on the board, like the web client's play/pause button. The engine searches again without the moves it already proposed, and PicoChess shows the new move on its displays. |
 | `set_position` | Replaces the current game with the position in a FEN, like Position > Set Pos in the web client. With an e-board, PicoChess then guides the user by voice to set up the pieces. |
 | `scan_board` | With an e-board only: replaces the current game with the position on the board, like Position > Scan. Options: side to move, a reversed board, and the castling rights still allowed. |
+| `take_back` | Takes back the user's latest move: after the engine's reply both moves, so it is the user's turn again, or a given number of half-moves. With an e-board, the user takes the moves back on the board too. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
 
@@ -135,6 +138,9 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Current position, PGN, last move and the Tutor's move ratings | `GET /dgt?action=get_last_move` |
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
+| Take back a move | `POST /channel` with `action=take_back`, once per half-move |
+| Installed engines and levels | `GET /info?action=get_engines` |
+| Change engine or level | `POST /channel` with `action=new_engine`, `file` and `level` |
 | Resign | `POST /channel` with `action=resign_game` |
 | Set a position | `POST /channel` with `action=set_position` and `fen` |
 | Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |

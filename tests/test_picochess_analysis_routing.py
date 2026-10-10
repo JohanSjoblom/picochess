@@ -1425,6 +1425,90 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.controller.stop_search())
 
 
+class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.state = SimpleNamespace(
+            best_sent_depth=SimpleNamespace(reset=Mock()),
+            interaction_mode=Mode.NORMAL,
+            position_checkpoint_restore_pending=False,
+            can_preserve_position_checkpoint_play_mode=Mock(return_value=False),
+            done_computer_fen=None,
+            newgame_happened=True,
+            picotutor=None,
+        )
+        self.controller.get_rid_of_engine_move = AsyncMock()
+        self.controller._set_pgn_replay_autoplay = Mock()
+        self.controller.stop_search_and_clock = AsyncMock()
+        self.controller._save_position_checkpoint = AsyncMock()
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller.engine_mode = AsyncMock()
+        self.controller.set_wait_state = AsyncMock()
+
+    @staticmethod
+    def mode_event(mode):
+        return Event.SET_INTERACTION_MODE(
+            mode=mode,
+            mode_text=SimpleNamespace(large_text=mode.name),
+            show_ok=True,
+        )
+
+    async def test_play_to_analysis_stops_play_before_entering_ponder(self):
+        order = []
+
+        async def stop_old_mode():
+            self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+            order.append("stop")
+
+        async def activate_new_mode():
+            self.assertEqual(Mode.PONDER, self.controller.state.interaction_mode)
+            order.append("engine_mode")
+
+        self.controller.stop_search_and_clock.side_effect = stop_old_mode
+        self.controller.engine_mode.side_effect = activate_new_mode
+
+        await self.controller.process_main_events(self.mode_event(Mode.PONDER))
+
+        self.assertEqual(["stop", "engine_mode"], order)
+        self.assertEqual(Mode.PONDER, self.controller.state.interaction_mode)
+        self.assertFalse(self.controller.state.newgame_happened)
+        self.controller.get_rid_of_engine_move.assert_awaited_once_with()
+        self.controller.stop_search_and_clock.assert_awaited_once_with()
+        self.controller._save_position_checkpoint.assert_awaited_once_with(Mode.NORMAL)
+        self.controller._clear_position_checkpoint.assert_not_called()
+        self.controller.set_wait_state.assert_awaited_once()
+        self.controller.state.best_sent_depth.reset.assert_called_once_with()
+
+    async def test_analysis_to_play_stops_analysis_before_entering_normal(self):
+        self.controller.state.interaction_mode = Mode.PONDER
+        order = []
+
+        async def stop_old_mode():
+            self.assertEqual(Mode.PONDER, self.controller.state.interaction_mode)
+            order.append("stop")
+
+        async def activate_new_mode():
+            self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+            order.append("engine_mode")
+
+        self.controller.stop_search_and_clock.side_effect = stop_old_mode
+        self.controller.engine_mode.side_effect = activate_new_mode
+
+        await self.controller.process_main_events(self.mode_event(Mode.NORMAL))
+
+        self.assertEqual(["stop", "engine_mode"], order)
+        self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+        self.controller.get_rid_of_engine_move.assert_not_awaited()
+        self.controller.stop_search_and_clock.assert_awaited_once_with()
+        self.controller._save_position_checkpoint.assert_not_awaited()
+        self.controller._clear_position_checkpoint.assert_called_once_with()
+        self.controller._set_pgn_replay_autoplay.assert_called_once_with(
+            False, mode=Mode.NORMAL
+        )
+        self.controller.set_wait_state.assert_awaited_once()
+        self.controller.state.best_sent_depth.reset.assert_called_once_with()
+
+
 class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.show = AsyncMock()

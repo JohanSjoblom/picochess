@@ -181,7 +181,7 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=25', template)
+        self.assertIn('app.js?v=26', template)
         self.assertIn('base.css?v=15', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
@@ -1378,6 +1378,39 @@ class TestServerChannelAuth(unittest.TestCase):
             "set_position_side",
         ):
             self.assertFalse(_channel_action_requires_remote_auth(action), action)
+
+
+class TestServerModeSwitch(unittest.IsolatedAsyncioTestCase):
+    async def _post_mode(self, mode_name):
+        handler = Mock()
+        handler.shared = {}
+        arguments = {"action": "set_mode", "mode": mode_name}
+        handler.get_argument.side_effect = lambda name, default=None: arguments.get(name, default)
+
+        with (
+            patch("server._require_auth_if_remote", return_value=True),
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        fire.assert_awaited_once()
+        return fire.await_args.args[0]
+
+    async def test_analysis_selection_emits_ponder_mode_event(self):
+        event = await self._post_mode("ponder")
+
+        self.assertEqual(EventApi.SET_INTERACTION_MODE, repr(event))
+        self.assertEqual(Mode.PONDER, event.mode)
+        self.assertEqual("Analysis", event.mode_text.large_text)
+        self.assertTrue(event.show_ok)
+
+    async def test_play_selection_emits_normal_mode_event(self):
+        event = await self._post_mode("normal")
+
+        self.assertEqual(EventApi.SET_INTERACTION_MODE, repr(event))
+        self.assertEqual(Mode.NORMAL, event.mode)
+        self.assertEqual("Normal", event.mode_text.large_text)
+        self.assertTrue(event.show_ok)
 
 
 class TestServerUnsupportedHostActions(unittest.IsolatedAsyncioTestCase):

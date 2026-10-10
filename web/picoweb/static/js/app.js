@@ -3159,12 +3159,37 @@ function backendAnalysisKey(analysis) {
 }
 
 // Ponder mode: real-time single-line display in #DGTClockText
-// Format: "24. Qxe5+ d27 +2.34"  (all on one line, updated on every Analysis event)
+// Format: "24. Dxe5+ d27 +2.34" in Dutch (all on one line, updated on every Analysis event)
 var analysisClockData = null;
 
 function isAnalysisClockMode(mode) {
     var resolvedMode = mode || (window._picoSystemInfo || {}).interaction_mode;
     return resolvedMode === 'ponder';
+}
+
+function analysisClockModeChanged(previousMode, nextMode) {
+    return (previousMode === 'ponder') !== (nextMode === 'ponder');
+}
+
+function analysisClockLanguage() {
+    var settings = window._picoCurrentSettings || {};
+    var systemInfo = window._picoSystemInfo || {};
+    return String(settings.language || systemInfo.language || 'en').toLowerCase();
+}
+
+function localizeSanPieceLetters(san, language) {
+    var pieceLetters = {
+        de: { R: 'T', N: 'S', B: 'L', Q: 'D' },
+        nl: { R: 'T', N: 'P', B: 'L', Q: 'D' },
+        fr: { R: 'T', N: 'C', B: 'F', Q: 'D', K: 'R' },
+        es: { R: 'T', N: 'C', B: 'A', Q: 'D', K: 'R' },
+        it: { R: 'T', N: 'C', B: 'A', Q: 'D', K: 'R' }
+    };
+    var languageMap = pieceLetters[String(language || 'en').toLowerCase()];
+    if (!languageMap || !san) return san;
+    return san.replace(/[RNBQK]/g, function (piece) {
+        return languageMap[piece] || piece;
+    });
 }
 
 function _buildAnalysisClockLine(analysis) {
@@ -3203,7 +3228,8 @@ function _buildAnalysisClockLine(analysis) {
             }
         }
         if (san) {
-            // "24. Nc4" for white, "24...Nc4" for black
+            san = localizeSanPieceLetters(san, analysisClockLanguage());
+            // "24. Pc4" for white in Dutch, "24...Pc4" for black
             parts.push(isBlack ? moveNum + '...' + san : moveNum + '. ' + san);
         }
     }
@@ -3899,9 +3925,9 @@ $(function () {
                         Object.assign(window._picoSystemInfo, data.msg);
                         updateDgtBatteryStatus();
                         applyInitialWebExploreBoardPolicy();
-                        // Clear stale clock text (e.g. engine name) the moment we
-                        // enter Ponder/free-analysis mode, before the first Analysis event arrives.
-                        if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
+                        // Clear stale clock text on both sides of a Ponder/free-analysis
+                        // transition. The next Analysis or Clock event supplies the new text.
+                        if (analysisClockModeChanged(_prevMode, data.msg.interaction_mode)) {
                             stopAnalysisClock();
                             dgtClockTextEl.html('');
                         }

@@ -33,8 +33,9 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | `take_back` | Takes back the user's latest move: after the engine's reply both moves, so it is the user's turn again, or a given number of half-moves. With an e-board, the user takes the moves back on the board too. |
 | `new_game` | Starts a new standard chess game, discarding any game in progress. |
 | `resign_game` | Resigns the current game, so the engine wins. Returns the final result and PGN. |
+| `end_game` | Ends the game as a draw, a white win or a black win, like Set Result in the web client's Game menu: for an agreed draw, or a loss on time, which PicoChess does not end by itself. Returns the final result and PGN. |
 
-`new_game`, `resign_game`, `set_position` and `scan_board` replace or end the game. They are marked destructive, so Claude Code asks before running them.
+`new_game`, `resign_game`, `end_game`, `set_position` and `scan_board` replace or end the game. They are marked destructive, so Claude Code asks before running them.
 
 ## Requirements
 
@@ -144,6 +145,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Installed engines and levels | `GET /info?action=get_engines` |
 | Change engine or level | `POST /channel` with `action=new_engine`, `file` and `level` |
 | Resign | `POST /channel` with `action=resign_game` |
+| Set the result | `POST /channel` with `action=game_end` and `result=white`, `black` or `draw` |
 | Set a position | `POST /channel` with `action=set_position` and `fen` |
 | Switch mode | `POST /channel` with `action=set_mode` and `mode=normal` or `mode=ponder`. PicoChess's internal `Mode.PONDER` is the menu's Analysis mode; its `analysis` value is the menu's Move Hint mode. |
 | Return from analysis mode to the saved game | `POST /channel` with `action=restore_position_checkpoint`, when `get_system_info` reports `position_checkpoint_available` |
@@ -180,3 +182,7 @@ analysis of the previous position, which would otherwise give a hint for the wro
 `opening_name_fen.txt` in the PicoChess folder: PicoChess shows the opening name only on its clock and in
 saved PGN headers. Explorer names an opening only while the game is in the book; `get_game` keeps the
 name of the latest known position.
+
+After a resignation or a result, PicoChess pauses 1.5 seconds before it marks the game as declared. A
+new game started during that pause inherits the mark and refuses all moves, so `resign_game` and
+`end_game` return only after the pause.

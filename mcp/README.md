@@ -13,7 +13,7 @@ The server runs on the same machine as the MCP client and reaches PicoChess at
 | Tool | What it does |
 |---|---|
 | `get_engine` | Returns the engine PicoChess is using, for example `Stockfish 19`, and its Elo when known. Read-only. |
-| `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Works with and without an e-board. Read-only. |
+| `get_game` | Describes the current game: whose turn it is and what happens next, the last move and who played it, the moves so far, a text board diagram, FEN and PGN. Also the opening, and PicoTutor's feedback: the moves its Watcher marked or found inaccurate, with the better move, and its verdict on the user's latest move. Works with and without an e-board. Read-only. |
 | `get_hint` | Suggests the best move in the current position, like the clock's + button (button 3): the move in SAN, the expected continuation, up to two other candidates, the search depth and the source (Tutor or engine). Read-only. |
 | `get_top_moves` | Lists the best moves from PicoChess's analysis of the current position, as in the web client: for each, the move, an evaluation, the depth and the continuation. Three lines in analysis mode and in play mode on the user's turn with the Tutor on; one line otherwise, including while the engine is thinking. Read-only. |
 | `get_evaluation` | Evaluates the current position, like the clock's - button (button 1): an assessment in words, centipawns from White's point of view or a mate count, the score from the user's point of view, the depth and the source. Does not reveal the best move. Read-only. |
@@ -134,7 +134,7 @@ Claude Code starts the server when the session begins. After changing `server.py
 | Purpose | Request |
 |---|---|
 | Engine name | `GET /info?action=get_system_info` |
-| Current position, PGN and last move | `GET /dgt?action=get_last_move` |
+| Current position, PGN, last move and the Tutor's move ratings | `GET /dgt?action=get_last_move` |
 | Play a move | `POST /channel` with `action=move`, `source`, `target`, `promotion` and `fen` |
 | New game | `POST /channel` with `action=new_game` |
 | Resign | `POST /channel` with `action=resign_game` |
@@ -168,3 +168,8 @@ the messages PicoChess sends a new client (latest position, analysis and system 
 and disconnect. Each analysis carries the position it was computed for. The tools use only
 analysis of the current position: after the engine moves, PicoChess keeps showing the engine's
 analysis of the previous position, which would otherwise give a hint for the wrong side.
+
+`get_game` names the opening itself, from the two lists PicoTutor's Explorer uses, `chess-eco_pos.txt` and
+`opening_name_fen.txt` in the PicoChess folder: PicoChess shows the opening name only on its clock and in
+saved PGN headers. Explorer names an opening only while the game is in the book; `get_game` keeps the
+name of the latest known position.

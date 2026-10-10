@@ -3666,6 +3666,7 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.STARTUP_INFO):
             self.shared["game_info"] = message.info.copy()
+            startup_game = self.shared["game_info"].pop("game", None)
             # Mirror interaction_mode and play_mode into system_info so the
             # web client can determine diagram interactivity on page load.
             self._create_system_info()
@@ -3706,6 +3707,19 @@ class WebDisplay(DisplayMsg):
                 WebDisplay.level_name_sav = ""
             else:
                 WebDisplay.level_name_sav = self.shared["game_info"]["level_name"]
+
+            if startup_game is not None:
+                result = {
+                    "pgn": _transfer(startup_game),
+                    "fen": _oldstyle_fen(startup_game) if startup_game.move_stack else startup_game.fen(),
+                    "event": "Game",
+                    "move": "0000",
+                    "play": "newgame",
+                    "mistakes": [],
+                }
+                _attach_variant_info(result)
+                self.shared["last_dgt_move_msg"] = result
+                EventHandler.write_to_clients(result)
 
             # The browser may connect before engine startup finishes (especially
             # with MAME). Publish board authority and modes together so it can

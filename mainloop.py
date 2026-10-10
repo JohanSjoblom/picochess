@@ -558,6 +558,7 @@ class MainLoop:
         await DisplayMsg.show(
             Message.STARTUP_INFO(
                 info={
+                    "game": self.state.game_copy(),
                     "interaction_mode": self.state.interaction_mode,
                     "play_mode": self.state.play_mode,
                     "books": self.all_books,

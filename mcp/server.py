@@ -48,6 +48,9 @@ SETUP_TIMEOUT_SECONDS = 30.0
 CHECKPOINT_WAIT_SECONDS = 5.0
 # After a restarted engine reports ready, PicoChess publishes its playing Elo within about a second.
 ENGINE_SETTLE_SECONDS = 1.5
+# PicoChess publishes a resignation or result, pauses 1.5 seconds, and only then marks the game
+# as declared. A new game started during that pause would inherit the mark and refuse all moves.
+GAME_END_SETTLE_SECONDS = 2.0
 
 _MOVE_NUMBER = re.compile(r"^\d+\s*\.+\s*")
 _PGN_RESULT = re.compile(r'^\[Result "([^"]*)"\]', re.MULTILINE)
@@ -1337,7 +1340,42 @@ async def resign_game() -> dict[str, str | None]:
 
     await _post_channel_action({"action": "resign_game"})
     message = await _wait_for_message(lambda m: _game_result(m) != "*", "end the game")
+    await asyncio.sleep(GAME_END_SETTLE_SECONDS)
     return {"status": "you resigned", "result": _game_result(message), "pgn": message.get("pgn")}
+
+
+_END_GAME_RESULTS = {"draw": ("draw", "1/2-1/2"), "white wins": ("white", "1-0"), "black wins": ("black", "0-1")}
+
+
+@server.tool(
+    annotations=ToolAnnotations(
+        title="End the game with a result",
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
+        open_world_hint=False,
+    )
+)
+async def end_game(result: Literal["draw", "white wins", "black wins"]) -> dict[str, str | None]:
+    """End the current game with the given result, like Set Result in the web client's Game menu.
+
+    Use this for an agreed draw, or to record a result PicoChess does not
+    decide by itself, such as a loss on time: PicoChess lets play continue
+    after a flag falls. To give up the game, use resign_game. Ask the user to
+    confirm first. Returns the final result and the finished game as PGN.
+    """
+    message = await _last_move_message()
+    if not message or message.get("play") == "newgame":
+        raise ToolError("No game is in progress, so there is no result to set.")
+    current = _game_result(message)
+    if current != "*":
+        raise ToolError(f"The game is already over ({current}). Start a new game with new_game.")
+
+    value, expected = _END_GAME_RESULTS[result]
+    await _post_channel_action({"action": "game_end", "result": value})
+    message = await _wait_for_message(lambda m: _game_result(m) == expected, "end the game")
+    await asyncio.sleep(GAME_END_SETTLE_SECONDS)
+    return {"status": f"game ended: {result}", "result": expected, "pgn": message.get("pgn")}
 
 
 @server.tool(

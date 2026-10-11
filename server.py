@@ -3084,11 +3084,12 @@ class WebVr(DgtIface):
         if self.get_name() not in message.devs:
             logger.debug("ignored endText - devs: %s", message.devs)
             return True
-        if self.side_running != ClockSide.NONE or message.force:
-            self.clock_show_time = True
-            self._display_time(self.l_time, self.r_time)
-        else:
-            logger.debug("(web) clock isnt running - no need for endText")
+        # The web clock also caches its last payload for newly connected
+        # clients. Restore the stopped clock after a timed move/text message;
+        # otherwise that temporary message survives indefinitely and is sent
+        # again on reconnect.
+        self.clock_show_time = True
+        self._display_time(self.l_time, self.r_time)
         return True
 
     async def stop_clock(self, devs: set):

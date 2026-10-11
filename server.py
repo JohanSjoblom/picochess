@@ -3012,6 +3012,7 @@ class WebVr(DgtIface):
     def _display_time(self, time_left: int, time_right: int):
         if time_left >= 3600 * 10 or time_right >= 3600 * 10:
             logger.debug("time values not set - abort function")
+            return False
         elif self.clock_show_time:
             l_hms = hms_time(time_left)
             r_hms = hms_time(time_right)
@@ -3037,6 +3038,8 @@ class WebVr(DgtIface):
                 f'<span class="{r_cls}">{text_r}</span>'
             )
             EventHandler.write_to_clients(self._clock_event(text))
+            return True
+        return False
 
     def display_move_on_clock(self, message):
         """Display a move on the web clock."""
@@ -3089,7 +3092,11 @@ class WebVr(DgtIface):
         # otherwise that temporary message survives indefinitely and is sent
         # again on reconnect.
         self.clock_show_time = True
-        self._display_time(self.l_time, self.r_time)
+        if not self._display_time(self.l_time, self.r_time):
+            # Before the first SET_CLOCK there is no useful time to render.
+            # Clear the expired temporary message instead of caching it for
+            # future websocket clients.
+            EventHandler.write_to_clients(self._clock_event(""))
         return True
 
     async def stop_clock(self, devs: set):

@@ -50,6 +50,20 @@ class TestWebVr(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Clock", event["event"])
         self.assertFalse(event["running"])
 
+    async def test_display_time_clears_timed_message_before_clock_is_set(self):
+        shared = {"clock_text": "12...c5b6"}
+        web = WebVr(shared=shared, dgtboard=DummyBoard(), loop=None)
+        web.side_running = ClockSide.NONE
+        web.clock_show_time = False
+        message = Mock(devs={"web"}, force=False)
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            web.display_time_on_clock(message)
+
+        self.assertEqual("", shared["clock_text"])
+        self.assertEqual("", write_to_clients.call_args.args[0]["msg"])
+        self.assertFalse(write_to_clients.call_args.args[0]["running"])
+
     async def test_runclock_accumulates_fractional_delay(self):
         web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
         web.side_running = ClockSide.LEFT

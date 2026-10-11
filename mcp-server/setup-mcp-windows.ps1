@@ -3,8 +3,8 @@
 Prepares the experimental PicoChess MCP server on Windows.
 
 .DESCRIPTION
-Creates or reuses mcp\.venv with a 64-bit CPython 3.10 or newer, installs
-mcp\requirements.txt into it, and checks that the server's imports work.
+Creates or reuses mcp-server\.venv with a 64-bit CPython 3.10 or newer, installs
+mcp-server\requirements.txt into it, and checks that the server's imports work.
 PicoChess's own venv and the system Python are not changed.
 
 With -Register it also registers the server with Claude Code as "picochess",
@@ -18,7 +18,7 @@ PicoChess web address passed to the server as PICOCHESS_URL when registering.
 Defaults to the server's own default, http://localhost:8080.
 
 .PARAMETER RecreateVenv
-Delete mcp\.venv and create it again.
+Delete mcp-server\.venv and create it again.
 #>
 
 [CmdletBinding()]

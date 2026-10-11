@@ -51,7 +51,7 @@ and `save_game` replaces a saved game. They are marked destructive, so Claude Co
 - [Claude Code](https://code.claude.com/), or another MCP client that can start a local stdio
   server.
 
-The server uses its own virtual environment, `mcp/.venv`, which is ignored by Git. It does not
+The server uses its own virtual environment, `mcp-server/.venv`, which is ignored by Git. It does not
 change PicoChess's `venv`.
 
 ## Setup on Windows
@@ -59,24 +59,24 @@ change PicoChess's `venv`.
 From the PicoChess folder:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\mcp\setup-mcp-windows.ps1 -Register
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\mcp-server\setup-mcp-windows.ps1 -Register
 ```
 
-The script creates or reuses `mcp\.venv`, installs `mcp\requirements.txt`, checks the imports,
+The script creates or reuses `mcp-server\.venv`, installs `mcp-server\requirements.txt`, checks the imports,
 and registers the server with Claude Code as `picochess`. Leave out `-Register` to only prepare
 the environment; the script then prints the registration command. Other options:
 
 - `-PicoChessUrl http://host:port` registers the server for a PicoChess at another address.
-- `-RecreateVenv` deletes `mcp\.venv` and creates it again.
+- `-RecreateVenv` deletes `mcp-server\.venv` and creates it again.
 
 ## Setup on Linux and macOS
 
 From the PicoChess folder:
 
 ```bash
-python3 -m venv mcp/.venv
-mcp/.venv/bin/python -m pip install -r mcp/requirements.txt
-claude mcp add picochess -- "$PWD/mcp/.venv/bin/python" "$PWD/mcp/server.py"
+python3 -m venv mcp-server/.venv
+mcp-server/.venv/bin/python -m pip install -r mcp-server/requirements.txt
+claude mcp add picochess -- "$PWD/mcp-server/.venv/bin/python" "$PWD/mcp-server/server.py"
 ```
 
 ## Registration
@@ -90,7 +90,7 @@ To reach PicoChess at another address, register it with `-e PICOCHESS_URL=http:/
 ## Claude Desktop
 
 Claude Desktop can use the same server, but it does not read Claude Code's registration. Prepare
-`mcp/.venv` first, with the Windows setup script (without `-Register`) or the Linux and macOS
+`mcp-server/.venv` first, with the Windows setup script (without `-Register`) or the Linux and macOS
 commands above. Then add the server to Claude Desktop's configuration:
 
 1. In Claude Desktop, open **Settings > Developer > Edit Config**. This opens
@@ -103,8 +103,8 @@ commands above. Then add the server to Claude Desktop's configuration:
    {
      "mcpServers": {
        "picochess": {
-         "command": "C:\\Users\\you\\PicoChess\\mcp\\.venv\\Scripts\\python.exe",
-         "args": ["C:\\Users\\you\\PicoChess\\mcp\\server.py"]
+         "command": "C:\\Users\\you\\PicoChess\\mcp-server\\.venv\\Scripts\\python.exe",
+         "args": ["C:\\Users\\you\\PicoChess\\mcp-server\\server.py"]
        }
      }
    }
@@ -112,7 +112,7 @@ commands above. Then add the server to Claude Desktop's configuration:
 
    If the file already has an `mcpServers` section, add only the `picochess` entry to it. To reach
    PicoChess at another address, add `"env": {"PICOCHESS_URL": "http://host:port"}` to the entry.
-   On macOS, use `.../mcp/.venv/bin/python` as the command.
+   On macOS, use `.../mcp-server/.venv/bin/python` as the command.
 3. Quit Claude Desktop completely, from the system tray on Windows or the menu bar on macOS, and
    start it again. The PicoChess tools then appear in the tools menu of a new chat.
 

@@ -33,7 +33,8 @@ from ctypes import cdll, c_int
 from subprocess import Popen, PIPE
 
 from dgt.translate import DgtTranslate
-from dgt.api import Dgt
+from dgt.api import Dgt, Message
+from dgt.util import game_ending_from_result
 
 from configobj import ConfigObj, ConfigObjError, DuplicateError  # type: ignore
 
@@ -108,9 +109,25 @@ class DisplayMsg(object):
     @staticmethod
     async def show(message):
         """Send a message on each display device."""
+        if isinstance(message, Message.GAME_ENDS):
+            DisplayMsg._record_game_ending(message)
         for display in msgdisplay_devices:
             await display.add_to_queue(copy.deepcopy(message))
         # logger.debug("added message to %d queues %s", len(msgdisplay_devices), message)
+
+    @staticmethod
+    def _record_game_ending(message):
+        """Record the game result when GAME_ENDS is sent, not when a display handles it.
+
+        Display queues can lag behind the main loop, for example while voice or
+        clock texts play. A result written from a queue could then land on a new
+        game started in the meantime and make it refuse moves.
+        """
+        from pgn import ModeInfo  # pgn imports utilities, so import here
+
+        ending = game_ending_from_result(message.result, message.game)
+        if ending is not None:
+            ModeInfo.set_game_ending(result=ending)
 
 
 class DisplayDgt(object):

@@ -913,6 +913,41 @@ def game_result_from_header(result_str: str) -> GameResult:
         return GameResult.ABORT
 
 
+_WHITE_WINS = (
+    GameResult.WIN_WHITE,
+    GameResult.THREE_CHECK_WHITE,
+    GameResult.ATOMIC_WHITE,
+    GameResult.KOTH_WHITE,
+    GameResult.RK_WHITE,
+    GameResult.ANTICHESS_WHITE,
+)
+_BLACK_WINS = (
+    GameResult.WIN_BLACK,
+    GameResult.THREE_CHECK_BLACK,
+    GameResult.ATOMIC_BLACK,
+    GameResult.KOTH_BLACK,
+    GameResult.RK_BLACK,
+    GameResult.ANTICHESS_BLACK,
+)
+
+
+def game_ending_from_result(result: GameResult, game) -> str | None:
+    """
+    Return the PGN result string ('1-0', '0-1', '1/2-1/2') recorded for a
+    GAME_ENDS message, or None when the result leaves the game ending unchanged.
+    For MATE and OUT_OF_TIME the side that moved last has won.
+    """
+    if result == GameResult.DRAW:
+        return "1/2-1/2"
+    if result in _WHITE_WINS:
+        return "1-0"
+    if result in _BLACK_WINS:
+        return "0-1"
+    if result in (GameResult.OUT_OF_TIME, GameResult.MATE):
+        return "0-1" if game.turn else "1-0"  # game.turn is True for White
+    return None
+
+
 @enum.unique
 class BeepLevel(MyEnum):
     """Define the beep level for each beep event."""

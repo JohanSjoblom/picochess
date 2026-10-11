@@ -31,6 +31,25 @@ class TestWebVr(unittest.IsolatedAsyncioTestCase):
 
         web._display_time.assert_not_called()
 
+    async def test_display_time_restores_stopped_clock_after_timed_message(self):
+        shared = {"clock_text": "12...c5b6"}
+        web = WebVr(shared=shared, dgtboard=DummyBoard(), loop=None)
+        web.side_running = ClockSide.NONE
+        web.clock_show_time = False
+        web.l_time = 61
+        web.r_time = 62
+        message = Mock(devs={"web"}, force=False)
+
+        with patch("server.EventHandler.write_to_clients") as write_to_clients:
+            web.display_time_on_clock(message)
+
+        self.assertTrue(web.clock_show_time)
+        self.assertNotEqual("12...c5b6", shared["clock_text"])
+        self.assertIn("ctime-l", shared["clock_text"])
+        event = write_to_clients.call_args.args[0]
+        self.assertEqual("Clock", event["event"])
+        self.assertFalse(event["running"])
+
     async def test_runclock_accumulates_fractional_delay(self):
         web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
         web.side_running = ClockSide.LEFT

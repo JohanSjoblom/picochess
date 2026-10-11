@@ -422,6 +422,7 @@ class ContinuousAnalysis:
         self.multipv = None  # multipv for analysis - set in start
         self._analysis_started_ts: float | None = None
         self._active_analysis: AnalysisResult | None = None
+        self._ready_ping_task: asyncio.Task | None = None
         self._failure_reason: str | None = None
         self._last_stop_was_forced = False
         self.lock = asyncio.Lock()
@@ -442,13 +443,29 @@ class ContinuousAnalysis:
         return self.limit_reached
 
     async def _wait_for_engine_ready(self, timeout: float = 1.0) -> bool:
-        """Wait until engine responds to a ping without raising (engine 'ready')."""
+        """Wait briefly for readiness without cancelling python-chess's ping command."""
         if not self.engine:
             return False
+        if self._ready_ping_task is None:
+            self._ready_ping_task = self.loop.create_task(self.engine.ping())
+
+            # A timed-out ping remains active so a late readyok can finish the
+            # python-chess command cleanly. Consume its exception even if the
+            # analyser is stopped or the engine is replaced before the next poll.
+            def consume_exception(task: asyncio.Task) -> None:
+                if not task.cancelled():
+                    task.exception()
+
+            self._ready_ping_task.add_done_callback(consume_exception)
         try:
-            await asyncio.wait_for(self.engine.ping(), timeout=timeout)
+            await asyncio.wait_for(asyncio.shield(self._ready_ping_task), timeout=timeout)
+            self._ready_ping_task = None
             return True
+        except asyncio.TimeoutError:
+            logger.debug("%s engine readiness ping still pending", self.whoami)
+            return False
         except Exception as e:
+            self._ready_ping_task = None
             logger.debug("%s engine not ready: %s", self.whoami, e)
             return False
 
@@ -595,7 +612,9 @@ class ContinuousAnalysis:
             # Wait briefly until the engine is ready before starting analysis
             ready = await self._wait_for_engine_ready(timeout=0.5)
             if not ready:
-                logger.warning("%s engine not ready, analysis may fail", self.whoami)
+                logger.debug("%s engine not ready; postponing analysis", self.whoami)
+                await asyncio.sleep(self.delay)
+                return
 
             self._analysis_started_ts = self.loop.time() if self.loop else None
             # Avoid `with await engine.analysis() as analysis` because the context-manager
@@ -1401,12 +1420,25 @@ class UciEngine(object):
         return False
 
     async def _recover_from_failed_analyser_stop(self, reason: str) -> bool:
-        """Restart the engine before releasing the lease after a dirty analysis stop."""
+        """Restart the engine, completing setup even if the analyser is cancelled."""
         if self._shutting_down:
             logger.debug("%s recovery skipped while engine is shutting down", reason)
             if self.analyser:
                 self.analyser.clear_failure()
             return True
+        recovery_task = asyncio.create_task(self._recover_from_failed_analyser_stop_inner(reason))
+        try:
+            return await asyncio.shield(recovery_task)
+        except CancelledError:
+            # stop_analysis() may cancel the analyser while this callback is
+            # reopening the engine. Let the transaction finish so it cannot
+            # leave a live engine permanently marked as setup-incomplete.
+            logger.debug("%s recovery cancellation deferred until setup completes", reason)
+            await asyncio.shield(recovery_task)
+            raise
+
+    async def _recover_from_failed_analyser_stop_inner(self, reason: str) -> bool:
+        """Perform the engine restart transaction for analyser recovery."""
         logger.warning("%s - restarting engine %s", reason, self.engine_name)
         should_send_options = False
         async with self.engine_lock:

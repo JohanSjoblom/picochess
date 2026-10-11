@@ -76,7 +76,7 @@ From the PicoChess folder:
 ```bash
 python3 -m venv mcp-server/.venv
 mcp-server/.venv/bin/python -m pip install -r mcp-server/requirements.txt
-claude mcp add picochess -- "$PWD/mcp-server/.venv/bin/python" "$PWD/mcp-server/server.py"
+claude mcp add picochess -- "$PWD/mcp-server/.venv/bin/python" "$PWD/mcp-server/picochess_mcp.py"
 ```
 
 ## Registration
@@ -104,7 +104,7 @@ commands above. Then add the server to Claude Desktop's configuration:
      "mcpServers": {
        "picochess": {
          "command": "C:\\Users\\you\\PicoChess\\mcp-server\\.venv\\Scripts\\python.exe",
-         "args": ["C:\\Users\\you\\PicoChess\\mcp-server\\server.py"]
+         "args": ["C:\\Users\\you\\PicoChess\\mcp-server\\picochess_mcp.py"]
        }
      }
    }
@@ -123,7 +123,7 @@ commands above. Then add the server to Claude Desktop's configuration:
    `picochess` is connected. In Claude Desktop, start a new chat.
 3. Ask, for example, "What engine is loaded?" or "Let's play, 1. e4".
 
-Claude Code starts the server when the session begins. After changing `server.py`, reconnect
+Claude Code starts the server when the session begins. After changing `picochess_mcp.py`, reconnect
 `picochess` with `/mcp` or start a new session.
 
 ## Limitations

@@ -1428,6 +1428,7 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
 class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.args = SimpleNamespace(remote_picochess_url="")
         self.controller.state = SimpleNamespace(
             best_sent_depth=SimpleNamespace(reset=Mock()),
             interaction_mode=Mode.NORMAL,

@@ -1376,6 +1376,9 @@ class UciEngine(object):
         """Point existing helper objects at the current engine process."""
         if self.analyser and self.playing:
             self.analyser.engine = self.engine
+            # A readiness ping belongs to the previous protocol instance. It
+            # may finish after shutdown, but must never gate the replacement.
+            self.analyser._ready_ping_task = None
             self.analyser.clear_failure()
             self.playing.engine = self.engine
             self.analyser.set_game_id(self.game_id)

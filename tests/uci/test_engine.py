@@ -396,6 +396,55 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(analyser.needs_recovery())
         self.assertIsNone(analyser._analysis_data)
 
+    async def test_engine_ready_timeout_does_not_cancel_pending_ping(self):
+        ping_can_finish = asyncio.Event()
+        engine = MockEngine()
+
+        async def delayed_ping():
+            await ping_can_finish.wait()
+
+        engine.ping = AsyncMock(side_effect=delayed_ping)
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+
+        self.assertFalse(await analyser._wait_for_engine_ready(timeout=0.01))
+        self.assertIsNotNone(analyser._ready_ping_task)
+        self.assertFalse(analyser._ready_ping_task.cancelled())
+
+        ping_can_finish.set()
+        self.assertTrue(await analyser._wait_for_engine_ready(timeout=0.1))
+        engine.ping.assert_awaited_once()
+
+    async def test_analysis_waits_for_pending_readiness_ping(self):
+        ping_can_finish = asyncio.Event()
+        engine = MockEngine()
+
+        async def delayed_ping():
+            await ping_can_finish.wait()
+
+        engine.ping = AsyncMock(side_effect=delayed_ping)
+        engine.analysis = AsyncMock()
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+        analyser.current_game = chess.Board()
+
+        await analyser._analyse_forever(limit=None, multipv=None)
+
+        engine.analysis.assert_not_awaited()
+        self.assertFalse(analyser._ready_ping_task.cancelled())
+        ping_can_finish.set()
+        await analyser._ready_ping_task
+
     async def test_continuous_analysis_marks_forced_stop_after_timeout(self):
         analyser = ContinuousAnalysis(
             engine=MockEngine(),
@@ -798,3 +847,28 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng.analyser.clear_failure.assert_called_once()
         eng._shutdown_standard_engine.assert_not_awaited()
         eng._start_engine_process.assert_not_awaited()
+
+    async def test_recovery_finishes_engine_setup_before_propagating_cancellation(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        recovery_started = asyncio.Event()
+        allow_recovery_to_finish = asyncio.Event()
+
+        async def recover(_reason):
+            recovery_started.set()
+            await allow_recovery_to_finish.wait()
+            eng._analysis_allowed = True
+            return True
+
+        eng._recover_from_failed_analyser_stop_inner = AsyncMock(side_effect=recover)
+        task = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
+        await recovery_started.wait()
+
+        task.cancel()
+        await asyncio.sleep(0)
+        self.assertFalse(task.done())
+
+        allow_recovery_to_finish.set()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        self.assertTrue(eng._analysis_allowed)

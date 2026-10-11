@@ -4912,6 +4912,53 @@ class MainLoop:
                 self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
             self.state.done_move = next_move  # expected move
 
+    async def _declare_game_result(self, result: GameResult, game_generation: int) -> None:
+        """End the current game with a declared result, such as a resignation or an agreed draw."""
+        l_result = ""
+        if result == GameResult.DRAW:
+            l_result = "1/2-1/2"
+        elif result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):
+            l_result = "1-0" if result == GameResult.WIN_WHITE else "0-1"
+        elif result == GameResult.THREE_CHECK_WHITE:
+            l_result = "1-0"
+        elif result == GameResult.THREE_CHECK_BLACK:
+            l_result = "0-1"
+        elif result == GameResult.KOTH_WHITE:
+            l_result = "1-0"
+        elif result == GameResult.KOTH_BLACK:
+            l_result = "0-1"
+        elif result == GameResult.ATOMIC_WHITE:
+            l_result = "1-0"
+        elif result == GameResult.ATOMIC_BLACK:
+            l_result = "0-1"
+        elif result == GameResult.RK_WHITE:
+            l_result = "1-0"
+        elif result == GameResult.RK_BLACK:
+            l_result = "0-1"
+        elif result == GameResult.ANTICHESS_WHITE:
+            l_result = "1-0"
+        elif result == GameResult.ANTICHESS_BLACK:
+            l_result = "0-1"
+        ModeInfo.set_game_ending(result=l_result)
+        # Declare the game over before pausing, so that a New Game started
+        # during the pause is not followed by this game's end handling.
+        self.state.game_declared = True
+        self.game_end_event()
+        await DisplayMsg.show(
+            Message.GAME_ENDS(
+                tc_init=self.state.time_control.get_parameters(),
+                result=result,
+                play_mode=self.state.play_mode,
+                game=self.state.game.copy(),
+                mode=self.state.interaction_mode,
+            )
+        )
+        await asyncio.sleep(1.5)
+        if game_generation == self.state.game_generation:  # no New Game during the pause
+            self.state.stop_fen_timer()
+            self.state.legal_fens_after_cmove = []
+        await self.update_elo(result)
+
     def game_end_event(self):
         #  @todo1 should have an EVENT message for game end, function for now
         #  @todo2 should be more state variables to reset here?
@@ -5603,6 +5650,9 @@ class MainLoop:
                 await asyncio.sleep(1)
 
         elif isinstance(event, Event.NEW_GAME):
+            # Bump before any await: a DRAWRESIGN task that is still stopping the
+            # search must see that its game has been replaced.
+            self.state.game_generation += 1
             self.state.local_timeout_reported = False
             self._clear_set_position_ack()
             self._clear_position_checkpoint()
@@ -6216,51 +6266,14 @@ class MainLoop:
 
         elif isinstance(event, Event.DRAWRESIGN):
             if not self.state.game_declared:  # in case user leaves kings in place while moving other pieces
+                # Events run as concurrent tasks, so a New Game can be handled while
+                # this one waits for the search to stop. Its result must not end that game.
+                game_generation = self.state.game_generation
                 await self.stop_search_and_clock()
-                l_result = ""
-                if event.result == GameResult.DRAW:
-                    l_result = "1/2-1/2"
-                elif event.result in (GameResult.WIN_WHITE, GameResult.WIN_BLACK):
-                    l_result = "1-0" if event.result == GameResult.WIN_WHITE else "0-1"
-                elif event.result == GameResult.THREE_CHECK_WHITE:
-                    l_result = "1-0"
-                elif event.result == GameResult.THREE_CHECK_BLACK:
-                    l_result = "0-1"
-                elif event.result == GameResult.KOTH_WHITE:
-                    l_result = "1-0"
-                elif event.result == GameResult.KOTH_BLACK:
-                    l_result = "0-1"
-                elif event.result == GameResult.ATOMIC_WHITE:
-                    l_result = "1-0"
-                elif event.result == GameResult.ATOMIC_BLACK:
-                    l_result = "0-1"
-                elif event.result == GameResult.RK_WHITE:
-                    l_result = "1-0"
-                elif event.result == GameResult.RK_BLACK:
-                    l_result = "0-1"
-                elif event.result == GameResult.ANTICHESS_WHITE:
-                    l_result = "1-0"
-                elif event.result == GameResult.ANTICHESS_BLACK:
-                    l_result = "0-1"
-                ModeInfo.set_game_ending(result=l_result)
-                # Declare the game over before pausing, so that a New Game started
-                # during the pause is not followed by this game's end handling.
-                self.state.game_declared = True
-                self.game_end_event()
-                await DisplayMsg.show(
-                    Message.GAME_ENDS(
-                        tc_init=self.state.time_control.get_parameters(),
-                        result=event.result,
-                        play_mode=self.state.play_mode,
-                        game=self.state.game.copy(),
-                        mode=self.state.interaction_mode,
-                    )
-                )
-                await asyncio.sleep(1.5)
-                if self.state.game_declared:  # no New Game during the pause
-                    self.state.stop_fen_timer()
-                    self.state.legal_fens_after_cmove = []
-                await self.update_elo(event.result)
+                if game_generation != self.state.game_generation:
+                    logger.info("dropping game result %s: a new game has started", event.result)
+                else:
+                    await self._declare_game_result(event.result, game_generation)
 
         elif isinstance(event, Event.ENGINE_MATCH_MOVE):
             if self.state.interaction_mode != Mode.ENGINE_MATCH:

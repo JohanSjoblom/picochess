@@ -1,10 +1,12 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import chess
 
-from dgt.api import Message
+import mainloop
+from dgt.api import Event, Message
 from dgt.display import DgtDisplay
 from dgt.util import GameResult, PlayMode, Mode, TimeMode, game_ending_from_result
 from pgn import ModeInfo
@@ -73,6 +75,36 @@ class TestGameEndingRecordedOnSend(unittest.IsolatedAsyncioTestCase):
         ):
             await display._process_message(_game_ends(GameResult.WIN_WHITE))
         self.assertEqual("*", ModeInfo.get_game_ending())
+
+
+class TestDeclaredResultAfterNewGame(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        ModeInfo.set_game_ending(result="*")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.state = SimpleNamespace(
+            position_checkpoint_restore_pending=False, game_declared=False, game_generation=0
+        )
+        self.controller._declare_game_result = AsyncMock()
+
+    async def test_resign_is_dropped_when_a_new_game_starts_while_the_search_stops(self):
+        async def new_game_meanwhile():
+            self.controller.state.game_generation += 1
+
+        self.controller.stop_search_and_clock = AsyncMock(side_effect=new_game_meanwhile)
+
+        await self.controller.process_main_events(Event.DRAWRESIGN(result=GameResult.WIN_BLACK))
+
+        self.controller._declare_game_result.assert_not_awaited()
+        self.assertFalse(self.controller.state.game_declared)
+        self.assertEqual("*", ModeInfo.get_game_ending())
+
+    async def test_resign_ends_the_game_when_no_new_game_starts(self):
+        self.controller.stop_search_and_clock = AsyncMock()
+
+        await self.controller.process_main_events(Event.DRAWRESIGN(result=GameResult.WIN_BLACK))
+
+        self.controller._declare_game_result.assert_awaited_once_with(GameResult.WIN_BLACK, 0)
 
 
 if __name__ == "__main__":

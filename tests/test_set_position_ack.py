@@ -39,7 +39,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
             set_position_ack_ready=True, stop_fen_timer=Mock(), position_mode=False,
             position_checkpoint_restore_pending=False, variant="chess", game_started=False,
             last_legal_fens=[], legal_fens=mainloop.compute_legal_fens(self.board),
-            done_computer_fen=None, interaction_mode=Mode.NORMAL,
+            done_computer_fen=None, interaction_mode=Mode.NORMAL, game_generation=0,
         )
         self.controller.state = self.state
         self.controller.board_type = EBoard.CERTABO

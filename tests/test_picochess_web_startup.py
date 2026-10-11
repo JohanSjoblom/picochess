@@ -1,5 +1,7 @@
 import unittest
+from unittest.mock import patch
 
+from configuration import Configuration
 from picochess import (
     WEB_SERVER_PERMISSION_FALLBACK_PORT,
     WebServerListenError,
@@ -22,6 +24,13 @@ class FakeWebApp:
 
 
 class TestPicochessWebStartup(unittest.TestCase):
+    def test_allow_onboard_without_auth_is_a_known_parameter(self):
+        with patch("sys.argv", ["picochess.py", "--allow-onboard-without-auth=false"]):
+            config = Configuration()
+
+        self.assertFalse(config._args.allow_onboard_without_auth)
+        self.assertEqual([], config.unknown)
+
     def test_unknown_startup_parameters_do_not_log_values(self):
         unknown = ["--hotspot-ssid=phone", "--hotspot-pass=secret-value", "--other-pass", "another-secret"]
 

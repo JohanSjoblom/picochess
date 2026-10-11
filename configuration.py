@@ -170,6 +170,12 @@ class Configuration:
             default=False,
             help="stream backend picotalker audio to remote web client",
         )
+        self.parser.add_argument(
+            "--allow-onboard-without-auth",
+            type=str_to_bool,
+            default=True,
+            help="allow unauthenticated Wi-Fi onboarding from private networks",
+        )
         self.parser.add_argument("-m", "--email", type=str, help="email used to send pgn/log files", default=None)
         self.parser.add_argument("-ms", "--smtp-server", type=str, help="address of email server", default=None)
         self.parser.add_argument("-mu", "--smtp-user", type=str, help="username for email server", default=None)

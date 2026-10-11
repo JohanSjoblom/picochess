@@ -1016,6 +1016,8 @@ def _load_ini_entries():
 
 
 def _allow_onboard_without_auth() -> bool:
+    # Read this setting live so authentication can be tightened after onboarding
+    # without restarting PicoChess.
     try:
         _, _, _, entries_map = _load_ini_entries()
     except OSError:

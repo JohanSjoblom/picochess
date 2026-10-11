@@ -2264,6 +2264,7 @@ class MainLoop:
             self.state.done_computer_fen = None
             self.state.done_move = chess.Move.null()
             game_end = self.state.check_game_state()
+            game_generation = self.state.game_generation
             if game_end:
                 self.state.legal_fens = []
                 self.state.legal_fens_after_cmove = []
@@ -2271,8 +2272,7 @@ class MainLoop:
                     await self.stop_search_and_clock()
                     self.state.stop_fen_timer()
                 await self.stop_search_and_clock()
-                self.game_end_event()
-                await DisplayMsg.show(game_end)
+                await self._show_game_end(game_end, game_generation)
             else:
                 self.state.searchmoves.reset()
                 self.state.time_control.add_time(not self.state.game.turn)
@@ -2388,6 +2388,7 @@ class MainLoop:
                 self.state.start_time_cmove_done = 0
 
             game_end = self.state.check_game_state()
+            game_generation = self.state.game_generation
             if game_end:
                 if self.state.interaction_mode == Mode.ENGINE_MATCH:
                     logger.info("REMOTE match completed at local terminal position")
@@ -2399,8 +2400,7 @@ class MainLoop:
                     self.state.stop_fen_timer()
                 await self.stop_search_and_clock()
                 if not self.pgn_mode():
-                    self.game_end_event()
-                    await DisplayMsg.show(game_end)
+                    await self._show_game_end(game_end, game_generation)
             else:
                 self.state.searchmoves.reset()
 
@@ -2937,6 +2937,7 @@ class MainLoop:
                         tutor_reveal_move = self.state.brain_best_move
                         self.state.brain_best_move = None
                 game_end = self.state.check_game_state()
+                game_generation = self.state.game_generation
                 if game_end:
                     if self.state.interaction_mode == Mode.ENGINE_MATCH:
                         logger.info("REMOTE match completed at peer terminal position")
@@ -2965,16 +2966,14 @@ class MainLoop:
                         await self._deliver_picotutor_messages(
                             pending_picotutor_msgs, user_move_owner
                         )
-                        self.game_end_event()
-                        await DisplayMsg.show(game_end)
+                        await self._show_game_end(game_end, game_generation)
                         self.state.legal_fens_after_cmove = []  # molli
                     else:
                         await DisplayMsg.show(msg)
                         await self._deliver_picotutor_messages(
                             pending_picotutor_msgs, user_move_owner
                         )
-                        self.game_end_event()
-                        await DisplayMsg.show(game_end)
+                        await self._show_game_end(game_end, game_generation)
                         self.state.legal_fens_after_cmove = []  # molli
                 else:
                     if self.state.interaction_mode in (Mode.NORMAL, Mode.TRAINING, Mode.ENGINE_MATCH):
@@ -3041,13 +3040,13 @@ class MainLoop:
                     move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                 )
                 game_end = self.state.check_game_state()
+                game_generation = self.state.game_generation
                 await DisplayMsg.show(msg)
                 await self._deliver_picotutor_messages(
                     pending_picotutor_msgs, user_move_owner
                 )
                 if game_end:
-                    self.game_end_event()
-                    await DisplayMsg.show(game_end)
+                    await self._show_game_end(game_end, game_generation)
                 else:
                     await self.observe()
             elif self.state.interaction_mode == Mode.OBSERVE:
@@ -3055,13 +3054,13 @@ class MainLoop:
                     move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                 )
                 game_end = self.state.check_game_state()
+                game_generation = self.state.game_generation
                 if game_end:
                     await DisplayMsg.show(msg)
                     await self._deliver_picotutor_messages(
                         pending_picotutor_msgs, user_move_owner
                     )
-                    self.game_end_event()
-                    await DisplayMsg.show(game_end)
+                    await self._show_game_end(game_end, game_generation)
                 else:
                     await DisplayMsg.show(msg)
                     await self._deliver_picotutor_messages(
@@ -3073,13 +3072,13 @@ class MainLoop:
                     move=move, fen=game_before.fen(), turn=game_before.turn, game=self.state.game.copy()
                 )
                 game_end = self.state.check_game_state()
+                game_generation = self.state.game_generation
                 if game_end:
                     await DisplayMsg.show(msg)
                     await self._deliver_picotutor_messages(
                         pending_picotutor_msgs, user_move_owner
                     )
-                    self.game_end_event()
-                    await DisplayMsg.show(game_end)
+                    await self._show_game_end(game_end, game_generation)
                 else:
                     await DisplayMsg.show(msg)
                     await self._deliver_picotutor_messages(
@@ -4911,6 +4910,18 @@ class MainLoop:
             else:
                 self.state.done_computer_fen = game_copy.board_fen()  # expected fen after move
             self.state.done_move = next_move  # expected move
+
+    async def _show_game_end(self, game_end, game_generation: int) -> None:
+        """Announce a game end, unless a New Game has replaced the game since game_generation.
+
+        Moves are handled in tasks that await before they announce the end, and a
+        New Game handled meanwhile must not inherit the old game's result.
+        """
+        if game_generation != self.state.game_generation:
+            logger.info("dropping game end %s: a new game has started", game_end.result)
+            return
+        self.game_end_event()
+        await DisplayMsg.show(game_end)
 
     async def _declare_game_result(self, result: GameResult, game_generation: int) -> None:
         """End the current game with a declared result, such as a resignation or an agreed draw."""
@@ -6840,6 +6851,7 @@ class MainLoop:
                                 self.state.start_time_cmove_done = 0
 
                             game_end = self.state.check_game_state()
+                            game_generation = self.state.game_generation
                             if game_end:
                                 await self.update_elo(game_end)
                                 self.state.legal_fens = []
@@ -6849,8 +6861,7 @@ class MainLoop:
                                     self.state.stop_fen_timer()
                                 await self.stop_search_and_clock()
                                 if not self.pgn_mode():
-                                    self.game_end_event()
-                                    await DisplayMsg.show(game_end)
+                                    await self._show_game_end(game_end, game_generation)
                             else:
                                 self.state.searchmoves.reset()
 

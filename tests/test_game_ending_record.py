@@ -107,5 +107,31 @@ class TestDeclaredResultAfterNewGame(unittest.IsolatedAsyncioTestCase):
         self.controller._declare_game_result.assert_awaited_once_with(GameResult.WIN_BLACK, 0)
 
 
+class TestGameEndAfterNewGame(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        ModeInfo.set_game_ending(result="*")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.state = SimpleNamespace(game_generation=0)
+        self.controller.game_end_event = lambda: None
+
+    async def test_mate_found_before_a_new_game_is_not_announced_after_it(self):
+        mated = chess.Board()
+        for san in ("f3", "e5", "g4", "Qh4"):
+            mated.push_san(san)
+        self.controller.state.game_generation = 1  # New Game while the move task awaited
+        with patch("utilities.msgdisplay_devices", []):
+            await self.controller._show_game_end(_game_ends(GameResult.MATE, mated), 0)
+        self.assertEqual("*", ModeInfo.get_game_ending())
+
+    async def test_mate_is_announced_when_no_new_game_starts(self):
+        mated = chess.Board()
+        for san in ("f3", "e5", "g4", "Qh4"):
+            mated.push_san(san)
+        with patch("utilities.msgdisplay_devices", []):
+            await self.controller._show_game_end(_game_ends(GameResult.MATE, mated), 0)
+        self.assertEqual("0-1", ModeInfo.get_game_ending())
+
+
 if __name__ == "__main__":
     unittest.main()

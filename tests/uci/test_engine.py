@@ -861,6 +861,26 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng._shutdown_standard_engine.assert_not_awaited()
         eng._start_engine_process.assert_not_awaited()
 
+    async def test_attaching_replacement_engine_discards_old_readiness_ping(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        old_engine = MockEngine()
+        replacement_engine = MockEngine()
+        eng.engine = replacement_engine
+        eng.analyser = ContinuousAnalysis(
+            engine=old_engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+        eng.analyser._ready_ping_task = Mock()
+        eng.playing = Mock()
+
+        eng._attach_engine_to_sisters()
+
+        self.assertIs(replacement_engine, eng.analyser.engine)
+        self.assertIsNone(eng.analyser._ready_ping_task)
+
     async def test_recovery_finishes_engine_setup_before_propagating_cancellation(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         recovery_started = asyncio.Event()

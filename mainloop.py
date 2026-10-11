@@ -6243,6 +6243,9 @@ class MainLoop:
                 elif event.result == GameResult.ANTICHESS_BLACK:
                     l_result = "0-1"
                 ModeInfo.set_game_ending(result=l_result)
+                # Declare the game over before pausing, so that a New Game started
+                # during the pause is not followed by this game's end handling.
+                self.state.game_declared = True
                 self.game_end_event()
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
@@ -6254,9 +6257,9 @@ class MainLoop:
                     )
                 )
                 await asyncio.sleep(1.5)
-                self.state.game_declared = True
-                self.state.stop_fen_timer()
-                self.state.legal_fens_after_cmove = []
+                if self.state.game_declared:  # no New Game during the pause
+                    self.state.stop_fen_timer()
+                    self.state.legal_fens_after_cmove = []
                 await self.update_elo(event.result)
 
         elif isinstance(event, Event.ENGINE_MATCH_MOVE):

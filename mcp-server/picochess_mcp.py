@@ -4,8 +4,8 @@ It talks to the PicoChess web server through the same HTTP endpoints the
 browser client uses, so PicoChess itself needs no changes.
 
 Run with the virtual environment in this folder:
-    mcp-server/.venv/Scripts/python.exe mcp-server/server.py    (Windows)
-    mcp-server/.venv/bin/python mcp-server/server.py            (Linux, macOS)
+    mcp-server/.venv/Scripts/python.exe mcp-server/picochess_mcp.py  (Windows)
+    mcp-server/.venv/bin/python mcp-server/picochess_mcp.py          (Linux, macOS)
 
 Set PICOCHESS_URL to reach PicoChess somewhere other than http://localhost:8080.
 """

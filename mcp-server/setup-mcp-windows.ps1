@@ -36,7 +36,7 @@ $repositoryPath = Split-Path $mcpDirectory -Parent
 $venvPath = Join-Path $mcpDirectory ".venv"
 $venvPython = Join-Path $venvPath "Scripts\python.exe"
 $requirements = Join-Path $mcpDirectory "requirements.txt"
-$serverScript = Join-Path $mcpDirectory "server.py"
+$serverScript = Join-Path $mcpDirectory "picochess_mcp.py"
 
 function Write-Step {
     param([string]$Message)

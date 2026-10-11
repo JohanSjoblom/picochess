@@ -122,7 +122,7 @@ class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
             "preserved_mame_history": {"pgn": "1. e4 *"},
             "web_history_scope": old_scope,
         }
-        controller.state = SimpleNamespace(position_checkpoint_restore_pending=False)
+        controller.state = SimpleNamespace(position_checkpoint_restore_pending=False, game_generation=0)
         controller.state.local_timeout_reported = True
         controller._clear_set_position_ack = Mock()
         controller._clear_position_checkpoint = Mock()

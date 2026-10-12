@@ -990,7 +990,9 @@ class MainLoop:
 
     async def stop_search(self, timeout: float = ENGINE_SEARCH_IDLE_TIMEOUT) -> bool:
         """Stop current search."""
-        await self.engine.stop()
+        if not await self.engine.stop():
+            logger.error("engine search stop aborted because analysis did not stop cleanly")
+            return False
         if self.engine.consume_forced_analyser_stop():
             logger.debug("forced analyser stop detected - resetting best depth cache")
             self.state.best_sent_depth.reset()
@@ -3541,7 +3543,10 @@ class MainLoop:
         # duplicate requests cannot start a second restore concurrently.
         self.state.position_checkpoint_restore_pending = True
         try:
-            await self.engine.stop_analysis()
+            if not await self.engine.stop_analysis():
+                logger.error("checkpoint restore aborted because engine analysis did not stop cleanly")
+                self.state.position_checkpoint_restore_pending = False
+                return
             self.state.stop_fen_timer()
             self.state.error_fen = None
             self.state.position_mode = False
@@ -3689,7 +3694,11 @@ class MainLoop:
                 )
                 await self.engine.start_analysis(analysis_board, limit=limit, multipv=multipv)
             else:
-                await self.engine.stop_analysis()
+                if not await self.engine.stop_analysis():
+                    # This reconciliation branch sends no follow-up engine
+                    # command; a later command-producing transition will
+                    # retry the stop and honor its result.
+                    logger.warning("engine analysis policy stop remains incomplete")
 
     def debug_pv_info(self, info: InfoDict):
         if info and "pv" in info and info["pv"]:
@@ -4434,7 +4443,9 @@ class MainLoop:
         # restore picotutor flag to previous state
         self.state.flag_picotutor = old_flag_picotutor
         # always fix the picotutor if-to-analyse both sides and depth
-        await self.engine.stop_analysis()  # stop possible engine analyser
+        if not await self.engine.stop_analysis():  # stop possible engine analyser
+            logger.error("loaded-game transition aborted because engine analysis did not stop cleanly")
+            return
         if self.eng_plays():
             await self.state.picotutor.stop()  # stop possible old tutor analysers
         await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())

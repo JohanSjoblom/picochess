@@ -20,6 +20,7 @@ import unittest
 from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import chess
+from chess.engine import EngineTerminatedError, Limit, UciProtocol as RealUciProtocol
 from uci.engine import ContinuousAnalysis, EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
 from uci.rating import Rating, Result
 
@@ -421,10 +422,12 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         engine.ping.assert_awaited_once()
 
     async def test_analysis_waits_for_pending_readiness_ping(self):
+        ping_started = asyncio.Event()
         ping_can_finish = asyncio.Event()
         engine = MockEngine()
 
         async def delayed_ping():
+            ping_started.set()
             await ping_can_finish.wait()
 
         engine.ping = AsyncMock(side_effect=delayed_ping)
@@ -437,13 +440,315 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
             engine_lease=EngineLease(),
         )
         analyser.current_game = chess.Board()
+        analyser._running = True
 
-        await analyser._analyse_forever(limit=None, multipv=None)
+        analysis_task = asyncio.create_task(analyser._analyse_forever(limit=None, multipv=None))
+        await ping_started.wait()
 
         engine.analysis.assert_not_awaited()
         self.assertFalse(analyser._ready_ping_task.cancelled())
+        analyser._running = False
         ping_can_finish.set()
-        await analyser._ready_ping_task
+        await analysis_task
+
+    async def test_pending_readiness_ping_safely_hands_lease_to_playing_search(self):
+        protocol = RealUciProtocol()
+        transport = chess.engine.MockTransport(protocol)
+        protocol.initialized = True
+        protocol.first_game = False
+        protocol.game = 1
+        transport.expect("isready", [])
+
+        lease = EngineLease()
+        analyser = ContinuousAnalysis(
+            engine=protocol,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=lease,
+        )
+        analyser.current_game = chess.Board()
+        analyser._running = True
+        analyser_task = asyncio.create_task(analyser._analyse_forever(limit=None, multipv=None))
+
+        while transport.expectations:
+            await asyncio.sleep(0)
+
+        transport.expect("position startpos", [])
+        transport.expect("go depth 1", ["bestmove e2e4"])
+        playing = PlayingContinuousAnalysis(
+            engine=protocol,
+            loop=asyncio.get_running_loop(),
+            engine_lease=lease,
+            engine_debug_name="engine",
+        )
+        playing.set_game_id(1)
+        result_queue = asyncio.Queue()
+        await playing.play_move(chess.Board(), Limit(depth=1), False, result_queue)
+
+        try:
+            # The old 0.5 second readiness poll must not release the lease while
+            # python-chess still owns the ping command.
+            await asyncio.sleep(0.55)
+            self.assertEqual("continuous", lease.owner())
+
+            # Delivering readyok after the playing request must finish the ping,
+            # not hit a cancelled result Future inside python-chess.
+            protocol.pipe_data_received(1, b"readyok\n")
+            result = await asyncio.wait_for(result_queue.get(), timeout=1.0)
+            self.assertEqual(chess.Move.from_uci("e2e4"), result.move)
+            self.assertIsNone(lease.owner())
+        finally:
+            analyser._running = False
+            for task in (analyser_task, playing._task, analyser._ready_ping_task):
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except BaseException:
+                        pass
+
+    async def test_uci_quit_does_not_cancel_pending_ping_before_late_readyok(self):
+        protocol = RealUciProtocol()
+        transport = chess.engine.MockTransport(protocol)
+        protocol.initialized = True
+        transport.expect("isready", [])
+        ping_task = asyncio.create_task(protocol.ping())
+        while transport.expectations:
+            await asyncio.sleep(0)
+
+        transport.expect("quit", [])
+        quit_task = asyncio.create_task(protocol.quit())
+        while transport.expectations:
+            await asyncio.sleep(0)
+
+        protocol.pipe_data_received(1, b"readyok\n")
+        await ping_task
+        protocol.connection_lost(None)
+        await quit_task
+
+    async def test_readiness_engine_termination_is_not_treated_as_pending(self):
+        engine = MockEngine()
+        engine.ping = AsyncMock(side_effect=EngineTerminatedError("dead"))
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+
+        with self.assertRaises(EngineTerminatedError):
+            await analyser._wait_for_engine_ready(timeout=0.1)
+
+    async def test_readiness_protocol_failure_is_not_treated_as_pending(self):
+        engine = MockEngine()
+        engine.ping = AsyncMock(side_effect=AssertionError("CommandState.NEW"))
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=EngineLease(),
+        )
+
+        with self.assertRaises(AssertionError):
+            await analyser._wait_for_engine_ready(timeout=0.1)
+
+    async def test_recovery_cancellation_still_releases_continuous_lease(self):
+        engine = MockEngine()
+        ping_started = asyncio.Event()
+        keep_ping_pending = asyncio.Event()
+
+        async def delayed_ping():
+            ping_started.set()
+            await keep_ping_pending.wait()
+
+        engine.ping = AsyncMock(side_effect=delayed_ping)
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        recovery_started = asyncio.Event()
+        allow_recovery_to_finish = asyncio.Event()
+
+        async def recover(_reason):
+            recovery_started.set()
+            await allow_recovery_to_finish.wait()
+            return True
+
+        eng._recover_from_failed_analyser_stop_inner = AsyncMock(side_effect=recover)
+        lease = EngineLease()
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=lease,
+            recover_engine_cb=eng._recover_from_failed_analyser_stop,
+        )
+        analyser.current_game = chess.Board()
+        analyser._running = True
+
+        task = asyncio.create_task(analyser._analyse_forever(limit=None, multipv=None))
+        await ping_started.wait()
+        task.cancel()
+        await recovery_started.wait()
+        allow_recovery_to_finish.set()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertIsNone(lease.owner())
+        self.assertIsNotNone(analyser._ready_ping_task)
+        analyser._ready_ping_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await analyser._ready_ping_task
+
+    async def test_readiness_deadline_recovers_before_releasing_lease(self):
+        ping_can_finish = asyncio.Event()
+        engine = MockEngine()
+
+        async def delayed_ping():
+            await ping_can_finish.wait()
+
+        engine.ping = AsyncMock(side_effect=delayed_ping)
+        lease = EngineLease()
+        recovery_owners = []
+
+        async def recover(_reason):
+            recovery_owners.append(lease.owner())
+            ping_can_finish.set()
+            await asyncio.sleep(0)
+            return True
+
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=lease,
+            recover_engine_cb=recover,
+        )
+        analyser.current_game = chess.Board()
+        analyser._running = True
+
+        with (
+            patch("uci.engine.ENGINE_READY_POLL_TIMEOUT", 0.005),
+            patch("uci.engine.ENGINE_READY_DEADLINE", 0.02),
+        ):
+            await analyser._analyse_forever(limit=None, multipv=None)
+
+        self.assertEqual(["continuous"], recovery_owners)
+        self.assertIsNone(lease.owner())
+        self.assertTrue(analyser._ready_ping_task.done())
+
+    async def test_shutdown_terminates_ignored_quit_and_finishes_pending_ping(self):
+        events = []
+        protocol = RealUciProtocol()
+
+        class TerminatingMockTransport(chess.engine.MockTransport):
+            def __init__(self, protocol):
+                self.return_code = None
+                super().__init__(protocol)
+
+            def get_returncode(self):
+                return self.return_code
+
+            def terminate(self):
+                events.append("terminate")
+                self.return_code = -15
+                self.protocol.connection_lost(None)
+
+            def close(self):
+                events.append("close")
+
+        transport = TerminatingMockTransport(protocol)
+        protocol.initialized = True
+        transport.expect("isready", [])
+        ping_task = asyncio.create_task(protocol.ping())
+        while transport.expectations:
+            await asyncio.sleep(0)
+        ping_task.add_done_callback(lambda _task: events.append("ping_done"))
+        transport.expect("quit", [])
+
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.engine = protocol
+        eng.transport = transport
+        with (
+            patch("uci.engine.ENGINE_QUIT_TIMEOUT", 0.01),
+            patch("uci.engine.ENGINE_TERMINATE_TIMEOUT", 0.01),
+            patch("uci.engine.ENGINE_KILL_TIMEOUT", 0.01),
+        ):
+            await eng._shutdown_standard_engine()
+
+        await asyncio.sleep(0)
+        self.assertTrue(ping_task.done())
+        with self.assertRaises(EngineTerminatedError):
+            await ping_task
+        await asyncio.sleep(0)
+        self.assertIn("ping_done", events)
+        self.assertLess(events.index("terminate"), events.index("close"))
+
+    async def test_stop_analysis_reports_incomplete_stop_transaction(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.analyser = Mock()
+        eng.analyser.stop_async = AsyncMock(return_value=False)
+        eng.analyser.consume_forced_stop.return_value = True
+
+        self.assertFalse(await eng.stop_analysis())
+        self.assertTrue(eng.consume_forced_analyser_stop())
+
+    async def test_quit_continues_direct_shutdown_after_incomplete_analyser_stop(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.analyser = Mock()
+        eng.stop_analysis = AsyncMock(return_value=False)
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._close_remote_connection = AsyncMock()
+
+        with patch("uci.engine.asyncio.sleep", new=AsyncMock()):
+            await eng.quit()
+
+        eng.stop_analysis.assert_awaited_once_with()
+        eng._shutdown_standard_engine.assert_awaited_once_with()
+        eng._close_remote_connection.assert_awaited_once_with()
+
+    async def test_stop_async_waits_for_pending_ping_without_recovery(self):
+        ping_started = asyncio.Event()
+        ping_can_finish = asyncio.Event()
+        engine = MockEngine()
+
+        async def delayed_ping():
+            ping_started.set()
+            await ping_can_finish.wait()
+
+        engine.ping = AsyncMock(side_effect=delayed_ping)
+        recover = AsyncMock(return_value=True)
+        lease = EngineLease()
+        analyser = ContinuousAnalysis(
+            engine=engine,
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=lease,
+            recover_engine_cb=recover,
+        )
+        analyser.game = chess.Board()
+        analyser.start(analyser.game)
+        await ping_started.wait()
+
+        async def finish_ping():
+            await asyncio.sleep(0.02)
+            ping_can_finish.set()
+
+        finish_task = asyncio.create_task(finish_ping())
+        with (
+            patch("uci.engine.ENGINE_READY_POLL_TIMEOUT", 0.005),
+            patch("uci.engine.ENGINE_READY_DEADLINE", 0.1),
+        ):
+            stopped = await analyser.stop_async(timeout=0.01, cancel_timeout=0.1)
+        await finish_task
+
+        self.assertTrue(stopped)
+        recover.assert_not_awaited()
+        self.assertFalse(analyser.consume_forced_stop())
+        self.assertIsNone(lease.owner())
 
     async def test_continuous_analysis_marks_forced_stop_after_timeout(self):
         analyser = ContinuousAnalysis(
@@ -576,6 +881,8 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         command_order = []
         eng.engine.send_line = Mock(side_effect=lambda command: command_order.append(command))
         eng.engine._position = Mock(side_effect=lambda _board: command_order.append("position"))
+        eng.engine.analysis = AsyncMock()
+        eng.engine.play = AsyncMock()
 
         async def record_ping():
             command_order.append("isready")
@@ -595,6 +902,8 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(eng.engine.first_game)
         self.assertEqual(eng.game_id, eng.engine.game)
         self.assertEqual(["ucinewgame", "position", "isready"], command_order)
+        eng.engine.analysis.assert_not_awaited()
+        eng.engine.play.assert_not_awaited()
 
     async def test_mame_terminal_position_preserves_final_move_without_waiting(self):
         eng = UciEngine("engines/aarch64/mame/test", UciShell(), "", self.loop)
@@ -736,6 +1045,7 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
         async def stop_analysis():
             eng.analyser.is_running.return_value = False
+            return True
 
         eng.stop_analysis = AsyncMock(side_effect=stop_analysis)
 
@@ -760,6 +1070,7 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
         async def stop_analysis():
             eng.analyser.is_running.return_value = False
+            return True
 
         eng.stop_analysis = AsyncMock(side_effect=stop_analysis)
 
@@ -768,6 +1079,25 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(started)
         eng.stop_analysis.assert_awaited_once_with()
         eng.analyser.start.assert_called_once_with(ANY, limit=ANY, multipv=3)
+
+    async def test_start_analysis_aborts_when_previous_analyser_did_not_stop(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.set_mode()
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = True
+        eng.analyser.get_limit_depth.return_value = 40
+        eng.analyser.get_multipv.return_value = None
+        eng.analyser.get_fen.return_value = chess.Board().fen()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+        eng.stop_analysis = AsyncMock(return_value=False)
+
+        started = await eng.start_analysis(chess.Board(), limit=chess.engine.Limit(depth=30))
+
+        self.assertFalse(started)
+        eng.stop_analysis.assert_awaited_once_with()
+        eng.analyser.start.assert_not_called()
 
     async def test_start_analysis_treats_default_and_single_multipv_as_equivalent(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

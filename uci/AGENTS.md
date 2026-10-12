@@ -115,6 +115,49 @@ Keep these rules intact when changing `uci/engine.py`:
 - `stop_analysis()` must wait for the background analyser to release the engine
   lease before returning. This prevents later UCI commands from racing an
   in-flight analysis stop or `bestmove` exchange.
+- A readiness poll timeout does not make python-chess's active `ping()` command
+  safe to abandon. Poll it in short intervals while retaining the engine lease;
+  no `configure()`, `analysis()`, or `play()` command may use the same protocol
+  until the ping completes or that protocol has been retired.
+- The current readiness timing uses 0.5-second polls and a separate 5-second
+  definitive deadline. The short poll keeps the shared loop responsive; the
+  longer deadline tolerates a loaded Raspberry Pi without allowing a missing
+  `readyok` to block a playing search indefinitely.
+- An ordinary analyser stop while that ping is pending continues waiting for
+  `readyok` up to the same definitive deadline. Do not restart a healthy but
+  loaded engine merely because the usual one-second analyser-stop window
+  elapsed.
+- When the definitive readiness deadline expires, retire the old protocol
+  before releasing the lease. `UciProtocol.quit()` is suitable because
+  python-chess 1.11.2 sends `quit` directly rather than dispatching another
+  command. If the engine ignores it, escalate through transport terminate/kill.
+- Forced analyser cancellation currently allows up to 10 seconds for the
+  bounded shutdown/restart transaction. This exceeds the normal 3-second quit,
+  2-second terminate, and 1-second kill windows and leaves time to start and
+  configure the replacement. Lease release remains an unconditional final step,
+  including when cancellation propagates after recovery.
+- Keep timeout/pending distinct from readiness failure. A pending poll retains
+  the command and lease; protocol-state errors enter recovery, while engine
+  termination ends the worker. `stop_analysis()` returns `False` for an
+  incomplete stop/recovery transaction; callers that would issue another
+  engine command must abort that operation rather than silently continuing.
+- Keep the incomplete-stop boolean and `_last_analyser_stop_was_forced`
+  distinct but related: the boolean says whether the complete stop/recovery
+  transaction finished, while the existing flag says whether successful
+  completion required task cancellation. Do not add another persistent failure
+  flag.
+- Handle every `stop_analysis()` result according to its caller:
+  - `UciEngine.quit()` may continue with direct `quit` and transport shutdown,
+    which do not dispatch a competing `communicate()` command.
+  - `UciEngine.stop()` must not force the playing search after a failed
+    analyser stop.
+  - `UciEngine.start_analysis()` must not start replacement analysis after a
+    failed stop.
+  - The main-loop checkpoint restore and loaded-game transition must abort
+    before changing position or issuing later engine commands.
+  - Main-loop analyser-policy reconciliation may only log the failure because
+    that stop branch issues no follow-up command.
+  - PicoTutor must defer its option/configuration change after a failed stop.
 
 The main Picochess and PicoTutor policy layers decide when analysis should run.
 Do not move mode, tutor, clock, or web display routing policy into `UciEngine`.

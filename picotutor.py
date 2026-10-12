@@ -336,7 +336,9 @@ class PicoTutor:
                 logger.debug("PicoTutor deep setting change deferred until next position")
                 return
             logger.debug("PicoTutor applying pending deep settings at new-position boundary")
-            await self.best_engine.stop_analysis()
+            if not await self.best_engine.stop_analysis():
+                logger.error("PicoTutor deep setting change aborted because analysis did not stop cleanly")
+                return
 
         if self.deep_threads_requested != self.deep_threads_applied:
             if "Threads" not in self.best_engine.get_options():

@@ -105,6 +105,9 @@ def safe_eval_elo(expr: str) -> int:
 ENGINE_QUIT_TIMEOUT = 3.0  # waiting seconds for a normal engine to quit
 ENGINE_TERMINATE_TIMEOUT = 2.0  # if not send SIGTERM and wait a bit
 ENGINE_KILL_TIMEOUT = 1.0  # finally send SIGKILL, wait time gives OS some time
+ENGINE_READY_POLL_TIMEOUT = 0.5  # short poll; a timeout does not make the ping safe to abandon
+ENGINE_READY_DEADLINE = 5.0  # retire an engine that never completes its active readiness command
+ENGINE_ANALYSER_CANCEL_TIMEOUT = 10.0  # allow bounded shutdown/restart cleanup after cancellation
 
 UCI_ELO = "UCI_Elo"
 UCI_ELO_NON_STANDARD = "UCI Elo"
@@ -443,7 +446,11 @@ class ContinuousAnalysis:
         return self.limit_reached
 
     async def _wait_for_engine_ready(self, timeout: float = 1.0) -> bool:
-        """Wait briefly for readiness without cancelling python-chess's ping command."""
+        """Poll readiness without cancelling python-chess's active ping command.
+
+        ``False`` means that the ping is still pending. Actual protocol and
+        engine failures propagate so the watching analyser can stop or recover.
+        """
         if not self.engine:
             return False
         if self._ready_ping_task is None:
@@ -464,10 +471,13 @@ class ContinuousAnalysis:
         except asyncio.TimeoutError:
             logger.debug("%s engine readiness ping still pending", self.whoami)
             return False
-        except Exception as e:
+        except CancelledError:
+            # shield() leaves the protocol ping alive. Keep the reference so
+            # _analyse_forever() can retire that protocol before releasing.
+            raise
+        except Exception:
             self._ready_ping_task = None
-            logger.debug("%s engine not ready: %s", self.whoami, e)
-            return False
+            raise
 
     async def _safe_stop(self, analysis, guard_window: float = 0.20, wait_timeout: float = 1.0) -> bool:
         """
@@ -609,11 +619,34 @@ class ContinuousAnalysis:
         # the redundant stop in the cleanup path.
         _already_stopped = False
         try:
-            # Wait briefly until the engine is ready before starting analysis
-            ready = await self._wait_for_engine_ready(timeout=0.5)
-            if not ready:
-                logger.debug("%s engine not ready; postponing analysis", self.whoami)
-                await asyncio.sleep(self.delay)
+            # stop() may win the scheduling race before the readiness command
+            # is created. In that case there is nothing to synchronize.
+            if not self._running:
+                return
+
+            # A python-chess ping remains the active protocol command after a
+            # short timeout. Keep the lease until readyok completes it, or
+            # retire the old protocol after the separate definitive deadline.
+            ready_deadline = self.loop.time() + ENGINE_READY_DEADLINE
+            while True:
+                remaining = ready_deadline - self.loop.time()
+                if remaining <= 0:
+                    recovery_reason = (
+                        f"continuous analysis readiness ping timed out after {ENGINE_READY_DEADLINE:.1f}s"
+                    )
+                    return
+                ready = await self._wait_for_engine_ready(
+                    timeout=min(ENGINE_READY_POLL_TIMEOUT, remaining)
+                )
+                if ready:
+                    break
+                if self.delay:
+                    await asyncio.sleep(min(self.delay, max(0.0, ready_deadline - self.loop.time())))
+
+            # Playing analysis may have requested the lease while readyok was
+            # delayed. The ping is complete now, so hand over without starting
+            # another ContinuousAnalysis command first.
+            if not self._running or self.engine_lease.interrupt_requested("continuous"):
                 return
 
             self._analysis_started_ts = self.loop.time() if self.loop else None
@@ -682,11 +715,19 @@ class ContinuousAnalysis:
                 except Exception as e:
                     logger.debug("%s cleanup stop raised: %s", self.whoami, e)
             self._analysis_started_ts = None
-            if recovery_reason and self._recover_engine_cb:
-                recovered = await self._recover_engine_cb(recovery_reason)
-                if not recovered:
-                    logger.error("%s failed to recover engine after dirty analysis stop", self.whoami)
-            self.engine_lease.release("continuous")
+            try:
+                # Cancellation while polling readiness must also retire the old
+                # protocol before another owner can issue a command on it.
+                if self._ready_ping_task is not None and not self._ready_ping_task.done():
+                    recovery_reason = recovery_reason or "continuous analysis cancelled with readiness ping pending"
+                if recovery_reason and self._recover_engine_cb:
+                    recovered = await self._recover_engine_cb(recovery_reason)
+                    if not recovered:
+                        logger.error("%s failed to recover engine after dirty analysis stop", self.whoami)
+            finally:
+                # The lease contract must survive cancellation or a failed
+                # recovery callback; playing must never wait on a dead owner.
+                self.engine_lease.release("continuous")
 
     def debug_analyser(self):
         """use this debug call to see how low and deep depth evolves"""
@@ -763,7 +804,11 @@ class ContinuousAnalysis:
             self._running = False  # causes infinite analysis loop to send stop to engine
             logging.debug("%s asking to stop running", self.whoami)
 
-    async def stop_async(self, timeout: float = 1.0, cancel_timeout: float = 1.0) -> bool:
+    async def stop_async(
+        self,
+        timeout: float = 1.0,
+        cancel_timeout: float = ENGINE_ANALYSER_CANCEL_TIMEOUT,
+    ) -> bool:
         """Stop analyser cleanly and wait until the task has finished."""
         task = self._task
         self._last_stop_was_forced = False
@@ -780,12 +825,20 @@ class ContinuousAnalysis:
 
         await self._request_active_stop()
 
+        # An ordinary stop during an active ping is not a protocol failure.
+        # Give that ping its full readiness deadline so a loaded engine can
+        # answer readyok without being restarted merely because the usual
+        # one-second analyser-stop window elapsed.
+        graceful_timeout = timeout
+        if self._ready_ping_task is not None and not self._ready_ping_task.done():
+            graceful_timeout = max(timeout, ENGINE_READY_DEADLINE + ENGINE_READY_POLL_TIMEOUT)
+
         try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+            await asyncio.wait_for(asyncio.shield(task), timeout=graceful_timeout)
             self._task = None
             return True
         except asyncio.TimeoutError:
-            logger.warning("%s analyser stop timed out after %.1fs - cancelling task", self.whoami, timeout)
+            logger.warning("%s analyser stop timed out after %.1fs - cancelling task", self.whoami, graceful_timeout)
             self._last_stop_was_forced = True
         except asyncio.CancelledError:
             raise
@@ -1602,7 +1655,10 @@ class UciEngine(object):
         self._analysis_allowed = False
         self._shutting_down = True
         if self.analyser:
-            await self.stop_analysis()
+            if not await self.stop_analysis():
+                # Shutdown is the safe fallback: protocol.quit() bypasses
+                # communicate(), followed by terminate/kill if needed.
+                logger.warning("%s continuing direct shutdown after incomplete analyser stop", self.whoami)
         if self.playing and self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
         if self.is_mame:
@@ -1721,21 +1777,27 @@ class UciEngine(object):
             self.is_waiting(),
             "".join(traceback.format_stack(limit=6)),
         )
-        await self.stop_analysis()
+        if not await self.stop_analysis():
+            return False
         if not self.is_waiting():
             self.force_move()
+        return True
 
-    async def stop_analysis(self):
+    async def stop_analysis(self) -> bool:
         """Stop background ContinuousAnalyser and wait until it has fully stopped.
 
-        Awaiting this method guarantees the analyser task has released the engine
-        lease before returning, so a subsequent send() → configure() call will not
-        race against an in-flight stop/bestmove exchange.
+        ``True`` guarantees that the analyser task released the engine lease, so
+        a subsequent send() → configure() call cannot race an in-flight stop or
+        bestmove exchange. ``False`` tells callers not to issue another command.
         """
         self._last_analyser_stop_was_forced = False
         if self.analyser:
-            await self.analyser.stop_async()
+            stopped = await self.analyser.stop_async()
             self._last_analyser_stop_was_forced = self.analyser.consume_forced_stop()
+            if not stopped:
+                logger.error("%s analyser did not finish its stop/recovery transaction", self.whoami)
+                return False
+        return True
 
     def consume_forced_analyser_stop(self) -> bool:
         """Return whether the last analyser stop needed forced cancellation and clear the flag."""
@@ -1926,7 +1988,9 @@ class UciEngine(object):
                     active_multipv,
                     requested_multipv,
                 )
-                await self.stop_analysis()
+                if not await self.stop_analysis():
+                    logger.error("%s cannot restart analysis after an incomplete stop", self.whoami)
+                    return False
             elif game.fen() != self.analyser.get_fen():
                 await self.analyser.update_game(game)  # new position
                 logger.debug("%s new analysis position", self.whoami)

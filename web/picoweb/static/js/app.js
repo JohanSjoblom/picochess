@@ -3249,6 +3249,18 @@ function analysisClockModeChanged(previousMode, nextMode) {
     return (previousMode === 'ponder') !== (nextMode === 'ponder');
 }
 
+function updateAnalysisClockSystemInfo(message) {
+    var update = message || {};
+    var systemInfo = window._picoSystemInfo = window._picoSystemInfo || {};
+    var previousMode = systemInfo.interaction_mode;
+    Object.assign(systemInfo, update);
+    if (Object.prototype.hasOwnProperty.call(update, 'language')) {
+        window._picoCurrentSettings = window._picoCurrentSettings || {};
+        window._picoCurrentSettings.language = update.language;
+    }
+    return analysisClockModeChanged(previousMode, systemInfo.interaction_mode);
+}
+
 function analysisClockLanguage() {
     var settings = window._picoCurrentSettings || {};
     var systemInfo = window._picoSystemInfo || {};
@@ -3998,14 +4010,12 @@ $(function () {
                     case 'SystemInfo':
                         // Live update of interaction_mode / play_mode so the
                         // diagram immediately locks/unlocks when mode changes.
-                        window._picoSystemInfo = window._picoSystemInfo || {};
-                        var _prevMode = window._picoSystemInfo.interaction_mode;
-                        Object.assign(window._picoSystemInfo, data.msg);
+                        var _analysisClockModeChanged = updateAnalysisClockSystemInfo(data.msg);
                         updateDgtBatteryStatus();
                         applyInitialWebExploreBoardPolicy();
                         // Clear stale clock text on both sides of a Ponder/free-analysis
                         // transition. The next Analysis or Clock event supplies the new text.
-                        if (analysisClockModeChanged(_prevMode, data.msg.interaction_mode)) {
+                        if (_analysisClockModeChanged) {
                             stopAnalysisClock();
                             dgtClockTextEl.html('');
                         }

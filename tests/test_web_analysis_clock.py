@@ -62,6 +62,33 @@ class TestWebAnalysisClock(unittest.TestCase):
 
         self.assertEqual("24...Pf3 d10 #-3", result)
 
+    def test_partial_system_info_update_keeps_ponder_mode(self):
+        result = self.run_node(
+            "window._picoSystemInfo = {interaction_mode: 'ponder', language: 'en'};"
+            "console.log(JSON.stringify({"
+            "changed: updateAnalysisClockSystemInfo({battery: 67}),"
+            "mode: window._picoSystemInfo.interaction_mode"
+            "}));"
+        )
+
+        self.assertEqual({"changed": False, "mode": "ponder"}, result)
+
+    def test_live_language_update_replaces_stale_settings_cache(self):
+        result = self.run_node(
+            "window._picoCurrentSettings = {language: 'en'};"
+            "window._picoSystemInfo = {interaction_mode: 'ponder', language: 'en'};"
+            "updateAnalysisClockSystemInfo({language: 'nl'});"
+            "console.log(JSON.stringify({"
+            "language: window._picoCurrentSettings.language,"
+            "line: _buildAnalysisClockLine({"
+            "fen: '8/8/8/8/8/8/8/K6k w - - 0 24',"
+            "pv: ['Nf3'], depth: 10, score: 0"
+            "})"
+            "}));"
+        )
+
+        self.assertEqual({"language": "nl", "line": "24. Pf3 d10 0.00"}, result)
+
     def test_mode_transition_clears_analysis_clock_on_entry_and_exit(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(
             encoding="utf-8"
@@ -76,4 +103,4 @@ class TestWebAnalysisClock(unittest.TestCase):
         )
 
         self.assertEqual([True, True, False, False], result)
-        self.assertIn("analysisClockModeChanged(_prevMode, data.msg.interaction_mode)", script)
+        self.assertIn("updateAnalysisClockSystemInfo(data.msg)", script)

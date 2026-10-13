@@ -209,6 +209,49 @@ configure_dgtpi_clock_timing() {
     fi
 }
 
+remove_dgtpi_clock_timing() {
+    boot_config=$(find_boot_config 2>/dev/null || true)
+
+    if [ -z "$boot_config" ]; then
+        echo "No boot config found; no legacy DGTPi clock timing to remove."
+        return 0
+    fi
+
+    backup_file="${boot_config}.picochess-backup.$(date +%Y%m%d%H%M%S)"
+    remove_managed_block \
+        "$boot_config" \
+        "# BEGIN PicoChess DGTPi clock timing" \
+        "# END PicoChess DGTPi clock timing" \
+        "$backup_file"
+}
+
+remove_dgtpi_clock_support() {
+    dgtpi_service=/etc/systemd/system/dgtpi.service
+
+    if systemctl is-enabled dgtpi.service >/dev/null 2>&1; then
+        if ! systemctl disable dgtpi.service; then
+            echo "Error: could not disable legacy dgtpi.service." >&2
+            return 1
+        fi
+    fi
+
+    if [ -e "$dgtpi_service" ] || [ -L "$dgtpi_service" ]; then
+        if ! rm -f "$dgtpi_service"; then
+            echo "Error: could not remove legacy $dgtpi_service." >&2
+            return 1
+        fi
+        if ! systemctl daemon-reload; then
+            echo "Error: could not reload systemd after removing dgtpi.service." >&2
+            return 1
+        fi
+        echo "Removed legacy dgtpi.service for standalone DGT3000 mode."
+    else
+        echo "Legacy dgtpi.service is already absent."
+    fi
+
+    remove_dgtpi_clock_timing
+}
+
 if [ "$SKIP_UPDATE" = false ]; then
     echo "starting by upgrading system before installing picochess"
     DEBIAN_FRONTEND=noninteractive apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y
@@ -605,7 +648,8 @@ else
     chown "$INSTALL_USER" "$REPO_DIR/talker/voices/voices.ini"
 fi
 
-# Install DGTPi clock support on request.
+# Install DGTPi clock support, or remove legacy GPIO support when the explicit
+# standalone DGT3000 profile is selected.
 if [ "$INSTALL_DGTPI" = true ]; then
     echo "DGTPi flag set - installing DGTPi clock support"
     configure_dgtpi_clock_timing
@@ -616,6 +660,9 @@ if [ "$INSTALL_DGTPI" = true ]; then
     else
         echo "Warning: install-dgtpi-clock.sh not found; skipping DGTPi clock install" >&2
     fi
+elif [ "$INSTALL_DGT3000" = true ]; then
+    echo "Standalone DGT3000 flag set - removing legacy DGTPi GPIO support"
+    remove_dgtpi_clock_support || exit 1
 else
     echo "DGTPi flag not set - skipping DGTPi clock install"
 fi

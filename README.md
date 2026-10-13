@@ -67,22 +67,22 @@ The script installs the following services in `/etc/systemd/system/`:
 - picochess (main service)
 - picochess-update (stay updated)
 - gamesdb (games window on web page)
-- unblock-bt (only installed when using the `pi3` parameter; unblocks Bluetooth on boot)
+- unblock-bt (installed when using the `pi3` or `dgtpi` parameter; unblocks Bluetooth on boot)
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).
 - `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
 - `dgtpi` installs the DGTPi GPIO clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
-- `dgt3000` or `DGT3000` selects a standalone DGT3000 connected through a DGT eboard. It keeps `dgtpi=False` and does not install the DGTPi GPIO clock service.
+- `dgt3000` or `DGT3000` selects a standalone DGT3000 connected through a DGT eboard. It keeps `dgtpi=False`, removes legacy DGTPi service and clock-timing configuration, and does not install the DGTPi GPIO clock service.
 - `kiosk` installs autologin + kiosk autostart using `etc/pico-kiosk.desktop`.
 - `pi3` installs the Bluetooth unblock service (useful on Raspberry Pi 3 with Trixie).
 - `master` switches an existing checkout back to `origin/master` before installing, useful for leaving a test branch.
 - `reset` backs up and resets `picochess.ini` and the installed user `kiosk.sh` to current defaults. Existing DGTPi configuration selects the DGTPi defaults automatically.
 
-When an older standalone DGT3000 installation incorrectly contains `dgtpi=True`, use `reset dgt3000` once to select the normal eboard profile explicitly.
+When an older standalone DGT3000 installation incorrectly contains `dgtpi=True`, run the installer once with `dgt3000` to select the normal eboard profile and remove legacy DGTPi support. Add `reset` only when you also want to replace all settings with the current defaults.
 
-On normal updates, an existing user `kiosk.sh` is refreshed from the repository and its previous contents are saved as `kiosk.sh.backup`. Add an exact `# no update` comment line to a customized `kiosk.sh` to keep it unchanged. Explicit `reset` mode overrides this marker.
+On normal updates, an existing user `kiosk.sh` is refreshed from the repository and its immediately previous contents are saved as `kiosk.sh.backup`; a later replacement updates that single backup. Add an exact `# no update` comment line to a customized `kiosk.sh` to keep it unchanged. Explicit `reset` mode overrides this marker.
 
 You can safely rerun `install-picochess.sh` any time. It can fix permissions, refresh services, and is a good first troubleshooting step if something isn’t working.
 

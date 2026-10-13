@@ -19,10 +19,10 @@ class TestInstallManagedFiles(unittest.TestCase):
         self.target = self.root / "target"
         self.backup = self.root / "target.backup"
 
-    def replace(self, *, respect_marker=True, executable=False):
+    def replace(self, *, respect_marker=True, executable=False, owner="", env=None):
         command = (
             '. "$1"; replace_managed_file "$2" "$3" "$4" '
-            '"$5" "$6" ""'
+            '"$5" "$6" "$7"'
         )
         return subprocess.run(
             [
@@ -36,11 +36,36 @@ class TestInstallManagedFiles(unittest.TestCase):
                 str(self.backup),
                 str(respect_marker).lower(),
                 str(executable).lower(),
+                owner,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    def remove_managed_block(self, contents, begin, end):
+        block_file = self.root / "config.txt"
+        block_backup = self.root / "config.txt.backup"
+        block_file.write_text(contents, encoding="utf-8")
+        command = '. "$1"; remove_managed_block "$2" "$3" "$4" "$5"'
+        result = subprocess.run(
+            [
+                "sh",
+                "-c",
+                command,
+                "managed-files-test",
+                str(MANAGED_FILES_SCRIPT),
+                str(block_file),
+                begin,
+                end,
+                str(block_backup),
             ],
             check=False,
             capture_output=True,
             text=True,
         )
+        return result, block_file, block_backup
 
     def ini_setting_is_true(self, contents, key="dgtpi"):
         ini_file = self.root / "settings.ini"
@@ -107,6 +132,72 @@ class TestInstallManagedFiles(unittest.TestCase):
         self.assertEqual(0, self.replace().returncode)
 
         self.assertEqual("customized\n", self.backup.read_text(encoding="utf-8"))
+
+    def test_unchanged_executable_has_execute_permission_repaired(self):
+        self.source.write_text("current\n", encoding="utf-8")
+        self.target.write_text("current\n", encoding="utf-8")
+        self.target.chmod(0o600)
+
+        result = self.replace(executable=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue(os.access(self.target, os.X_OK))
+        self.assertFalse(self.backup.exists())
+
+    def test_unchanged_file_has_owner_reapplied(self):
+        self.source.write_text("current\n", encoding="utf-8")
+        self.target.write_text("current\n", encoding="utf-8")
+        fake_bin = self.root / "bin"
+        fake_bin.mkdir()
+        chown_log = self.root / "chown.log"
+        fake_chown = fake_bin / "chown"
+        fake_chown.write_text(
+            '#!/bin/sh\nprintf "%s\\n" "$*" > "$CHOWN_LOG"\n',
+            encoding="utf-8",
+        )
+        fake_chown.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+        env["CHOWN_LOG"] = str(chown_log)
+
+        result = self.replace(owner="pico", env=env)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(f"pico:pico {self.target}\n", chown_log.read_text(encoding="utf-8"))
+        self.assertFalse(self.backup.exists())
+
+    def test_complete_managed_block_is_removed_with_backup(self):
+        begin = "# BEGIN PicoChess DGTPi clock timing"
+        end = "# END PicoChess DGTPi clock timing"
+        original = f"before\n{begin}\ncore_freq=300\n{end}\nafter\n"
+
+        result, block_file, block_backup = self.remove_managed_block(original, begin, end)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("before\nafter\n", block_file.read_text(encoding="utf-8"))
+        self.assertEqual(original, block_backup.read_text(encoding="utf-8"))
+
+    def test_incomplete_managed_block_is_left_unchanged(self):
+        begin = "# BEGIN PicoChess DGTPi clock timing"
+        end = "# END PicoChess DGTPi clock timing"
+        original = f"before\n{begin}\ncore_freq=300\n"
+
+        result, block_file, block_backup = self.remove_managed_block(original, begin, end)
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(original, block_file.read_text(encoding="utf-8"))
+        self.assertFalse(block_backup.exists())
+
+    def test_missing_managed_block_is_idempotent_without_backup(self):
+        begin = "# BEGIN PicoChess DGTPi clock timing"
+        end = "# END PicoChess DGTPi clock timing"
+        original = "before\nafter\n"
+
+        result, block_file, block_backup = self.remove_managed_block(original, begin, end)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(original, block_file.read_text(encoding="utf-8"))
+        self.assertFalse(block_backup.exists())
 
     def test_no_update_comment_skips_normal_refresh(self):
         self.source.write_text("current\n", encoding="utf-8")
@@ -212,14 +303,27 @@ class TestInstallerHardwareProfiles(unittest.TestCase):
         )
         self.assertNotIn("dgt3000|DGT3000|dgtpi", self.installer)
 
-    def test_only_dgtpi_installs_gpio_clock_support(self):
-        clock_install = self.installer.index("# Install DGTPi clock support on request.")
+    def test_dgtpi_installs_and_dgt3000_removes_gpio_clock_support(self):
+        clock_install = self.installer.index("# Install DGTPi clock support, or remove legacy GPIO support")
         bluetooth_install = self.installer.index("# Install Bluetooth unblock service", clock_install)
         section = self.installer[clock_install:bluetooth_install]
 
         self.assertIn('if [ "$INSTALL_DGTPI" = true ]; then', section)
         self.assertIn("./install-dgtpi-clock.sh", section)
-        self.assertNotIn("INSTALL_DGT3000", section)
+        self.assertIn('elif [ "$INSTALL_DGT3000" = true ]; then', section)
+        self.assertIn("remove_dgtpi_clock_support || exit 1", section)
+
+    def test_dgt3000_cleanup_disables_service_and_removes_timing_block(self):
+        cleanup = self.installer[
+            self.installer.index("remove_dgtpi_clock_timing()"):
+            self.installer.index('if [ "$SKIP_UPDATE" = false ]')
+        ]
+
+        self.assertIn("systemctl disable dgtpi.service", cleanup)
+        self.assertIn("/etc/systemd/system/dgtpi.service", cleanup)
+        self.assertIn('rm -f "$dgtpi_service"', cleanup)
+        self.assertIn("# BEGIN PicoChess DGTPi clock timing", cleanup)
+        self.assertIn("remove_managed_block", cleanup)
 
     def test_conflicting_clock_hardware_flags_are_rejected(self):
         self.assertIn(

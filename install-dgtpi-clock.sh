@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# Installation script for DGTPi clock and DGT3000 mod
-# Normally invoked by install-picochess.sh dgtpi/dgt3000
+# Installation script for a DGTPi or another GPIO-wired DGT3000 clock
+# Normally invoked by install-picochess.sh dgtpi
 #
 # you also need to set dgtpi = True in ini file - use with care, know what you are doing
 # you can use the example ini file picochess.ini.example-dgtpi-clock

@@ -52,6 +52,76 @@ select_ini_profile() {
     fi
 }
 
+# Remove a complete installer-managed block from a file, retaining the
+# pre-change file as the supplied backup. Missing blocks are already clean;
+# incomplete blocks are left untouched for manual inspection.
+# Arguments: file begin_marker end_marker backup
+remove_managed_block() {
+    block_file=$1
+    block_begin=$2
+    block_end=$3
+    block_backup=$4
+
+    [ -f "$block_file" ] || return 0
+
+    block_tmp="${block_file}.tmp.$$"
+    if ! cp -p "$block_file" "$block_tmp"; then
+        echo "Error: could not prepare managed-block update for $block_file" >&2
+        return 1
+    fi
+    awk -v begin="$block_begin" -v end="$block_end" '
+        $0 == begin {
+            if (skip) {
+                invalid = 1
+                next
+            }
+            skip = 1
+            found = 1
+            next
+        }
+        $0 == end && skip {
+            skip = 0
+            complete = 1
+            next
+        }
+        !skip {print}
+        END {
+            if (invalid || skip || (found && !complete)) exit 2
+            if (!found) exit 3
+        }
+    ' "$block_file" > "$block_tmp"
+    block_status=$?
+
+    case "$block_status" in
+        0)
+            ;;
+        3)
+            rm -f "$block_tmp"
+            echo "No managed block found in $block_file."
+            return 0
+            ;;
+        *)
+            rm -f "$block_tmp"
+            echo "Error: incomplete managed block in $block_file; leaving it unchanged." >&2
+            return 1
+            ;;
+    esac
+
+    if ! cp -p "$block_file" "$block_backup"; then
+        rm -f "$block_tmp"
+        echo "Error: could not back up $block_file to $block_backup" >&2
+        return 1
+    fi
+    if ! mv "$block_tmp" "$block_file"; then
+        rm -f "$block_tmp"
+        echo "Error: could not remove managed block from $block_file" >&2
+        return 1
+    fi
+
+    echo "Removed managed block from $block_file."
+    echo "Backup saved as $block_backup."
+}
+
 # Replace a managed file only when its contents changed. Keeping this operation
 # idempotent is important because PicoChess code updates run the installer twice.
 #
@@ -75,7 +145,13 @@ replace_managed_file() {
     fi
 
     if [ -f "$managed_target" ] && cmp -s "$managed_source" "$managed_target"; then
-        echo "$managed_target is already current."
+        if [ "$managed_executable" = true ]; then
+            chmod +x "$managed_target" || return 1
+        fi
+        if [ -n "$managed_owner" ]; then
+            chown "$managed_owner:$managed_owner" "$managed_target" || return 1
+        fi
+        echo "$managed_target is already current; ownership and permissions were verified."
         return 0
     fi
 

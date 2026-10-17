@@ -526,6 +526,10 @@ class Configuration:
         command_line = self.parser.get_source_to_settings_dict().get("command_line", {})
         for _, raw_value in command_line.values():
             values = raw_value if isinstance(raw_value, (list, tuple)) else [raw_value]
-            if any(value == option or str(value).startswith(f"{option}=") for value in values):
-                return bool(parsed_value)
+            for value in values:
+                option_token = str(value).partition("=")[0]
+                # argparse accepts unique long-option abbreviations. Parsing has
+                # already established that this prefix is unambiguous.
+                if len(option_token) > 2 and option_token.startswith("--") and option.startswith(option_token):
+                    return bool(parsed_value)
         return None

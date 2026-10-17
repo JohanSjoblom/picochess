@@ -102,6 +102,7 @@ logger = logging.getLogger(__name__)
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
+ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE = "allow_onboard_without_auth_cli_override"
 
 
 def mame_history_will_be_rebased(shared: dict) -> bool:
@@ -1015,18 +1016,32 @@ def _load_ini_entries():
     return ini_path, lines, entries, entries_map
 
 
-def _allow_onboard_without_auth() -> bool:
+def _allow_onboard_without_auth(application_settings: dict | None = None) -> bool:
     # Read this setting live so authentication can be tightened after onboarding
     # without restarting PicoChess.
+    ini_allows = True
     try:
         _, _, _, entries_map = _load_ini_entries()
-    except OSError:
-        return True
-    entry = entries_map.get("allow-onboard-without-auth")
-    if not entry or not entry.get("enabled", True):
-        return True
-    value = str(entry.get("value", "")).strip().lower()
-    return value in ("1", "true", "yes", "on")
+    except (OSError, UnicodeError, ValueError, KeyError) as exc:
+        logger.debug("Wi-Fi onboarding INI unavailable; using the permissive onboarding default: %s", exc)
+    else:
+        entry = entries_map.get("allow-onboard-without-auth")
+        if entry and entry.get("enabled", True):
+            value = str(entry.get("value", "")).strip().lower()
+            ini_allows = value in ("1", "true", "yes", "on")
+
+    settings = application_settings or {}
+    cli_override = settings.get(ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE)
+    allowed = ini_allows and cli_override is not False
+    if not allowed:
+        if cli_override is False and not ini_allows:
+            source = "CLI and live INI policies"
+        elif cli_override is False:
+            source = "CLI policy"
+        else:
+            source = "live INI policy"
+        logger.debug("Wi-Fi onboarding authentication required by %s", source)
+    return allowed
 
 
 class ServerRequestHandler(tornado.web.RequestHandler):
@@ -2773,7 +2788,7 @@ class SettingsSaveHandler(ServerRequestHandler):
 
 class WifiSetupPageHandler(tornado.web.RequestHandler):
     def get(self):
-        allow_unauth = _allow_onboard_without_auth()
+        allow_unauth = _allow_onboard_without_auth(self.application.settings)
         if not allow_unauth or not _is_private_request(self.request):
             if not _require_auth_if_remote(self, "WiFi Setup"):
                 return
@@ -2782,7 +2797,7 @@ class WifiSetupPageHandler(tornado.web.RequestHandler):
 
 class WifiSetupHandler(ServerRequestHandler):
     async def post(self):
-        allow_unauth = _allow_onboard_without_auth()
+        allow_unauth = _allow_onboard_without_auth(self.application.settings)
         if not allow_unauth or not _is_private_request(self.request):
             if not _require_auth_if_remote(self, "WiFi Setup"):
                 return
@@ -2847,7 +2862,7 @@ class WifiSetupHandler(ServerRequestHandler):
 
 class SettingsActionHandler(ServerRequestHandler):
     async def post(self, action: str):
-        allow_unauth = _allow_onboard_without_auth()
+        allow_unauth = _allow_onboard_without_auth(self.application.settings)
         if action == "wifi-hotspot":
             if not allow_unauth or not _is_private_request(self.request):
                 if not _require_auth_if_remote(self, "Settings"):
@@ -2893,7 +2908,13 @@ class WebServer:
         pass
 
     def make_app(
-        self, theme: str, pieces: str, board: str, shared: dict, theme_resolver=None
+        self,
+        theme: str,
+        pieces: str,
+        board: str,
+        shared: dict,
+        theme_resolver=None,
+        allow_onboard_without_auth_cli_override: bool | None = None,
     ) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
@@ -2942,7 +2963,12 @@ class WebServer:
                 ]
             )
         handlers.append((r".*", tornado.web.FallbackHandler, {"fallback": wsgi_app}))
-        return tornado.web.Application(handlers)
+        return tornado.web.Application(
+            handlers,
+            **{
+                ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: allow_onboard_without_auth_cli_override,
+            },
+        )
 
 
 class WebVr(DgtIface):

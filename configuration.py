@@ -174,7 +174,10 @@ class Configuration:
             "--allow-onboard-without-auth",
             type=str_to_bool,
             default=True,
-            help="allow unauthenticated Wi-Fi onboarding from private networks",
+            help=(
+                "allow unauthenticated Wi-Fi onboarding from private networks only while the live INI "
+                "setting also allows it; false in either source requires authentication"
+            ),
         )
         self.parser.add_argument("-m", "--email", type=str, help="email used to send pgn/log files", default=None)
         self.parser.add_argument("-ms", "--smtp-server", type=str, help="address of email server", default=None)
@@ -513,3 +516,16 @@ class Configuration:
         )
 
         self._args, self.unknown = self.parser.parse_known_args()
+        self.allow_onboard_without_auth_cli_override = self._explicit_cli_bool(
+            "--allow-onboard-without-auth",
+            self._args.allow_onboard_without_auth,
+        )
+
+    def _explicit_cli_bool(self, option: str, parsed_value: bool) -> bool | None:
+        """Return a boolean only when ``option`` came from the real command line."""
+        command_line = self.parser.get_source_to_settings_dict().get("command_line", {})
+        for _, raw_value in command_line.values():
+            values = raw_value if isinstance(raw_value, (list, tuple)) else [raw_value]
+            if any(value == option or str(value).startswith(f"{option}=") for value in values):
+                return bool(parsed_value)
+        return None

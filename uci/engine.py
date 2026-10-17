@@ -1491,21 +1491,37 @@ class UciEngine(object):
             if self.analyser:
                 self.analyser.clear_failure()
             return True
-        recovery_task = asyncio.create_task(self._recover_from_failed_analyser_stop_inner(reason))
+        # Capture this before scheduling the inner task.  create_task() does not
+        # run the coroutine immediately, so reading the generation inside it
+        # could miss a recovery that completes in the scheduling gap.
+        requested_generation = self._recovery_generation
+        recovery_task = asyncio.create_task(
+            self._recover_from_failed_analyser_stop_inner(reason, requested_generation)
+        )
         try:
             return await asyncio.shield(recovery_task)
         except CancelledError:
             # stop_analysis() may cancel the analyser while this callback is
             # reopening the engine. Let the transaction finish so it cannot
             # leave a live engine permanently marked as setup-incomplete.
+            # A transaction error from this second await intentionally replaces
+            # the caller's cancellation because recovery itself then failed.
             logger.debug("%s recovery cancellation deferred until setup completes", reason)
             await asyncio.shield(recovery_task)
             raise
 
-    async def _recover_from_failed_analyser_stop_inner(self, reason: str) -> bool:
+    async def _recover_from_failed_analyser_stop_inner(
+        self, reason: str, requested_generation: int
+    ) -> bool:
         """Perform the engine restart transaction for analyser recovery."""
-        requested_generation = self._recovery_generation
         async with self._recovery_lock:
+            # Shutdown may begin after the wrapper check while this task waits
+            # for another recovery transaction to release the lock.
+            if self._shutting_down:
+                logger.debug("%s recovery skipped while engine is shutting down", reason)
+                if self.analyser:
+                    self.analyser.clear_failure()
+                return True
             if requested_generation != self._recovery_generation:
                 if self._engine_process_alive():
                     logger.debug("%s recovery already completed by another caller", reason)

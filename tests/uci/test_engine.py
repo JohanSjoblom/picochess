@@ -579,7 +579,7 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         recovery_started = asyncio.Event()
         allow_recovery_to_finish = asyncio.Event()
 
-        async def recover(_reason):
+        async def recover(_reason, _requested_generation):
             recovery_started.set()
             await allow_recovery_to_finish.wait()
             return True
@@ -1226,7 +1226,7 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         recovery_started = asyncio.Event()
         allow_recovery_to_finish = asyncio.Event()
 
-        async def recover(_reason):
+        async def recover(_reason, _requested_generation):
             recovery_started.set()
             await allow_recovery_to_finish.wait()
             eng._analysis_allowed = True
@@ -1245,6 +1245,85 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
             await task
 
         self.assertTrue(eng._analysis_allowed)
+
+    async def test_recovery_captures_generation_before_inner_task_runs(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.analyser = Mock()
+        eng.playing = Mock()
+        eng.engine_lease = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._attach_engine_to_sisters = Mock()
+        eng._set_engine_name = Mock(return_value=True)
+        eng._start_engine_process = AsyncMock(side_effect=lambda: setattr(eng, "engine", MockEngine()))
+        eng.send = AsyncMock(return_value=True)
+
+        inner_task_created = asyncio.Event()
+        allow_inner_task = asyncio.Event()
+        original_create_task = asyncio.create_task
+
+        def delay_created_task(coro):
+            async def delayed():
+                inner_task_created.set()
+                await allow_inner_task.wait()
+                return await coro
+
+            return original_create_task(delayed())
+
+        with patch("uci.engine.asyncio.create_task", side_effect=delay_created_task):
+            delayed_recovery = original_create_task(
+                eng._recover_from_failed_analyser_stop("delayed recovery")
+            )
+            await inner_task_created.wait()
+            self.assertTrue(
+                await eng._recover_from_failed_analyser_stop_inner("immediate recovery", 0)
+            )
+            allow_inner_task.set()
+            self.assertTrue(await delayed_recovery)
+
+        self.assertEqual(1, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng._recovery_generation)
+
+    async def test_recovery_rechecks_shutdown_after_waiting_for_lock(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.analyser = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._start_engine_process = AsyncMock()
+
+        await eng._recovery_lock.acquire()
+        recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop("shutdown while waiting")
+        )
+        await asyncio.sleep(0)
+        eng._shutting_down = True
+        eng._recovery_lock.release()
+
+        self.assertTrue(await asyncio.wait_for(recovery, timeout=1.0))
+        eng.analyser.clear_failure.assert_called_once()
+        eng._shutdown_standard_engine.assert_not_awaited()
+        eng._start_engine_process.assert_not_awaited()
+
+    async def test_inner_error_after_deferred_cancellation_replaces_cancelled_error(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        recovery_started = asyncio.Event()
+        allow_inner_error = asyncio.Event()
+
+        async def fail_recovery(_reason, _requested_generation):
+            recovery_started.set()
+            await allow_inner_error.wait()
+            raise RuntimeError("recovery failed")
+
+        eng._recover_from_failed_analyser_stop_inner = AsyncMock(side_effect=fail_recovery)
+        recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop("protocol failure")
+        )
+        await recovery_started.wait()
+        recovery.cancel()
+        await asyncio.sleep(0)
+        allow_inner_error.set()
+
+        with self.assertRaisesRegex(RuntimeError, "recovery failed"):
+            await recovery
 
     async def test_concurrent_recovery_requests_share_one_engine_restart(self):
         """A protocol failure and NEW_GAME must not restart/configure in parallel."""
@@ -1444,18 +1523,17 @@ class TestEngineRecoveryProtocol(unittest.IsolatedAsyncioTestCase):
         self.assertIs(healthy_protocol, eng.engine)
         healthy_transport.assert_done()
 
-    async def test_cancelled_configuration_propagates_and_waiter_retries(self):
+    async def test_cancelled_caller_allows_configuration_to_finish_and_waiter_coalesces(self):
         configure_started = asyncio.Event()
         release_configure = asyncio.Event()
         cancelled_protocol, cancelled_transport = await self._protocol(
             PausingConfigureProtocol(configure_started, release_configure)
         )
-        healthy_protocol, healthy_transport = await self._protocol()
-        healthy_transport.expect("setoption name Threads value 2")
+        cancelled_transport.expect("setoption name Threads value 2")
         eng = self._engine()
         self._install_start_sequence(
             eng,
-            [(cancelled_protocol, cancelled_transport), (healthy_protocol, healthy_transport)],
+            [(cancelled_protocol, cancelled_transport)],
         )
 
         first = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
@@ -1463,14 +1541,17 @@ class TestEngineRecoveryProtocol(unittest.IsolatedAsyncioTestCase):
         waiter = asyncio.create_task(eng._recover_from_failed_analyser_stop("new game"))
         await asyncio.sleep(0)
         first.cancel()
+        await asyncio.sleep(0)
+        self.assertFalse(first.done())
+        release_configure.set()
         with self.assertRaises(asyncio.CancelledError):
             await first
 
         self.assertTrue(await asyncio.wait_for(waiter, timeout=1.0))
-        self.assertEqual(2, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng._start_engine_process.await_count)
         self.assertEqual(1, eng._recovery_generation)
-        self.assertIs(healthy_protocol, eng.engine)
-        healthy_transport.assert_done()
+        self.assertIs(cancelled_protocol, eng.engine)
+        cancelled_transport.assert_done()
 
     async def test_rejected_option_does_not_complete_recovery(self):
         protocol, transport = await self._protocol()

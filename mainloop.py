@@ -7553,17 +7553,6 @@ class MainLoop:
         elif isinstance(event, Event.SHUTDOWN):
             await self.get_rid_of_engine_move()
             await self.pre_exit_or_reboot_cleanups()
-            try:
-                if self.uci_remote_shell:
-                    if self.uci_remote_shell.get():
-                        try:
-                            self.uci_remote_shell.get().__exit__(
-                                None, None, None
-                            )  # force to call __exit__ (close shell connection)
-                        except Exception:
-                            pass
-            except Exception:
-                pass
 
             result = GameResult.ABORT
             self.game_end_event()

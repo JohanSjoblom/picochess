@@ -1,16 +1,6 @@
-import paramiko
 import unittest
-from unittest.mock import patch
 
-from uci.engine import UciShell, WindowsShellType
-
-
-class SshShellMock:
-    def __init__(*args, **kwargs):
-        pass
-
-    def close(self):
-        return 42
+from uci.engine import UciShell
 
 
 class TestUciShell(unittest.TestCase):
@@ -18,43 +8,24 @@ class TestUciShell(unittest.TestCase):
         uci_shell = UciShell()
         self.assertIsNone(uci_shell.get())
 
-    @patch("spur.SshShell")
-    def test_password_authentication(self, sshshell_mock):
+    def test_password_authentication_settings(self):
         uci_shell = UciShell(hostname="test", username="user", password="pass")
-        kwargs = sshshell_mock.call_args.kwargs
-        self.assertEqual(kwargs["hostname"], "test")
-        self.assertEqual(kwargs["username"], "user")
-        self.assertEqual(kwargs["password"], "pass")
-        self.assertTrue(isinstance(kwargs["missing_host_key"], paramiko.AutoAddPolicy))
-        self.assertIsNone(kwargs.get("private_key_file"))
-        self.assertIsNone(kwargs.get("shell_type"))
-        self.assertIsNotNone(uci_shell.get())
+        self.assertEqual(uci_shell.hostname, "test")
+        self.assertEqual(uci_shell.username, "user")
+        self.assertEqual(uci_shell.password, "pass")
+        self.assertIsNone(uci_shell.key_file)
+        self.assertIs(uci_shell, uci_shell.get())
 
-    @patch("spur.SshShell")
-    def test_private_key_authentication(self, sshshell_mock):
+    def test_private_key_authentication_settings(self):
         uci_shell = UciShell(hostname="test", username="user", key_file="key")
-        kwargs = sshshell_mock.call_args.kwargs
-        self.assertEqual(kwargs["hostname"], "test")
-        self.assertEqual(kwargs["username"], "user")
-        self.assertIsNone(kwargs.get("password"))
-        self.assertTrue(isinstance(kwargs["missing_host_key"], paramiko.AutoAddPolicy))
-        self.assertEqual(kwargs["private_key_file"], "key")
-        self.assertIsNone(kwargs.get("shell_type"))
-        self.assertIsNotNone(uci_shell.get())
+        self.assertEqual(uci_shell.hostname, "test")
+        self.assertEqual(uci_shell.username, "user")
+        self.assertEqual(uci_shell.key_file, "key")
+        self.assertIsNone(uci_shell.password)
+        self.assertIs(uci_shell, uci_shell.get())
 
-    @patch("spur.SshShell")
-    def test_windows_shell(self, sshshell_mock):
-        uci_shell = UciShell(hostname="test", username="user", password="pass", windows=True)
-        kwargs = sshshell_mock.call_args.kwargs
-        self.assertEqual(kwargs["hostname"], "test")
-        self.assertEqual(kwargs["username"], "user")
-        self.assertEqual(kwargs["password"], "pass")
-        self.assertTrue(isinstance(kwargs["missing_host_key"], paramiko.AutoAddPolicy))
-        self.assertIsNone(kwargs.get("private_key_file"))
-        self.assertTrue(isinstance(kwargs["shell_type"], WindowsShellType))
-        self.assertIsNotNone(uci_shell.get())
-
-    @patch("spur.SshShell", new=SshShellMock)
-    def test_call_redirection(self):
-        uci_shell = UciShell(hostname="test", username="user", password="pass")
-        self.assertEqual(uci_shell.get().close(), 42)
+    def test_remote_platform_settings(self):
+        uci_shell = UciShell(hostname="test", windows=True, remote_home=r"C:\Engines")
+        self.assertTrue(uci_shell.windows)
+        self.assertEqual(uci_shell.remote_home, r"C:\Engines")
+        self.assertIs(uci_shell, uci_shell.get())

@@ -142,8 +142,7 @@ your cup of tea...
    - mame engine should not be saved as last used engine on a DGTPI because of possible clock problems
      when starting mame engine directly after boot (very strange maybe a sync problem with dgtpicom lib!?)
 - Finally: practical support of remote engines and local engines at the same time(!)
-    - IMPORTANT! For windows server access an update of the spur and paraminko packages and a
-      modification of the spur package are necessary (ssh.py must be replaced from a different repository)
+    - Remote engine access, including Windows servers, uses AsyncSSH.
     - name in engine.ini must start with prefix 'remote_'
     - implemented via standard ssh connection, just add the remote login infos
       in the corresponding parameters of picochess.ini and your remote engine in engines.ini

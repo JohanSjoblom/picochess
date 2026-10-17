@@ -20,8 +20,16 @@ import unittest
 from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import chess
+import chess.engine
 from chess.engine import EngineTerminatedError, Limit, UciProtocol as RealUciProtocol
-from uci.engine import ContinuousAnalysis, EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
+from uci.engine import (
+    ContinuousAnalysis,
+    CooperativeUciProtocol,
+    EngineLease,
+    PlayingContinuousAnalysis,
+    UciEngine,
+    UciShell,
+)
 from uci.rating import Rating, Result
 
 UCI_ELO = "UCI_Elo"
@@ -31,6 +39,8 @@ UCI_ELO_NON_STANDARD = "UCI Elo"
 class MockEngine(object):
     def __init__(self, *args, **kwargs):
         self.options = {UCI_ELO: None}
+        self.returncode = Mock()
+        self.returncode.done.return_value = False
         self.first_game = True
         self.game = None
         self.ponderhit = False
@@ -1235,3 +1245,340 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
             await task
 
         self.assertTrue(eng._analysis_allowed)
+
+    async def test_concurrent_recovery_requests_share_one_engine_restart(self):
+        """A protocol failure and NEW_GAME must not restart/configure in parallel."""
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.analyser = Mock()
+        eng.playing = Mock()
+        eng.engine_lease = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._attach_engine_to_sisters = Mock()
+        eng._set_engine_name = Mock(return_value=True)
+
+        async def start_engine():
+            eng.engine = MockEngine()
+
+        eng._start_engine_process = AsyncMock(side_effect=start_engine)
+
+        first_configure_started = asyncio.Event()
+        release_first_configure = asyncio.Event()
+        configure_calls = 0
+
+        async def send_options(*, strict=False):
+            nonlocal configure_calls
+            configure_calls += 1
+            if configure_calls == 1:
+                first_configure_started.set()
+                await release_first_configure.wait()
+            return True
+
+        eng.send = AsyncMock(side_effect=send_options)
+
+        protocol_recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop(
+                "continuous analysis protocol failure: AssertionError: CommandState.NEW"
+            )
+        )
+        await first_configure_started.wait()
+
+        new_game_recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop(
+                "new game requested after analyser protocol failure"
+            )
+        )
+        await asyncio.sleep(0)
+        release_first_configure.set()
+
+        recovered = await asyncio.gather(protocol_recovery, new_game_recovery)
+
+        self.assertEqual([True, True], recovered)
+        self.assertEqual(1, eng._shutdown_standard_engine.await_count)
+        self.assertEqual(1, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng.send.await_count)
+
+    def test_filter_options_excludes_python_chess_managed_options(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        wanted = {
+            "Threads": 2,
+            "UCI_Chess960": True,
+            "UCI_Variant": "chess",
+            "MultiPV": 3,
+            "Ponder": True,
+        }
+
+        filtered = eng.filter_options(wanted, dict.fromkeys(wanted))
+
+        self.assertEqual({"Threads": 2}, filtered)
+
+
+class PausingConfigureProtocol(CooperativeUciProtocol):
+    """Real python-chess protocol with a controllable configure await point."""
+
+    def __init__(self, configure_started: asyncio.Event, release_configure: asyncio.Event):
+        super().__init__()
+        self.configure_started = configure_started
+        self.release_configure = release_configure
+
+    async def configure(self, options):
+        self.configure_started.set()
+        await self.release_configure.wait()
+        return await super().configure(options)
+
+
+class TerminatingConfigureTransport(chess.engine.MockTransport):
+    """Terminate the real protocol while it dispatches its first setoption."""
+
+    def __init__(self, protocol):
+        super().__init__(protocol)
+        self.failed_command = None
+
+    def write(self, data):
+        super().write(data)
+        if data.startswith(b"setoption") and not self.protocol.returncode.done():
+            self.failed_command = self.protocol.command
+            self.protocol.connection_lost(None)
+
+
+class VariantFailingTransport(chess.engine.MockTransport):
+    """Fail the direct UCI_Variant write before normal configuration."""
+
+    def write(self, data):
+        if data.startswith(b"setoption name UCI_Variant"):
+            raise OSError("variant write failed")
+        super().write(data)
+
+
+class FailingConfigureProtocol(CooperativeUciProtocol):
+    """Real protocol facade that raises a selected configure I/O failure."""
+
+    def __init__(self, error):
+        super().__init__()
+        self.error = error
+
+    async def configure(self, options):
+        raise self.error
+
+
+class TestEngineRecoveryProtocol(unittest.IsolatedAsyncioTestCase):
+    async def _protocol(self, protocol=None, transport_class=chess.engine.MockTransport):
+        protocol = protocol or CooperativeUciProtocol()
+        transport = transport_class(protocol)
+        transport.expect(
+            "uci",
+            [
+                "id name Recovery Test",
+                "option name Threads type spin default 1 min 1 max 8",
+                "uciok",
+            ],
+        )
+        await protocol.initialize()
+        return protocol, transport
+
+    def _engine(self, threads=2):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.options = {"Threads": threads}
+        eng.analyser = Mock()
+        eng.playing = Mock()
+        eng.engine_lease = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._attach_engine_to_sisters = Mock()
+        eng._set_engine_name = Mock(return_value=True)
+        return eng
+
+    @staticmethod
+    def _install_start_sequence(eng, engines):
+        pending = iter(engines)
+
+        async def start_engine():
+            eng.engine, eng.transport = next(pending)
+
+        eng._start_engine_process = AsyncMock(side_effect=start_engine)
+
+    async def test_real_protocol_configuration_coalesces_successful_recovery(self):
+        configure_started = asyncio.Event()
+        release_configure = asyncio.Event()
+        protocol, transport = await self._protocol(PausingConfigureProtocol(configure_started, release_configure))
+        transport.expect("setoption name Threads value 2")
+        eng = self._engine()
+        self._install_start_sequence(eng, [(protocol, transport)])
+
+        first = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
+        await configure_started.wait()
+        waiter = asyncio.create_task(eng._recover_from_failed_analyser_stop("new game"))
+        await asyncio.sleep(0)
+        release_configure.set()
+
+        self.assertEqual([True, True], await asyncio.gather(first, waiter))
+        self.assertEqual(1, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng._recovery_generation)
+        self.assertTrue(eng._analysis_allowed)
+        transport.assert_done()
+
+    async def test_terminated_configuration_is_retried_by_waiter(self):
+        dying_protocol, dying_transport = await self._protocol(
+            transport_class=TerminatingConfigureTransport
+        )
+        dying_transport.expect("setoption name Threads value 2")
+        healthy_protocol, healthy_transport = await self._protocol()
+        healthy_transport.expect("setoption name Threads value 2")
+        eng = self._engine()
+        self._install_start_sequence(
+            eng,
+            [(dying_protocol, dying_transport), (healthy_protocol, healthy_transport)],
+        )
+
+        first = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
+        waiter = asyncio.create_task(eng._recover_from_failed_analyser_stop("new game"))
+        results = await asyncio.gather(first, waiter)
+
+        self.assertEqual([False, True], results)
+        self.assertTrue(dying_protocol.returncode.done())
+        self.assertIsInstance(
+            dying_transport.failed_command.result.exception(),
+            chess.engine.EngineTerminatedError,
+        )
+        self.assertEqual(2, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng._recovery_generation)
+        self.assertIs(healthy_protocol, eng.engine)
+        healthy_transport.assert_done()
+
+    async def test_cancelled_configuration_propagates_and_waiter_retries(self):
+        configure_started = asyncio.Event()
+        release_configure = asyncio.Event()
+        cancelled_protocol, cancelled_transport = await self._protocol(
+            PausingConfigureProtocol(configure_started, release_configure)
+        )
+        healthy_protocol, healthy_transport = await self._protocol()
+        healthy_transport.expect("setoption name Threads value 2")
+        eng = self._engine()
+        self._install_start_sequence(
+            eng,
+            [(cancelled_protocol, cancelled_transport), (healthy_protocol, healthy_transport)],
+        )
+
+        first = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
+        await configure_started.wait()
+        waiter = asyncio.create_task(eng._recover_from_failed_analyser_stop("new game"))
+        await asyncio.sleep(0)
+        first.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await first
+
+        self.assertTrue(await asyncio.wait_for(waiter, timeout=1.0))
+        self.assertEqual(2, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng._recovery_generation)
+        self.assertIs(healthy_protocol, eng.engine)
+        healthy_transport.assert_done()
+
+    async def test_rejected_option_does_not_complete_recovery(self):
+        protocol, transport = await self._protocol()
+        eng = self._engine(threads=99)
+        self._install_start_sequence(eng, [(protocol, transport)])
+
+        with self.assertLogs("uci.engine", level="WARNING") as logged:
+            recovered = await eng._recover_from_failed_analyser_stop("protocol failure")
+
+        self.assertFalse(recovered)
+        self.assertEqual(0, eng._recovery_generation)
+        self.assertFalse(eng._analysis_allowed)
+        eng.analyser.clear_failure.assert_not_called()
+        self.assertIn("Threads", "\n".join(logged.output))
+        self.assertFalse(protocol.returncode.done())
+        transport.assert_done()
+
+    async def test_terminated_protocol_is_not_treated_as_configuration_success(self):
+        protocol, transport = await self._protocol()
+        protocol.connection_lost(None)
+        self.assertEqual(0, await protocol.returncode)
+        eng = self._engine()
+        eng.engine = protocol
+        eng.transport = transport
+
+        self.assertFalse(await eng.send(strict=True))
+        self.assertTrue(protocol.returncode.done())
+        transport.assert_done()
+
+    async def test_default_send_preserves_io_exception_behavior(self):
+        for error in (OSError("I/O failed"), asyncio.InvalidStateError("invalid state")):
+            with self.subTest(error=type(error).__name__):
+                protocol, transport = await self._protocol(FailingConfigureProtocol(error))
+                eng = self._engine()
+                eng.engine = protocol
+                eng.transport = transport
+
+                with self.assertRaises(type(error)):
+                    await eng.send()
+                transport.assert_done()
+
+    async def test_strict_send_reports_io_exceptions_as_failure(self):
+        for error in (OSError("I/O failed"), asyncio.InvalidStateError("invalid state")):
+            with self.subTest(error=type(error).__name__):
+                protocol, transport = await self._protocol(FailingConfigureProtocol(error))
+                eng = self._engine()
+                eng.engine = protocol
+                eng.transport = transport
+
+                self.assertFalse(await eng.send(strict=True))
+                transport.assert_done()
+
+    async def test_failed_direct_variant_write_does_not_complete_recovery(self):
+        protocol, transport = await self._protocol(transport_class=VariantFailingTransport)
+        eng = self._engine()
+        eng.options["UCI_Variant"] = "atomic"
+        self._install_start_sequence(eng, [(protocol, transport)])
+
+        self.assertFalse(await eng._recover_from_failed_analyser_stop("protocol failure"))
+        self.assertEqual(0, eng._recovery_generation)
+        self.assertFalse(eng._analysis_allowed)
+        eng.analyser.clear_failure.assert_not_called()
+        transport.assert_done()
+
+    async def test_waiter_restarts_if_successful_replacement_dies_before_liveness_check(self):
+        configure_started = asyncio.Event()
+        release_configure = asyncio.Event()
+        first_protocol, first_transport = await self._protocol(
+            PausingConfigureProtocol(configure_started, release_configure)
+        )
+        first_transport.expect("setoption name Threads value 2")
+        second_protocol, second_transport = await self._protocol()
+        second_transport.expect("setoption name Threads value 2")
+        eng = self._engine()
+        self._install_start_sequence(
+            eng,
+            [(first_protocol, first_transport), (second_protocol, second_transport)],
+        )
+
+        clear_calls = 0
+
+        def terminate_after_generation_advances():
+            nonlocal clear_calls
+            clear_calls += 1
+            if clear_calls == 1:
+                asyncio.get_running_loop().call_soon(first_protocol.connection_lost, None)
+
+        eng.analyser.clear_failure.side_effect = terminate_after_generation_advances
+        first = asyncio.create_task(eng._recover_from_failed_analyser_stop("protocol failure"))
+        await configure_started.wait()
+        waiter = asyncio.create_task(eng._recover_from_failed_analyser_stop("new game"))
+        await asyncio.sleep(0)
+        release_configure.set()
+
+        self.assertEqual([True, True], await asyncio.gather(first, waiter))
+        self.assertTrue(first_protocol.returncode.done())
+        self.assertEqual(2, eng._start_engine_process.await_count)
+        self.assertEqual(2, eng._recovery_generation)
+        self.assertIs(second_protocol, eng.engine)
+        second_transport.assert_done()
+
+    async def test_reopen_engine_rejects_incomplete_configuration(self):
+        protocol, transport = await self._protocol()
+        eng = self._engine(threads=99)
+        eng.quit = AsyncMock()
+        self._install_start_sequence(eng, [(protocol, transport)])
+
+        self.assertFalse(await eng.reopen_engine())
+        self.assertFalse(eng._analysis_allowed)
+        self.assertFalse(protocol.returncode.done())
+        transport.assert_done()

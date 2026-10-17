@@ -798,3 +798,68 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng.analyser.clear_failure.assert_called_once()
         eng._shutdown_standard_engine.assert_not_awaited()
         eng._start_engine_process.assert_not_awaited()
+
+    async def test_concurrent_recovery_requests_share_one_engine_restart(self):
+        """A protocol failure and NEW_GAME must not restart/configure in parallel."""
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.analyser = Mock()
+        eng.playing = Mock()
+        eng.engine_lease = Mock()
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._attach_engine_to_sisters = Mock()
+        eng._set_engine_name = Mock(return_value=True)
+
+        async def start_engine():
+            eng.engine = MockEngine()
+
+        eng._start_engine_process = AsyncMock(side_effect=start_engine)
+
+        first_configure_started = asyncio.Event()
+        release_first_configure = asyncio.Event()
+        configure_calls = 0
+
+        async def send_options():
+            nonlocal configure_calls
+            configure_calls += 1
+            if configure_calls == 1:
+                first_configure_started.set()
+                await release_first_configure.wait()
+
+        eng.send = AsyncMock(side_effect=send_options)
+
+        protocol_recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop(
+                "continuous analysis protocol failure: AssertionError: CommandState.NEW"
+            )
+        )
+        await first_configure_started.wait()
+
+        new_game_recovery = asyncio.create_task(
+            eng._recover_from_failed_analyser_stop(
+                "new game requested after analyser protocol failure"
+            )
+        )
+        await asyncio.sleep(0)
+        release_first_configure.set()
+
+        recovered = await asyncio.gather(protocol_recovery, new_game_recovery)
+
+        self.assertEqual([True, True], recovered)
+        self.assertEqual(1, eng._shutdown_standard_engine.await_count)
+        self.assertEqual(1, eng._start_engine_process.await_count)
+        self.assertEqual(1, eng.send.await_count)
+
+    def test_filter_options_excludes_python_chess_managed_options(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        wanted = {
+            "Threads": 2,
+            "UCI_Chess960": True,
+            "UCI_Variant": "chess",
+            "MultiPV": 3,
+            "Ponder": True,
+        }
+
+        filtered = eng.filter_options(wanted, dict.fromkeys(wanted))
+
+        self.assertEqual({"Threads": 2}, filtered)

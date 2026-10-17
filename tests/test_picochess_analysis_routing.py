@@ -1521,17 +1521,24 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
 
 class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.show = AsyncMock()
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
         self.controller = object.__new__(mainloop.MainLoop)
         self.controller.args = SimpleNamespace(remote_picochess_url="")
         self.controller.state = SimpleNamespace(
             best_sent_depth=SimpleNamespace(reset=Mock()),
             interaction_mode=Mode.NORMAL,
+            engine_search_revision=7,
             position_checkpoint_restore_pending=False,
             can_preserve_position_checkpoint_play_mode=Mock(return_value=False),
             done_computer_fen=None,
             newgame_happened=True,
             picotutor=None,
+            dgtmenu=SimpleNamespace(set_mode=Mock()),
+            dgttranslate=SimpleNamespace(text=Mock(return_value="wrong mode")),
         )
+        self.controller._arm_engine_match = AsyncMock(return_value=True)
+        self.controller._stop_engine_match = AsyncMock()
         self.controller.get_rid_of_engine_move = AsyncMock()
         self.controller._set_pgn_replay_autoplay = Mock()
         self.controller.stop_search_and_clock = AsyncMock()
@@ -1573,6 +1580,7 @@ class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
         self.controller._clear_position_checkpoint.assert_not_called()
         self.controller.set_wait_state.assert_awaited_once()
         self.controller.state.best_sent_depth.reset.assert_called_once_with()
+        self.assertEqual(8, self.controller.state.engine_search_revision)
 
     async def test_analysis_to_play_stops_analysis_before_entering_normal(self):
         self.controller.state.interaction_mode = Mode.PONDER
@@ -1602,6 +1610,263 @@ class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
         )
         self.controller.set_wait_state.assert_awaited_once()
         self.controller.state.best_sent_depth.reset.assert_called_once_with()
+
+    async def test_pending_move_rejects_every_existing_guarded_target_without_mutation(self):
+        pending_fen = "pending engine position"
+        self.controller.state.done_computer_fen = pending_fen
+        allowed_targets = (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
+
+        for target_mode in (mode for mode in Mode if mode not in allowed_targets):
+            with self.subTest(target_mode=target_mode):
+                self.show.reset_mock()
+                self.controller.state.dgtmenu.set_mode.reset_mock()
+
+                await self.controller.process_main_events(self.mode_event(target_mode))
+
+                self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+                self.assertEqual(7, self.controller.state.engine_search_revision)
+                self.assertEqual(pending_fen, self.controller.state.done_computer_fen)
+                self.controller.state.dgtmenu.set_mode.assert_called_once_with(Mode.NORMAL)
+                self.show.assert_awaited_once()
+
+        self.controller.get_rid_of_engine_move.assert_not_awaited()
+        self.controller._arm_engine_match.assert_not_awaited()
+        self.controller._stop_engine_match.assert_not_awaited()
+        self.controller.stop_search_and_clock.assert_not_awaited()
+        self.controller.state.best_sent_depth.reset.assert_not_called()
+
+    async def test_pending_engine_match_move_is_rejected_before_stopping_match(self):
+        self.controller.state.interaction_mode = Mode.ENGINE_MATCH
+        self.controller.state.done_computer_fen = "pending engine position"
+
+        await self.controller.process_main_events(self.mode_event(Mode.PONDER))
+
+        self.assertEqual(Mode.ENGINE_MATCH, self.controller.state.interaction_mode)
+        self.assertEqual(7, self.controller.state.engine_search_revision)
+        self.controller._stop_engine_match.assert_not_awaited()
+        self.controller.get_rid_of_engine_move.assert_not_awaited()
+
+    async def test_search_revision_is_invalidated_before_first_transition_await(self):
+        async def check_revision_before_getting_rid_of_move():
+            self.assertEqual(8, self.controller.state.engine_search_revision)
+
+        self.controller.get_rid_of_engine_move.side_effect = check_revision_before_getting_rid_of_move
+
+        await self.controller.process_main_events(self.mode_event(Mode.PONDER))
+
+        self.controller.get_rid_of_engine_move.assert_awaited_once_with()
+        self.assertEqual(Mode.PONDER, self.controller.state.interaction_mode)
+        self.assertEqual(8, self.controller.state.engine_search_revision)
+
+
+class TestBestMoveModeTransitionRace(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.show = AsyncMock()
+        start_patch(self, mainloop.DisplayMsg, "show", self.show)
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.args = SimpleNamespace(remote_picochess_url="")
+        self.controller.board_type = mainloop.dgt.util.EBoard.DGT
+        self.controller.engine_match_remote_move_pending = False
+        self.controller.engine_match_local_move_wait_started = None
+        self.controller.online_mode = Mock(return_value=False)
+        self.controller.emulation_mode = Mock(return_value=False)
+        self.controller.pgn_mode = Mock(return_value=False)
+        self.controller.picotutor_mode = Mock(return_value=True)
+        self.controller.set_picotutor_position = AsyncMock()
+        self.controller.get_rid_of_engine_move = AsyncMock()
+        self.controller._arm_engine_match = AsyncMock(return_value=True)
+        self.controller._stop_engine_match = AsyncMock()
+        self.controller._set_pgn_replay_autoplay = Mock()
+        self.controller.stop_search_and_clock = AsyncMock()
+        self.controller._save_position_checkpoint = AsyncMock()
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller.engine_mode = AsyncMock()
+        self.controller.set_wait_state = AsyncMock()
+        self.controller._update_variant_shared = Mock()
+        self.controller._current_opening_message = Mock(return_value=None)
+        self.controller._allow_early_user_fen_rescan = Mock()
+        self.controller.start_brain_hint_timer = Mock()
+        self.controller.reset_setpieces_window_switch = Mock()
+
+        self.board = chess.Board()
+        self.board.push_uci("e2e4")
+        self.move = chess.Move.from_uci("e7e6")
+        self.search_fen = self.board.fen()
+        self.expected = self.board.copy()
+        self.expected.push(self.move)
+        self.picotutor = SimpleNamespace(
+            push_move=AsyncMock(return_value=True),
+        )
+        self.time_control = SimpleNamespace(
+            internal_running=Mock(return_value=True),
+            add_time=Mock(),
+            moves_to_go_orig=0,
+        )
+        self.controller.state = SimpleNamespace(
+            game=self.board,
+            game_copy=lambda: self.board.copy(),
+            get_fen=lambda: self.board.fen(),
+            get_board_fen=lambda: self.board.board_fen(),
+            get_move_check_board=lambda: self.board,
+            get_variant_board=Mock(return_value=None),
+            is_not_user_turn=Mock(return_value=True),
+            stop_clock=AsyncMock(),
+            start_clock=AsyncMock(),
+            push_move=self.board.push,
+            check_game_state=Mock(return_value=None),
+            time_control=self.time_control,
+            searchmoves=SimpleNamespace(exclude=Mock(), reset=Mock()),
+            interaction_mode=Mode.NORMAL,
+            engine_search_revision=7,
+            done_computer_fen=None,
+            done_move=chess.Move.null(),
+            pb_move=chess.Move.null(),
+            legal_fens_after_cmove=[],
+            flag_startup=True,
+            take_back_locked=True,
+            best_move_posted=False,
+            takeback_active=True,
+            engine_move_was_book=False,
+            newgame_happened=False,
+            game_started=True,
+            game_generation=1,
+            game_declared=False,
+            variant="chess",
+            error_fen=None,
+            fen_error_occured=False,
+            position_mode=False,
+            delay_fen_error=4,
+            stop_fen_timer=Mock(),
+            set_position_ack_target_fen=None,
+            legal_fens=[],
+            last_legal_fens=[],
+            picotutor=self.picotutor,
+            best_sent_depth=SimpleNamespace(reset=Mock()),
+            position_checkpoint_restore_pending=False,
+            can_preserve_position_checkpoint_play_mode=Mock(return_value=False),
+            dgtmenu=SimpleNamespace(set_mode=Mock(), get_flip_board=Mock(return_value=True)),
+            dgttranslate=SimpleNamespace(text=Mock(return_value="wrong mode")),
+        )
+
+    def best_move_event(self):
+        return Event.BEST_MOVE(
+            move=self.move,
+            ponder=None,
+            inbook=False,
+            fen=self.search_fen,
+            search_revision=7,
+        )
+
+    @staticmethod
+    def ponder_event():
+        return Event.SET_INTERACTION_MODE(
+            mode=Mode.PONDER,
+            mode_text=SimpleNamespace(large_text=Mode.PONDER.name),
+            show_ok=True,
+        )
+
+    async def test_mode_change_during_stop_clock_invalidates_unclaimed_best_move(self):
+        stop_clock_started = asyncio.Event()
+        release_stop_clock = asyncio.Event()
+
+        async def delayed_stop_clock():
+            stop_clock_started.set()
+            await release_stop_clock.wait()
+
+        self.controller.state.stop_clock.side_effect = delayed_stop_clock
+        best_move_task = asyncio.create_task(
+            self.controller.process_main_events(self.best_move_event())
+        )
+        await stop_clock_started.wait()
+
+        await self.controller.process_main_events(self.ponder_event())
+        self.assertEqual(Mode.PONDER, self.controller.state.interaction_mode)
+        self.assertEqual(8, self.controller.state.engine_search_revision)
+        self.assertIsNone(self.controller.state.done_computer_fen)
+
+        release_stop_clock.set()
+        await best_move_task
+
+        self.assertIsNone(self.controller.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.controller.state.done_move)
+        self.controller.state.start_clock.assert_not_awaited()
+        self.picotutor.push_move.assert_not_awaited()
+        self.show.assert_not_awaited()
+
+    async def test_claimed_best_move_rejects_mode_change_while_tutor_waits(self):
+        tutor_started = asyncio.Event()
+        release_tutor = asyncio.Event()
+
+        async def delayed_tutor_push(_move, _game):
+            tutor_started.set()
+            await release_tutor.wait()
+            return True
+
+        self.picotutor.push_move.side_effect = delayed_tutor_push
+        best_move_task = asyncio.create_task(
+            self.controller.process_main_events(self.best_move_event())
+        )
+        await tutor_started.wait()
+
+        self.assertEqual(self.expected.board_fen(), self.controller.state.done_computer_fen)
+        self.assertEqual(self.move, self.controller.state.done_move)
+        await self.controller.process_main_events(self.ponder_event())
+
+        self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+        self.assertEqual(7, self.controller.state.engine_search_revision)
+        self.assertEqual(self.expected.board_fen(), self.controller.state.done_computer_fen)
+        self.controller.get_rid_of_engine_move.assert_not_awaited()
+        self.controller.stop_search_and_clock.assert_not_awaited()
+
+        release_tutor.set()
+        await best_move_task
+
+        await self.controller.process_fen(
+            self.expected.board_fen(),
+            self.controller.state,
+        )
+        self.assertEqual(self.move, self.board.peek())
+        self.assertIsNone(self.controller.state.done_computer_fen)
+
+    def test_no_await_between_final_best_move_validation_and_claim(self):
+        source = Path(mainloop.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        process_events = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_main_events"
+        )
+        prepare_call = next(
+            node
+            for node in ast.walk(process_events)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_prepare_engine_move"
+            and node.lineno > 6700
+        )
+        validation_if = max(
+            (
+                node
+                for node in ast.walk(process_events)
+                if isinstance(node, ast.If)
+                and any(
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Name)
+                    and child.func.id == "engine_move_event_matches_state"
+                    for child in ast.walk(node.test)
+                )
+                and node.lineno < prepare_call.lineno
+            ),
+            key=lambda node: node.lineno,
+        )
+        awaits_between = [
+            node
+            for node in ast.walk(process_events)
+            if isinstance(node, ast.Await)
+            and validation_if.end_lineno < node.lineno < prepare_call.lineno
+        ]
+
+        self.assertEqual([], awaits_between)
 
 
 class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):

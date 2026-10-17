@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from configuration import Configuration
@@ -29,7 +31,34 @@ class TestPicochessWebStartup(unittest.TestCase):
             config = Configuration()
 
         self.assertFalse(config._args.allow_onboard_without_auth)
+        self.assertIs(False, config.allow_onboard_without_auth_cli_override)
         self.assertEqual([], config.unknown)
+
+    def test_allow_onboard_without_auth_detects_both_cli_notations(self):
+        command_lines = (
+            (["picochess.py", "--allow-onboard-without-auth=true"], True),
+            (["picochess.py", "--allow-onboard-without-auth", "true"], True),
+            (["picochess.py", "--allow-onboard-without-auth=false"], False),
+            (["picochess.py", "--allow-onboard-without-auth", "false"], False),
+        )
+        for command_line, expected in command_lines:
+            with self.subTest(command_line=command_line), patch("sys.argv", command_line):
+                config = Configuration()
+
+            self.assertIs(expected, config.allow_onboard_without_auth_cli_override)
+
+    def test_ini_value_is_not_mistaken_for_cli_override(self):
+        with TemporaryDirectory() as directory:
+            ini_path = Path(directory) / "picochess.ini"
+            ini_path.write_text("allow-onboard-without-auth = false\n", encoding="utf-8")
+            with (
+                patch("configuration.os.path.join", return_value=str(ini_path)),
+                patch("sys.argv", ["picochess.py"]),
+            ):
+                config = Configuration()
+
+        self.assertFalse(config._args.allow_onboard_without_auth)
+        self.assertIsNone(config.allow_onboard_without_auth_cli_override)
 
     def test_unknown_startup_parameters_do_not_log_values(self):
         unknown = ["--hotspot-ssid=phone", "--hotspot-pass=secret-value", "--other-pass", "another-secret"]

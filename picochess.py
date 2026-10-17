@@ -374,7 +374,12 @@ async def main() -> None:
         shared["web-board-theme"] = args.web_board_theme
         shared["dgttranslate"] = state.dgttranslate
         web_app = my_web_server.make_app(
-            theme, args.pieces, args.web_board_theme, shared, theme_resolver=theme_resolver
+            theme,
+            args.pieces,
+            args.web_board_theme,
+            shared,
+            theme_resolver=theme_resolver,
+            allow_onboard_without_auth_cli_override=config.allow_onboard_without_auth_cli_override,
         )
         try:
             active_web_server_port = _listen_web_app(web_app, args.web_server_port)

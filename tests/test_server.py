@@ -12,12 +12,18 @@ from dgt.translate import DgtTranslate
 from dgt.util import EBoard as EBoardType
 from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
+    ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE,
     ChannelHandler,
     EventHandler,
+    SettingsActionHandler,
+    WifiSetupHandler,
+    WifiSetupPageHandler,
     WebDisplay,
+    WebServer,
     OBOOKSRV_BOOK_FILE,
     OBOOKSRV_BOOK_LABEL,
     _apply_web_analysis_state,
+    _allow_onboard_without_auth,
     _build_scanned_setup_board,
     _cached_setup_position_fen,
     _channel_action_requires_remote_auth,
@@ -43,6 +49,7 @@ from server import (
     clear_preserved_mame_history,
     mame_history_will_be_rebased,
     _orient_scanned_board_fen,
+    _parse_ini_entries,
     publish_preserved_mame_history,
     _retag_setup_position_side,
     _resolve_web_theme,
@@ -195,6 +202,122 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("dgtEl.classList.remove('footer-disconnected')", script)
         self.assertIn("#picoFooterDgt.footer-disconnected::before", stylesheet)
         self.assertIn("color: #dc3545", stylesheet)
+
+
+class TestOnboardingAuthenticationPolicy(unittest.TestCase):
+    @staticmethod
+    def _entries(value: str, enabled: bool = True) -> dict:
+        return {
+            "allow-onboard-without-auth": {
+                "value": value,
+                "enabled": enabled,
+                "line_index": 0,
+            }
+        }
+
+    def _allowed(self, ini_value: str, cli_override: bool | None) -> bool:
+        loaded = ("picochess.ini", [], [], self._entries(ini_value))
+        settings = {ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: cli_override}
+        with patch("server._load_ini_entries", return_value=loaded):
+            return _allow_onboard_without_auth(settings)
+
+    def test_false_from_either_source_requires_authentication(self):
+        cases = (
+            (None, "true", True),
+            (None, "false", False),
+            (True, "true", True),
+            (True, "false", False),
+            (False, "true", False),
+            (False, "false", False),
+        )
+        for cli_override, ini_value, expected in cases:
+            with self.subTest(cli_override=cli_override, ini_value=ini_value):
+                self.assertEqual(expected, self._allowed(ini_value, cli_override))
+
+    def test_live_ini_change_tightens_authentication_without_restart(self):
+        settings = {ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: True}
+        entries = [
+            ("picochess.ini", [], [], self._entries("true")),
+            ("picochess.ini", [], [], self._entries("false")),
+        ]
+        with patch("server._load_ini_entries", side_effect=entries):
+            self.assertTrue(_allow_onboard_without_auth(settings))
+            self.assertFalse(_allow_onboard_without_auth(settings))
+
+    def test_authentication_decision_logs_policy_source_once(self):
+        loaded = ("picochess.ini", [], [], self._entries("true"))
+        settings = {ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: False}
+        with patch("server._load_ini_entries", return_value=loaded), self.assertLogs("server", level="DEBUG") as log:
+            self.assertFalse(_allow_onboard_without_auth(settings))
+
+        self.assertEqual(1, len(log.output))
+        self.assertIn("authentication required by CLI policy", log.output[0])
+
+    def test_missing_disabled_or_malformed_entry_keeps_permissive_ini_default(self):
+        cases = (
+            {},
+            self._entries("false", enabled=False),
+            _parse_ini_entries(["this is not a valid picochess setting\n"]),
+        )
+        for entries in cases:
+            with self.subTest(entries=entries), patch(
+                "server._load_ini_entries", return_value=("picochess.ini", [], [], entries)
+            ):
+                self.assertTrue(_allow_onboard_without_auth())
+
+    def test_expected_ini_read_and_parse_errors_keep_permissive_ini_default(self):
+        for error in (OSError("missing"), UnicodeError("invalid encoding"), ValueError("invalid"), KeyError("key")):
+            with self.subTest(error=type(error).__name__), patch("server._load_ini_entries", side_effect=error):
+                self.assertTrue(_allow_onboard_without_auth())
+                self.assertFalse(
+                    _allow_onboard_without_auth({ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: False})
+                )
+
+    def test_application_carries_cli_override(self):
+        application = WebServer().make_app(
+            "dark",
+            "merida",
+            "natural_wood",
+            {},
+            allow_onboard_without_auth_cli_override=False,
+        )
+
+        self.assertIs(False, application.settings[ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE])
+
+
+class TestOnboardingHandlersUseApplicationPolicy(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.handler = Mock()
+        self.handler.application.settings = {ALLOW_ONBOARD_WITHOUT_AUTH_CLI_OVERRIDE: False}
+        self.handler.request = Mock()
+
+    def _policy_patches(self):
+        return (
+            patch("server._allow_onboard_without_auth", return_value=False),
+            patch("server._is_private_request", return_value=True),
+            patch("server._require_auth_if_remote", return_value=False),
+        )
+
+    def test_wifi_setup_page_uses_application_policy(self):
+        allow_patch, private_patch, auth_patch = self._policy_patches()
+        with allow_patch as allow, private_patch, auth_patch:
+            WifiSetupPageHandler.get(self.handler)
+
+        allow.assert_called_once_with(self.handler.application.settings)
+
+    async def test_wifi_setup_post_uses_application_policy(self):
+        allow_patch, private_patch, auth_patch = self._policy_patches()
+        with allow_patch as allow, private_patch, auth_patch:
+            await WifiSetupHandler.post(self.handler)
+
+        allow.assert_called_once_with(self.handler.application.settings)
+
+    async def test_wifi_hotspot_action_uses_application_policy(self):
+        allow_patch, private_patch, auth_patch = self._policy_patches()
+        with allow_patch as allow, private_patch, auth_patch:
+            await SettingsActionHandler.post(self.handler, "wifi-hotspot")
+
+        allow.assert_called_once_with(self.handler.application.settings)
 
 
 class TestWebThemeResolution(unittest.IsolatedAsyncioTestCase):

@@ -126,9 +126,10 @@ Recommended approach:
 
 The kiosk script supervises the Chromium process it starts. Chromium closes when
 PicoChess stops and opens again if the service is restarted; normal Chromium
-sessions are not affected. Existing kiosk installations keep their locally
-customized `~/kiosk.sh`, so copy the repository version again to receive kiosk
-launcher fixes and then reapply any local display customizations.
+sessions are not affected. On normal updates, an existing `~/kiosk.sh` is
+refreshed from the repository and its previous contents are saved as
+`~/kiosk.sh.backup`. To keep a customized kiosk script unchanged, add an exact
+`# no update` comment line to it. Explicit `reset` mode overrides this marker.
 
 How to analyse a PGN game using Picotutor?
 ------------------------------------------

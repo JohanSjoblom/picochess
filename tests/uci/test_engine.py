@@ -784,6 +784,19 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(eng._shutting_down)
         eng.stop_analysis.assert_awaited_once()
         eng._shutdown_standard_engine.assert_awaited_once()
+        eng._close_remote_connection.assert_awaited_once()
+
+    async def test_close_remote_connection_closes_asyncssh_connection(self):
+        eng = UciEngine("some_engine", UciShell(hostname="remote-host"), "", self.loop)
+        connection = Mock()
+        connection.wait_closed = AsyncMock()
+        eng.remote_conn = connection
+
+        await eng._close_remote_connection()
+
+        connection.close.assert_called_once_with()
+        connection.wait_closed.assert_awaited_once_with()
+        self.assertIsNone(eng.remote_conn)
 
     async def test_recovery_is_skipped_while_engine_is_shutting_down(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

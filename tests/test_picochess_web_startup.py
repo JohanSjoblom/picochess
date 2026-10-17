@@ -40,6 +40,7 @@ class TestPicochessWebStartup(unittest.TestCase):
             (["picochess.py", "--allow-onboard-without-auth", "true"], True),
             (["picochess.py", "--allow-onboard-without-auth=false"], False),
             (["picochess.py", "--allow-onboard-without-auth", "false"], False),
+            (["picochess.py", "--allow-onboard=false"], False),
         )
         for command_line, expected in command_lines:
             with self.subTest(command_line=command_line), patch("sys.argv", command_line):

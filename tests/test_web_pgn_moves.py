@@ -35,8 +35,9 @@ class TestWebPgnMoves(unittest.TestCase):
         self.assertIn("function updateDgtBatteryStatus()", script)
         self.assertIn("dgtBoardConnected = true", script)
         self.assertIn("dgtBoardConnected = false", script)
+        self.assertIn("Object.assign(systemInfo, update);", script)
         self.assertIn(
-            "Object.assign(window._picoSystemInfo, data.msg);\n"
+            "updateAnalysisClockSystemInfo(data.msg);\n"
             "                        updateDgtBatteryStatus();",
             script,
         )

@@ -6493,10 +6493,18 @@ class MainLoop:
                         self.state.done_computer_fen,
                     ):
                         logger.info("engine move [%s] became stale while stopping the clock", event.move)
-                        if should_resume_clock_after_rejected_engine_move(
-                            clock_was_running,
-                            self.state.time_control.internal_running(),
-                            self.state.done_computer_fen,
+                        if (
+                            self.state.interaction_mode
+                            in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH)
+                            and (
+                                event_search_revision is None
+                                or event_search_revision == self.state.engine_search_revision
+                            )
+                            and should_resume_clock_after_rejected_engine_move(
+                                clock_was_running,
+                                self.state.time_control.internal_running(),
+                                self.state.done_computer_fen,
+                            )
                         ):
                             await self.state.start_clock()
                         return
@@ -6813,13 +6821,32 @@ class MainLoop:
                             self.state.done_computer_fen,
                         ):
                             logger.info("engine move [%s] became stale before publication", event.move)
-                            if should_resume_clock_after_rejected_engine_move(
-                                clock_was_running,
-                                self.state.time_control.internal_running(),
-                                self.state.done_computer_fen,
+                            if (
+                                self.state.interaction_mode
+                                in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH)
+                                and (
+                                    event_search_revision is None
+                                    or event_search_revision == self.state.engine_search_revision
+                                )
+                                and should_resume_clock_after_rejected_engine_move(
+                                    clock_was_running,
+                                    self.state.time_control.internal_running(),
+                                    self.state.done_computer_fen,
+                                )
                             ):
                                 await self.state.start_clock()
                             return
+                        # Claim the accepted move before yielding to display or Tutor work.
+                        # SET_INTERACTION_MODE relies on done_computer_fen to reject a
+                        # conflicting mode change, so there must be no await between the
+                        # final state check above and this publication boundary.
+                        game_copy = self.state.game.copy()
+                        game_copy.push(event.move)
+                        self._prepare_engine_move(
+                            game_copy,
+                            event.move,
+                            event.ponder if event.ponder and not event.inbook else chess.Move.null(),
+                        )
                         if event.inbook:
                             await DisplayMsg.show(Message.BOOK_MOVE())
                         self.state.searchmoves.exclude(event.move)
@@ -6836,8 +6863,6 @@ class MainLoop:
                                 is_user_move=False,
                             )
                         )
-                        game_copy = self.state.game.copy()
-                        game_copy.push(event.move)
 
                         if self.picotutor_mode():
                             if self.pgn_mode():
@@ -6854,11 +6879,6 @@ class MainLoop:
                             valid = await self.state.picotutor.push_move(event.move, game_copy)
                             if not valid:
                                 await self.set_picotutor_position(position=game_copy)
-                        self._prepare_engine_move(
-                            game_copy,
-                            event.move,
-                            event.ponder if event.ponder and not event.inbook else chess.Move.null(),
-                        )
                         if self.state.interaction_mode == Mode.ENGINE_MATCH:
                             self.engine_match_local_move_wait_started = time.monotonic()
                             logger.debug(
@@ -7048,18 +7068,44 @@ class MainLoop:
             await DisplayMsg.show(Message.SEARCH_STOPPED())
 
         elif isinstance(event, Event.SET_INTERACTION_MODE):
-            self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
             requested_mode = event.mode
             event.mode = configured_interaction_mode(
                 requested_mode,
                 getattr(self.args, "remote_picochess_url", ""),
             )
+            old_interaction_mode = self.state.interaction_mode
+            # Preserve the existing guard semantics exactly: every target outside
+            # this set is rejected while an announced engine move still has to be
+            # played on the physical board.  This check must precede every await
+            # and every accepted-transition mutation.
+            if (
+                event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
+                and self.state.done_computer_fen
+            ):
+                self.state.dgtmenu.set_mode(old_interaction_mode)  # undo the button4 stuff
+                logger.warning("mode cant be changed to a pondering mode as long as a move is displayed")
+                mode_text = self.state.dgttranslate.text("Y10_errormode")
+                msg = Message.INTERACTION_MODE(mode=old_interaction_mode, mode_text=mode_text, show_ok=False)
+                await DisplayMsg.show(msg)
+                return
+
+            self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
+            if self.eng_plays() and event.mode not in (
+                Mode.NORMAL,
+                Mode.BRAIN,
+                Mode.TRAINING,
+                Mode.ENGINE_MATCH,
+            ):
+                # Invalidate a BEST_MOVE that has completed its search but has not
+                # yet crossed the no-await publication boundary in its handler.
+                # BRAIN remains a playing mode, so NORMAL -> BRAIN deliberately
+                # preserves the current search revision and its pending result.
+                self.state.engine_search_revision += 1
             if requested_mode == Mode.REMOTE and event.mode == Mode.ENGINE_MATCH:
                 # REMOTE is the only public mode.  A configured Picochess peer
                 # selects the separate internal state machine so web moves do
                 # not gain the authority of the traditional REMOTE mode.
                 self.state.dgtmenu.set_mode(Mode.REMOTE)
-            old_interaction_mode = self.state.interaction_mode
             if event.mode == Mode.ENGINE_MATCH and old_interaction_mode != Mode.ENGINE_MATCH:
                 if not await self._arm_engine_match():
                     self.state.dgtmenu.set_mode(old_interaction_mode)
@@ -7093,66 +7139,54 @@ class MainLoop:
             ):
                 # things to do i we change from a non-playing mode to a playing mode
                 self._set_pgn_replay_autoplay(False, mode=event.mode)  # stop possible auto replay of pgn file
-            if (
-                event.mode not in (Mode.NORMAL, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
-                and self.state.done_computer_fen
-            ):  # @todo check why still needed
-                self.state.dgtmenu.set_mode(self.state.interaction_mode)  # undo the button4 stuff
-                logger.warning("mode cant be changed to a pondering mode as long as a move is displayed")
-                mode_text = self.state.dgttranslate.text("Y10_errormode")
-                msg = Message.INTERACTION_MODE(mode=self.state.interaction_mode, mode_text=mode_text, show_ok=False)
-                await DisplayMsg.show(msg)
-            else:
-                if event.mode == Mode.PONDER:
-                    self.state.newgame_happened = False
-                await self.stop_search_and_clock()
-                if leaving_ponder:
-                    # A normal mode selection commits the current PONDER
-                    # position.  A restore has already put Tutor and the
-                    # game back at the checkpoint.  In either case the
-                    # temporary-analysis checkpoint ends with this mode
-                    # transition.
-                    if (
-                        self.state.picotutor is not None
-                        and not boards_match_position_and_history(self.state.picotutor.board, self.state.game)
-                    ):
-                        await self.state.picotutor.set_analysis_enabled(False)
-                        await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
-                    self._clear_position_checkpoint()
-                if event.mode == Mode.PGNREPLAY and not returning_restored_checkpoint:
-                    loaded_pgn_game = self.state.loaded_pgn_game
-                    if loaded_pgn_game is not None:
-                        file_name_only = self.state.loaded_pgn_filename or "loaded PGN"
-                        await self.read_pgn_file(
-                            file_name_only,
-                            start_replay=True,
-                            pgn_game=copy.deepcopy(loaded_pgn_game),
-                        )
-                    else:
-                        file_name_only = "last_game.pgn"
-                        await self.read_pgn_file(file_name_only, start_replay=True)
-                    await self._start_or_stop_analysis_as_needed()
-                else:
-                    self.state.interaction_mode = event.mode
-                    # The display decides what the clock shows from the DGT menu's mode, and only a
-                    # mode chosen on the clock sets it; keep it in step for web, checkpoint return
-                    # and MCP changes too (#541). Checkpoint return can request internal ENGINE_MATCH;
-                    # keep its public REMOTE mode in the menu.
-                    self.state.dgtmenu.set_mode(Mode.REMOTE if event.mode == Mode.ENGINE_MATCH else event.mode)
-                    if entering_ponder:
-                        await self._save_position_checkpoint(old_interaction_mode)
-                    await self.engine_mode()
-                    msg = Message.INTERACTION_MODE(
-                        mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
+            if event.mode == Mode.PONDER:
+                self.state.newgame_happened = False
+            await self.stop_search_and_clock()
+            if leaving_ponder:
+                # A normal mode selection commits the current PONDER
+                # position.  A restore has already put Tutor and the
+                # game back at the checkpoint.  In either case the
+                # temporary-analysis checkpoint ends with this mode
+                # transition.
+                if (
+                    self.state.picotutor is not None
+                    and not boards_match_position_and_history(self.state.picotutor.board, self.state.game)
+                ):
+                    await self.state.picotutor.set_analysis_enabled(False)
+                    await self.state.picotutor.set_position(self.state.game.copy(), new_game=False)
+                self._clear_position_checkpoint()
+            if event.mode == Mode.PGNREPLAY and not returning_restored_checkpoint:
+                loaded_pgn_game = self.state.loaded_pgn_game
+                if loaded_pgn_game is not None:
+                    file_name_only = self.state.loaded_pgn_filename or "loaded PGN"
+                    await self.read_pgn_file(
+                        file_name_only,
+                        start_replay=True,
+                        pgn_game=copy.deepcopy(loaded_pgn_game),
                     )
-                    await self.set_wait_state(
-                        msg,
-                        preserve_play_mode=preserve_checkpoint_play_mode,
-                    )  # dont clear searchmoves here
-                    if preserve_checkpoint_play_mode and self._engine_search_needed_after_restore():
-                        # The checkpoint was saved while the engine was thinking, and entering
-                        # PONDER dropped that search: restart it so the restored game continues.
-                        await self.think(None)
+                else:
+                    file_name_only = "last_game.pgn"
+                    await self.read_pgn_file(file_name_only, start_replay=True)
+                await self._start_or_stop_analysis_as_needed()
+            else:
+                self.state.interaction_mode = event.mode
+                # The display follows the DGT menu mode for every accepted transition (#541).
+                # Checkpoint return can request internal ENGINE_MATCH; expose REMOTE in the menu.
+                self.state.dgtmenu.set_mode(Mode.REMOTE if event.mode == Mode.ENGINE_MATCH else event.mode)
+                if entering_ponder:
+                    await self._save_position_checkpoint(old_interaction_mode)
+                await self.engine_mode()
+                msg = Message.INTERACTION_MODE(
+                    mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok
+                )
+                await self.set_wait_state(
+                    msg,
+                    preserve_play_mode=preserve_checkpoint_play_mode,
+                )  # dont clear searchmoves here
+                if preserve_checkpoint_play_mode and self._engine_search_needed_after_restore():
+                    # The checkpoint was saved while the engine was thinking, and entering
+                    # PONDER dropped that search: restart it so the restored game continues.
+                    await self.think(None)
 
         elif isinstance(event, Event.SET_PGN_REPLAY_TUTOR_REGENERATION):
             self._set_pgn_replay_tutor_regeneration(event.enabled, override=True)

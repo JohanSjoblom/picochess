@@ -894,7 +894,7 @@ class MainLoop:
                 if search_revision != self.state.engine_search_revision:
                     logger.info("skipping superseded engine search revision %s", search_revision)
                     return
-                await self.engine.go(
+                search_started = await self.engine.go(
                     time_dict=uci_dict,
                     game=self.state.game,
                     result_queue=result_queue,
@@ -902,6 +902,12 @@ class MainLoop:
                     expected_turn=self.state.game.turn,
                     variant_board=variant_board,
                 )
+                if not search_started:
+                    # No engine loaded (e.g. it is being replaced) or another search is running:
+                    # nothing will arrive on result_queue, so dont wait for it. The other search
+                    # or the engine switch decides what happens next.
+                    logger.warning("engine search revision %s was not started", search_revision)
+                    return
                 engine_res: PlayResult = await result_queue.get()  # on engine error its None
                 if engine_res:
                     logger.debug("engine moved %s", engine_res.move.uci())

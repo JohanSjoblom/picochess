@@ -1830,23 +1830,26 @@ class UciEngine(object):
         root_moves: Optional[Iterable[chess.Move]],
         expected_turn: chess.Color | None = None,
         variant_board=None,
-    ) -> None:
+    ) -> bool:
         """Go engine.
         parameter game will not change, it is deep copied
         parameter variant_board: optional variant board (e.g., chess.variant.ThreeCheckBoard) that provides
-                                 extended FEN for variant-aware engines like Fairy-Stockfish"""
+                                 extended FEN for variant-aware engines like Fairy-Stockfish
+
+        Returns True when a search was started; its result will arrive on result_queue.
+        Returns False when no search was started; nothing will be put on result_queue."""
         if not self.engine:
             logger.error("go called but no engine loaded")
-            return
+            return False
 
         if not self.playing:
             logger.warning("go called but playing engine not initialised yet")
-            return
+            return False
 
         async with self.engine_lock:
             if self.playing.is_waiting_for_move():
                 logger.debug("%s go() skipped - engine already thinking", self.whoami)
-                return
+                return False
             if expected_turn is not None and game.turn != expected_turn:
                 logger.warning(
                     "%s go() called with mismatching turn: board turn=%s expected=%s",
@@ -1861,6 +1864,7 @@ class UciEngine(object):
             await self.playing.play_move(
                 board_for_engine, limit=limit, ponder=self.pondering, result_queue=result_queue, root_moves=root_moves
             )
+            return True
 
     async def start_analysis(self, game: chess.Board, limit: Limit | None = None, multipv: int | None = None) -> bool:
         """start analyser - returns True if if it was already running

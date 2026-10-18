@@ -56,7 +56,7 @@ from move_policy import (
 )
 
 from dgt.api import Event, EventApi, Message
-from dgt.util import Mode
+from dgt.util import Mode, PlayMode
 from mainloop import (
     rollback_picotutor_for_alternative,
     should_report_local_timeout,
@@ -1418,6 +1418,83 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         self.controller._cache_engine_abort_result.assert_not_awaited()
         # A search that is still running keeps its pending ignore request.
         self.assertTrue(self.controller.state.ignore_next_engine_move)
+
+
+class TestCheckpointReturnResumesEngineSearch(unittest.IsolatedAsyncioTestCase):
+    """Returning from PONDER to a checkpoint saved on the engine's turn restarts its search (#523)."""
+
+    def setUp(self):
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.args = SimpleNamespace(remote_picochess_url="")
+        self.controller.get_rid_of_engine_move = AsyncMock()
+        self.controller.stop_search_and_clock = AsyncMock()
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller._set_pgn_replay_autoplay = Mock()
+        self.controller.engine_mode = AsyncMock()
+        self.controller.set_wait_state = AsyncMock()
+        self.controller.think = AsyncMock()
+        board = chess.Board()
+        board.push_uci("e2e4")  # the user (White) moved; the engine (Black) was thinking
+        self.controller.state = SimpleNamespace(
+            position_checkpoint_restore_pending=False,
+            best_sent_depth=Mock(),
+            dgtmenu=Mock(),
+            interaction_mode=Mode.PONDER,
+            game=board,
+            play_mode=PlayMode.USER_WHITE,
+            done_computer_fen=None,
+            game_declared=False,
+            newgame_happened=False,
+            picotutor=None,
+            can_preserve_position_checkpoint_play_mode=Mock(return_value=True),
+            check_game_state=Mock(return_value=False),
+        )
+        self.controller.state.is_user_turn = lambda: (
+            (self.controller.state.game.turn == chess.WHITE)
+            == (self.controller.state.play_mode == PlayMode.USER_WHITE)
+        )
+
+    async def return_to_normal(self):
+        await self.controller.process_main_events(
+            Event.SET_INTERACTION_MODE(mode=Mode.NORMAL, mode_text="Normal", show_ok=True)
+        )
+
+    async def test_restored_engine_turn_restarts_engine_search(self):
+        await self.return_to_normal()
+
+        self.controller.set_wait_state.assert_awaited_once()
+        self.assertTrue(self.controller.set_wait_state.await_args.kwargs["preserve_play_mode"])
+        self.controller.think.assert_awaited_once_with(None)
+
+    async def test_restored_user_turn_waits_for_the_user(self):
+        self.controller.state.play_mode = PlayMode.USER_BLACK
+
+        await self.return_to_normal()
+
+        self.controller.think.assert_not_awaited()
+
+    async def test_ordinary_mode_change_out_of_ponder_does_not_start_engine(self):
+        # Without a restored checkpoint the user keeps the move, as after other interruptions.
+        self.controller.state.can_preserve_position_checkpoint_play_mode.return_value = False
+
+        await self.return_to_normal()
+
+        self.assertFalse(self.controller.set_wait_state.await_args.kwargs["preserve_play_mode"])
+        self.controller.think.assert_not_awaited()
+
+    async def test_restored_game_over_does_not_start_engine(self):
+        self.controller.state.check_game_state.return_value = True
+
+        await self.return_to_normal()
+
+        self.controller.think.assert_not_awaited()
+
+    async def test_announced_engine_move_is_not_searched_again(self):
+        self.controller.state.done_computer_fen = "fen after the announced engine move"
+
+        await self.return_to_normal()
+
+        self.controller.think.assert_not_awaited()
 
 
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):

@@ -3654,6 +3654,16 @@ class MainLoop:
         self.state.pgn_replay_tutor_regeneration_override = None
         self.shared.pop("loaded_pgn_game", None)
 
+    def _engine_search_needed_after_restore(self) -> bool:
+        """Return whether a restored playing game is on the engine's turn with no engine move pending."""
+        return bool(
+            self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING)
+            and not self.state.is_user_turn()
+            and not self.state.done_computer_fen
+            and not self.state.game_declared
+            and not self.state.check_game_state()
+        )
+
     async def get_rid_of_engine_move(self):
         """in some mode switches we need to get rid of a move engine is thinking about"""
         if self.eng_plays() and self.engine.is_thinking():
@@ -7119,6 +7129,10 @@ class MainLoop:
                         msg,
                         preserve_play_mode=preserve_checkpoint_play_mode,
                     )  # dont clear searchmoves here
+                    if preserve_checkpoint_play_mode and self._engine_search_needed_after_restore():
+                        # The checkpoint was saved while the engine was thinking, and entering
+                        # PONDER dropped that search: restart it so the restored game continues.
+                        await self.think(None)
 
         elif isinstance(event, Event.SET_PGN_REPLAY_TUTOR_REGENERATION):
             self._set_pgn_replay_tutor_regeneration(event.enabled, override=True)

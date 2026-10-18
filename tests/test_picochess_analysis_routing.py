@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import unittest
 from itertools import product
 from pathlib import Path
@@ -1369,6 +1370,7 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
 
         async def finish_without_move(result_queue, **_kwargs):
             await result_queue.put(None)
+            return True
 
         self.controller.engine.go = AsyncMock(side_effect=finish_without_move)
         board = chess.Board()
@@ -1402,6 +1404,20 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
 
         self.controller.state.start_clock.assert_awaited_once_with()
         self.controller.engine.go.assert_awaited_once()
+
+    async def test_search_not_started_does_not_wait_for_engine_result(self):
+        # go() puts nothing on the result queue when it starts no search, e.g. while the
+        # engine is being replaced; think() must finish instead of waiting forever (#522).
+        self.controller.engine.go = AsyncMock(return_value=False)
+        self.controller.state.ignore_next_engine_move = True
+
+        await asyncio.wait_for(self.controller.think(None), timeout=1)
+
+        self.controller.engine.go.assert_awaited_once()
+        self.fire.assert_not_awaited()
+        self.controller._cache_engine_abort_result.assert_not_awaited()
+        # A search that is still running keeps its pending ignore request.
+        self.assertTrue(self.controller.state.ignore_next_engine_move)
 
 
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):

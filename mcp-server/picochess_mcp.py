@@ -594,7 +594,9 @@ async def set_engine(engine: str | None = None, level: str | None = None) -> dic
     the engine's default strength. A game in progress continues with the new
     engine, except that a retro engine (an emulated chess computer) starts a
     new game: ask the user first when a game is in progress. If the engine is
-    thinking, it stops and thinks again with the new settings.
+    thinking, its move is dropped and the user becomes the side to move, as
+    after other interruptions of the game; tell the user, and use play_as to
+    let the engine move with the new settings.
     """
     if engine is None and level is None:
         raise ToolError("Give an engine, a level, or both.")

@@ -20,6 +20,7 @@ import unittest
 from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import chess
+import chess.engine
 from uci.engine import ContinuousAnalysis, EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
 from uci.rating import Rating, Result
 
@@ -131,6 +132,36 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng.playing.cancel.assert_called_once_with()
         eng.playing.abort.assert_called_once_with()
         eng.playing.wait_until_idle.assert_awaited_once_with(0.25)
+
+    async def test_go_without_engine_reports_no_search(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = None
+        result_queue = asyncio.Queue()
+
+        self.assertFalse(await eng.go({}, chess.Board(), result_queue, None))
+        self.assertTrue(result_queue.empty())
+
+    async def test_go_while_engine_already_thinking_reports_no_search(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = True
+        eng.playing.play_move = AsyncMock()
+
+        self.assertFalse(await eng.go({}, chess.Board(), asyncio.Queue(), None))
+        eng.playing.play_move.assert_not_awaited()
+
+    async def test_go_reports_started_search(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+        eng.playing.play_move = AsyncMock()
+        eng.get_engine_limit = Mock(return_value=chess.engine.Limit(time=1))
+        eng.get_engine_uci_options = Mock()
+
+        self.assertTrue(await eng.go({}, chess.Board(), asyncio.Queue(), None))
+        eng.playing.play_move.assert_awaited_once()
 
     async def test_engine_has_rating_as_information_when_not_adaptive(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)

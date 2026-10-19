@@ -56,6 +56,25 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         super().__init__(tests)
         self.loop = asyncio.get_event_loop()
 
+    async def test_startup_blocks_analysis_until_set_mode_completes_setup(self):
+        # Without set_mode() after startup the analyser never starts on the user's turn (#528).
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.engine = MockEngine()
+        await eng.startup({})
+        eng.analyser = Mock()
+        eng.analyser.is_running.return_value = False
+        eng.playing = Mock()
+        eng.playing.is_waiting_for_move.return_value = False
+
+        await eng.start_analysis(chess.Board())
+        eng.analyser.start.assert_not_called()
+
+        eng.set_mode(ponder=False)
+        await eng.start_analysis(chess.Board())
+
+        eng.analyser.start.assert_called_once()
+        self.assertFalse(eng.pondering)
+
     async def test_engine_uses_elo(self):
         eng = UciEngine("some_test_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

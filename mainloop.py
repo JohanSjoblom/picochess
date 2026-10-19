@@ -617,6 +617,9 @@ class MainLoop:
         else:
             ModeInfo.set_online_mode(mode=False)
             await self.engine.newgame(self.state.engine_board_copy())
+        # Engine setup is complete: allow its analysis on the user's turn, as after an
+        # engine change (cold start is always Mode.NORMAL, so no pondering).
+        self.engine.set_mode(ponder=False)
 
         self.state.comment_file = self.get_comment_file()
         tutor_engine = self.args.tutor_engine

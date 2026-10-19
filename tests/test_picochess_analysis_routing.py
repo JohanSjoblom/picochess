@@ -1841,6 +1841,38 @@ class TestAlternativeMovePendingState(unittest.TestCase):
         self.assertEqual(2, len(clear_calls))
 
 
+class TestColdStartAllowsEngineAnalysis(unittest.TestCase):
+    """The cold start must complete the engine setup like an engine change does (#528)."""
+
+    def test_initialise_enables_engine_analysis_after_engine_startup(self):
+        source = ast.parse(Path(mainloop.__file__).read_text(encoding="utf-8"))
+        initialise = next(
+            node for node in ast.walk(source)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "initialise"
+        )
+
+        def engine_calls(method):
+            return [
+                node for node in ast.walk(initialise)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == method
+                and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "engine"
+            ]
+
+        startups = engine_calls("startup")
+        set_modes = engine_calls("set_mode")
+
+        self.assertEqual(1, len(startups))
+        self.assertEqual(1, len(set_modes))
+        set_mode = set_modes[0]
+        self.assertGreater(set_mode.lineno, startups[0].lineno)
+        ponder = {keyword.arg: keyword.value for keyword in set_mode.keywords}.get("ponder")
+        self.assertIsInstance(ponder, ast.Constant)
+        self.assertIs(False, ponder.value)
+
+
 class TestUserMoveLegalFenPublication(unittest.TestCase):
     def setUp(self):
         self.source_text = Path(mainloop.__file__).read_text(encoding="utf-8")

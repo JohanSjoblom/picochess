@@ -1402,7 +1402,8 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
     async def test_ready_engine_starts_clock_and_exactly_one_search(self):
         await self.controller.think(None)
 
-        self.controller.state.start_clock.assert_awaited_once_with()
+        # The engine's clock runs from here, so go() must not wait for the clock to settle (#529).
+        self.controller.state.start_clock.assert_awaited_once_with(settle=False)
         self.controller.engine.go.assert_awaited_once()
 
     async def test_search_not_started_does_not_wait_for_engine_result(self):

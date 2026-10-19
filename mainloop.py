@@ -869,7 +869,8 @@ class MainLoop:
                 logger.info("skipping superseded engine search revision %s", search_revision)
                 return
             if not self.online_mode() or self.state.game.fullmove_number > 1:
-                await self.state.start_clock()
+                # The engine's clock runs from here: send go() without waiting for the clock to settle.
+                await self.state.start_clock(settle=False)
             if search_revision != self.state.engine_search_revision:
                 logger.info("skipping superseded engine search revision %s", search_revision)
                 return

@@ -3306,7 +3306,34 @@ function stopAnalysisClock(clearText) {
     }
 }
 
+// In Ponder the clock shows the analysis line instead of the backend's clock text.
+// A finished position (checkmate, stalemate, declared result) gets no new analysis,
+// so the clock shows the backend's result text (e.g. "Checkmate") until the board
+// shows another position (#527).
+var lastPositionFen = '';
+var finishedPositionFen = null;
+
+function markFinishedPosition() {
+    finishedPositionFen = lastPositionFen;
+    stopAnalysisClock(false);
+}
+
+function updateFinishedPosition(fen) {
+    lastPositionFen = fen || '';
+    if (finishedPositionFen !== null && lastPositionFen !== finishedPositionFen) {
+        finishedPositionFen = null;
+        if (isAnalysisClockMode()) {
+            dgtClockTextEl.html('');
+        }
+    }
+}
+
+function showsFinishedPosition() {
+    return finishedPositionFen !== null && finishedPositionFen === lastPositionFen;
+}
+
 function updateAnalysisClock(analysis) {
+    if (showsFinishedPosition()) { analysisClockData = null; return; }
     if (!analysis || analysis.clear) { stopAnalysisClock(true); return; }
     analysisClockData = analysis;
     if (!isAnalysisClockMode()) return;
@@ -3792,6 +3819,7 @@ $(function () {
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing
                         clearBrainHint();
+                        updateFinishedPosition(data.fen);
                         updateDGTPosition(data);
                         if (hasDefinitiveGameResult() && window.setPicoGameActive) {
                             window.setPicoGameActive(false);
@@ -3824,6 +3852,8 @@ $(function () {
                         _tutorMoveActive = false;
                         clearBrainHint();
                         stopAnalysisClock();
+                        finishedPositionFen = null;
+                        lastPositionFen = data.fen || '';
                         if (pgnTextHasMoves(data.pgn)) {
                             loadDgtGame(data, { historyMerged: data.history_merged });
                             if (!goToPosition(data.fen)) {
@@ -3844,6 +3874,7 @@ $(function () {
                         if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
                         break;
                     case 'GameEnd':
+                        markFinishedPosition();
                         if (data.result === '1-0') {
                             talk('Game over. White wins.');
                         } else if (data.result === '0-1') {
@@ -3869,7 +3900,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        if (!isAnalysisClockMode()) {
+                        if (!isAnalysisClockMode() || showsFinishedPosition()) {
                             dgtClockTextEl.html(data.msg);
                         }
                         if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
@@ -3954,6 +3985,7 @@ $(function () {
                         // Definitive result means game ended
                         var _res = data['headers'] && data['headers']['Result'];
                         if (isDefinitiveResult(_res)) {
+                            markFinishedPosition();
                             if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
                             }

@@ -24,6 +24,7 @@
 import asyncio
 import copy
 import logging
+import time
 from typing import Any
 
 import chess
@@ -150,6 +151,8 @@ class PicochessState:
         self.artwork_in_use = False
         self.delay_fen_error = 4
         self.main_loop = loop
+        # Until this monotonic time a CLOCK_START sent without waiting is still settling on the clock.
+        self.clock_settle_until = 0.0
         self.ignore_next_engine_move = False  # True only after takeback during think
         self.autoplay_pgn_file = False  # Play/Pause button toggles auto replay of pgn file
         self.autoplay_half_moves = 0  # last seen autoplayed half-move (user can deviate)
@@ -449,8 +452,12 @@ class PicochessState:
         """
         return self.get_variant_board() or self.game
 
-    async def start_clock(self) -> None:
-        """Start the clock."""
+    async def start_clock(self, settle: bool = True) -> None:
+        """Start the clock.
+
+        With settle=False the caller continues at once instead of waiting for the clock to
+        process CLOCK_START, so an engine search does not lose that time; stop_clock() then
+        waits for the rest of the settle time before it sends CLOCK_STOP."""
         if self.interaction_mode in (
             Mode.NORMAL,
             Mode.BRAIN,
@@ -468,8 +475,11 @@ class PicochessState:
                 await DisplayMsg.show(
                     Message.CLOCK_START(turn=self.game.turn, tc_init=tc_init, devs={"ser", "i2c", "web"})
                 )
-                await asyncio.sleep(0.5)
-                # @todo give some time to clock to really do it. Check this solution!
+                if settle:
+                    await asyncio.sleep(0.5)
+                    # @todo give some time to clock to really do it. Check this solution!
+                else:
+                    self.clock_settle_until = time.monotonic() + 0.5
         else:
             logger.warning("wrong function call [start]! mode: %s", self.interaction_mode)
 
@@ -487,6 +497,10 @@ class PicochessState:
             if self.interaction_mode == Mode.TRAINING:
                 pass
             else:
+                settle_left = self.clock_settle_until - time.monotonic()
+                if settle_left > 0:
+                    await asyncio.sleep(settle_left)  # let an unsettled CLOCK_START finish first
+                self.clock_settle_until = 0.0
                 await DisplayMsg.show(Message.CLOCK_STOP(devs={"ser", "i2c", "web"}))
                 await asyncio.sleep(0.7)
                 # @todo give some time to clock to really do it. Check this solution!

@@ -414,6 +414,39 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(900, eng.engine_rating)
         self.assertIsNone(eng.uci_elo_eval_fn)
 
+    async def test_stop_while_waiting_for_the_lease_cancels_at_once(self):
+        # The engine's own search owns the lease; the analyser only waits for it, so a stop
+        # must not wait the 1 s stop timeout or count as a forced stop (#529).
+        lease = EngineLease()
+        await lease.acquire(owner="playing")
+        analyser = ContinuousAnalysis(
+            engine=MockEngine(),
+            delay=0,
+            loop=asyncio.get_running_loop(),
+            engine_debug_name="engine",
+            engine_lease=lease,
+        )
+        analyser.start(chess.Board())
+        for _ in range(50):
+            if analyser._waiting_for_lease:
+                break
+            await asyncio.sleep(0.01)
+        self.assertTrue(analyser._waiting_for_lease)
+
+        started = asyncio.get_running_loop().time()
+        with patch("uci.engine.logger.warning") as warning:
+            self.assertTrue(await analyser.stop_async(timeout=1.0))
+        elapsed = asyncio.get_running_loop().time() - started
+
+        self.assertLess(elapsed, 0.5)
+        warning.assert_not_called()
+        self.assertFalse(analyser.consume_forced_stop())
+        self.assertFalse(analyser.is_running())
+        # The search keeps the engine, and the lease works normally after it is released.
+        self.assertEqual("playing", lease._owner)
+        lease.release("playing")
+        await asyncio.wait_for(lease.acquire(owner="continuous"), timeout=1)
+
     async def test_continuous_analysis_recovers_after_protocol_failure(self):
         recover = AsyncMock(return_value=True)
         analyser = ContinuousAnalysis(

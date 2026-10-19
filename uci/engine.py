@@ -424,6 +424,7 @@ class ContinuousAnalysis:
         self._active_analysis: AnalysisResult | None = None
         self._failure_reason: str | None = None
         self._last_stop_was_forced = False
+        self._waiting_for_lease = False  # True while the task only waits for the engine lease
         self.lock = asyncio.Lock()
         self.engine: UciProtocol = engine
         self.set_game_id(1)  # initial game identifier
@@ -580,7 +581,11 @@ class ContinuousAnalysis:
 
     async def _analyse_forever(self, limit: Limit | None, multipv: int | None) -> None:
         """Analyse forever if no limit sent, yielding the lease while pre-empted."""
-        await self.engine_lease.acquire(owner="continuous")
+        self._waiting_for_lease = True
+        try:
+            await self.engine_lease.acquire(owner="continuous")
+        finally:
+            self._waiting_for_lease = False
         recovery_reason = ""
         analysis = None
         # Track whether _safe_stop() was already called for this analysis session.
@@ -756,6 +761,20 @@ class ContinuousAnalysis:
             self._task = None
             return True
         if task.done():
+            self._task = None
+            return True
+
+        if self._waiting_for_lease:
+            # Another search (the engine's own move) owns the engine and the task only waits
+            # for the lease: no engine command is in flight, so cancel it instead of waiting.
+            task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=cancel_timeout)
+            except asyncio.CancelledError:
+                pass
+            except asyncio.TimeoutError:
+                logger.error("%s analyser task did not finish %.1fs after cancellation", self.whoami, cancel_timeout)
+                return False
             self._task = None
             return True
 

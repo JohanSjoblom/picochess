@@ -1128,6 +1128,69 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("a6", end_position["pgn"])
 
 
+class TestServerWebDisplayLevelSnapshot(unittest.IsolatedAsyncioTestCase):
+    """A level change must survive the next mode change and reach the headers at once (#520)."""
+
+    def setUp(self):
+        saved = {
+            name: getattr(WebDisplay, name)
+            for name in ("level_text_sav", "level_name_sav", "engine_elo_sav", "user_elo_sav", "result_sav")
+        }
+        for name in saved:
+            setattr(WebDisplay, name, "")
+        self.addCleanup(lambda: [setattr(WebDisplay, name, value) for name, value in saved.items()])
+        patcher = patch("server.EventHandler.write_to_clients")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    async def asyncSetUp(self):
+        self.shared = {}
+        self.display = WebDisplay(self.shared, asyncio.get_running_loop())
+
+    async def start(self, level_name):
+        await self.display.task(Message.SYSTEM_INFO(info={
+            "engine_name": "Lc0", "engine_elo": "3000", "user_name": "Player", "user_elo": "1500",
+        }))
+        await self.display.task(Message.STARTUP_INFO(info={
+            "game": chess.Board(),
+            "interaction_mode": Mode.NORMAL,
+            "play_mode": PlayMode.USER_WHITE,
+            "books": [],
+            "book_index": None,
+            "level_text": Mock(large_text=level_name),
+            "level_name": level_name,
+        }))
+
+    async def level(self, level_name):
+        await self.display.task(
+            Message.LEVEL(level_text=Mock(large_text=level_name), level_name=level_name, do_speak=False)
+        )
+
+    async def mode(self, mode):
+        await self.display.task(Message.INTERACTION_MODE(mode=mode, mode_text=mode.name, show_ok=False))
+
+    async def test_level_change_survives_analysis_and_back(self):
+        await self.start("Elo@2200")
+        await self.level("Elo@1800")
+        self.assertEqual("1800", self.shared["headers"]["BlackElo"], "headers follow the level at once")
+
+        await self.mode(Mode.PONDER)
+        await self.mode(Mode.NORMAL)
+
+        self.assertEqual("Elo@1800", self.shared["game_info"]["level_name"])
+        self.assertEqual("1800", self.shared["headers"]["BlackElo"])
+
+    async def test_level_change_while_remote_is_restored_after_remote(self):
+        await self.start("Elo@2200")
+        await self.mode(Mode.REMOTE)
+        await self.level("Elo@1800")
+
+        await self.mode(Mode.NORMAL)
+
+        self.assertEqual("Elo@1800", self.shared["game_info"]["level_name"])
+        self.assertEqual("1800", self.shared["headers"]["BlackElo"])
+
+
 class TestServerEngineMatchHeaders(unittest.IsolatedAsyncioTestCase):
     async def test_engine_match_uses_clean_local_and_remote_engine_names(self):
         shared = {

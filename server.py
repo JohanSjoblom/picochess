@@ -3914,6 +3914,14 @@ class WebDisplay(DisplayMsg):
             self._create_game_info()
             self.shared["game_info"]["level_text"] = message.level_text
             self.shared["game_info"]["level_name"] = message.level_name
+            # A pending snapshot (from startup, or while REMOTE/OBSERVE hide the level) is
+            # restored on the next mode change; keep it current so an older level cannot come back.
+            if WebDisplay.level_text_sav != "":
+                WebDisplay.level_text_sav = message.level_text
+            if WebDisplay.level_name_sav != "":
+                WebDisplay.level_name_sav = message.level_name
+            _build_headers()
+            _send_headers()
 
         elif isinstance(message, Message.PICOWATCHER):
             self.shared["tutor_watch_watcher"] = bool(message.picowatcher)

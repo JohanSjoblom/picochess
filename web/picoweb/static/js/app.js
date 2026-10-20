@@ -1002,9 +1002,13 @@ function WebExporter(columns) {
         }
     };
 
-    this.put_fullmove_number = function (turn, fullmove_number, variation_start) {
+    this.put_fullmove_number = function (turn, fullmove_number, variation_start, main_line_start) {
         if (turn === 'w') {
             this.write_token(String(fullmove_number) + ". ");
+        }
+        else if (main_line_start) {
+            // The game's first move by Black: always visible, also with sidelines hidden (#526).
+            this.write_token(String(fullmove_number) + "... ");
         }
         else if (variation_start) {
             this.write_token('<span class="variationResumeMoveNumber">' + String(fullmove_number) + '... </span>');
@@ -1182,7 +1186,7 @@ function exportGame(root_node, exporter, include_comments, include_variations, _
         var move_turn = main_variation.move.variant_turn || _board.turn();
         var move_number = main_variation.move.variant_fullmove || _board.fullmove_number;
         var startsWithBlack = !root_node.previous && move_turn === 'b';
-        exporter.put_fullmove_number(move_turn, move_number, _after_variation || startsWithBlack);
+        exporter.put_fullmove_number(move_turn, move_number, _after_variation || startsWithBlack, startsWithBlack);
         exporter.put_move(_board, main_variation.move);
         if (include_comments) {
             exporter.put_nags(main_variation.nags);

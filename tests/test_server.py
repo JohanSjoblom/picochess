@@ -1169,6 +1169,13 @@ class TestServerWebDisplayLevelSnapshot(unittest.IsolatedAsyncioTestCase):
     async def mode(self, mode):
         await self.display.task(Message.INTERACTION_MODE(mode=mode, mode_text=mode.name, show_ok=False))
 
+    async def engine_without_levels(self):
+        await self.display.task(Message.ENGINE_READY(
+            eng={"elo": "2800"}, eng_text=Mock(), engine_name="NoLevels",
+            has_levels=False, has_960=False, has_ponder=False, show_ok=False,
+            is_mame=False, mame_capabilities={},
+        ))
+
     async def test_level_change_survives_analysis_and_back(self):
         await self.start("Elo@2200")
         await self.level("Elo@1800")
@@ -1189,6 +1196,37 @@ class TestServerWebDisplayLevelSnapshot(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("Elo@1800", self.shared["game_info"]["level_name"])
         self.assertEqual("1800", self.shared["headers"]["BlackElo"])
+
+    async def test_missing_level_text_during_engine_recovery(self):
+        await self.start("")
+        await self.display.task(Message.LEVEL(level_text=None, level_name="", do_speak=False))
+        await self.mode(Mode.PONDER)
+
+        self.assertNotIn("level_text", self.shared["game_info"])
+        self.assertEqual("Lc0", self.shared["headers"]["Black"])
+        self.assertEqual("3000", self.shared["headers"]["BlackElo"])
+
+    async def test_engine_without_levels_clears_pending_level_snapshot(self):
+        await self.start("Elo@2200")
+        await self.level("")
+        await self.engine_without_levels()
+        await self.mode(Mode.PONDER)
+
+        self.assertNotIn("level_text", self.shared["game_info"])
+        self.assertNotIn("level_name", self.shared["game_info"])
+        self.assertEqual("NoLevels", self.shared["headers"]["Black"])
+        self.assertEqual("2800", self.shared["headers"]["BlackElo"])
+
+    async def test_engine_without_levels_when_ready_arrives_before_level(self):
+        await self.start("Elo@2200")
+        await self.engine_without_levels()
+        await self.level("")
+        await self.mode(Mode.PONDER)
+
+        self.assertNotIn("level_text", self.shared["game_info"])
+        self.assertNotIn("level_name", self.shared["game_info"])
+        self.assertEqual("NoLevels", self.shared["headers"]["Black"])
+        self.assertEqual("2800", self.shared["headers"]["BlackElo"])
 
 
 class TestServerEngineMatchHeaders(unittest.IsolatedAsyncioTestCase):

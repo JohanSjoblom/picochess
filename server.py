@@ -3689,13 +3689,14 @@ class WebDisplay(DisplayMsg):
             WebDisplay.engine_name = message.engine_name
             self.shared["system_info"]["old_engine"] = self.shared["system_info"]["engine_name"] = message.engine_name
             WebDisplay.engine_elo_sav = self.shared["system_info"]["engine_elo"] = message.eng["elo"]
+            self.shared["system_info"]["has_levels"] = message.has_levels
             self.shared["system_info"]["is_mame"] = message.is_mame
             self.shared["system_info"]["mame_capabilities"] = dict(message.mame_capabilities)
             if not message.has_levels:
-                if "level_text" in self.shared["game_info"]:
-                    del self.shared["game_info"]["level_text"]
-                if "level_name" in self.shared["game_info"]:
-                    del self.shared["game_info"]["level_name"]
+                self.shared["game_info"].pop("level_text", None)
+                self.shared["game_info"].pop("level_name", None)
+                WebDisplay.level_text_sav = ""
+                WebDisplay.level_name_sav = ""
             _build_headers()
             _send_headers()
             # Push the new engine name to connected web clients so the overlay
@@ -3912,12 +3913,25 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.LEVEL):
             self._create_game_info()
-            self.shared["game_info"]["level_text"] = message.level_text
-            self.shared["game_info"]["level_name"] = message.level_name
+            # Recovery may send no display text. A level-less engine may also
+            # report its default level after ENGINE_READY has already arrived.
+            no_level = (
+                message.level_name == ""
+                and self.shared.get("system_info", {}).get("has_levels") is False
+            )
+            level_text = None if no_level else message.level_text
+            if level_text is None:
+                self.shared["game_info"].pop("level_text", None)
+            else:
+                self.shared["game_info"]["level_text"] = level_text
+            if no_level:
+                self.shared["game_info"].pop("level_name", None)
+            else:
+                self.shared["game_info"]["level_name"] = message.level_name
             # A pending snapshot (from startup, or while REMOTE/OBSERVE hide the level) is
             # restored on the next mode change; keep it current so an older level cannot come back.
             if WebDisplay.level_text_sav != "":
-                WebDisplay.level_text_sav = message.level_text
+                WebDisplay.level_text_sav = level_text if level_text is not None else ""
             if WebDisplay.level_name_sav != "":
                 WebDisplay.level_name_sav = message.level_name
             _build_headers()

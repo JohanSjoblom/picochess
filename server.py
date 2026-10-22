@@ -3455,6 +3455,22 @@ class WebDisplay(DisplayMsg):
             self.shared["headers"].update(pgn_game.headers)
 
         def _send_headers():
+            # get_last_move (also used by MCP) returns this cached PGN without
+            # the separate Header event consumed by browser websocket clients.
+            # Refresh player metadata without reparsing or changing the game.
+            cached = self.shared.get("last_dgt_move_msg")
+            if cached and cached.get("pgn"):
+                header_text, separator, movetext = cached["pgn"].partition("\n\n")
+                if separator:
+                    headers = self.shared["headers"]
+                    header_text = re.sub(
+                        r'^\[(White|Black|WhiteElo|BlackElo) "[^\n]*"\]$',
+                        lambda match: '[{} "{}"]'.format(match[1], headers[match[1]])
+                        if match[1] in headers else match[0],
+                        header_text,
+                        flags=re.MULTILINE,
+                    )
+                    self.shared["last_dgt_move_msg"] = dict(cached, pgn=header_text + separator + movetext)
             EventHandler.write_to_clients({"event": "Header", "headers": dict(self.shared["headers"])})
 
         def _send_title():

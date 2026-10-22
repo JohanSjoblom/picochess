@@ -1206,6 +1206,29 @@ class TestServerWebDisplayLevelSnapshot(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Lc0", self.shared["headers"]["Black"])
         self.assertEqual("3000", self.shared["headers"]["BlackElo"])
 
+    async def test_cached_new_game_pgn_elo_updates_before_first_move(self):
+        await self.start("Elo@2200")
+        await self.display.task(Message.START_NEW_GAME(game=chess.Board(), newgame=True))
+        before = dict(self.shared["last_dgt_move_msg"])
+        await self.level("Elo@3190")
+        after = self.shared["last_dgt_move_msg"]
+        self.assertIn('[BlackElo "3190"]', after["pgn"])
+        self.assertEqual(before["pgn"].split("\n\n", 1)[1], after["pgn"].split("\n\n", 1)[1])
+        self.assertEqual(before["fen"], after["fen"])
+
+    async def test_cached_pgn_engine_change_preserves_custom_root_and_variations(self):
+        await self.start("Elo@2200")
+        cached = self.shared["last_dgt_move_msg"]
+        root_tags = '[SetUp "1"]\n[FEN "8/8/8/8/8/4k3/8/4K3 w - - 0 1"]\n'
+        movetext = '1. Kd1 {keep this comment} (1. Kf1) Kd3 *'
+        cached["pgn"] = root_tags + cached["pgn"].split("\n\n", 1)[0] + "\n\n" + movetext
+        await self.engine_without_levels()
+        updated = self.shared["last_dgt_move_msg"]["pgn"]
+        self.assertIn('[Black "NoLevels"]', updated)
+        self.assertIn('[BlackElo "2800"]', updated)
+        self.assertTrue(updated.startswith(root_tags))
+        self.assertEqual(movetext, updated.split("\n\n", 1)[1])
+
     async def test_engine_without_levels_clears_pending_level_snapshot(self):
         await self.start("Elo@2200")
         await self.level("")

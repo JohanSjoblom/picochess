@@ -3307,13 +3307,26 @@ function stopAnalysisClock(clearText) {
 }
 
 // In Ponder the clock shows the analysis line instead of the backend's clock text.
-// A finished position (checkmate, stalemate, declared result) gets no new analysis,
-// so the clock shows the backend's result text (e.g. "Checkmate") until the board
-// shows another position (#527).
+// A finished position gets no new analysis, so keep the backend's result text
+// (e.g. "Checkmate") until the board shows another position (#527).
 var lastPositionFen = '';
 var finishedPositionFen = null;
+var finishedPositionClockText = null;
+
+function isTerminalPosition(fen) {
+    if (!fen) return false;
+    try {
+        var board = new Chess(fen, chessGameType);
+        return board.in_checkmate() || board.in_stalemate();
+    } catch (e) {
+        return false;
+    }
+}
 
 function markFinishedPosition() {
+    if (finishedPositionFen !== lastPositionFen) {
+        finishedPositionClockText = null;
+    }
     finishedPositionFen = lastPositionFen;
     stopAnalysisClock(false);
 }
@@ -3322,6 +3335,7 @@ function updateFinishedPosition(fen) {
     lastPositionFen = fen || '';
     if (finishedPositionFen !== null && lastPositionFen !== finishedPositionFen) {
         finishedPositionFen = null;
+        finishedPositionClockText = null;
         if (isAnalysisClockMode()) {
             dgtClockTextEl.html('');
         }
@@ -3330,6 +3344,22 @@ function updateFinishedPosition(fen) {
 
 function showsFinishedPosition() {
     return finishedPositionFen !== null && finishedPositionFen === lastPositionFen;
+}
+
+function showBackendClockText(text) {
+    if (showsFinishedPosition() && finishedPositionClockText === null) {
+        finishedPositionClockText = text;
+    }
+    if (!isAnalysisClockMode()) {
+        dgtClockTextEl.html(text);
+    } else if (showsFinishedPosition()) {
+        dgtClockTextEl.html(finishedPositionClockText);
+    }
+}
+
+function enterAnalysisClockMode() {
+    stopAnalysisClock();
+    dgtClockTextEl.html(showsFinishedPosition() ? finishedPositionClockText || '' : '');
 }
 
 function updateAnalysisClock(analysis) {
@@ -3853,6 +3883,7 @@ $(function () {
                         clearBrainHint();
                         stopAnalysisClock();
                         finishedPositionFen = null;
+                        finishedPositionClockText = null;
                         lastPositionFen = data.fen || '';
                         if (pgnTextHasMoves(data.pgn)) {
                             loadDgtGame(data, { historyMerged: data.history_merged });
@@ -3900,9 +3931,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        if (!isAnalysisClockMode() || showsFinishedPosition()) {
-                            dgtClockTextEl.html(data.msg);
-                        }
+                        showBackendClockText(data.msg);
                         if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
                             setClockMenuActive(Boolean(data.menu_active));
                         }
@@ -3985,7 +4014,11 @@ $(function () {
                         // Definitive result means game ended
                         var _res = data['headers'] && data['headers']['Result'];
                         if (isDefinitiveResult(_res)) {
-                            markFinishedPosition();
+                            // A finished PGN may end by resignation with legal moves
+                            // remaining. Its final position is still analysable.
+                            if (isTerminalPosition(lastPositionFen)) {
+                                markFinishedPosition();
+                            }
                             if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
                             }
@@ -4012,8 +4045,7 @@ $(function () {
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
                         if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
-                            stopAnalysisClock();
-                            dgtClockTextEl.html('');
+                            enterAnalysisClockMode();
                         }
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));

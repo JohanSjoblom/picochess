@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
+from dgt.api import Dgt
 from dgt.util import ClockSide
 from server import WebVr
 
@@ -10,6 +11,20 @@ class DummyBoard:
 
 
 class TestWebVr(unittest.IsolatedAsyncioTestCase):
+
+    async def test_result_text_tag_survives_stop_and_is_cleared_by_other_text(self):
+        web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)
+        web.side_running = ClockSide.NONE
+        message = Dgt.DISPLAY_TEXT(web_text="Checkmate", large_text="Mate", devs={"web"})
+        message.game_result = True
+        with patch("server.EventHandler.write_to_clients") as send:
+            web.display_text_on_clock(message)
+            self.assertTrue(send.call_args.args[0]["game_result"])
+            await web.stop_clock({"web"})
+            self.assertTrue(send.call_args.args[0]["game_result"])
+            web.display_text_on_clock(Dgt.DISPLAY_TEXT(web_text="Analysis", large_text="Analysis", devs={"web"}))
+            self.assertNotIn("game_result", send.call_args.args[0])
+            self.assertFalse(web.shared["clock_game_result"])
 
     async def test_set_clock_refreshes_stopped_time_display_immediately(self):
         web = WebVr(shared={}, dgtboard=DummyBoard(), loop=None)

@@ -30,6 +30,7 @@ class TestPonderClockAfterGameEnd(unittest.TestCase):
                 "isAnalysisClockMode",
                 "_buildAnalysisClockLine",
                 "stopAnalysisClock",
+                "terminalPositionText",
                 "isTerminalPosition",
                 "markFinishedPosition",
                 "updateFinishedPosition",
@@ -55,7 +56,7 @@ function clockMessage(text, gameResult) {
     showBackendClockText(text, gameResult);
 }
 var before = '6k1/5ppp/8/8/8/8/8/RR4K1 w - - 0 1';
-var mate = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+var mate = 'rnb1kbnr/pppp1ppp/4p3/8/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
 var analysis = {fen: before, depth: 40, score: 99998, mate: 1, pv: ['Ra8#']};
 assert.strictEqual(isTerminalPosition(before), false);
 assert.strictEqual(isTerminalPosition(mate), true);
@@ -67,10 +68,11 @@ assert(analysisLine.indexOf('Ra8') >= 0, analysisLine);
 clockMessage('5:00 5:00');
 assert.strictEqual(clockText, analysisLine, 'Ponder ignores clock text while analysing');
 
-// The mating move, then GameEnd and the backend's result text.
+// The final Fen carries the result, even before a separate GameEnd arrives.
 updateFinishedPosition(mate);
 markFinishedPosition();
 showBackendClockText('Checkmate', true);
+assert.strictEqual(clockText, 'Checkmate', 'final Fen must update the live clock');
 clockMessage('5:00 5:00');
 assert.strictEqual(clockText, 'Checkmate');
 updateAnalysisClock(analysis);
@@ -120,6 +122,9 @@ assert.strictEqual(clockText, analysisLine);
             return app[start:app.index("break;", start)]
 
         self.assertIn("updateFinishedPosition(data.fen);", handler("Fen"))
+        self.assertIn("if (data.game_result && data.clock_text)", handler("Fen"))
+        self.assertIn("showBackendClockText(data.clock_text, true);", handler("Fen"))
+        self.assertIn("terminalPositionText(data.fen)", handler("Fen"))
         self.assertIn("finishedPositionFen = null;", handler("Game"))
         self.assertIn("markFinishedPosition();", handler("GameEnd"))
         self.assertIn("showBackendClockText(data.clock_text, true);", handler("GameEnd"))
@@ -131,13 +136,13 @@ assert.strictEqual(clockText, analysisLine);
     @unittest.skipUnless(shutil.which("node"), "Node.js required")
     def test_final_result_on_playable_position_keeps_analysis(self):
         app = APP_JS.read_text(encoding="utf-8")
-        program = _functions(app, ("isTerminalPosition", "isDefinitiveResult"))
+        program = _functions(app, ("terminalPositionText", "isTerminalPosition", "isDefinitiveResult"))
         program += "\nvar Chess = require(" + json.dumps(str(APP_JS.parent / "chess960.min.js")) + ").Chess;\n"
         program += """
 var assert = require('assert');
 var chessGameType = 0;
 var playable = '6k1/5ppp/8/8/8/8/8/RR4K1 w - - 0 1';
-var mate = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+var mate = 'rnb1kbnr/pppp1ppp/4p3/8/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
 var stalemate = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1';
 assert.strictEqual(isDefinitiveResult('1-0'), true);
 assert.strictEqual(isTerminalPosition(playable), false, 'resignation leaves legal moves');

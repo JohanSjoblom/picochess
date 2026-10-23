@@ -858,6 +858,8 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Fen", calls[-2]["event"])
         self.assertEqual("reload", calls[-2]["play"])
         self.assertIn("0-1", calls[-2]["pgn"])
+        self.assertTrue(calls[-2]["game_result"])
+        self.assertEqual("Checkmate", calls[-2]["clock_text"])
         self.assertEqual({"event": "GameEnd", "result": "0-1", "clock_text": "Checkmate"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
 

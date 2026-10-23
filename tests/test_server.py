@@ -181,7 +181,7 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=25', template)
+        self.assertIn('app.js?v=27', template)
         self.assertIn('base.css?v=15', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
@@ -257,6 +257,16 @@ class TestServerEventHandler(unittest.TestCase):
             EventHandler.open(client)
 
         self.assertEqual([], client.messages)
+
+    def test_open_preserves_result_tag_on_cached_clock(self):
+        shared = {}
+        _clock_event(shared, "Checkmate", game_result=True)
+        client = self.Client(shared)
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+        clock = next(msg for msg in client.messages if msg["event"] == "Clock")
+        self.assertTrue(clock["game_result"])
+        self.assertEqual("Checkmate", clock["msg"])
 
     def test_open_restores_clock_and_eboard_status(self):
         shared = {
@@ -848,7 +858,9 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Fen", calls[-2]["event"])
         self.assertEqual("reload", calls[-2]["play"])
         self.assertIn("0-1", calls[-2]["pgn"])
-        self.assertEqual({"event": "GameEnd", "result": "0-1"}, calls[-1])
+        self.assertTrue(calls[-2]["game_result"])
+        self.assertEqual("Checkmate", calls[-2]["clock_text"])
+        self.assertEqual({"event": "GameEnd", "result": "0-1", "clock_text": "Checkmate"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
 
     async def test_game_ends_ignores_stale_pending_engine_move_after_mate(self):

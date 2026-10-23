@@ -1452,6 +1452,7 @@ class DgtDisplay(DisplayMsg):
                 # has ended.  Keep the result visible until a subsequent user
                 # action or new game replaces it.
                 text.maxtime = 0
+                text.game_result = True
                 await DispatchDgt.fire(text)
                 await asyncio.sleep(1)
                 if self.dgtmenu.get_mode() in (Mode.PONDER, Mode.TRAINING):

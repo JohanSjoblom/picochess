@@ -791,11 +791,13 @@ def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_stat
     return analysis_payload
 
 
-def _clock_event(shared: dict, text, running: bool = False):
+def _clock_event(shared: dict, text, running: bool = False, game_result: bool = False):
     """Cache clock display state and build the websocket payload."""
     shared["clock_text"] = text
     shared["clock_running"] = bool(running)
+    shared["clock_game_result"] = bool(game_result)
     return {
+        **({"game_result": True} if game_result else {}),
         "event": "Clock",
         "msg": text,
         "running": shared["clock_running"],
@@ -1958,6 +1960,7 @@ class EventHandler(WebSocketHandler):
                     {
                         "event": "Clock",
                         "msg": self.shared["clock_text"],
+                        **({"game_result": True} if self.shared.get("clock_game_result") else {}),
                         "running": bool(self.shared.get("clock_running", False)),
                         "menu_active": _clock_menu_active(self.shared),
                     }
@@ -2971,9 +2974,9 @@ class WebVr(DgtIface):
         if "clock_running" not in self.shared:
             self.shared["clock_running"] = False
 
-    def _clock_event(self, text):
+    def _clock_event(self, text, game_result=False):
         self._create_clock_text()
-        return _clock_event(self.shared, text, running=self.side_running != ClockSide.NONE)
+        return _clock_event(self.shared, text, running=self.side_running != ClockSide.NONE, game_result=game_result)
 
     async def _runclock(self):
         """callback from AsyncRepeatingTimer once every second"""
@@ -3079,7 +3082,7 @@ class WebVr(DgtIface):
             return True
         self.clock_show_time = False
         logger.debug("[%s]", text)
-        EventHandler.write_to_clients(self._clock_event(text))
+        EventHandler.write_to_clients(self._clock_event(text, game_result=bool(getattr(message, "game_result", False))))
         return True
 
     def display_time_on_clock(self, message):
@@ -3108,7 +3111,12 @@ class WebVr(DgtIface):
             self.virtual_timer.stop()
         self._resume_clock(ClockSide.NONE)
         self._create_clock_text()
-        EventHandler.write_to_clients(_clock_event(self.shared, self.shared["clock_text"], running=False))
+        EventHandler.write_to_clients(
+            _clock_event(
+                self.shared, self.shared["clock_text"], running=False,
+                game_result=bool(self.shared.get("clock_game_result")),
+            )
+        )
         return True
 
     def _resume_clock(self, side: ClockSide):
@@ -4243,14 +4251,26 @@ class WebDisplay(DisplayMsg):
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)
-            end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
+            dgttranslate = self.shared.get("dgttranslate")
+            result_text = _text_to_label(dgttranslate.text(message.result.value)) if dgttranslate else ""
+            if not result_text:
+                result_text = {
+                    GameResult.MATE: "Checkmate",
+                    GameResult.STALEMATE: "Stalemate",
+                }.get(message.result, message.result.name.replace("_", " ").title())
+            end_msg = {
+                "pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov,
+                "play": "reload", "game_result": True, "clock_text": result_text,
+            }
             _attach_mistakes(end_msg)
             _attach_variant_info(end_msg, game_for_end)
             self.shared["last_dgt_move_msg"] = end_msg
             EventHandler.write_to_clients(end_msg)
             # Announce the result only as a live event. Reconnecting clients
             # receive last_dgt_move_msg, but must not repeat an old result.
-            EventHandler.write_to_clients({"event": "GameEnd", "result": WebDisplay.result_sav})
+            EventHandler.write_to_clients(
+                {"event": "GameEnd", "result": WebDisplay.result_sav, "clock_text": result_text}
+            )
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

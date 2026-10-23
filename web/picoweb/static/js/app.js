@@ -3306,7 +3306,75 @@ function stopAnalysisClock(clearText) {
     }
 }
 
+// In Ponder the clock shows the analysis line instead of the backend's clock text.
+// A finished position gets no new analysis, so keep the backend's result text
+// (e.g. "Checkmate") until the board shows another position (#527).
+var lastPositionFen = '';
+var finishedPositionFen = null;
+var finishedPositionClockText = null;
+
+function isTerminalPosition(fen) {
+    return !!terminalPositionText(fen);
+}
+
+function terminalPositionText(fen) {
+    if (!fen) return '';
+    try {
+        var board = new Chess(fen, chessGameType);
+        if (board.in_checkmate()) return 'Checkmate';
+        if (board.in_stalemate()) return 'Stalemate';
+    } catch (e) {
+        // Some variants cannot be interpreted by the browser chess library.
+    }
+    return '';
+}
+
+function markFinishedPosition() {
+    if (finishedPositionFen !== lastPositionFen) {
+        finishedPositionClockText = null;
+    }
+    finishedPositionFen = lastPositionFen;
+    stopAnalysisClock(false);
+}
+
+function updateFinishedPosition(fen) {
+    lastPositionFen = fen || '';
+    if (finishedPositionFen !== null && lastPositionFen !== finishedPositionFen) {
+        finishedPositionFen = null;
+        finishedPositionClockText = null;
+        if (isAnalysisClockMode()) {
+            dgtClockTextEl.html('');
+        }
+    }
+}
+
+function showsFinishedPosition() {
+    return finishedPositionFen !== null && finishedPositionFen === lastPositionFen;
+}
+
+function showBackendClockText(text, gameResult) {
+    if (showsFinishedPosition() && gameResult) {
+        finishedPositionClockText = text;
+    }
+    if (!isAnalysisClockMode()) {
+        dgtClockTextEl.html(text);
+    } else if (showsFinishedPosition()) {
+        dgtClockTextEl.html(finishedPositionClockText === null ? text : finishedPositionClockText);
+    }
+}
+
+function enterAnalysisClockMode() {
+    // A declared result can leave a playable board for post-game analysis.
+    if (showsFinishedPosition() && !isTerminalPosition(lastPositionFen)) {
+        finishedPositionFen = null;
+        finishedPositionClockText = null;
+    }
+    stopAnalysisClock();
+    dgtClockTextEl.html(showsFinishedPosition() ? finishedPositionClockText || '' : '');
+}
+
 function updateAnalysisClock(analysis) {
+    if (showsFinishedPosition()) { analysisClockData = null; return; }
     if (!analysis || analysis.clear) { stopAnalysisClock(true); return; }
     analysisClockData = analysis;
     if (!isAnalysisClockMode()) return;
@@ -3792,7 +3860,22 @@ $(function () {
                     case 'Fen':
                         pickPromotion(null) // reset promotion dialog if still showing
                         clearBrainHint();
+                        updateFinishedPosition(data.fen);
                         updateDGTPosition(data);
+                        // The final board and its result belong to the same update.
+                        // Apply the clock text after the PGN/board redraw so a live
+                        // client does not have to reconnect to see the result.
+                        if (data.game_result && data.clock_text) {
+                            markFinishedPosition();
+                            showBackendClockText(data.clock_text, true);
+                        } else if (isAnalysisClockMode() && hasDefinitiveGameResult()) {
+                            // Older servers send the final PGN without result text.
+                            var terminalText = terminalPositionText(data.fen);
+                            if (terminalText) {
+                                markFinishedPosition();
+                                showBackendClockText(terminalText, true);
+                            }
+                        }
                         if (hasDefinitiveGameResult() && window.setPicoGameActive) {
                             window.setPicoGameActive(false);
                         }
@@ -3824,6 +3907,9 @@ $(function () {
                         _tutorMoveActive = false;
                         clearBrainHint();
                         stopAnalysisClock();
+                        finishedPositionFen = null;
+                        finishedPositionClockText = null;
+                        lastPositionFen = data.fen || '';
                         if (pgnTextHasMoves(data.pgn)) {
                             loadDgtGame(data, { historyMerged: data.history_merged });
                             if (!goToPosition(data.fen)) {
@@ -3844,6 +3930,8 @@ $(function () {
                         if (window.setPicoEngineTurn) window.setPicoEngineTurn(false);
                         break;
                     case 'GameEnd':
+                        markFinishedPosition();
+                        if (data.clock_text) showBackendClockText(data.clock_text, true);
                         if (data.result === '1-0') {
                             talk('Game over. White wins.');
                         } else if (data.result === '0-1') {
@@ -3869,9 +3957,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        if (!isAnalysisClockMode()) {
-                            dgtClockTextEl.html(data.msg);
-                        }
+                        showBackendClockText(data.msg, data.game_result);
                         if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
                             setClockMenuActive(Boolean(data.menu_active));
                         }
@@ -3954,6 +4040,11 @@ $(function () {
                         // Definitive result means game ended
                         var _res = data['headers'] && data['headers']['Result'];
                         if (isDefinitiveResult(_res)) {
+                            // A finished PGN may end by resignation with legal moves
+                            // remaining. Its final position is still analysable.
+                            if (isTerminalPosition(lastPositionFen)) {
+                                markFinishedPosition();
+                            }
                             if (window.setPicoGameActive) {
                                 window.setPicoGameActive(false);
                             }
@@ -3980,8 +4071,7 @@ $(function () {
                         // Clear stale clock text (e.g. engine name) the moment we
                         // enter Ponder/free-analysis mode, before the first Analysis event arrives.
                         if (isAnalysisClockMode(data.msg.interaction_mode) && !isAnalysisClockMode(_prevMode)) {
-                            stopAnalysisClock();
-                            dgtClockTextEl.html('');
+                            enterAnalysisClockMode();
                         }
                         if (Object.prototype.hasOwnProperty.call(data.msg, 'game_started') && window.setPicoGameActive) {
                             window.setPicoGameActive(Boolean(data.msg.game_started));

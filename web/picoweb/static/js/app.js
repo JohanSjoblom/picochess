@@ -3346,18 +3346,23 @@ function showsFinishedPosition() {
     return finishedPositionFen !== null && finishedPositionFen === lastPositionFen;
 }
 
-function showBackendClockText(text) {
-    if (showsFinishedPosition() && finishedPositionClockText === null) {
+function showBackendClockText(text, gameResult) {
+    if (showsFinishedPosition() && gameResult) {
         finishedPositionClockText = text;
     }
     if (!isAnalysisClockMode()) {
         dgtClockTextEl.html(text);
     } else if (showsFinishedPosition()) {
-        dgtClockTextEl.html(finishedPositionClockText);
+        dgtClockTextEl.html(finishedPositionClockText === null ? text : finishedPositionClockText);
     }
 }
 
 function enterAnalysisClockMode() {
+    // A declared result can leave a playable board for post-game analysis.
+    if (showsFinishedPosition() && !isTerminalPosition(lastPositionFen)) {
+        finishedPositionFen = null;
+        finishedPositionClockText = null;
+    }
     stopAnalysisClock();
     dgtClockTextEl.html(showsFinishedPosition() ? finishedPositionClockText || '' : '');
 }
@@ -3931,7 +3936,7 @@ $(function () {
                         boardStatusEl.html(data.msg);
                         break;
                     case 'Clock':
-                        showBackendClockText(data.msg);
+                        showBackendClockText(data.msg, data.game_result);
                         if (Object.prototype.hasOwnProperty.call(data, 'menu_active')) {
                             setClockMenuActive(Boolean(data.menu_active));
                         }

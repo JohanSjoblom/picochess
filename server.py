@@ -4251,13 +4251,6 @@ class WebDisplay(DisplayMsg):
             pgn_str = _transfer(game_for_end)
             fen = _oldstyle_fen(game_for_end)
             mov = peek_uci(game_for_end)
-            end_msg = {"pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov, "play": "reload"}
-            _attach_mistakes(end_msg)
-            _attach_variant_info(end_msg, game_for_end)
-            self.shared["last_dgt_move_msg"] = end_msg
-            EventHandler.write_to_clients(end_msg)
-            # Announce the result only as a live event. Reconnecting clients
-            # receive last_dgt_move_msg, but must not repeat an old result.
             dgttranslate = self.shared.get("dgttranslate")
             result_text = _text_to_label(dgttranslate.text(message.result.value)) if dgttranslate else ""
             if not result_text:
@@ -4265,6 +4258,16 @@ class WebDisplay(DisplayMsg):
                     GameResult.MATE: "Checkmate",
                     GameResult.STALEMATE: "Stalemate",
                 }.get(message.result, message.result.name.replace("_", " ").title())
+            end_msg = {
+                "pgn": pgn_str, "fen": fen, "event": "Fen", "move": mov,
+                "play": "reload", "game_result": True, "clock_text": result_text,
+            }
+            _attach_mistakes(end_msg)
+            _attach_variant_info(end_msg, game_for_end)
+            self.shared["last_dgt_move_msg"] = end_msg
+            EventHandler.write_to_clients(end_msg)
+            # Announce the result only as a live event. Reconnecting clients
+            # receive last_dgt_move_msg, but must not repeat an old result.
             EventHandler.write_to_clients(
                 {"event": "GameEnd", "result": WebDisplay.result_sav, "clock_text": result_text}
             )

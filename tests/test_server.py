@@ -258,6 +258,16 @@ class TestServerEventHandler(unittest.TestCase):
 
         self.assertEqual([], client.messages)
 
+    def test_open_preserves_result_tag_on_cached_clock(self):
+        shared = {}
+        _clock_event(shared, "Checkmate", game_result=True)
+        client = self.Client(shared)
+        with patch.object(EventHandler, "clients", set()), patch("server.client_ips", []):
+            EventHandler.open(client)
+        clock = next(msg for msg in client.messages if msg["event"] == "Clock")
+        self.assertTrue(clock["game_result"])
+        self.assertEqual("Checkmate", clock["msg"])
+
     def test_open_restores_clock_and_eboard_status(self):
         shared = {
             "clock_text": "Texel 1.11",

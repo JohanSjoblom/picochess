@@ -154,8 +154,8 @@ var lastPositionFen = '';
 var finishedPositionFen = null;
 var finishedPositionClockText = null;
 // The Clock handler's condition in ws.onmessage.
-function clockMessage(text) {
-    showBackendClockText(text);
+function clockMessage(text, gameResult) {
+    showBackendClockText(text, gameResult);
 }
 var before = '6k1/5ppp/8/8/8/8/8/RR4K1 w - - 0 1';
 var mate = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
@@ -173,7 +173,8 @@ assert.strictEqual(clockText, analysisLine, 'Ponder ignores clock text while ana
 // The mating move, then GameEnd and the backend's result text.
 updateFinishedPosition(mate);
 markFinishedPosition();
-clockMessage('Checkmate');
+clockMessage('5:00 5:00');
+clockMessage('Checkmate', true);
 assert.strictEqual(clockText, 'Checkmate');
 updateAnalysisClock(analysis);
 updateAnalysisClock({source: 'engine', clear: true});
@@ -193,6 +194,15 @@ updateFinishedPosition(before);
 assert.strictEqual(clockText, '');
 assert.strictEqual(showsFinishedPosition(), false);
 updateAnalysisClock(analysis);
+assert.strictEqual(clockText, analysisLine);
+// A live resignation must not prevent analysis when entering Ponder.
+window._picoSystemInfo.interaction_mode = 'normal';
+markFinishedPosition();
+clockMessage('White wins', true);
+window._picoSystemInfo.interaction_mode = 'ponder';
+enterAnalysisClockMode();
+updateAnalysisClock(analysis);
+assert.strictEqual(showsFinishedPosition(), false);
 assert.strictEqual(clockText, analysisLine);
 """
         program = program.replace("CHESS_JS", json.dumps(str(APP_JS.parent / "chess960.min.js")))
@@ -217,7 +227,7 @@ assert.strictEqual(clockText, analysisLine);
         self.assertIn("markFinishedPosition();", handler("GameEnd"))
         self.assertIn("if (isDefinitiveResult(_res)) {", handler("Header"))
         self.assertIn("if (isTerminalPosition(lastPositionFen)) {", handler("Header"))
-        self.assertIn("showBackendClockText(data.msg);", handler("Clock"))
+        self.assertIn("showBackendClockText(data.msg, data.game_result);", handler("Clock"))
         self.assertIn("enterAnalysisClockMode();", handler("SystemInfo"))
 
     @unittest.skipUnless(shutil.which("node"), "Node.js required")

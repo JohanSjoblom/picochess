@@ -4258,7 +4258,16 @@ class WebDisplay(DisplayMsg):
             EventHandler.write_to_clients(end_msg)
             # Announce the result only as a live event. Reconnecting clients
             # receive last_dgt_move_msg, but must not repeat an old result.
-            EventHandler.write_to_clients({"event": "GameEnd", "result": WebDisplay.result_sav})
+            dgttranslate = self.shared.get("dgttranslate")
+            result_text = _text_to_label(dgttranslate.text(message.result.value)) if dgttranslate else ""
+            if not result_text:
+                result_text = {
+                    GameResult.MATE: "Checkmate",
+                    GameResult.STALEMATE: "Stalemate",
+                }.get(message.result, message.result.name.replace("_", " ").title())
+            EventHandler.write_to_clients(
+                {"event": "GameEnd", "result": WebDisplay.result_sav, "clock_text": result_text}
+            )
 
     async def message_consumer(self):
         """Message task consumer for WebDisplay messages"""

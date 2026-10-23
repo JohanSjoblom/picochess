@@ -3352,13 +3352,19 @@ var finishedPositionFen = null;
 var finishedPositionClockText = null;
 
 function isTerminalPosition(fen) {
-    if (!fen) return false;
+    return !!terminalPositionText(fen);
+}
+
+function terminalPositionText(fen) {
+    if (!fen) return '';
     try {
         var board = new Chess(fen, chessGameType);
-        return board.in_checkmate() || board.in_stalemate();
+        if (board.in_checkmate()) return 'Checkmate';
+        if (board.in_stalemate()) return 'Stalemate';
     } catch (e) {
-        return false;
+        // Some variants cannot be interpreted by the browser chess library.
     }
+    return '';
 }
 
 function markFinishedPosition() {
@@ -3894,6 +3900,20 @@ $(function () {
                         clearBrainHint();
                         updateFinishedPosition(data.fen);
                         updateDGTPosition(data);
+                        // The final board and its result belong to the same update.
+                        // Apply the clock text after the PGN/board redraw so a live
+                        // client does not have to reconnect to see the result.
+                        if (data.game_result && data.clock_text) {
+                            markFinishedPosition();
+                            showBackendClockText(data.clock_text, true);
+                        } else if (isAnalysisClockMode() && hasDefinitiveGameResult()) {
+                            // Older servers send the final PGN without result text.
+                            var terminalText = terminalPositionText(data.fen);
+                            if (terminalText) {
+                                markFinishedPosition();
+                                showBackendClockText(terminalText, true);
+                            }
+                        }
                         if (hasDefinitiveGameResult() && window.setPicoGameActive) {
                             window.setPicoGameActive(false);
                         }

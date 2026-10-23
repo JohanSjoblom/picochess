@@ -3949,6 +3949,7 @@ $(function () {
                         break;
                     case 'GameEnd':
                         markFinishedPosition();
+                        if (data.clock_text) showBackendClockText(data.clock_text, true);
                         if (data.result === '1-0') {
                             talk('Game over. White wins.');
                         } else if (data.result === '0-1') {

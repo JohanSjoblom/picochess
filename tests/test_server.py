@@ -181,7 +181,7 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (root / "web/picoweb/templates/clock.html").read_text()
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
-        self.assertIn('app.js?v=25', template)
+        self.assertIn('app.js?v=26', template)
         self.assertIn('base.css?v=15', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
@@ -858,7 +858,7 @@ class TestServerWebDisplayGameEnd(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Fen", calls[-2]["event"])
         self.assertEqual("reload", calls[-2]["play"])
         self.assertIn("0-1", calls[-2]["pgn"])
-        self.assertEqual({"event": "GameEnd", "result": "0-1"}, calls[-1])
+        self.assertEqual({"event": "GameEnd", "result": "0-1", "clock_text": "Checkmate"}, calls[-1])
         self.assertFalse(shared["system_info"]["game_started"])
 
     async def test_game_ends_ignores_stale_pending_engine_move_after_mate(self):

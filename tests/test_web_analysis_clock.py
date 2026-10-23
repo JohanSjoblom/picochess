@@ -70,8 +70,8 @@ assert.strictEqual(clockText, analysisLine, 'Ponder ignores clock text while ana
 // The mating move, then GameEnd and the backend's result text.
 updateFinishedPosition(mate);
 markFinishedPosition();
+showBackendClockText('Checkmate', true);
 clockMessage('5:00 5:00');
-clockMessage('Checkmate', true);
 assert.strictEqual(clockText, 'Checkmate');
 updateAnalysisClock(analysis);
 updateAnalysisClock({source: 'engine', clear: true});
@@ -122,6 +122,7 @@ assert.strictEqual(clockText, analysisLine);
         self.assertIn("updateFinishedPosition(data.fen);", handler("Fen"))
         self.assertIn("finishedPositionFen = null;", handler("Game"))
         self.assertIn("markFinishedPosition();", handler("GameEnd"))
+        self.assertIn("showBackendClockText(data.clock_text, true);", handler("GameEnd"))
         self.assertIn("if (isDefinitiveResult(_res)) {", handler("Header"))
         self.assertIn("if (isTerminalPosition(lastPositionFen)) {", handler("Header"))
         self.assertIn("showBackendClockText(data.msg, data.game_result);", handler("Clock"))

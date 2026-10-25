@@ -216,6 +216,23 @@ class DgtDisplay(DisplayMsg):
                 if length == "l":
                     return "{:9.2f}".format(int(score_val) / 100).replace(".", "")
 
+    def _set_clock_score_texts(self, score):
+        """Fill the short clock texts with depth and score, also in web-only mode (#539).
+
+        The raw score text holds centipawns, so a DGT3000 showed e.g. "42" for 0.42. The
+        DGT3000 shows text only (no icons) and gets an explicit decimal point; the DGT XL
+        keeps its usual digits with the decimal-point icon.
+        """
+        try:
+            centipawns = int(score.medium_text)
+        except ValueError:
+            return  # no score yet, or a mate text, which is readable as it is
+        centipawns = max(-9999, min(9999, centipawns))
+        score.medium_text = "{:2d}{:6.2f}".format(self.depth % 100, centipawns / 100)
+        small = max(-999, min(999, centipawns))
+        score.small_text = "{:2d}{:s}".format(self.depth % 100, "{:5.2f}".format(small / 100).replace(".", ""))
+        score.rd = ClockIcons.DOT
+
     def _combine_depth_and_score(self):
         score = copy.copy(self.score)
         text_depth = self.dgttranslate.text("B10_analysis_depth")
@@ -234,6 +251,7 @@ class DgtDisplay(DisplayMsg):
             except ValueError:
                 score.web_text = text_depth + " - | " + text_score + " - "
                 score.large_text = text_depth + " - | " + text_score + " - "
+            self._set_clock_score_texts(score)
             return score
         else:
             try:
@@ -308,6 +326,7 @@ class DgtDisplay(DisplayMsg):
         score.web_text = evaluation + " | " + move_lang
         score.large_text = evaluation + " | " + move_lang
         score.rd = ClockIcons.DOT
+        self._set_clock_score_texts(score)
         return score
 
     @classmethod

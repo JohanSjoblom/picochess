@@ -299,6 +299,33 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
             board_connected=board_connected,
         )
 
+    @patch("dgt.display.Rev2Info.get_web_only", return_value=True)
+    async def test_web_only_analysis_text_gives_the_clock_a_readable_score(self, _web_only):
+        # A DGT3000 on a DGT board runs in "web only" mode and shows medium_text; it used to
+        # get the raw centipawns, e.g. "42" for 0.42 (#539).
+        display = self.create_display()
+        display.hint_move = chess.Move.from_uci("g1f3")
+        display.hint_fen = chess.STARTING_FEN
+
+        for centipawns, depth, medium, small in (
+            (42, 4, " 4  0.42", " 4 042"),
+            (-153, 12, "12 -1.53", "12-153"),
+            (1287, 10, "10 12.87", "10 999"),
+        ):
+            with self.subTest(centipawns=centipawns):
+                display.depth = depth
+                display.score = display.dgttranslate.text("N10_score", centipawns)
+                for text in (display._combine_depth_and_score_and_hint(), display._combine_depth_and_score()):
+                    self.assertEqual(medium, text.medium_text)
+                    self.assertEqual(small, text.small_text)
+                    self.assertIn("{:.2f}".format(centipawns / 100), text.web_text or text.large_text)
+                # The stored raw score is not changed.
+                self.assertEqual(str(centipawns).rjust(8), display.score.medium_text)
+
+        display.score = display.dgttranslate.text("N10_mate", "3")
+        mate_text = display.score.medium_text
+        self.assertEqual(mate_text, display._combine_depth_and_score_and_hint().medium_text)
+
     @patch("dgt.display.asyncio.sleep", new_callable=AsyncMock)
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_koth_engine_win_remains_visible(self, dispatch_fire, _sleep):

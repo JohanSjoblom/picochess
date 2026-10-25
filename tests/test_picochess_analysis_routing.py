@@ -1421,6 +1421,37 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.controller.state.ignore_next_engine_move)
 
 
+class TestWebAnalysisWidthAfterModeChange(unittest.IsolatedAsyncioTestCase):
+    async def test_play_publishes_only_pv1_from_a_ponder_snapshot(self):
+        controller = object.__new__(mainloop.MainLoop)
+        board = chess.Board()
+        controller.state = SimpleNamespace(game=board, get_fen=board.fen)
+        controller.eng_plays = lambda: controller.state.interaction_mode == Mode.NORMAL
+        lines = [
+            {
+                "multipv": rank,
+                "depth": 15,
+                "score": chess.engine.PovScore(chess.engine.Cp(30 - rank), chess.WHITE),
+                "pv": [chess.Move.from_uci(move)],
+            }
+            for rank, move in enumerate(("e2e4", "d2d4", "g1f3"), start=1)
+        ]
+
+        with patch.object(mainloop.DisplayMsg, "show", AsyncMock()) as show:
+            controller.state.interaction_mode = Mode.PONDER
+            await controller.send_web_analysis(lines, board.fen(), "engine")
+            self.assertEqual(3, len(show.await_args.args[0].analysis["lines"]))
+
+            controller.state.interaction_mode = Mode.NORMAL
+            await controller.send_web_analysis(lines, board.fen(), "engine")
+            self.assertEqual(1, len(show.await_args.args[0].analysis["lines"]))
+
+            await controller.send_web_analysis(lines, board.fen(), "tutor")
+            self.assertEqual(3, len(show.await_args.args[0].analysis["lines"]))
+
+        self.assertEqual(3, len(lines))
+
+
 class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
     """Every accepted mode change also sets the DGT menu's mode, which the clock display follows (#541)."""
 

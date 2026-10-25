@@ -3917,6 +3917,10 @@ class MainLoop:
         if analysed_fen != current_fen:
             logger.debug("ignoring web analysis for old fen: %s != %s", analysed_fen, current_fen)
             return
+        if source == "engine" and self.eng_plays():
+            # A PONDER MultiPV snapshot may still be in flight while the engine
+            # restarts for Play. Never publish its extra lines in a playing mode.
+            info_list = info_list[:1]
         analysis_payload = web_analysis_payload(
             info_list,
             analysed_fen,

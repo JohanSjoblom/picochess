@@ -7182,6 +7182,10 @@ class MainLoop:
                 else:
                     file_name_only = "last_game.pgn"
                     await self.read_pgn_file(file_name_only, start_replay=True)
+                if self.state.interaction_mode != Mode.PGNREPLAY:
+                    # A missing or invalid replay leaves the backend in its old
+                    # mode; undo the display policy selected before the load.
+                    self.state.dgtmenu.set_mode(self.state.interaction_mode)
                 await self._start_or_stop_analysis_as_needed()
             else:
                 self.state.interaction_mode = event.mode

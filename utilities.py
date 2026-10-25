@@ -154,7 +154,7 @@ class DisplayDgt(object):
 class AsyncRepeatingTimer:
     """Call function on a given interval - Async version to replace RepeatedTimer"""
 
-    lag_warning_seconds = None  # Enable only for event-loop diagnostics.
+    lag_warning_seconds: float | None = None  # Enable only for event-loop diagnostics.
 
     def __init__(self, interval, callback, loop: asyncio.AbstractEventLoop, repeating=True, args=None, kwargs=None):
         self.interval = interval  # Interval between each execution

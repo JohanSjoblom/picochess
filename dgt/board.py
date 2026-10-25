@@ -28,9 +28,9 @@ import time
 from typing import List, Optional, Tuple
 
 try:
-    from fcntl import fcntl, F_GETFL, F_SETFL
+    import fcntl
 except ImportError:
-    fcntl = F_GETFL = F_SETFL = None
+    fcntl = None  # type: ignore[assignment]
 
 from eboard.eboard import EBoard
 from dgt.util import DgtAck, DgtClk, DgtCmd, DgtMsg, ClockIcons, ClockSide, enum
@@ -113,7 +113,7 @@ class DgtBoard(EBoard):
         self.loop = loop
         self.field_factor = field_factor % 10
 
-        self.serial = None
+        self.serial: Optional[Serial] = None
         self.lock = Lock()  # lock the serial write
         self.startup_lock = Lock()  # keep reconnect retries from duplicating the serial handshake
         self.incoming_board_task: Optional[asyncio.Task] = None
@@ -598,7 +598,7 @@ class DgtBoard(EBoard):
                     ee_moves = self._read_serial(counter)
                     if self.serial:
                         logger.debug(
-                            "EE_MOVES 0x%x bytes read - inWaiting: 0x%x", len(ee_moves), self.serial.inWaiting()
+                            "EE_MOVES 0x%x bytes read - in_waiting: 0x%x", len(ee_moves), self.serial.in_waiting,
                         )
                     counter -= len(ee_moves)
                     if time.time() - now > 15:
@@ -790,9 +790,9 @@ class DgtBoard(EBoard):
                 )
 
                 # set the O_NONBLOCK flag of file descriptor:
-                assert fcntl is not None and F_GETFL is not None and F_SETFL is not None
-                flags = fcntl(self.btctl.stdout, F_GETFL)  # get current flags
-                fcntl(self.btctl.stdout, F_SETFL, flags | O_NONBLOCK)
+                assert fcntl is not None
+                flags = fcntl(self.btctl.stdout, fcntl.F_GETFL)
+                fcntl(self.btctl.stdout, fcntl.F_SETFL, flags | O_NONBLOCK)
 
                 self.btctl.stdin.write("power on\n")
                 self.btctl.stdin.flush()

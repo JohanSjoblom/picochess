@@ -111,7 +111,7 @@ class PicochessState:
         self.pgn_book_test = False
         self.pgn_replay_next_move_fen = ""
         self.pgn_replay_next_move = None
-        self.pgn_replay_book_cache = {}
+        self.pgn_replay_book_cache: dict[str, set[chess.Move]] = {}
         self.loaded_pgn_has_variations = False
         self.loaded_pgn_finished = False
         self.pgn_replay_tutor_regeneration = True
@@ -252,7 +252,9 @@ class PicochessState:
         """Restore the saved position and complete move stack."""
         if not self.has_compatible_position_checkpoint():
             return False
-        self.game = self.position_checkpoint_game.copy(stack=True)
+        checkpoint_game = self.position_checkpoint_game
+        assert checkpoint_game is not None
+        self.game = checkpoint_game.copy(stack=True)
         checkpoint_variant = self.position_checkpoint_variant
         if self.variant == "3check":
             self._threecheck_board = checkpoint_variant.copy(stack=True) if checkpoint_variant is not None else None
@@ -359,7 +361,7 @@ class PicochessState:
         """
         copy = self.game.copy()
         if self.variant != "chess":
-            copy._variant_name = self.variant
+            setattr(copy, "_variant_name", self.variant)
         return copy
 
     def engine_board_copy(self):
@@ -467,8 +469,10 @@ class PicochessState:
             Mode.TRAINING,
         ):
             self.game_started = True
-            self.time_control.start_internal(self.game.turn, self.main_loop)
-            tc_init = self.time_control.get_parameters()
+            time_control = self.time_control
+            assert time_control is not None
+            time_control.start_internal(self.game.turn, self.main_loop)
+            tc_init = time_control.get_parameters()
             if self.interaction_mode == Mode.TRAINING:
                 pass
             else:
@@ -493,7 +497,9 @@ class PicochessState:
             Mode.ENGINE_MATCH,
             Mode.TRAINING,
         ):
-            self.time_control.stop_internal(refund_seconds=refund_seconds)
+            time_control = self.time_control
+            assert time_control is not None
+            time_control.stop_internal(refund_seconds=refund_seconds)
             if self.interaction_mode == Mode.TRAINING:
                 pass
             else:
@@ -512,7 +518,9 @@ class PicochessState:
     def stop_fen_timer(self) -> None:
         """Stop the fen timer cause another fen string been send."""
         if self.fen_timer_running:
-            self.fen_timer.stop()
+            fen_timer = self.fen_timer
+            assert fen_timer is not None
+            fen_timer.stop()
             self.fen_timer_running = False
 
     def get_user_color(self):
@@ -550,7 +558,9 @@ class PicochessState:
         l_game_time = int(game_time)
         l_fischer_inc = int(fischer_inc)
         await self.stop_clock()
-        self.time_control.stop_internal(log=False)
+        time_control = self.time_control
+        assert time_control is not None
+        time_control.stop_internal(log=False)
 
         self.time_control = TimeControl()
         tc_init = self.time_control.get_parameters()

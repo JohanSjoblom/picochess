@@ -37,7 +37,7 @@ def set_led_regular_chessnut(pos, is_reversed: bool) -> bytes:
     prefix = bytearray(2)
     prefix[0] = 0x0A
     prefix[1] = 0x08
-    return prefix + leds
+    return bytes(prefix + leds)
 
 
 def _set_bit(data: bytearray, pos: int, val: int):
@@ -70,14 +70,14 @@ def set_led_chessnut_move(pos, is_reversed: bool) -> bytes:
     prefix = bytearray(2)
     prefix[0] = 0x43
     prefix[1] = 0x20
-    return prefix + leds
+    return bytes(prefix + leds)
 
 
 def set_led_off_chessnut_move() -> bytes:
     cmd = bytearray(34)
     cmd[0] = 0x43
     cmd[1] = 0x20
-    return cmd
+    return bytes(cmd)
 
 
 def _set_led_color(data: bytearray, fen_index: int, color_nibble: int):
@@ -139,14 +139,15 @@ def _encode_board(board64) -> bytes:
             lo = board64[idx + 1]
             out[row * 4 + col] = (hi << 4) | lo
             idx += 2
-    return out
+    return bytes(out)
 
 
 def _get_ep_square(fen: str, uci_move: str) -> str:
     board = chess.Board(fen)
     pm = board.piece_map()
     move = chess.Move.from_uci(uci_move)
-    if pm.get(move.from_square).piece_type != chess.PAWN or pm.get(move.to_square):
+    from_piece = pm.get(move.from_square)
+    if from_piece is None or from_piece.piece_type != chess.PAWN or pm.get(move.to_square):
         return "-"
     if (chess.square_file(move.from_square) == chess.square_file(move.to_square)
             or chess.square_rank(move.from_square) == chess.square_rank(move.to_square)):
@@ -163,7 +164,7 @@ def send_auto_move_fen(fen: str, uci_move: str, is_reversed: bool) -> bytes:
     if not board.is_legal(move):
         board = chess.Board(fen + " b KQkq " + ep + " 0 1")
         if not board.is_legal(move):
-            return bytearray(0)
+            return b""
     board.push(move)
 
     new_fen = board.board_fen()
@@ -177,4 +178,4 @@ def send_auto_move_fen(fen: str, uci_move: str, is_reversed: bool) -> bytes:
     cmd[1] = 0x21
     cmd[2:34] = encoded
     cmd[34] = 0  # force = true
-    return cmd
+    return bytes(cmd)

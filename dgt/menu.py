@@ -328,7 +328,7 @@ class DgtMenu(object):
             self.state = MenuState.TOP
 
         self.dgt_fen = "8/8/8/8/8/8/8/8"
-        self._dgt_fen_rescan = None
+        self._dgt_fen_rescan: str | None = None
         self.int_ip = None
         self.ext_ip = None
         self.flip_board = False

@@ -30,7 +30,7 @@ import threading
 import re
 import time
 from types import SimpleNamespace
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 try:
     import numpy as np  # type: ignore
@@ -85,7 +85,12 @@ BLACK_WIN_RESULTS = frozenset(
 class PicoTalker(object):
     """Handle the human speaking of events."""
 
-    def __init__(self, localisation_id_voice, speed_factor: float, common_queue: asyncio.Queue):
+    def __init__(
+        self,
+        localisation_id_voice,
+        speed_factor: float,
+        common_queue: asyncio.Queue[str | None],
+    ):
         self.voice_path = None
         self.speed_factor = 1.0
         self.set_speed_factor(speed_factor)
@@ -172,13 +177,13 @@ class PicoTalkerDisplay(DisplayMsg):
         super(PicoTalkerDisplay, self).__init__(loop)
         if not NATIVE_AUDIO_AVAILABLE:
             logger.warning("native audio unavailable: %s", NATIVE_AUDIO_IMPORT_ERROR)
-        self.sound_cache = OrderedDict()  # cache for voice files
-        self.common_queue = asyncio.Queue()  # queue for sound_player
+        self.sound_cache: OrderedDict[tuple[str, float], tuple[Any, int]] = OrderedDict()
+        self.common_queue: asyncio.Queue[str | None] = asyncio.Queue()  # queue for sound_player
         asyncio.create_task(self.sound_player())  # background sound player
 
-        self.user_picotalker = None  # type: PicoTalker
-        self.computer_picotalker = None  # type: PicoTalker
-        self.beeper_picotalker = None  # type: PicoTalker
+        self.user_picotalker: PicoTalker | None = None
+        self.computer_picotalker: PicoTalker | None = None
+        self.beeper_picotalker: PicoTalker | None = None
         self.eboard_type = eboard_type
         self.speed_factor = (90 + (speed_factor % 10) * 5) / 100
         self.play_mode = PlayMode.USER_WHITE
@@ -225,7 +230,7 @@ class PicoTalkerDisplay(DisplayMsg):
 
         self.audio_backend = (audio_backend or "sox").lower()
         self.volume_factor_getter = volume_factor_getter
-        self.playback_volume_state = {}
+        self.playback_volume_state: dict[str, tuple[int | None, bool, float, int]] = {}
         self.web_audio_backend_remote = bool(web_audio_backend_remote)
         self.web_audio_emitter = web_audio_emitter
         self.web_audio_should_emit = web_audio_should_emit
@@ -235,9 +240,9 @@ class PicoTalkerDisplay(DisplayMsg):
             if self.audio_backend == "native" and not NATIVE_AUDIO_AVAILABLE:
                 logger.warning("native audio requested but unavailable, falling back to SoX")
             self.use_native_audio = False
-        self.native_stream = None
-        self.native_stream_samplerate = None
-        self.native_stream_channels = None
+        self.native_stream: Any | None = None
+        self.native_stream_samplerate: int | None = None
+        self.native_stream_channels: int | None = None
         self.native_stream_lock = threading.RLock()
 
         if user_voice:
@@ -393,17 +398,18 @@ class PicoTalkerDisplay(DisplayMsg):
                     return True
                 self._close_native_stream()
             try:
-                self.native_stream = sd.OutputStream(
+                stream = sd.OutputStream(
                     samplerate=samplerate,
                     channels=channels,
                     dtype="float32",
                 )
-                self.native_stream.start()
+                self.native_stream = stream
+                stream.start()
                 if NATIVE_STREAM_STARTUP_WAIT > 0:
                     prime_samples = int(samplerate * NATIVE_STREAM_STARTUP_WAIT)
                     if prime_samples > 0:
                         prime = np.zeros((prime_samples, channels), dtype=np.float32)
-                        self.native_stream.write(prime)
+                        stream.write(prime)
                 self.native_stream_samplerate = samplerate
                 self.native_stream_channels = channels
                 # The system service can start before the user's PipeWire sink
@@ -476,7 +482,9 @@ class PicoTalkerDisplay(DisplayMsg):
             with self.native_stream_lock:
                 if not self._ensure_native_stream(samplerate, samples.shape[1]):
                     return False
-                self.native_stream.write(samples)
+                stream = self.native_stream
+                assert stream is not None
+                stream.write(samples)
             return True
         except Exception as exc:
             logger.warning("native audio failed for %s: %s", voice_file, exc)

@@ -355,6 +355,75 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         mate_text = display.score.medium_text
         self.assertEqual(mate_text, display._combine_depth_and_score_and_hint().medium_text)
 
+    @patch("dgt.display.Rev2Info.get_web_only", return_value=True)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_web_only_analysis_rotates_the_standalone_clock_to_the_pv(self, dispatch_fire, _web_only):
+        display = self.create_display()
+        display.dgtmenu.set_mode(Mode.PONDER)
+        display.dgtmenu.set_ponder_interval(2)
+        display.hint_move = chess.Move.from_uci("g1f3")
+        display.hint_fen = chess.STARTING_FEN
+        display.hint_turn = chess.WHITE
+        display.depth = 6
+        display.score = display.dgttranslate.text("N10_score", -325)
+
+        await display._process_once_per_second()
+
+        dispatch_fire.assert_awaited_once()
+        score_text = dispatch_fire.await_args.args[0]
+        self.assertIsInstance(score_text, Dgt.DISPLAY_TEXT)
+        self.assertEqual(" 6 -3.25", score_text.medium_text)
+        self.assertIn("ser", score_text.devs)
+        self.assertIn("web", score_text.devs)
+
+        dispatch_fire.reset_mock()
+        display.show_move_or_value = display.dgtmenu.get_ponderinterval()
+
+        await display._process_once_per_second()
+
+        self.assertEqual(2, dispatch_fire.await_count)
+        web_text, clock_move = (call.args[0] for call in dispatch_fire.await_args_list)
+        self.assertIsInstance(web_text, Dgt.DISPLAY_TEXT)
+        self.assertEqual({"web"}, web_text.devs)
+        self.assertIn("Nf3", web_text.web_text)
+        self.assertIsInstance(clock_move, Dgt.DISPLAY_MOVE)
+        self.assertEqual(chess.Move.from_uci("g1f3"), clock_move.move)
+        self.assertEqual({"ser"}, clock_move.devs)
+
+    @patch("dgt.display.Rev2Info.get_web_only", return_value=True)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_web_only_kibitz_does_not_rotate_to_the_pv(self, dispatch_fire, _web_only):
+        display = self.create_display()
+        display.dgtmenu.set_mode(Mode.KIBITZ)
+        display.dgtmenu.set_ponder_interval(1)
+        display.show_move_or_value = 1
+        display.hint_move = chess.Move.from_uci("g1f3")
+        display.hint_fen = chess.STARTING_FEN
+
+        await display._process_once_per_second()
+
+        self.assertFalse(
+            any(isinstance(call.args[0], Dgt.DISPLAY_MOVE) for call in dispatch_fire.await_args_list)
+        )
+
+    @patch("dgt.display.Rev2Info.get_web_only", return_value=False)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_dgtpi_analysis_keeps_its_existing_pv_rotation(self, dispatch_fire, _web_only):
+        display = self.create_display()
+        display.dgtmenu.set_mode(Mode.PONDER)
+        display.dgtmenu.set_ponder_interval(2)
+        display.show_move_or_value = 2
+        display.hint_move = chess.Move.from_uci("g1f3")
+        display.hint_fen = chess.STARTING_FEN
+        display.hint_turn = chess.WHITE
+
+        await display._process_once_per_second()
+
+        dispatch_fire.assert_awaited_once()
+        clock_move = dispatch_fire.await_args.args[0]
+        self.assertIsInstance(clock_move, Dgt.DISPLAY_MOVE)
+        self.assertEqual({"ser", "i2c", "web"}, clock_move.devs)
+
     @patch("dgt.display.asyncio.sleep", new_callable=AsyncMock)
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_koth_engine_win_remains_visible(self, dispatch_fire, _sleep):

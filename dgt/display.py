@@ -1230,7 +1230,36 @@ class DgtDisplay(DisplayMsg):
                 else:
                     text = self._combine_depth_and_score_and_hint()
                     text.wait = True
+                    show_hint = self.show_move_or_value >= self.dgtmenu.get_ponderinterval()
+                    if show_hint:
+                        # Keep the browser's combined analysis text while restoring the
+                        # physical DGT3000 rotation that web-only mode used to bypass.
+                        text.devs = {"web"}
                     await DispatchDgt.fire(text)
+                    if show_hint:
+                        if self.hint_move:
+                            side = self._get_clock_side(self.hint_turn)
+                            beep = self.dgttranslate.bl(BeepLevel.NO)
+                            clock_text = Dgt.DISPLAY_MOVE(
+                                move=self.hint_move,
+                                fen=self.hint_fen,
+                                side=side,
+                                wait=True,
+                                maxtime=1,
+                                beep=beep,
+                                devs={"ser"},
+                                uci960=self.uci960,
+                                lang=self.dgttranslate.language,
+                                capital=self.dgttranslate.capital,
+                                long=self.dgttranslate.notation,
+                            )
+                        else:
+                            clock_text = self.dgttranslate.text("N10_nomove", devs={"ser"})
+                            clock_text.wait = True
+                        await DispatchDgt.fire(clock_text)
+                    self.show_move_or_value = (self.show_move_or_value + 1) % (
+                        self.dgtmenu.get_ponderinterval() * 2
+                    )
             elif (self.dgtmenu.get_mode() == Mode.BRAIN and self.dgtmenu.get_rolldispbrain()) or (
                 self.dgtmenu.get_mode() == Mode.NORMAL and self.dgtmenu.get_rolldispnorm()
             ):

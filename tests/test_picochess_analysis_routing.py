@@ -1421,6 +1421,73 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.controller.state.ignore_next_engine_move)
 
 
+class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
+    """Every accepted mode change also sets the DGT menu's mode, which the clock display follows (#541)."""
+
+    def setUp(self):
+        self.calls = Mock()
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.args = SimpleNamespace(remote_picochess_url="")
+        self.controller.get_rid_of_engine_move = AsyncMock()
+        self.controller.stop_search_and_clock = AsyncMock()
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller._save_position_checkpoint = AsyncMock()
+        self.controller._set_pgn_replay_autoplay = Mock()
+        self.controller.engine_mode = AsyncMock()
+        self.controller.set_wait_state = AsyncMock(side_effect=lambda msg, **kwargs: self.calls.announce(msg.mode))
+        self.controller.think = AsyncMock()
+        self.dgtmenu = Mock()
+        self.dgtmenu.set_mode.side_effect = lambda mode: self.calls.menu(mode)
+        self.controller.state = SimpleNamespace(
+            position_checkpoint_restore_pending=False,
+            best_sent_depth=Mock(),
+            dgtmenu=self.dgtmenu,
+            interaction_mode=Mode.NORMAL,
+            game=chess.Board(),
+            play_mode=PlayMode.USER_WHITE,
+            done_computer_fen=None,
+            game_declared=False,
+            newgame_happened=False,
+            picotutor=None,
+            can_preserve_position_checkpoint_play_mode=Mock(return_value=False),
+            check_game_state=Mock(return_value=False),
+        )
+        self.controller.state.is_user_turn = lambda: True
+
+    async def switch(self, mode):
+        await self.controller.process_main_events(
+            Event.SET_INTERACTION_MODE(mode=mode, mode_text=mode.name, show_ok=True)
+        )
+
+    async def test_web_switches_set_the_menu_mode_before_the_announcement(self):
+        for old_mode, new_mode in (
+            (Mode.NORMAL, Mode.PONDER),
+            (Mode.PONDER, Mode.NORMAL),
+            (Mode.NORMAL, Mode.KIBITZ),
+            (Mode.KIBITZ, Mode.NORMAL),
+        ):
+            with self.subTest(old_mode=old_mode, new_mode=new_mode):
+                self.calls.reset_mock()
+                self.controller.state.interaction_mode = old_mode
+
+                await self.switch(new_mode)
+
+                self.assertEqual(new_mode, self.controller.state.interaction_mode)
+                # The display reacts to the announcement, so the menu must already know the mode.
+                self.assertEqual([call.menu(new_mode), call.announce(new_mode)], self.calls.mock_calls)
+
+    async def test_rejected_switch_keeps_the_old_menu_mode(self):
+        # An announced engine move still waits to be played on the e-board.
+        self.controller.state.done_computer_fen = "fen after the announced engine move"
+        self.controller.state.dgttranslate = Mock()
+
+        with patch.object(mainloop.DisplayMsg, "show", AsyncMock()):
+            await self.switch(Mode.PONDER)
+
+        self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+        self.dgtmenu.set_mode.assert_called_once_with(Mode.NORMAL)
+
+
 class TestCheckpointReturnResumesEngineSearch(unittest.IsolatedAsyncioTestCase):
     """Returning from PONDER to a checkpoint saved on the engine's turn restarts its search (#523)."""
 

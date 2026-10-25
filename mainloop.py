@@ -7093,6 +7093,15 @@ class MainLoop:
                 await DisplayMsg.show(msg)
                 return
 
+            playing_modes = {
+                Mode.NORMAL,
+                Mode.BRAIN,
+                Mode.TRAINING,
+                Mode.ENGINE_MATCH,
+            }
+            entering_ponder = old_interaction_mode != Mode.PONDER and event.mode == Mode.PONDER
+            leaving_ponder = old_interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
+            entering_play_mode = old_interaction_mode not in playing_modes and event.mode in playing_modes
             self.state.best_sent_depth.reset()  # dont use optimisation when switching modes
             if self.eng_plays() and event.mode not in (
                 Mode.NORMAL,
@@ -7116,8 +7125,10 @@ class MainLoop:
                     return
             elif old_interaction_mode == Mode.ENGINE_MATCH and event.mode != Mode.ENGINE_MATCH:
                 await self._stop_engine_match()
-            entering_ponder = old_interaction_mode != Mode.PONDER and event.mode == Mode.PONDER
-            leaving_ponder = old_interaction_mode == Mode.PONDER and event.mode != Mode.PONDER
+            # The clock's once-per-second display policy follows the DGT menu mode.
+            # Update it before any potentially slow analyser cleanup so a timer tick
+            # cannot keep publishing output for the mode being left.
+            self.state.dgtmenu.set_mode(Mode.REMOTE if event.mode == Mode.ENGINE_MATCH else event.mode)
             returning_restored_checkpoint = bool(
                 leaving_ponder and self.state.can_preserve_position_checkpoint_play_mode()
             )
@@ -7174,9 +7185,6 @@ class MainLoop:
                 await self._start_or_stop_analysis_as_needed()
             else:
                 self.state.interaction_mode = event.mode
-                # The display follows the DGT menu mode for every accepted transition (#541).
-                # Checkpoint return can request internal ENGINE_MATCH; expose REMOTE in the menu.
-                self.state.dgtmenu.set_mode(Mode.REMOTE if event.mode == Mode.ENGINE_MATCH else event.mode)
                 if entering_ponder:
                     await self._save_position_checkpoint(old_interaction_mode)
                 await self.engine_mode()
@@ -7187,6 +7195,11 @@ class MainLoop:
                     msg,
                     preserve_play_mode=preserve_checkpoint_play_mode,
                 )  # dont clear searchmoves here
+                if entering_play_mode:
+                    # Restore the normal DGT display after leaving an analysis mode.
+                    # DgtDisplay keeps an actually pending engine move authoritative;
+                    # otherwise EXIT_MENU resolves to a forced time display.
+                    await DisplayMsg.show(Message.EXIT_MENU())
                 if preserve_checkpoint_play_mode and self._engine_search_needed_after_restore():
                     # The checkpoint was saved while the engine was thinking, and entering
                     # PONDER dropped that search: restart it so the restored game continues.

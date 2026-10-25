@@ -299,6 +299,35 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
             board_connected=board_connected,
         )
 
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_exit_menu_restores_time_without_a_pending_engine_move(self, dispatch_fire):
+        display = self.create_display()
+        display.dgtmenu.set_mode(Mode.NORMAL)
+
+        await display._process_message(Message.EXIT_MENU())
+
+        dispatch_fire.assert_awaited_once()
+        restored = dispatch_fire.await_args.args[0]
+        self.assertIsInstance(restored, Dgt.DISPLAY_TIME)
+        self.assertTrue(restored.force)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_exit_menu_keeps_a_pending_engine_move_authoritative(self, dispatch_fire):
+        display = self.create_display()
+        display.dgtmenu.set_mode(Mode.NORMAL)
+        display.play_move = chess.Move.from_uci("e7e5")
+        display.play_fen = chess.Board().fen()
+        display.play_turn = chess.BLACK
+
+        await display._process_message(Message.EXIT_MENU())
+
+        self.assertEqual(2, dispatch_fire.await_count)
+        lights, restored = (call.args[0] for call in dispatch_fire.await_args_list)
+        self.assertIsInstance(lights, Dgt.LIGHT_SQUARES)
+        self.assertEqual("e7e5", lights.uci_move)
+        self.assertIsInstance(restored, Dgt.DISPLAY_MOVE)
+        self.assertEqual(display.play_move, restored.move)
+
     @patch("dgt.display.Rev2Info.get_web_only", return_value=True)
     async def test_web_only_analysis_text_gives_the_clock_a_readable_score(self, _web_only):
         # A DGT3000 on a DGT board runs in "web only" mode and shows medium_text; it used to

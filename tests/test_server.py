@@ -1527,6 +1527,39 @@ class TestServerEngineBookSelection(unittest.TestCase):
         self.assertEqual([0, 1, 2], [book["index"] for book in books])
 
 
+class TestServerWebAnalysisModeTransition(unittest.IsolatedAsyncioTestCase):
+    async def test_play_trims_cached_and_late_engine_multipv(self):
+        analysis = {
+            "source": "engine",
+            "depth": 18,
+            "pv": ["e4"],
+            "lines": [
+                {"multipv": 1, "depth": 18, "pv": ["e4"]},
+                {"multipv": 2, "depth": 17, "pv": ["d4"]},
+                {"multipv": 3, "depth": 16, "pv": ["Nf3"]},
+            ],
+        }
+        shared = {
+            "game_info": {"interaction_mode": Mode.PONDER},
+            "system_info": {"engine_name": "Texel", "engine_elo": "2200", "user_name": "Player", "user_elo": "1500"},
+        }
+        _apply_web_analysis_state(shared, analysis)
+        display = WebDisplay(shared, asyncio.get_running_loop())
+
+        with patch("server.EventHandler.write_to_clients") as send:
+            await display.task(Message.INTERACTION_MODE(mode=Mode.NORMAL, mode_text="Play", show_ok=False))
+
+        self.assertEqual(1, len(shared["analysis_state_engine"]["lines"]))
+        published = [item.args[0] for item in send.call_args_list if item.args[0].get("event") == "Analysis"]
+        self.assertEqual([shared["analysis_state_engine"]], [item["analysis"] for item in published])
+
+        # A delayed snapshot from the previous search must not refill the cache.
+        late_payload = _apply_web_analysis_state(shared, analysis)
+        self.assertEqual(1, len(late_payload["lines"]))
+        self.assertEqual(1, len(shared["analysis_state_engine"]["lines"]))
+        self.assertEqual(3, len(analysis["lines"]))
+
+
 class TestServerWebAnalysisState(unittest.TestCase):
     def test_none_analysis_clears_cached_state(self):
         shared = {

@@ -474,7 +474,7 @@ async def update_picochess(dgtpi: bool, auto_reboot: bool, dgttranslate: DgtTran
         # Check if update is needed - need to make sure, we get english answers
         output = do_popen([git, "status", "-uno"], force_en_env=True)
         if "up-to-date" not in output and "Your branch is ahead of" not in output:
-            DispatchDgt.fire(dgttranslate.text("Y25_update"))
+            await DispatchDgt.fire(dgttranslate.text("Y25_update"))
             # Update
             logging.debug("updating picochess")
             do_popen([git, "pull", "origin", branch])

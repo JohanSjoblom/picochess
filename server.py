@@ -767,6 +767,8 @@ def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_stat
 
     analysis_payload = dict(analysis)
     source = analysis_payload.get("source", "engine")
+    if source == "engine" and _web_mode_has_single_engine_pv(shared):
+        analysis_payload = _first_engine_analysis_line(analysis_payload)
     shared["suppress_engine_analysis"] = bool(analysis_payload.get("suppress_engine_line"))
     if analysis_payload.get("clear"):
         if source == "tutor":
@@ -789,6 +791,31 @@ def _apply_web_analysis_state(shared: dict, analysis, reset_engine_analysis_stat
             shared["analysis_state_engine"] = analysis_payload
     shared["analysis_web_enabled"] = True
     return analysis_payload
+
+
+def _web_mode_has_single_engine_pv(shared: dict) -> bool:
+    mode = shared.get("game_info", {}).get("interaction_mode")
+    return mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING, Mode.ENGINE_MATCH)
+
+
+def _first_engine_analysis_line(analysis: dict) -> dict:
+    """Keep the existing PV1 fields while removing lines from an older MultiPV search."""
+    lines = analysis.get("lines")
+    if not isinstance(lines, list) or len(lines) <= 1:
+        return analysis
+    return {**analysis, "lines": lines[:1]}
+
+
+def _limit_cached_engine_analysis_to_one_line(shared: dict) -> dict | None:
+    """Trim the server cache when Play resumes, including for reconnects and SHOW."""
+    cached = shared.get("analysis_state_engine")
+    if not isinstance(cached, dict):
+        return None
+    limited = _first_engine_analysis_line(cached)
+    if limited is cached:
+        return None
+    shared["analysis_state_engine"] = limited
+    return limited
 
 
 def _clock_event(shared: dict, text, running: bool = False, game_result: bool = False):
@@ -3820,6 +3847,10 @@ class WebDisplay(DisplayMsg):
             _im_str = message.mode.name.lower()
             self.shared["system_info"]["interaction_mode"] = _im_str
             EventHandler.write_to_clients({"event": "SystemInfo", "msg": {"interaction_mode": _im_str}})
+            if _web_mode_has_single_engine_pv(self.shared):
+                limited_analysis = _limit_cached_engine_analysis_to_one_line(self.shared)
+                if limited_analysis is not None:
+                    EventHandler.write_to_clients({"event": "Analysis", "analysis": limited_analysis})
 
             if self.shared["game_info"]["interaction_mode"] == Mode.REMOTE:
                 if self.shared["system_info"]["engine_name"] != "" and self.shared["system_info"]["old_engine"] == "":

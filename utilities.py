@@ -52,8 +52,8 @@ _WINDOW_CONTROL_BACKEND_PREFERENCE = "auto"
 evt_queue: asyncio.Queue = asyncio.Queue()
 dispatch_queue: asyncio.Queue = asyncio.Queue()
 
-msgdisplay_devices = []
-dgtdisplay_devices = []
+msgdisplay_devices: list["DisplayMsg"] = []
+dgtdisplay_devices: list["DisplayDgt"] = []
 
 
 class Observable(object):
@@ -98,7 +98,7 @@ class DisplayMsg(object):
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super(DisplayMsg, self).__init__()
-        self.msg_queue = asyncio.Queue()
+        self.msg_queue: asyncio.Queue[object] = asyncio.Queue()
         self.loop = loop  # everyone to use main loop
         msgdisplay_devices.append(self)
 
@@ -135,7 +135,7 @@ class DisplayDgt(object):
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super(DisplayDgt, self).__init__()
-        self.dgt_queue = asyncio.Queue()
+        self.dgt_queue: asyncio.Queue[object] = asyncio.Queue()
         self.loop = loop  # everyone to use main loop
         dgtdisplay_devices.append(self)
 

@@ -1631,6 +1631,42 @@ class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
                 ]
                 self.assertEqual(1, len(exit_messages))
 
+    async def test_failed_pgn_replay_restores_the_backend_menu_mode(self):
+        self.controller.state.loaded_pgn_game = None
+        self.controller.state.loaded_pgn_filename = None
+        self.controller.read_pgn_file = AsyncMock()
+        self.controller._start_or_stop_analysis_as_needed = AsyncMock()
+
+        await self.switch(Mode.PGNREPLAY)
+
+        self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
+        self.assertEqual(
+            [call.menu(Mode.PGNREPLAY), call.menu(Mode.NORMAL)],
+            self.calls.mock_calls,
+        )
+        self.controller.read_pgn_file.assert_awaited_once_with("last_game.pgn", start_replay=True)
+
+    async def test_clock_analysis_still_publishes_after_return_to_play(self):
+        self.controller.state.interaction_mode = Mode.PONDER
+        self.controller.state.pb_move = chess.Move.null()
+        board = self.controller.state.game
+        self.controller.state.get_fen = board.fen
+        info = {
+            "depth": 12,
+            "pv": [chess.Move.from_uci("e2e4"), chess.Move.from_uci("e7e5")],
+            "score": chess.engine.PovScore(chess.engine.Cp(24), board.turn),
+        }
+
+        with patch.object(mainloop.Observable, "fire", AsyncMock()) as fire:
+            await self.switch(Mode.NORMAL)
+            await self.controller.send_analyse(info, board.fen())
+
+        self.assertEqual(3, fire.await_count)
+        self.assertEqual(
+            [EventApi.NEW_DEPTH, EventApi.NEW_PV, EventApi.NEW_SCORE],
+            [repr(call.args[0]) for call in fire.await_args_list],
+        )
+
 
 class TestCheckpointReturnResumesEngineSearch(unittest.IsolatedAsyncioTestCase):
     """Returning from PONDER to a checkpoint saved on the engine's turn restarts its search (#523)."""

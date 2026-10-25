@@ -11,6 +11,7 @@ import chess.engine
 import chess.variant
 
 import mainloop
+import dgt.display
 from analysis_policy import (
     AnalysisCycleAction,
     AnalysisCycleContext,
@@ -1486,9 +1487,9 @@ class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
         )
         self.controller.state.is_user_turn = lambda: True
 
-    async def switch(self, mode):
+    async def switch(self, mode, show_ok=True):
         await self.controller.process_main_events(
-            Event.SET_INTERACTION_MODE(mode=mode, mode_text=mode.name, show_ok=True)
+            Event.SET_INTERACTION_MODE(mode=mode, mode_text=mode.name, show_ok=show_ok)
         )
 
     async def test_web_switches_set_the_menu_mode_before_the_announcement(self):
@@ -1528,11 +1529,107 @@ class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
         self.controller.state.done_computer_fen = "fen after the announced engine move"
         self.controller.state.dgttranslate = Mock()
 
-        with patch.object(mainloop.DisplayMsg, "show", AsyncMock()):
+        with patch.object(mainloop.DisplayMsg, "show", AsyncMock()) as show:
             await self.switch(Mode.PONDER)
 
         self.assertEqual(Mode.NORMAL, self.controller.state.interaction_mode)
         self.dgtmenu.set_mode.assert_called_once_with(Mode.NORMAL)
+        self.assertFalse(any(isinstance(call.args[0], Message.EXIT_MENU) for call in show.await_args_list))
+
+    async def test_return_to_play_updates_display_policy_while_analyser_stop_is_pending(self):
+        self.controller.state.interaction_mode = Mode.PONDER
+        current_menu_mode = Mode.PONDER
+        stop_started = asyncio.Event()
+        release_stop = asyncio.Event()
+
+        def set_menu_mode(mode):
+            nonlocal current_menu_mode
+            current_menu_mode = mode
+
+        async def delayed_stop():
+            stop_started.set()
+            await release_stop.wait()
+
+        self.dgtmenu.set_mode.side_effect = set_menu_mode
+        self.dgtmenu.get_mode.side_effect = lambda: current_menu_mode
+        self.dgtmenu.get_rolldispnorm.return_value = False
+        self.controller.stop_search_and_clock.side_effect = delayed_stop
+
+        display = object.__new__(dgt.display.DgtDisplay)
+        display.dgtmenu = self.dgtmenu
+        display._inside_main_menu = Mock(return_value=False)
+        display.show_move_or_value = 0
+        display._combine_depth_and_score = Mock(return_value=SimpleNamespace(wait=False))
+
+        with (
+            patch.object(dgt.display.Rev2Info, "get_web_only", return_value=False),
+            patch.object(dgt.display.DispatchDgt, "fire", AsyncMock()) as dispatch,
+            patch.object(mainloop.DisplayMsg, "show", AsyncMock()) as show,
+        ):
+            switch_task = asyncio.create_task(self.switch(Mode.NORMAL))
+            await stop_started.wait()
+
+            self.assertEqual(Mode.NORMAL, current_menu_mode)
+            await display._process_once_per_second()
+            dispatch.assert_not_awaited()
+
+            release_stop.set()
+            await switch_task
+
+        exit_messages = [call.args[0] for call in show.await_args_list if isinstance(call.args[0], Message.EXIT_MENU)]
+        self.assertEqual(1, len(exit_messages))
+
+    async def test_nonplaying_transition_updates_display_policy_without_exit_menu(self):
+        self.controller.state.interaction_mode = Mode.PONDER
+        current_menu_mode = Mode.PONDER
+        stop_started = asyncio.Event()
+        release_stop = asyncio.Event()
+
+        def set_menu_mode(mode):
+            nonlocal current_menu_mode
+            current_menu_mode = mode
+
+        async def delayed_stop():
+            stop_started.set()
+            await release_stop.wait()
+
+        self.dgtmenu.set_mode.side_effect = set_menu_mode
+        self.dgtmenu.get_mode.side_effect = lambda: current_menu_mode
+        self.controller.stop_search_and_clock.side_effect = delayed_stop
+
+        display = object.__new__(dgt.display.DgtDisplay)
+        display.dgtmenu = self.dgtmenu
+        display._inside_main_menu = Mock(return_value=False)
+
+        with (
+            patch.object(dgt.display.DispatchDgt, "fire", AsyncMock()) as dispatch,
+            patch.object(mainloop.DisplayMsg, "show", AsyncMock()) as show,
+        ):
+            switch_task = asyncio.create_task(self.switch(Mode.ANALYSIS))
+            await stop_started.wait()
+
+            self.assertEqual(Mode.ANALYSIS, current_menu_mode)
+            await display._process_once_per_second()
+            dispatch.assert_not_awaited()
+
+            release_stop.set()
+            await switch_task
+
+        self.assertFalse(any(isinstance(call.args[0], Message.EXIT_MENU) for call in show.await_args_list))
+
+    async def test_return_to_play_restores_display_with_or_without_confirmation(self):
+        for show_ok in (True, False):
+            with self.subTest(show_ok=show_ok):
+                self.controller.state.interaction_mode = Mode.PONDER
+                self.controller.stop_search_and_clock.reset_mock(side_effect=True)
+                self.controller.stop_search_and_clock.side_effect = None
+                with patch.object(mainloop.DisplayMsg, "show", AsyncMock()) as show:
+                    await self.switch(Mode.NORMAL, show_ok=show_ok)
+
+                exit_messages = [
+                    call.args[0] for call in show.await_args_list if isinstance(call.args[0], Message.EXIT_MENU)
+                ]
+                self.assertEqual(1, len(exit_messages))
 
 
 class TestCheckpointReturnResumesEngineSearch(unittest.IsolatedAsyncioTestCase):

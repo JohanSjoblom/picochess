@@ -7125,8 +7125,9 @@ class MainLoop:
                     self.state.interaction_mode = event.mode
                     # The display decides what the clock shows from the DGT menu's mode, and only a
                     # mode chosen on the clock sets it; keep it in step for web, checkpoint return
-                    # and MCP changes too (#541). requested_mode keeps REMOTE for an engine match.
-                    self.state.dgtmenu.set_mode(requested_mode)
+                    # and MCP changes too (#541). Checkpoint return can request internal ENGINE_MATCH;
+                    # keep its public REMOTE mode in the menu.
+                    self.state.dgtmenu.set_mode(Mode.REMOTE if event.mode == Mode.ENGINE_MATCH else event.mode)
                     if entering_ponder:
                         await self._save_position_checkpoint(old_interaction_mode)
                     await self.engine_mode()

@@ -1476,6 +1476,21 @@ class TestModeChangeUpdatesDgtMenuMode(unittest.IsolatedAsyncioTestCase):
                 # The display reacts to the announcement, so the menu must already know the mode.
                 self.assertEqual([call.menu(new_mode), call.announce(new_mode)], self.calls.mock_calls)
 
+    async def test_checkpoint_return_to_engine_match_keeps_remote_in_menu(self):
+        self.controller.state.interaction_mode = Mode.PONDER
+        self.controller.state.can_preserve_position_checkpoint_play_mode.return_value = True
+        self.controller._arm_engine_match = AsyncMock(return_value=True)
+        self.controller._engine_search_needed_after_restore = Mock(return_value=False)
+
+        # Checkpoint return requests the saved internal mode, not public REMOTE.
+        await self.switch(Mode.ENGINE_MATCH)
+
+        self.assertEqual(Mode.ENGINE_MATCH, self.controller.state.interaction_mode)
+        self.assertEqual(
+            [call.menu(Mode.REMOTE), call.announce(Mode.ENGINE_MATCH)], self.calls.mock_calls
+        )
+        self.assertTrue(self.controller.set_wait_state.call_args.kwargs["preserve_play_mode"])
+
     async def test_rejected_switch_keeps_the_old_menu_mode(self):
         # An announced engine move still waits to be played on the e-board.
         self.controller.state.done_computer_fen = "fen after the announced engine move"

@@ -63,7 +63,7 @@ class PicochessState:
         self.comment_file = ""
         self.dgtmenu = dgtmenu
         self.dgttranslate = dgttranslate
-        self.done_computer_fen = None  # FEN of last done computer move when not yet pushed to game board
+        self.done_computer_fen: str | None = None  # FEN of last done computer move when not yet pushed to game board
         self.done_move = chess.Move.null()  # last done move by computer, not yet pushed to game board
         self.engine_file = ""
         self.engine_text = None
@@ -71,7 +71,7 @@ class PicochessState:
         self.new_engine_level = ""
         self.newgame_happened = False
         self.old_engine_level = ""
-        self.error_fen = None
+        self.error_fen: str | None = None
         self.pairing_bridge: pairing_ipc.PairingBridge | None = None
         self.fen_error_occured = False
         self.fen_timer: AsyncRepeatingTimer | None = None
@@ -94,7 +94,7 @@ class PicochessState:
         self.interaction_mode = Mode.NORMAL
         self.user_move_revision = 0
         self.last_legal_fens: list[Any] = []
-        self.last_move = None
+        self.last_move: chess.Move | None = None
         self.legal_fens: list[Any] = []
         self.legal_fens_after_cmove: list[Any] = []
         self.max_guess = 0
@@ -110,7 +110,7 @@ class PicochessState:
         self.pb_move = chess.Move.null()  # Best ponder move
         self.pgn_book_test = False
         self.pgn_replay_next_move_fen = ""
-        self.pgn_replay_next_move = None
+        self.pgn_replay_next_move: chess.Move | None = None
         self.pgn_replay_book_cache: dict[str, set[chess.Move]] = {}
         self.loaded_pgn_has_variations = False
         self.loaded_pgn_finished = False

@@ -26,7 +26,7 @@ from dataclasses import dataclass
 import os
 import re
 import traceback
-from typing import Optional, Iterable, Awaitable, Callable
+from typing import Any, Optional, Iterable, Awaitable, Callable, Mapping
 import logging
 import configparser
 import copy
@@ -286,9 +286,9 @@ class CooperativeUciProtocol(UciProtocol):
         finally:
             self._output_task = None
             if self._output_connection_lost is not None:
-                (exc,) = self._output_connection_lost
+                (connection_lost_exc,) = self._output_connection_lost
                 self._output_connection_lost = None
-                super().connection_lost(exc)
+                super().connection_lost(connection_lost_exc)
 
 
 class TolerantUciProtocol(UciProtocol):
@@ -412,17 +412,17 @@ class ContinuousAnalysis:
 
         :param delay: Time interval to do CPU saving sleep between analysis.
         """
-        self.game = None  # latest position requested to be analysed
+        self.game: chess.Board | None = None  # latest position requested to be analysed
         self.limit_reached = False  # True when limit reached for position
-        self.current_game = None  # latest position being analysed
+        self.current_game: chess.Board | None = None  # latest position being analysed
         self.delay = delay
         self._running = False
-        self._task = None
-        self._analysis_data = None  # InfoDict list
+        self._task: asyncio.Task[None] | None = None
+        self._analysis_data: list[InfoDict] | None = None
         self.loop = loop  # main loop everywhere
         self.whoami = engine_debug_name  # picotutor or engine
-        self.limit = None  # limit for analysis - set in start
-        self.multipv = None  # multipv for analysis - set in start
+        self.limit: Limit | None = None  # limit for analysis - set in start
+        self.multipv: int | None = None  # multipv for analysis - set in start
         self._analysis_started_ts: float | None = None
         self._active_analysis: AnalysisResult | None = None
         self._ready_ping_task: asyncio.Task | None = None
@@ -614,7 +614,7 @@ class ContinuousAnalysis:
         finally:
             self._waiting_for_lease = False
         recovery_reason = ""
-        analysis = None
+        analysis: AnalysisResult | None = None
         # Track whether _safe_stop() was already called for this analysis session.
         # _safe_stop() calls analysis.wait() which transitions the command to FINISHED.
         # If the caller then also calls analysis.stop() (as the old `with` __aexit__ did),
@@ -659,8 +659,11 @@ class ContinuousAnalysis:
             # __aexit__ always calls analysis.stop().  After _safe_stop() that is a
             # double-stop on a FINISHED command → stale StopCommand → engine hang.
             # We manage cleanup ourselves in the outer finally instead.
+            current_game = self.current_game
+            if current_game is None:
+                return
             analysis = await self.engine.analysis(
-                board=self.current_game, limit=limit, multipv=multipv, game=self.game_id
+                board=current_game, limit=limit, multipv=multipv, game=self.game_id
             )
             self._active_analysis = analysis
             if not self._running or self.engine_lease.interrupt_requested("continuous"):
@@ -681,6 +684,8 @@ class ContinuousAnalysis:
                         if (
                             not self._running
                             or self.current_game_id != self.game_id
+                            or self.current_game is None
+                            or self.game is None
                             or self.current_game.fen() != self.game.fen()
                             or self.engine_lease.interrupt_requested("continuous")
                         ):
@@ -695,9 +700,13 @@ class ContinuousAnalysis:
                         #  self.debug_analyser()  # normally commented out
                         if limit:
                             # @todo change 0 to -1 to get all multipv finished
-                            info_limit: InfoDict = self._analysis_data[0]
-                            if "depth" in info_limit and limit.depth:
-                                if info_limit.get("depth") >= limit.depth:
+                            analysis_data = self._analysis_data
+                            if not analysis_data:
+                                continue
+                            info_limit: InfoDict = analysis_data[0]
+                            depth = info_limit.get("depth")
+                            if depth is not None and limit.depth is not None:
+                                if depth >= limit.depth:
                                     self.limit_reached = True
                                     return  # limit reached
                     await asyncio.sleep(self.delay)  # save cpu
@@ -761,7 +770,7 @@ class ContinuousAnalysis:
             result = True
         return result
 
-    def _game_analysable(self, game: chess.Board) -> bool:
+    def _game_analysable(self, game: chess.Board | None) -> bool:
         """return True if game is analysable"""
         if game is None:
             return False
@@ -904,7 +913,7 @@ class ContinuousAnalysis:
         async with self.lock:
             result = {
                 "info": copy.deepcopy(self._analysis_data),
-                "fen": copy.deepcopy(self.current_game.fen()),
+                "fen": copy.deepcopy(self.current_game.fen()) if self.current_game else "",
                 "game": self.current_game_id,
             }
             return result
@@ -966,7 +975,7 @@ class PlayingContinuousAnalysis:
     ):
         self.engine = engine
         self.loop = loop
-        self.latest_info = {}
+        self.latest_info: InfoDict = {}
         self.latest_fen: str = ""
         self._waiting = False
         self._task: asyncio.Task | None = None
@@ -1259,8 +1268,8 @@ class UciEngine(object):
         self.engine_name = "NN"
         self.engine_name_override: str | None = None
         self.mame_capabilities = MameCapabilities()
-        self.options: dict = {}
-        self.res: PlayResult = None
+        self.options: dict[str, Any] = {}
+        self.res: PlayResult | None = None
         self.level_support = False
         self.whoami = engine_debug_name
         self.engine_lock = asyncio.Lock()
@@ -1652,7 +1661,11 @@ class UciEngine(object):
         """Set OptionName with value."""
         self.options[name] = value
 
-    def filter_options(self, wanted: dict, allowed: dict) -> dict:
+    def filter_options(
+        self,
+        wanted: Mapping[str, Any],
+        allowed: Mapping[str, object],
+    ) -> dict[str, Any]:
         """
         Return a new dict containing only the keys from `wanted`
         that are present in `allowed`.
@@ -2116,6 +2129,8 @@ class UciEngine(object):
                         return False
                     if not self.playing:
                         logger.debug("%s cannot start analysis - playing engine not initialised", self.whoami)
+                    elif self.analyser is None:
+                        logger.debug("%s cannot start analysis - analyser not initialised", self.whoami)
                     elif not self.playing.is_waiting_for_move():
                         self.analyser.start(game, limit=limit, multipv=multipv)
                     else:
@@ -2127,7 +2142,7 @@ class UciEngine(object):
 
     def is_analyser_running(self) -> bool:
         """check if analyser is running"""
-        return self.analyser and self.analyser.is_running()
+        return self.analyser is not None and self.analyser.is_running()
 
     def is_analyser_running_for(self, game: chess.Board) -> bool:
         """Return whether ContinuousAnalysis is running for this exact position."""
@@ -2141,7 +2156,7 @@ class UciEngine(object):
     async def get_thinking_analysis(self, game: chess.Board) -> dict:
         """get analysis info from playing engine - returns dict with info and fen"""
         # failed answer is empty lists
-        result = {"info": [], "fen": ""}
+        result: dict[str, object] = {"info": [], "fen": ""}
         if self.playing and self.playing.is_waiting_for_move():
             latest = await self.playing.get_analysis()
             info_dict = latest.get("info") if latest else {}

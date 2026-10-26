@@ -26,11 +26,11 @@ from typing import Any, Literal
 
 import chess
 import chess.pgn
-import websockets
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import ToolAnnotations
-from websockets.asyncio.client import connect as websocket_connect
+import websockets  # type: ignore[import-not-found]
+from mcp.server.mcpserver import MCPServer  # type: ignore[import-not-found]
+from mcp.server.mcpserver.exceptions import ToolError  # type: ignore[import-not-found]
+from mcp.types import ToolAnnotations  # type: ignore[import-not-found]
+from websockets.asyncio.client import connect as websocket_connect  # type: ignore[import-not-found]
 
 PICOCHESS_URL = os.environ.get("PICOCHESS_URL", "http://localhost:8080").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = 5.0
@@ -153,7 +153,9 @@ def _game_result(message: dict) -> str:
 
 def _same_position(fen_a: str | None, fen_b: str | None) -> bool:
     """Compare placement, side to move and castling; PicoChess FEN variants differ in en passant."""
-    return bool(fen_a and fen_b) and fen_a.split(" ")[:3] == fen_b.split(" ")[:3]
+    if not fen_a or not fen_b:
+        return False
+    return fen_a.split(" ")[:3] == fen_b.split(" ")[:3]
 
 
 async def _websocket_snapshot(analysis_fen: str | None = None) -> list[dict]:
@@ -243,7 +245,7 @@ def _assessment(centipawns: int | None, mate: int | None) -> str:
     return f"{'White' if pawns > 0 else 'Black'} is better by about {abs(pawns):.1f} pawns"
 
 
-_USER_COLORS = {"user_white": chess.WHITE, "user_black": chess.BLACK}
+_USER_COLORS: dict[str, chess.Color] = {"user_white": chess.WHITE, "user_black": chess.BLACK}
 _PLAYING_MODES = ("normal", "brain", "training")
 # Menu names for interaction modes whose internal names differ.
 _MODE_LABELS = {"ponder": "analysis", "analysis": "move hint", "kibitz": "eval score"}
@@ -273,6 +275,12 @@ def _tutor_summary(settings: dict, info: dict) -> dict[str, str | bool]:
 
 def _mode_label(mode: str | None) -> str:
     return _MODE_LABELS.get(mode or "", mode or "unknown")
+
+
+def _user_color(info: dict) -> chess.Color | None:
+    """Return the configured user colour when PicoChess reports a known play mode."""
+    play_mode = info.get("play_mode")
+    return _USER_COLORS.get(play_mode) if isinstance(play_mode, str) else None
 
 
 def _game_from_message(message: dict) -> chess.pgn.Game:
@@ -383,7 +391,7 @@ def _color_name(color: chess.Color) -> str:
 def _game_status(board: chess.Board, result: str, info: dict) -> str:
     """Describe whose turn it is in words the user can act on."""
     mode = info.get("interaction_mode")
-    user_color = _USER_COLORS.get(info.get("play_mode"))
+    user_color = _user_color(info)
     if result != "*":
         return f"game over ({result})"
     if mode not in _PLAYING_MODES or user_color is None:
@@ -686,7 +694,7 @@ async def get_game() -> dict[str, Any]:
     # Outside the playing modes there is no user-versus-engine side to name.
     user_color = None
     if info.get("interaction_mode") in _PLAYING_MODES:
-        user_color = _USER_COLORS.get(info.get("play_mode"))
+        user_color = _user_color(info)
 
     last_move = None
     last_move_by = None
@@ -720,10 +728,10 @@ async def get_game() -> dict[str, Any]:
     tutor_active = settings.get("tutor_watcher") and info.get("interaction_mode") != "ponder"
     if rated and (rated[-1] in marks or tutor_active):
         before, move = played[rated[-1]]
-        mark = marks.get(rated[-1])
+        last_mark = marks.get(rated[-1])
         tutor_last_rating = {"move": _move_label(before, move), "rating": "no remark"}
-        if mark:
-            tutor_last_rating.update(mark)
+        if last_mark:
+            tutor_last_rating.update(last_mark)
 
     return {
         "status": _game_status(board, result, info),
@@ -758,7 +766,7 @@ async def get_hint() -> dict[str, str | int | None]:
     board, info, analysis = await _current_analysis()
     user_color = None
     if info.get("interaction_mode") in _PLAYING_MODES:
-        user_color = _USER_COLORS.get(info.get("play_mode"))
+        user_color = _user_color(info)
     if user_color is not None and board.turn != user_color:
         raise ToolError("It is the engine's turn; a hint is for the user's move.")
     pv = analysis.get("pv") or []
@@ -844,7 +852,7 @@ async def get_evaluation() -> dict[str, str | int | None]:
         "to_move": _color_name(board.turn),
     }
     if info.get("interaction_mode") in _PLAYING_MODES:
-        user_color = _USER_COLORS.get(info.get("play_mode"))
+        user_color = _user_color(info)
         if user_color is not None and centipawns is not None:
             result["centipawns_for_you"] = centipawns if user_color == chess.WHITE else -centipawns
     return result
@@ -933,7 +941,7 @@ async def pause_resume_clock(action: Literal["pause", "resume"]) -> dict[str, st
     """
     info = await _system_info()
     message = await _last_move_message()
-    user_color = _USER_COLORS.get(info.get("play_mode"))
+    user_color = _user_color(info)
     if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
         raise ToolError(f"The clock is paused and resumed only in a playing mode, not {_mode_label(info.get('interaction_mode'))} mode.")
     # Fixed, depth and nodes modes never run PicoChess's game clock, so pause_resume
@@ -990,7 +998,7 @@ async def force_engine_move() -> dict[str, str | None]:
     """
     info = await _system_info()
     message = await _last_move_message()
-    user_color = _USER_COLORS.get(info.get("play_mode"))
+    user_color = _user_color(info)
     if info.get("interaction_mode") not in _PLAYING_MODES or user_color is None:
         raise ToolError(f"The engine plays a move only in a playing mode, not {_mode_label(info.get('interaction_mode'))} mode.")
     result = _game_result(message)
@@ -1144,14 +1152,14 @@ async def play_as(color: Literal["white", "black"]) -> dict[str, Any]:
         )
     wanted = chess.WHITE if color == "white" else chess.BLACK
     board = _game_from_message(await _last_move_message()).end().board()
-    if _USER_COLORS.get(info.get("play_mode")) == wanted:
+    if _user_color(info) == wanted:
         status = f"you already play {color}"
         switched = False
     else:
         # The web client's Switch sides button acts like the clock's lever.
         await _post_channel_action({"action": "clockbutton", "button": "64"})
         info = await _wait_until(
-            _system_info, lambda i: _USER_COLORS.get(i.get("play_mode")) == wanted, f"switch you to {color}"
+            _system_info, lambda i: _user_color(i) == wanted, f"switch you to {color}"
         )
         status = f"you now play {color}"
         switched = True
@@ -1233,7 +1241,7 @@ async def set_time_control(
 
     info, message = await asyncio.gather(_system_info(), _last_move_message())
     board = _game_from_message(message).end().board()
-    user_color = _USER_COLORS.get(info.get("play_mode"))
+    user_color = _user_color(info)
     engine_turn = (
         info.get("interaction_mode") in _PLAYING_MODES
         and user_color is not None
@@ -1424,7 +1432,7 @@ async def take_back(half_moves: int | None = None) -> dict[str, Any]:
     if not played:
         raise ToolError("There are no moves to take back.")
     if half_moves is None:
-        user_color = _USER_COLORS.get(info.get("play_mode")) if info.get("interaction_mode") in _PLAYING_MODES else None
+        user_color = _user_color(info) if info.get("interaction_mode") in _PLAYING_MODES else None
         if user_color is None:
             half_moves = 1
         else:
@@ -1567,7 +1575,7 @@ async def set_mode(mode: Literal["play", "analysis"], keep_analysis_position: bo
             status += ", continuing from the analysed position"
 
     board = _game_from_message(await _last_move_message()).end().board()
-    user_color = _USER_COLORS.get(info.get("play_mode")) if mode == "play" else None
+    user_color = _user_color(info) if mode == "play" else None
     if mode == "analysis":
         status += "; enter moves for both sides, the engine analyses without replying"
         if current != target:
@@ -1621,7 +1629,7 @@ async def _return_from_analysis(info: dict) -> dict[str, str | None]:
         info = await _wait_until(_system_info, returned, what)
 
     board = _game_from_message(await _last_move_message()).end().board()
-    user_color = _USER_COLORS.get(info.get("play_mode")) if return_mode in _PLAYING_MODES else None
+    user_color = _user_color(info) if return_mode in _PLAYING_MODES else None
     status = f"returned to the game saved when analysis mode began, in {return_label} mode"
     if user_color is not None:
         status += f"; you play {_color_name(user_color)}"
@@ -1726,7 +1734,7 @@ async def set_position(fen: str) -> dict[str, str | bool | None]:
     # For a MAME engine on its own turn PicoChess rejects Set Pos and treats the request
     # as "move now", so refuse here instead.
     if info.get("is_mame") and info.get("interaction_mode") in _PLAYING_MODES:
-        user_color = _USER_COLORS.get(info.get("play_mode"))
+        user_color = _user_color(info)
         current = _game_from_message(await _last_move_message()).end().board()
         if user_color is not None and current.turn != user_color:
             raise ToolError("With a MAME engine, a position can be set only on your turn. Wait for the engine's move first.")

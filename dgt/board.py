@@ -791,8 +791,8 @@ class DgtBoard(EBoard):
 
                 # set the O_NONBLOCK flag of file descriptor:
                 assert fcntl is not None
-                flags = fcntl(self.btctl.stdout, fcntl.F_GETFL)
-                fcntl(self.btctl.stdout, fcntl.F_SETFL, flags | O_NONBLOCK)
+                flags = fcntl.fcntl(self.btctl.stdout, fcntl.F_GETFL)
+                fcntl.fcntl(self.btctl.stdout, fcntl.F_SETFL, flags | O_NONBLOCK)
 
                 self.btctl.stdin.write("power on\n")
                 self.btctl.stdin.flush()

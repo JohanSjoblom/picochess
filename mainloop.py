@@ -322,7 +322,7 @@ class MainLoop:
         self.login = login
         self.state = state
         self.pgn_display = pgn_display
-        self.engine = None  # placeholder for UciEngine
+        self.engine: UciEngine | None = None
         self.state.fen_timer = None  # this and next line could be removed?
         self.state.fen_timer_running = False  # already set in picostate init
         self.args = args
@@ -364,7 +364,10 @@ class MainLoop:
             # The ini may name the engine by a relative path, as on Windows. Use the
             # catalog's absolute path so exact engine-file lookups, such as the
             # configured engine level and the engine Elo, find it.
-            self.state.engine_file = EngineProvider.resolve_engine(self.state.engine_file)["file"]
+            resolved_engine = EngineProvider.resolve_engine(self.state.engine_file)
+            if resolved_engine is None:
+                raise RuntimeError(f"installed engine disappeared from catalog: {self.state.engine_file}")
+            self.state.engine_file = resolved_engine["file"]
         else:
             resolved_engine = EngineProvider.resolve_engine(self.state.engine_file)
             if resolved_engine is None:
@@ -424,6 +427,25 @@ class MainLoop:
         # Register signal handlers for kill signal
         signal.signal(signal.SIGTERM, self.exit_sigterm)
         signal.signal(signal.SIGINT, self.exit_sigterm)
+
+    def _require_engine(self) -> UciEngine:
+        """Return the loaded engine after startup has completed."""
+        engine = getattr(self, "engine", None)
+        if engine is None:
+            raise RuntimeError("engine is not loaded")
+        return engine
+
+    def _require_picotutor(self) -> PicoTutor:
+        """Return PicoTutor in code paths that require its initialized state."""
+        if self.state.picotutor is None:
+            raise RuntimeError("PicoTutor is not initialized")
+        return self.state.picotutor
+
+    def _require_time_control(self) -> TimeControl:
+        """Return the time control after startup has initialized it."""
+        if self.state.time_control is None:
+            raise RuntimeError("time control is not initialized")
+        return self.state.time_control
 
     async def display_ip_info(self):
         """Fire an IP_INFO message with the IP adr."""
@@ -749,14 +771,15 @@ class MainLoop:
 
     async def _prepare_engine_for_search(self, search_revision: int) -> bool | None:
         """Stop an obsolete playing search without waiting forever."""
+        engine = self._require_engine()
         if search_revision != self.state.engine_search_revision:
             return None
-        if self.engine.is_waiting():
+        if engine.is_waiting():
             return True
 
         logger.warning("engine still busy before new search; requesting stop")
-        await self.engine.stop()
-        idle = await self.engine.wait_until_idle(ENGINE_SEARCH_IDLE_TIMEOUT)
+        await engine.stop()
+        idle = await engine.wait_until_idle(ENGINE_SEARCH_IDLE_TIMEOUT)
         if search_revision != self.state.engine_search_revision:
             return None
         if idle:
@@ -766,7 +789,7 @@ class MainLoop:
             "engine did not become idle after %.1fs; cancelling old search",
             ENGINE_SEARCH_IDLE_TIMEOUT,
         )
-        idle = await self.engine.cancel_playing_search(ENGINE_SEARCH_CANCEL_TIMEOUT)
+        idle = await engine.cancel_playing_search(ENGINE_SEARCH_CANCEL_TIMEOUT)
         if search_revision != self.state.engine_search_revision:
             return None
         return idle
@@ -868,13 +891,15 @@ class MainLoop:
             if search_revision != self.state.engine_search_revision:
                 logger.info("skipping superseded engine search revision %s", search_revision)
                 return
+            engine = self._require_engine()
+            time_control = self._require_time_control()
             if not self.online_mode() or self.state.game.fullmove_number > 1:
                 # The engine's clock runs from here: send go() without waiting for the clock to settle.
                 await self.state.start_clock(settle=False)
             if search_revision != self.state.engine_search_revision:
                 logger.info("skipping superseded engine search revision %s", search_revision)
                 return
-            uci_dict = self.state.time_control.uci()
+            uci_dict = time_control.uci()
             if searchlist:
                 # molli: otherwise might lead to problems with internal books
                 root_moves = self.state.searchmoves.all(self.state.game)
@@ -884,7 +909,7 @@ class MainLoop:
                 # engine moves are received here
                 # webplay: Event.BEST_MOVE pushes the move on display
                 # dgt board: BEST_MOVE 1) informs 2) user moves, 3) dgt event to process_fen() push
-                result_queue = asyncio.Queue()  # engines move result
+                result_queue: asyncio.Queue[PlayResult | None] = asyncio.Queue()
                 # For variant chess, pass the variant board to engine for correct FEN
                 variant_board = None
                 if self.state.variant == "3check" and self.state._threecheck_board is not None:
@@ -898,7 +923,7 @@ class MainLoop:
                 if search_revision != self.state.engine_search_revision:
                     logger.info("skipping superseded engine search revision %s", search_revision)
                     return
-                search_started = await self.engine.go(
+                search_started = await engine.go(
                     time_dict=uci_dict,
                     game=self.state.game,
                     result_queue=result_queue,
@@ -912,9 +937,9 @@ class MainLoop:
                     # or the engine switch decides what happens next.
                     logger.warning("engine search revision %s was not started", search_revision)
                     return
-                engine_res: PlayResult = await result_queue.get()  # on engine error its None
+                engine_res = await result_queue.get()
                 if engine_res:
-                    logger.debug("engine moved %s", engine_res.move.uci())
+                    logger.debug("engine moved %s", engine_res.move.uci() if engine_res.move else "0000")
                     if self.state.ignore_next_engine_move:
                         self.state.ignore_next_engine_move = False  # make sure we handle next move
                         logger.debug("ignored engine move - takeback or state change forced move")
@@ -990,15 +1015,16 @@ class MainLoop:
 
     async def stop_search(self, timeout: float = ENGINE_SEARCH_IDLE_TIMEOUT) -> bool:
         """Stop current search."""
-        if not await self.engine.stop():
+        engine = self._require_engine()
+        if not await engine.stop():
             logger.error("engine search stop aborted because analysis did not stop cleanly")
             return False
-        if self.engine.consume_forced_analyser_stop():
+        if engine.consume_forced_analyser_stop():
             logger.debug("forced analyser stop detected - resetting best depth cache")
             self.state.best_sent_depth.reset()
         if self.emulation_mode():
             return True
-        idle = await self.engine.wait_until_idle(timeout)
+        idle = await engine.wait_until_idle(timeout)
         if not idle:
             logger.warning("engine still not idle after %.1fs", timeout)
         return idle
@@ -1213,7 +1239,7 @@ class MainLoop:
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
             return
 
-        best_move = await self.state.picotutor.get_best_move_for_piece_type(piece_type)
+        best_move = await self._require_picotutor().get_best_move_for_piece_type(piece_type)
         if best_move is None:
             self.state.last_hand_coach_move = None
             await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="HAND_NOPIECE"))
@@ -1230,14 +1256,15 @@ class MainLoop:
         await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="BEST" + san_move, game=game_tutor))
 
     def _piece_type_name(self, piece_type: chess.PieceType | None) -> str:
-        return {
+        piece_names: dict[chess.PieceType, str] = {
             chess.PAWN: "PAWN",
             chess.KNIGHT: "KNIGHT",
             chess.BISHOP: "BISHOP",
             chess.ROOK: "ROOK",
             chess.QUEEN: "QUEEN",
             chess.KING: "KING",
-        }.get(piece_type, "PAWN")
+        }
+        return piece_names.get(piece_type, "PAWN") if piece_type is not None else "PAWN"
 
     def _user_turn_and_alive(self) -> bool:
         return (
@@ -1502,15 +1529,16 @@ class MainLoop:
         """tutor is either off sync or we are starting from a new position
         set tutor back to same position as main board game"""
         if self.picotutor_mode():
+            picotutor = self._require_picotutor()
             # An announced physical-board engine move may not have been pushed
             # into state.game yet.  In that case the caller supplies the
             # already-advanced position that PicoTutor must analyse.
             target_position = position if position is not None else self.state.game
-            await self.state.picotutor.set_position(target_position.copy(), new_game=new_game)
+            await picotutor.set_position(target_position.copy(), new_game=new_game)
             if self.state.play_mode == PlayMode.USER_BLACK:
-                await self.state.picotutor.set_user_color(chess.BLACK, self.pgn_mode() or not self.eng_plays())
+                await picotutor.set_user_color(chess.BLACK, self.pgn_mode() or not self.eng_plays())
             else:
-                await self.state.picotutor.set_user_color(chess.WHITE, self.pgn_mode() or not self.eng_plays())
+                await picotutor.set_user_color(chess.WHITE, self.pgn_mode() or not self.eng_plays())
 
     def picotutor_mode(self):
         enabled = False
@@ -1651,7 +1679,12 @@ class MainLoop:
             else:
                 self.shared.pop("checks_remaining", None)
 
-    def _prepare_engine_move(self, game_copy: chess.Board, move: chess.Move, pb_move: chess.Move = None) -> None:
+    def _prepare_engine_move(
+        self,
+        game_copy: chess.Board,
+        move: chess.Move,
+        pb_move: chess.Move | None = None,
+    ) -> None:
         """Record an announced engine move: set done_computer_fen, done_move, pb_move, legal_fens_after_cmove.
 
         game_copy must already have move pushed onto it.
@@ -1682,7 +1715,7 @@ class MainLoop:
             elif preserve_play_mode:
                 logger.debug("preserving play mode: %s", self.state.play_mode)
                 if self.picotutor_mode():
-                    await self.state.picotutor.set_user_color(
+                    await self._require_picotutor().set_user_color(
                         self.state.get_user_color(), self.pgn_mode() or not self.eng_plays()
                     )
             else:
@@ -1694,7 +1727,7 @@ class MainLoop:
                     logger.debug("new play mode: %s", self.state.play_mode)
                     text = self.state.play_mode.value  # type: str
                     if self.picotutor_mode():
-                        await self.state.picotutor.set_user_color(
+                        await self._require_picotutor().set_user_color(
                             self.state.get_user_color(), self.pgn_mode() or not self.eng_plays()
                         )
                     await DisplayMsg.show(
@@ -1703,7 +1736,7 @@ class MainLoop:
                         )
                     )
         if start_search:
-            if not self.engine.is_waiting():
+            if not self._require_engine().is_waiting():
                 logger.warning("engine not waiting")
             # Go back to analysing or observing - all modes except REMOTE?
             if self.state.interaction_mode in (
@@ -1748,9 +1781,10 @@ class MainLoop:
             return False
 
         self.state.mame_recovery_rebase_pending = False
-        capabilities = self.engine.get_mame_capabilities()
+        engine = self._require_engine()
+        capabilities = engine.get_mame_capabilities()
         if not mame_requires_fresh_fen_root(
-            self.engine.is_mame_engine(),
+            engine.is_mame_engine(),
             capabilities.position,
             capabilities.edit,
         ):
@@ -2079,11 +2113,11 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_posted_engine_move(
+                            await self._require_picotutor().pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
-                        await self.state.picotutor.pop_last_move(self.state.game)  # no switch of sides
+                        await self._require_picotutor().pop_last_move(self.state.game)  # no switch of sides
                     logger.info("user move in computer turn, reverting to: %s", self.state.game.fen())
                 elif self.state.done_computer_fen:
                     self.state.done_computer_fen = None
@@ -2091,11 +2125,11 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_posted_engine_move(
+                            await self._require_picotutor().pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
-                        await self.state.picotutor.pop_last_move(self.state.game)  # no switch of sides
+                        await self._require_picotutor().pop_last_move(self.state.game)  # no switch of sides
                     logger.info(
                         "user move while computer move is displayed, reverting to: %s",
                         self.state.game.fen(),
@@ -2108,11 +2142,11 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_posted_engine_move(
+                            await self._require_picotutor().pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
-                        await self.state.picotutor.pop_last_move(self.state.game)
+                        await self._require_picotutor().pop_last_move(self.state.game)
                     logger.info("user move in remote turn, reverting to: %s", self.state.game.fen())
                 elif self.state.done_computer_fen:
                     self.state.done_computer_fen = None
@@ -2120,11 +2154,11 @@ class MainLoop:
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:
-                            await self.state.picotutor.pop_posted_engine_move(
+                            await self._require_picotutor().pop_posted_engine_move(
                                 self.state.game
                             )  # bestmove already sent to tutor
                             self.state.best_move_posted = False
-                        await self.state.picotutor.pop_last_move(self.state.game)
+                        await self._require_picotutor().pop_last_move(self.state.game)
                     logger.info(
                         "user move while remote move is displayed, reverting to: %s",
                         self.state.game.fen(),
@@ -2136,9 +2170,9 @@ class MainLoop:
                 self.state.pop_move()
                 if self.picotutor_mode():
                     if self.state.best_move_posted:
-                        await self.state.picotutor.pop_posted_engine_move(self.state.game)  # bestmove already sent to tutor
+                        await self._require_picotutor().pop_posted_engine_move(self.state.game)  # bestmove already sent to tutor
                         self.state.best_move_posted = False
-                    await self.state.picotutor.pop_last_move(self.state.game)
+                    await self._require_picotutor().pop_last_move(self.state.game)
                     # just to be sure set fen pos.
                     # @todo - check valid here - dont reset position if valid
                     await self.set_picotutor_position()
@@ -2260,7 +2294,7 @@ class MainLoop:
             logger.info("user did a move for pico")
             if self.state.best_move_posted and self.picotutor_mode():
                 # issue 86 - user force alt direct move for pico - pop comp move
-                valid = await self.state.picotutor.pop_last_move(self.state.game)
+                valid = await self._require_picotutor().pop_last_move(self.state.game)
             else:
                 valid = True
             # if valid is True tutor board and game are in sync (no comp move)
@@ -2271,7 +2305,7 @@ class MainLoop:
             self._update_variant_shared()
             if self.picotutor_mode():
                 if valid:
-                    valid = await self.state.picotutor.push_move(self.state.done_move, self.state.game)
+                    valid = await self._require_picotutor().push_move(self.state.done_move, self.state.game)
                 if not valid:
                     await self.set_picotutor_position()
             self.state.done_computer_fen = None
@@ -2288,20 +2322,21 @@ class MainLoop:
                 await self._show_game_end(game_end, game_generation)
             else:
                 self.state.searchmoves.reset()
-                self.state.time_control.add_time(not self.state.game.turn)
+                time_control = self._require_time_control()
+                time_control.add_time(not self.state.game.turn)
 
                 # molli new tournament time control
                 if (
-                    self.state.time_control.moves_to_go_orig > 0
-                    and (self.state.game.fullmove_number - 1) == self.state.time_control.moves_to_go_orig
+                    time_control.moves_to_go_orig > 0
+                    and (self.state.game.fullmove_number - 1) == time_control.moves_to_go_orig
                 ):
-                    self.state.time_control.add_game2(not self.state.game.turn)
+                    time_control.add_game2(not self.state.game.turn)
                     t_player = False
                     msg = Message.TIMECONTROL_CHECK(
                         player=t_player,
-                        movestogo=self.state.time_control.moves_to_go_orig,
-                        time1=self.state.time_control.game_time,
-                        time2=self.state.time_control.game_time2,
+                        movestogo=time_control.moves_to_go_orig,
+                        time1=time_control.game_time,
+                        time2=time_control.game_time2,
                     )
                     await DisplayMsg.show(msg)
 
@@ -2396,7 +2431,7 @@ class MainLoop:
                 end_time_cmove_done = time.time()
                 cmove_time = math.floor(end_time_cmove_done - self.state.start_time_cmove_done)
                 if cmove_time > 0:
-                    self.state.time_control.sub_online_time(self.state.game.turn, cmove_time)
+                    self._require_time_control().sub_online_time(self.state.game.turn, cmove_time)
                 cmove_time = 0
                 self.state.start_time_cmove_done = 0
 
@@ -2417,20 +2452,21 @@ class MainLoop:
             else:
                 self.state.searchmoves.reset()
 
-                self.state.time_control.add_time(not self.state.game.turn)
+                time_control = self._require_time_control()
+                time_control.add_time(not self.state.game.turn)
 
                 # molli new tournament time control
                 if (
-                    self.state.time_control.moves_to_go_orig > 0
-                    and (self.state.game.fullmove_number - 1) == self.state.time_control.moves_to_go_orig
+                    time_control.moves_to_go_orig > 0
+                    and (self.state.game.fullmove_number - 1) == time_control.moves_to_go_orig
                 ):
-                    self.state.time_control.add_game2(not self.state.game.turn)
+                    time_control.add_game2(not self.state.game.turn)
                     t_player = False
                     msg = Message.TIMECONTROL_CHECK(
                         player=t_player,
-                        movestogo=self.state.time_control.moves_to_go_orig,
-                        time1=self.state.time_control.game_time,
-                        time2=self.state.time_control.game_time2,
+                        movestogo=time_control.moves_to_go_orig,
+                        time1=time_control.game_time,
+                        time2=time_control.game_time2,
                     )
                     await DisplayMsg.show(msg)
 
@@ -2489,19 +2525,20 @@ class MainLoop:
             self.state.best_move_posted = False
             self.state.searchmoves.reset()
 
-            self.state.time_control.add_time(not self.state.game.turn)
+            time_control = self._require_time_control()
+            time_control.add_time(not self.state.game.turn)
             # molli new tournament time control
             if (
-                self.state.time_control.moves_to_go_orig > 0
-                and (self.state.game.fullmove_number - 1) == self.state.time_control.moves_to_go_orig
+                time_control.moves_to_go_orig > 0
+                and (self.state.game.fullmove_number - 1) == time_control.moves_to_go_orig
             ):
-                self.state.time_control.add_game2(not self.state.game.turn)
+                time_control.add_game2(not self.state.game.turn)
                 t_player = False
                 msg = Message.TIMECONTROL_CHECK(
                     player=t_player,
-                    movestogo=self.state.time_control.moves_to_go_orig,
-                    time1=self.state.time_control.game_time,
-                    time2=self.state.time_control.game_time2,
+                    movestogo=time_control.moves_to_go_orig,
+                    time1=time_control.game_time,
+                    time2=time_control.game_time2,
                 )
                 await DisplayMsg.show(msg)
 
@@ -2560,9 +2597,9 @@ class MainLoop:
 
                             if self.picotutor_mode():
                                 if self.state.best_move_posted:  # molli computer move already sent to tutor!
-                                    await self.state.picotutor.pop_posted_engine_move(self.state.game)
+                                    await self._require_picotutor().pop_posted_engine_move(self.state.game)
                                     self.state.best_move_posted = False
-                                await self.state.picotutor.pop_last_move(self.state.game)
+                                await self._require_picotutor().pop_last_move(self.state.game)
 
                         # its a complete new pos, delete saved values
                         self.state.done_computer_fen = None
@@ -2685,6 +2722,8 @@ class MainLoop:
         pending_picotutor_msgs: list[tuple[Message, float | None]] = []
         continuation_events = []
         opening_handled_before_search = False
+        info_list: list[InfoDict] | None = None
+        analysed_fen = ""
 
         self.state.take_back_locked = False
 
@@ -2755,8 +2794,8 @@ class MainLoop:
             if not self.eng_plays():
                 ponder_hit = False
                 # which analyser to use? same logic as in analyse() - try tutor first
-                if self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser():
-                    play_result = await self.state.picotutor.get_analysis_chosen_move(move)
+                if self.is_coach_analyser() and self._require_picotutor().can_use_coach_analyser():
+                    play_result = await self._require_picotutor().get_analysis_chosen_move(move)
                     if play_result.info:
                         # ponder hit from tutor list - make an info_list to trigger ponder hit below
                         info_list = [play_result.info]  # construct a list for "pv first" below
@@ -2765,9 +2804,9 @@ class MainLoop:
                     analysed_fen = getattr(play_result, "analysed_fen", "")
                 else:
                     # tutor not replacing engine analysis, so try normal engine analysis
-                    info_result = await self.engine.get_analysis(self.state.game)
-                    info_list: list[InfoDict] | None = info_result.get("info")
-                    analysed_fen = info_result.get("fen")
+                    info_result = await self._require_engine().get_analysis(self.state.game)
+                    info_list = info_result.get("info")
+                    analysed_fen = str(info_result.get("fen") or "")
                 if info_list:
                     info = info_list[0]  # pv first
                     if info and "pv" in info:
@@ -2803,25 +2842,26 @@ class MainLoop:
                 in (Mode.NORMAL, Mode.BRAIN, Mode.OBSERVE, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
                 and not sliding
             ):
-                self.state.time_control.add_time(self.state.game.turn)
+                time_control = self._require_time_control()
+                time_control.add_time(self.state.game.turn)
                 # molli new tournament time control
                 if (
-                    self.state.time_control.moves_to_go_orig > 0
-                    and self.state.game.fullmove_number == self.state.time_control.moves_to_go_orig
+                    time_control.moves_to_go_orig > 0
+                    and self.state.game.fullmove_number == time_control.moves_to_go_orig
                 ):
-                    self.state.time_control.add_game2(self.state.game.turn)
+                    time_control.add_game2(self.state.game.turn)
                     t_player = True
                     msg = Message.TIMECONTROL_CHECK(
                         player=t_player,
-                        movestogo=self.state.time_control.moves_to_go_orig,
-                        time1=self.state.time_control.game_time,
-                        time2=self.state.time_control.game_time2,
+                        movestogo=time_control.moves_to_go_orig,
+                        time1=time_control.game_time,
+                        time2=time_control.game_time2,
                     )
                     await DisplayMsg.show(msg)
                 if self.online_mode():
                     # molli for online pseudo time sync
                     if self.state.online_decrement > 0:
-                        self.state.time_control.sub_online_time(self.state.game.turn, self.state.online_decrement)
+                        time_control.sub_online_time(self.state.game.turn, self.state.online_decrement)
 
             #
             # Remember game_before user move for picotutor thread
@@ -2856,9 +2896,11 @@ class MainLoop:
             #
             eval_str = ""
             if self.picotutor_mode() and not self.state.position_mode:
+                assert self.state.picotutor is not None
                 l_mate = ""
                 t_hint_move = chess.Move.null()
                 valid = await self.state.picotutor.push_move(move, self.state.game)
+                picotutor = self.state.picotutor
                 regenerate_pgn_replay_tutor = (
                     self.state.interaction_mode != Mode.PGNREPLAY
                     or self.state.pgn_replay_tutor_regeneration
@@ -2866,7 +2908,7 @@ class MainLoop:
                 # get evalutaion result and give user feedback
                 if self.state.dgtmenu.get_picowatcher() and regenerate_pgn_replay_tutor:
                     if valid:
-                        eval_str, l_mate = self.state.picotutor.get_user_move_eval(
+                        eval_str, l_mate = picotutor.get_user_move_eval(
                             allow_low_depth_blunder=self.emulation_mode()
                         )
                     else:
@@ -2899,7 +2941,7 @@ class MainLoop:
                         (
                             t_hint_move,
                             t_pv_user_move,
-                        ) = self.state.picotutor.get_user_move_info()
+                        ) = picotutor.get_user_move_info()
 
                         try:
                             # move 0 was bad because of threat 1 response
@@ -3121,7 +3163,7 @@ class MainLoop:
 
                 if self.state.dgtmenu.get_picocomment() != PicoComment.COM_OFF and not game_end:
                     game_comment = ""
-                    game_comment = self.state.picotutor.get_game_comment(
+                    game_comment = self._require_picotutor().get_game_comment(
                         pico_comment=self.state.dgtmenu.get_picocomment(),
                         com_factor=self.state.dgtmenu.get_comment_factor(),
                     )
@@ -3136,7 +3178,7 @@ class MainLoop:
         """Build and cache the opening message for the current tutor position."""
         if not (self.picotutor_mode() and self.state.dgtmenu.get_picoexplorer()):
             return None
-        opening_eco, opening_name, _, opening_in_book = self.state.picotutor.get_opening()
+        opening_eco, opening_name, _, opening_in_book = self._require_picotutor().get_opening()
         if not (opening_in_book and opening_name):
             return None
         logger.debug("opening book set to %s", opening_name)
@@ -3274,7 +3316,7 @@ class MainLoop:
             reason = "Engine Match must be armed from a new starting position"
         elif self.state.play_mode != PlayMode.USER_WHITE:
             reason = "Engine Match must be armed with user White"
-        elif self.state.time_control.mode != TimeMode.FIXED:
+        elif self._require_time_control().mode != TimeMode.FIXED:
             reason = "Engine Match MVP requires fixed move time"
         if reason:
             logger.error("REMOTE not ready: %s", reason)
@@ -3394,7 +3436,10 @@ class MainLoop:
             return False
         engine_thinking = bool(self.engine and self.engine.is_thinking())
         # reverse the first if in analyse(), meaning: it does not use tutor analysis
-        result = not (self.is_coach_analyser() and self.state.picotutor.can_use_coach_analyser())
+        result = not (
+            self.is_coach_analyser()
+            and self._require_picotutor().can_use_coach_analyser()
+        )
         # skip engine analyser when engine is thinking about its move
         # (engine play will get info from PlayingContinuousAnalyser instead)
         result = result and not (self.eng_plays() and not self.state.is_user_turn() and engine_thinking)
@@ -3543,7 +3588,8 @@ class MainLoop:
         # duplicate requests cannot start a second restore concurrently.
         self.state.position_checkpoint_restore_pending = True
         try:
-            if not await self.engine.stop_analysis():
+            engine = self._require_engine()
+            if not await engine.stop_analysis():
                 logger.error("checkpoint restore aborted because engine analysis did not stop cleanly")
                 self.state.position_checkpoint_restore_pending = False
                 return
@@ -3575,7 +3621,7 @@ class MainLoop:
         )
         self.state.legal_fens_after_cmove = []
         self.state.last_legal_fens = []
-        await self.engine.newgame(self.state.engine_board_copy(), False)
+        await engine.newgame(self.state.engine_board_copy(), False)
         await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
         await DisplayMsg.show(self.state.new_game_msg(newgame=False))
 
@@ -3623,7 +3669,7 @@ class MainLoop:
         self.state.legal_fens = compute_legal_fens(self.state.game)
         self.state.legal_fens_after_cmove = []
         self.state.last_legal_fens = []
-        await self.engine.newgame(self.state.engine_board_copy(), False)
+        await self._require_engine().newgame(self.state.engine_board_copy(), False)
         await DisplayMsg.show(Message.WEB_ANALYSIS(analysis=None))
         await DisplayMsg.show(Message.SHOW_TEXT(text_string="NEW_POSITION"))
         await DisplayMsg.show(self.state.new_game_msg(newgame=False))
@@ -3701,10 +3747,11 @@ class MainLoop:
                     logger.warning("engine analysis policy stop remains incomplete")
 
     def debug_pv_info(self, info: InfoDict):
-        if info and "pv" in info and info["pv"]:
+        pv = info.get("pv") if info else None
+        if pv:
             logger.debug(
                 "engine pv move: %s - depth %d - score %s",
-                info.get("pv")[0].uci(),
+                pv[0].uci(),
                 info.get("depth"),
                 str(info["score"]),
             )
@@ -3740,7 +3787,9 @@ class MainLoop:
             if self.state.picotutor is not None:
                 await self.state.picotutor.set_analysis_enabled(False)
             return None
-        tutor_analyser_available = self.state.picotutor.can_use_coach_analyser()
+        picotutor = self._require_picotutor()
+        engine = self._require_engine()
+        tutor_analyser_available = picotutor.can_use_coach_analyser()
         source_action = decide_analysis_source(
             AnalysisSourceContext(
                 tutor_is_primary=self.is_coach_analyser() and tutor_analyser_available,
@@ -3753,19 +3802,19 @@ class MainLoop:
         )
         if source_action == AnalysisSourceAction.TUTOR_PRIMARY:
             # here picotutor engine replaces playing engine analysis to save cpu
-            result = await self.state.picotutor.get_analysis()
+            result = await picotutor.get_analysis()
             info_list = result.get("info")
             info_list_source = "tutor"
             analysed_fen = result.get("fen", "")
             web_tutor_snapshot = WebAnalysisSnapshot(info_list, analysed_fen)
-            if self.state.picotutor.get_board().fen() != self.state.game.fen():
+            if picotutor.get_board().fen() != self.state.game.fen():
                 logger.warning("picotutor board out of sync with game")
             info_list = depth_gated_analysis_info(
                 self.state.best_sent_depth, info_list, analysed_fen, self.state.game
             )
         elif source_action == AnalysisSourceAction.ENGINE_NON_PLAYING:
             # we need to analyse both sides without tutor - use engine analyser
-            result = await self.engine.get_analysis(self.state.game)
+            result = await engine.get_analysis(self.state.game)
             info_list = result.get("info")
             info_list_source = "engine"
             analysed_fen = result.get("fen", "")
@@ -3777,7 +3826,7 @@ class MainLoop:
         else:
             # Issue #109 and #49 before that - how to get engine thinking
             if source_action == AnalysisSourceAction.ENGINE_THINKING:
-                result = await self.engine.get_thinking_analysis(self.state.game)
+                result = await engine.get_thinking_analysis(self.state.game)
                 info_list = result.get("info")
                 info_list_source = "engine-thinking"
                 analysed_fen = result.get("fen", "")
@@ -3787,14 +3836,14 @@ class MainLoop:
                 # selected engine's final playing-search snapshot; do
                 # not start or poll a second deep analyser merely to
                 # refresh the web Engine line.
-                result = await self.state.picotutor.get_analysis()
+                result = await picotutor.get_analysis()
                 info_candidate_list: list[InfoDict] | None = result.get("info")
                 web_tutor_snapshot = WebAnalysisSnapshot(
                     info_candidate_list, result.get("fen", "")
                 )
             elif source_action == AnalysisSourceAction.ENGINE_CURRENT:
                 analysis_board = self.state.get_move_check_board()
-                result = await self.engine.get_analysis(analysis_board)
+                result = await engine.get_analysis(analysis_board)
                 info_list = result.get("info")
                 info_list_source = "engine"
                 analysed_fen = result.get("fen", "")
@@ -3826,15 +3875,15 @@ class MainLoop:
             next_move = self._get_cached_pgn_next_move()
             wait_for_replay_tutor = (
                 self.state.pgn_replay_tutor_regeneration
-                and self.state.picotutor.can_use_coach_analyser()
+                and picotutor.can_use_coach_analyser()
             )
             if self._pgn_next_move_in_book(next_move):
                 await asyncio.sleep(1.0)
                 await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # book move
             elif wait_for_replay_tutor:
                 if analysed_fen == self.state.get_fen():
-                    latest_depth = await self.state.picotutor.get_latest_seen_depth()
-                    min_depth = max(self.state.picotutor.get_applied_deep_depth() - 2, 1)
+                    latest_depth = await picotutor.get_latest_seen_depth()
+                    min_depth = max(picotutor.get_applied_deep_depth() - 2, 1)
                     if latest_depth >= min_depth:
                         await self.autoplay_pgnreplay_move(allow_game_ends=True, next_move=next_move)  # tutor ready
             else:
@@ -3934,7 +3983,7 @@ class MainLoop:
 
     async def autoplay_pgnreplay_move(
         self, allow_game_ends, next_move: chess.Move | None = None
-    ) -> chess.Move:
+    ) -> chess.Move | None:
         """play the next PGN move if one found - return None if next move was found
         for future its allowed to return chess.Move.null() if move not found"""
         if next_move is None:
@@ -3946,7 +3995,7 @@ class MainLoop:
             self.state.autoplay_half_moves = moves_game + 1  # remember last seen autoplay move
         elif allow_game_ends:
             # preferred elif instead of if here to avoid checking end of game often
-            moves_pgn = self.state.picotutor.get_pgn_halfmove_clock()  # slow call
+            moves_pgn = self._require_picotutor().get_pgn_halfmove_clock()  # slow call
             if moves_game == moves_pgn:
                 # signal end of pgn replay game - not using PGN_GAME_ENDS ...
                 # lets first see if we can use same GAME_ENDS as for normal endings
@@ -3959,7 +4008,7 @@ class MainLoop:
                 self.game_end_event()  # sets autoplay to False
                 await DisplayMsg.show(
                     Message.GAME_ENDS(
-                        tc_init=self.state.time_control.get_parameters(),
+                        tc_init=self._require_time_control().get_parameters(),
                         result=result,
                         play_mode=self.state.play_mode,
                         game=self.state.game.copy(),
@@ -4260,6 +4309,8 @@ class MainLoop:
         if l_game_pgn is None:
             logger.warning("No PGN game found in %s", l_filename)
             return
+        engine = self._require_engine()
+        picotutor = self._require_picotutor()
         clear_preserved_mame_history(self.shared)
         loaded_pgn_has_variations = pgn_has_variations(l_game_pgn)
         self.state.loaded_pgn_has_variations = loaded_pgn_has_variations
@@ -4284,9 +4335,9 @@ class MainLoop:
         self.state.best_sent_depth.reset()
 
         # forget possible previously loaded PGN game
-        self.state.picotutor.set_pgn_game_to_step(None)
+        picotutor.set_pgn_game_to_step(None)
         if self.picotutor_mode():
-            await self.state.picotutor.newgame()
+            await picotutor.newgame()
 
         fen_header_raw = l_game_pgn.headers.get("FEN") if l_game_pgn.headers else None
         fen_header = str(fen_header_raw).strip() if fen_header_raw else ""
@@ -4365,7 +4416,7 @@ class MainLoop:
                 else:
                     l_stop_at_halfmove = 0  # for DGT board its better with zero
 
-        mame_engine_selected = self.engine.is_mame_engine()
+        mame_engine_selected = engine.is_mame_engine()
         published_pgn_game = l_game_pgn
         load_pgn_moves = should_load_pgn_moves(l_stop_at_halfmove)
         if load_pgn_moves:
@@ -4384,7 +4435,7 @@ class MainLoop:
             self.state.pop_move()
             self._update_variant_shared()
 
-        mame_capabilities = self.engine.get_mame_capabilities()
+        mame_capabilities = engine.get_mame_capabilities()
         preserve_loaded_history = should_preserve_loaded_pgn_history(
             is_mame_engine=mame_engine_selected,
             start_replay=start_replay,
@@ -4409,7 +4460,7 @@ class MainLoop:
         mame_load = mame_engine_selected and not start_replay
         if mame_load:
             logger.info("MAME Read Game: sending loaded position immediately")
-        await self.engine.newgame(
+        await engine.newgame(
             self.state.engine_board_copy(),
             send_ucinewgame=mame_load,
             send_position_to_mame=mame_load,
@@ -4447,13 +4498,13 @@ class MainLoop:
         # restore picotutor flag to previous state
         self.state.flag_picotutor = old_flag_picotutor
         # always fix the picotutor if-to-analyse both sides and depth
-        if not await self.engine.stop_analysis():  # stop possible engine analyser
+        if not await engine.stop_analysis():  # stop possible engine analyser
             logger.error("loaded-game transition aborted because engine analysis did not stop cleanly")
             return
         if self.eng_plays():
-            await self.state.picotutor.stop()  # stop possible old tutor analysers
-        await self.state.picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
-        await self.state.picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
+            await picotutor.stop()  # stop possible old tutor analysers
+        await picotutor.set_analysis_enabled(self.tutor_analysis_enabled_for_current_mode())
+        await picotutor.set_mode(self.pgn_mode() or not self.eng_plays())
 
         await self.stop_search_and_clock()
         await self.engine_mode()
@@ -4468,8 +4519,9 @@ class MainLoop:
         # ensure analysis optimisation is fresh after header display/setup
         self.state.best_sent_depth.reset()
 
-        self.state.tc_init_last = self.state.time_control.get_parameters()
-        self.state.time_control.reset()  # fallback is same as ini setting
+        time_control = self._require_time_control()
+        self.state.tc_init_last = time_control.get_parameters()
+        time_control.reset()  # fallback is same as ini setting
         # if we find settings from the file we use them to override fallback
         l_pico_depth = 0
         try:
@@ -4514,7 +4566,7 @@ class MainLoop:
             lt_black = None
 
         # send TIME_CONTROL event based on info collected above
-        tc_init = self.state.time_control.get_parameters()
+        tc_init = self._require_time_control().get_parameters()
         if lt_white and lt_black:
             tc_init["internal_time"] = {chess.WHITE: lt_white, chess.BLACK: lt_black}
         text = self.state.dgttranslate.text("N00_oktime")
@@ -4601,7 +4653,7 @@ class MainLoop:
             pgn_game_to_step = None if l_stop_at_halfmove is None else l_game_pgn
             if pgn_game_to_step:
                 # this PGN game was not loaded to the end (above) - remember it
-                self.state.picotutor.set_pgn_game_to_step(pgn_game_to_step)
+                picotutor.set_pgn_game_to_step(pgn_game_to_step)
                 self.state.autoplay_half_moves = 0  # remember last seen autoplay move
                 if self.state.interaction_mode == Mode.PGNREPLAY:
                     self._start_pgn_replay_autoplay()
@@ -4770,7 +4822,7 @@ class MainLoop:
         async with self._board_clock_transition_lock:
             if (
                 self._can_run_user_clock_after_board_reconnect()
-                and self.state.time_control.internal_running()
+                and self._require_time_control().internal_running()
             ):
                 self.state.clock_paused_by_board_loss = True
                 silence = max(0.0, time.monotonic() - last_board_message) if last_board_message else 0.0
@@ -4787,7 +4839,7 @@ class MainLoop:
                 and not self.state.position_mode
                 and self.state.done_computer_fen is None
                 and not self.state.dgtmenu.inside_main_menu()
-                and not self.state.time_control.internal_running()
+                and not self._require_time_control().internal_running()
             ):
                 await self.state.start_clock()
                 logger.info("resumed user clock after e-board reconnect")
@@ -4856,7 +4908,7 @@ class MainLoop:
         """check if we can do the next pgn move"""
         if self.state.interaction_mode != Mode.PGNREPLAY or self.state.game.is_game_over():
             return False
-        if self.state.picotutor.get_pgn_game_to_step() is None:
+        if self._require_picotutor().get_pgn_game_to_step() is None:
             return False  # No game to try to step through
         if self.board_type == dgt.util.EBoard.NOEBOARD:
             # on web display we can always autoplay the next pgn move
@@ -4993,7 +5045,7 @@ class MainLoop:
         self.game_end_event()
         await DisplayMsg.show(
             Message.GAME_ENDS(
-                tc_init=self.state.time_control.get_parameters(),
+                tc_init=self._require_time_control().get_parameters(),
                 result=result,
                 play_mode=self.state.play_mode,
                 game=self.state.game.copy(),

@@ -158,7 +158,7 @@ class PicoTutor:
 
         self._setup_board(i_fen)
 
-    def set_pgn_game_to_step(self, pgn_game: chess.pgn.Game):
+    def set_pgn_game_to_step(self, pgn_game: chess.pgn.Game | None):
         """store a loaded PGN game here so that it can be stepped through"""
         self.pgn_game = pgn_game  # read by picochess.py read_pgn_file()
 

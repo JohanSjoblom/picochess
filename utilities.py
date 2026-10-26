@@ -38,7 +38,7 @@ from dgt.util import game_ending_from_result
 
 from configobj import ConfigObj, ConfigObjError, DuplicateError  # type: ignore
 
-from typing import Optional
+from typing import MutableMapping, Optional
 
 from pathlib import Path
 
@@ -769,7 +769,7 @@ def keep_essential_headers(headers: dict) -> dict:
     return {k: v for k, v in headers.items() if k in important_header_keys}
 
 
-def ensure_important_headers(headers: dict) -> None:
+def ensure_important_headers(headers: MutableMapping[str, str]) -> None:
     """Ensure standard PGN headers exist, filling headers dict with '?' if missing"""
     for key in important_header_keys:
         if key not in headers:

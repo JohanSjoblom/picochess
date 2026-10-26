@@ -88,7 +88,7 @@ def _supports_linux_host_integration(system_name: str | None = None) -> bool:
 UploadHandler: type[tornado.web.RequestHandler] | None
 pam: Any
 if _supports_linux_host_integration():
-    import pam as _pam  # type: ignore[import-not-found]
+    import pam as _pam  # type: ignore[import-not-found, import-untyped]
     from upload_pgn import UploadHandler as _LinuxUploadHandler
 
     pam = _pam

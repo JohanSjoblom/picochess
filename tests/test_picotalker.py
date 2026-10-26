@@ -11,7 +11,8 @@ from unittest.mock import Mock, patch
 try:
     import numpy as np
 except Exception:
-    np = None
+    # NumPy is optional here; dependent tests are skipped when unavailable.
+    np = None  # type: ignore[assignment]
 
 from dgt.util import GameResult
 from picotalker import BLACK_WIN_RESULTS, WHITE_WIN_RESULTS, PicoTalkerDisplay

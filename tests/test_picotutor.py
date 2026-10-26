@@ -101,6 +101,35 @@ class TestPicotutor(unittest.TestCase):
         opening_name, _, _ = tutor._find_longest_matching_opening("e4 e5")
         self.assertEqual(opening_name, "Open Game")
 
+    def test_eval_user_move_preserves_color_keyed_best_pv(self):
+        tutor = PicoTutor.__new__(PicoTutor)
+        move = chess.Move.from_uci("e2e4")
+        reply = chess.Move.from_uci("e7e5")
+        tutor.board = chess.Board()
+        tutor.board.push(move)
+        tutor.coach_on = True
+        tutor.watcher_on = False
+        tutor.best_info = {
+            chess.WHITE: [],
+            chess.BLACK: [{"pv": [move, reply], "depth": 12}],
+        }
+        tutor.obvious_info = {
+            chess.WHITE: [],
+            chess.BLACK: [{"pv": [move], "depth": 5}],
+        }
+        tutor.best_moves = {chess.WHITE: [], chess.BLACK: [(0, move, 25, 0)]}
+        tutor.obvious_moves = {chess.WHITE: [], chess.BLACK: [(0, move, 10, 0)]}
+        tutor.best_history = {chess.WHITE: [], chess.BLACK: []}
+        tutor.obvious_history = {chess.WHITE: [], chess.BLACK: []}
+        tutor.pv_user_move = {chess.WHITE: [], chess.BLACK: []}
+        tutor.pv_best_move = {chess.WHITE: [], chess.BLACK: []}
+
+        tutor.eval_user_move(move)
+
+        self.assertEqual([], tutor.pv_best_move[chess.WHITE])
+        self.assertEqual([move, reply], tutor.pv_best_move[chess.BLACK])
+        self.assertEqual([move, reply], tutor.pv_user_move[chess.BLACK])
+
     def test_get_eval_mistakes_includes_impact_metadata(self):
         tutor = PicoTutor.__new__(PicoTutor)
         move = chess.Move.from_uci("e2e4")

@@ -1045,7 +1045,7 @@ def get_menu_source_map(language: str) -> dict[str, str]:
     while the editable source of truth remains the stable semantic-key catalog.
     """
     catalog = get_menu_catalog(language)
-    source_map = {}
+    source_map: dict[str, str] = {}
     for key, english in ENGLISH.items():
         source_map.setdefault(english, catalog[key])
     return source_map

@@ -17,7 +17,7 @@
 
 import asyncio
 import logging
-from threading import Timer, Lock
+from threading import Lock
 from typing import Dict, Set
 from utilities import AsyncRepeatingTimer  # Ensure AsyncRepeatingTimer is imported from the correct module
 from utilities import DisplayDgt, DispatchDgt, dispatch_queue
@@ -36,7 +36,7 @@ class Dispatcher(DispatchDgt):
 
         self.dgtmenu = dgtmenu
         self.devices: Set[str] = set()
-        self.maxtimer: Dict[str, Timer] = {}
+        self.maxtimer: Dict[str, AsyncRepeatingTimer] = {}
         self.maxtimer_running: Dict[str, bool] = {}
         self.clock_connected: Dict[str, bool] = {}
         self.time_factor = 1  # This is for testing the duration - remove it lateron!

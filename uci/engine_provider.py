@@ -31,15 +31,15 @@ class EngineProvider(object):
     @classmethod
     def init(cls, engine_menu_sort: str = "file"):
         cls.set_engine_menu_sort(engine_menu_sort)
-        cls.modern_engines: List[Dict[str, str]] = read_engine_ini(filename="engines.ini")
-        cls.retro_engines: List[Dict[str, str]] = read_engine_ini(filename="retro.ini")
-        cls.favorite_engines: List[Dict[str, str]] = read_engine_ini(filename="favorites.ini")
+        cls.modern_engines = read_engine_ini(filename="engines.ini")
+        cls.retro_engines = read_engine_ini(filename="retro.ini")
+        cls.favorite_engines = read_engine_ini(filename="favorites.ini")
         # set retro/favorite engines to the list of modern engines in case retro.ini or favorites.ini is empty
         if not cls.retro_engines:
             cls.retro_engines = cls.modern_engines
         if not cls.favorite_engines:
             cls.favorite_engines = cls.modern_engines
-        cls.installed_engines: List[Dict[str, str]] = cls.modern_engines + cls.retro_engines + cls.favorite_engines
+        cls.installed_engines = cls.modern_engines + cls.retro_engines + cls.favorite_engines
 
     @classmethod
     def set_engine_menu_sort(cls, sort_order: str) -> str:
@@ -59,7 +59,7 @@ class EngineProvider(object):
         if not any(str(engine.get("manufacturer", "")).strip() for engine in engines):
             return []
 
-        groups = OrderedDict()
+        groups: OrderedDict[str, List[int]] = OrderedDict()
         for index, engine in enumerate(engines):
             manufacturer = str(engine.get("manufacturer", "")).strip() or "Other"
             groups.setdefault(manufacturer, []).append(index)
@@ -89,9 +89,9 @@ class EngineProvider(object):
     @staticmethod
     def engine_matches(installed_file: str, requested_file: Optional[str]) -> bool:
         """Return True when a configured engine path resolves to an installed engine entry."""
-        return bool(requested_file) and (
-            installed_file == requested_file or installed_file.endswith(requested_file)
-        )
+        if not requested_file:
+            return False
+        return installed_file == requested_file or installed_file.endswith(requested_file)
 
     @classmethod
     def resolve_engine(cls, requested_file: Optional[str]) -> Optional[Dict[str, str]]:

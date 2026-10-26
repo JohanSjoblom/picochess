@@ -3,7 +3,7 @@
 import os
 import sys
 import base64
-import pam
+import pam  # type: ignore[import-not-found, import-untyped]
 import tornado.web
 from tornado import escape
 

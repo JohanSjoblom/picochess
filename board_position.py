@@ -5,7 +5,11 @@ from __future__ import annotations
 import chess
 
 
-def compare_fen(fen_board_external="", fen_board_internal="", board_type: type = None) -> str:
+def compare_fen(
+    fen_board_external: str = "",
+    fen_board_internal: str = "",
+    board_type: type[chess.Board] | None = None,
+) -> str:
     # <Piece Placement> ::= <rank8>'/'<rank7>'/'<rank6>'/'<rank5>'/'<rank4>'/'<rank3>'/'<rank2>'/'<rank1>
     # <ranki>       ::= [<digit17>]<piece> {[<digit17>]<piece>} [<digit17>] | '8'
     # <piece>       ::= <white Piece> | <black Piece>

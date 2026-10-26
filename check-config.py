@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 try:
-    from configobj import ConfigObj
+    from configobj import ConfigObj  # type: ignore[import-untyped]
 except Exception:
     ConfigObj = None
 

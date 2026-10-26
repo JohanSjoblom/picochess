@@ -1202,6 +1202,11 @@ class DgtDisplay(DisplayMsg):
         # molli: rolling display
         if not self._inside_main_menu():
             if self.dgtmenu.get_mode() == Mode.PONDER:
+                # GAME_ENDS is recorded before the display queues process it.
+                # Keep its untimed result text on the clock instead of letting
+                # this timer restore analysis cached for the previous position.
+                if ModeInfo.get_game_ending() != "*":
+                    return
                 if not Rev2Info.get_web_only():
                     if self.show_move_or_value >= self.dgtmenu.get_ponderinterval():
                         if self.hint_move:

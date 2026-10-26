@@ -28,7 +28,7 @@ import re
 import ipaddress
 import subprocess
 from collections import OrderedDict
-from typing import Set
+from typing import Any, Set, TypedDict
 import asyncio
 import platform
 from web_history import history_scope, reset_history, preserve, project_message
@@ -85,9 +85,14 @@ def _supports_linux_host_integration(system_name: str | None = None) -> bool:
     return (system_name or platform.system()) == "Linux"
 
 
+UploadHandler: type[tornado.web.RequestHandler] | None
+pam: Any
 if _supports_linux_host_integration():
-    import pam
-    from upload_pgn import UploadHandler
+    import pam as _pam  # type: ignore[import-not-found]
+    from upload_pgn import UploadHandler as _LinuxUploadHandler
+
+    pam = _pam
+    UploadHandler = _LinuxUploadHandler
 else:
     pam = None
     UploadHandler = None
@@ -95,13 +100,26 @@ else:
 
 # This needs to be reworked to be session based (probably by token)
 # Otherwise multiple clients behind a NAT can all play as the 'player'
-client_ips = []
+client_ips: list[str] = []
 
 
 logger = logging.getLogger(__name__)
 OBOOKSRV_BOOK_FILE = "obooksrv"
 OBOOKSRV_BOOK_LABEL = "ObookSrv"
 OBOOKSRV_DATA_FILE = os.path.join(os.path.dirname(__file__), "obooksrv", "opening.data")
+
+
+class _BookMove(TypedDict):
+    move: str
+    count: int
+    whitewins: int
+    draws: int
+    blackwins: int
+
+
+class _WeightedBookMove(TypedDict):
+    move: str
+    count: int
 
 
 def mame_history_will_be_rebased(shared: dict) -> bool:
@@ -341,7 +359,7 @@ def _get_ini_path() -> str:
 
 
 def _get_picochess_config():
-    from configobj import ConfigObj
+    from configobj import ConfigObj  # type: ignore[import-untyped]
 
     return ConfigObj("picochess.ini", default_encoding="utf8")
 
@@ -951,7 +969,7 @@ def _board_from_web_pgn_prefix(
     if getattr(game, "errors", None):
         raise ValueError("Invalid PGN prefix")
 
-    headers = game.headers or {}
+    headers = game.headers
     header_uci960 = str(headers.get("Variant", "")).lower() == "chess960"
     target_board, uci960_enabled = _validate_setup_position_fen(selected_fen, uci960_hint or header_uci960)
 
@@ -2197,7 +2215,7 @@ class BookHandler(ServerRequestHandler):
         return await loop.run_in_executor(None, self._get_obooksrv_moves_sync, fen)
 
     def _get_obooksrv_moves_sync(self, fen: str):
-        moves_data = []
+        moves_data: list[_BookMove] = []
         try:
             board = chess.Board(fen)
             with chess.polyglot.open_reader(OBOOKSRV_DATA_FILE) as reader:
@@ -2237,12 +2255,12 @@ class BookHandler(ServerRequestHandler):
         variant = self.shared.get("variant", "chess")
         if variant not in ("chess", "3check", "kingofthehill"):
             return []
-        moves_data = []
+        moves_data: list[_BookMove] = []
         try:
             # Strip 3check extension if present for standard book lookup
             fen = self._strip_3check_fen(fen)
             board = chess.Board(fen)
-            aggregated = {}
+            aggregated: dict[str, _WeightedBookMove] = {}
             total_weight = 0
 
             with chess.polyglot.open_reader(book_file) as reader:
@@ -2529,6 +2547,8 @@ def _render_manual_markdown(markdown_text: str) -> str:
         unordered = re.match(r"^[-*]\s+(.+)$", stripped)
         ordered = re.match(r"^\d+\.\s+(.+)$", stripped)
         if unordered or ordered:
+            list_match = unordered or ordered
+            assert list_match is not None
             flush_paragraph()
             new_list_type = "ul" if unordered else "ol"
             if list_type != new_list_type:
@@ -2536,7 +2556,7 @@ def _render_manual_markdown(markdown_text: str) -> str:
                 list_type = new_list_type
             else:
                 flush_list_item()
-            current_item_lines = [(unordered or ordered).group(1)]
+            current_item_lines = [list_match.group(1)]
             continue
 
         if list_type and raw_line[:1].isspace() and current_item_lines:
@@ -2925,7 +2945,7 @@ class WebServer:
     ) -> tornado.web.Application:
         """define web pages and their handlers"""
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
-        handlers = [
+        handlers: list[Any] = [
             (
                 r"/",
                 ChessBoardHandler,
@@ -3310,7 +3330,9 @@ class WebDisplay(DisplayMsg):
         if "headers" not in self.shared:
             self.shared["headers"] = OrderedDict()
 
-    def _build_game_header(self, pgn_game: chess.pgn.Game, keep_these_headers: dict = None):
+    def _build_game_header(
+        self, pgn_game: chess.pgn.Game, keep_these_headers: dict | None = None
+    ):
         """Build the game headers for the current game"""
         if ModeInfo.get_pgn_mode() and keep_these_headers:
             pgn_game.headers.update(keep_these_headers)
@@ -3327,7 +3349,7 @@ class WebDisplay(DisplayMsg):
         user_name = "User"
 
         user_elo = "-"
-        comp_elo = 2500
+        comp_elo: int | str = 2500
         rspeed = 1
         retro_speed = 100
         retro_speed_str = ""
@@ -3524,7 +3546,7 @@ class WebDisplay(DisplayMsg):
         def _variant_history(game: chess.Board) -> dict | None:
             """Build browser history with authoritative variant FENs and SAN."""
             variant = self.shared.get("variant", "chess")
-            board_types = {
+            board_types: dict[str, Any] = {
                 "atomic": chess.variant.AtomicBoard,
                 "antichess": chess.variant.AntichessBoard,
                 "racingkings": chess.variant.RacingKingsBoard,
@@ -3556,7 +3578,7 @@ class WebDisplay(DisplayMsg):
                 logger.debug("cannot build variant browser history: %s", exc)
                 return None
 
-        def _attach_variant_info(result: dict, game: chess.Board = None) -> None:
+        def _attach_variant_info(result: dict, game: chess.Board | None = None) -> None:
             """Attach 3check variant info to result dict for web clients."""
             variant = self.shared.get("variant", "chess")
             result["variant"] = variant
@@ -3599,7 +3621,7 @@ class WebDisplay(DisplayMsg):
             self.shared["analysis_state_engine"] = analysis_payload
             EventHandler.write_to_clients({"event": "Analysis", "analysis": analysis_payload})
 
-        def _transfer(game: chess.Board, keep_these_headers: dict = None):
+        def _transfer(game: chess.Board, keep_these_headers: dict | None = None):
             variant = self.shared.get("variant", "chess")
             if variant == "atomic" and game.move_stack:
                 try:

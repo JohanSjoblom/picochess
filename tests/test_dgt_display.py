@@ -444,6 +444,27 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, result_text.maxtime)
         self.assertTrue(result_text.wait)
 
+    @patch("dgt.display.Rev2Info.get_web_only", return_value=False)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_ponder_rotation_keeps_game_result_visible(self, dispatch_fire, _web_only):
+        display = self.create_display()
+        display._inside_main_menu = Mock(return_value=False)
+        display.dgtmenu.set_mode(Mode.PONDER)
+        display.dgtmenu.set_ponder_interval(1)
+        display.depth = 40
+        display.score = display.dgttranslate.text("N10_mate", "1")
+        ModeInfo.set_game_ending(result="1-0")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
+
+        await display._process_once_per_second()
+
+        dispatch_fire.assert_not_awaited()
+
+        ModeInfo.set_game_ending(result="*")
+        await display._process_once_per_second()
+
+        dispatch_fire.assert_awaited_once()
+
     @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_position_scan_uses_physical_fen_during_retry_allowance(

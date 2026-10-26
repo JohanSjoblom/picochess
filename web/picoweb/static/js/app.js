@@ -313,6 +313,7 @@ const GAMES_SERVER_PREFIX = 'http://' + SERVER_NAME + ':7778';
 var pgnVariationsVisible = false;
 var webExploreMode = false;
 var webExploreGame = null;
+var webExploreMovesActive = false;
 var webExploreBoardPolicyInitialized = false;
 var livePgnTreeActive = true;
 var webHistoryMerged = false;
@@ -835,6 +836,7 @@ function setWebExploreMode(enabled, redraw) {
     } else {
         webExploreMode = false;
         webExploreGame = null;
+        webExploreMovesActive = false;
         syncToCurrentPicoLivePosition();
     }
     updateWebExploreButton();
@@ -1477,6 +1479,9 @@ var onSnapEnd = async function (source, target) {
     }
 
     if (webExploreMode) {
+        // Keep disposable browser moves in the navigable PGN tree too.
+        webExploreMovesActive = true;
+        updateCurrentPosition(move, tmpGame);
         startWebExploreFromGame(tmpGame, false);
         updateChessGround();
         updateStatus();
@@ -1643,6 +1648,7 @@ function addNewMove(m, current_position, fen, props) {
 
 function loadGame(pgn_lines, options) {
     options = options || {};
+    webExploreMovesActive = false;
     webHistoryMerged = Boolean(options.historyMerged);
     setLivePgnTreeActive(options.livePgnTree !== false);
     fenHash = {};
@@ -1953,6 +1959,7 @@ function download() {
 }
 
 function newBoard(fen) {
+    webExploreMovesActive = false;
     webHistoryMerged = false;
     setLivePgnTreeActive(true);
     resetWebExploreForPlayablePosition();
@@ -2674,6 +2681,12 @@ function analyze(position_update) {
 }
 
 function updateDGTPosition(data) {
+    // Explore owns the displayed tree once a browser move has been made.
+    // Sync/Explore OFF fetches the latest live PGN; background board updates
+    // must not discard the disposable variation or move its selected node.
+    if (webExploreMode && webExploreMovesActive) {
+        return;
+    }
     setLivePgnTreeActive(true);
     var preserveExplore = webExploreMode;
     if (data.play === 'reload') {

@@ -9,6 +9,76 @@ import unittest
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for browser JavaScript tests")
 class TestWebPgnMoves(unittest.TestCase):
+    def test_explore_moves_remain_in_pgn_across_backend_refresh(self):
+        root = Path(__file__).parents[1]
+        app = (root / "web/picoweb/static/js/app.js").read_text()
+        functions = []
+        for name in ("createPositionGamePointer", "createGamePointer", "toColor",
+                     "startWebExploreFromGame", "updateCurrentPosition", "addNewMove",
+                     "WebExporter", "exportGame", "stripFen", "updateDGTPosition",
+                     "setWebExploreMode", "syncToCurrentPicoLivePosition"):
+            start = app.index("function " + name + "(")
+            end = app.index("\n}", start) + 2
+            functions.append(app[start:end])
+        start = app.index("var onSnapEnd = async function")
+        end = app.index("\n};", start) + 3
+        functions.append(app[start:end])
+        program = (root / "web/picoweb/static/js/chess960.min.js").read_text()
+        program += "\n" + "\n".join(functions) + r"""
+var assert = require('assert');
+var chessGameType = 0, setupBoardFen = new Chess().fen();
+var gameHistory = {fen: setupBoardFen, variations: []};
+var currentPosition = gameHistory;
+var fenHash = {first: gameHistory, last: gameHistory};
+var webExploreMode = true, webExploreGame = new Chess();
+var webExploreMovesActive = false;
+var simpleNags = {}, pgnEl = '#pgn', rendered = '', reloads = 0;
+function $() {}
+$.isEmptyObject = obj => Object.keys(obj).length === 0;
+$.post = () => {throw new Error('Explore must never submit a backend move');};
+function updateWebExploreButton() {}
+function updateChessGround() {}
+function updateStatus() {}
+function formatPgnWindowMove(move) {return move.san;}
+function figurinizeMove(move) {return move;}
+function writeVariationTree(dom, moves) {rendered = moves;}
+async function getMove(game, from, to) {return game.move({from: from, to: to});}
+function setLivePgnTreeActive() {}
+function isSameGameAsPgn() {return false;}
+function loadDgtGame(data) {reloads++; rendered = data.pgn; webExploreMovesActive = false;}
+function goToPosition() {return true;}
+(async function () {
+    // Physical board stays at its root while browser Explore plays a line.
+    await onSnapEnd('e2', 'e4');
+    await onSnapEnd('e7', 'e5');
+    await onSnapEnd('g1', 'f3');
+    assert(rendered.includes(' e4 '));
+    assert(rendered.includes(' e5 '));
+    assert(rendered.includes(' Nf3 '));
+    assert.strictEqual(fenHash.last, gameHistory);
+    var explored = currentPosition, localPgn = rendered;
+    ['reload', 'review', 'user'].forEach(play => {
+        updateDGTPosition({play: play, fen: setupBoardFen, pgn: '*'});
+        assert.strictEqual(currentPosition, explored);
+        assert.equal(rendered, localPgn);
+        assert.equal(webExploreGame.fen(), explored.fen);
+    });
+    assert.equal(reloads, 0);
+    // Explore OFF releases the tree so the normal live sync can replace it.
+    setWebExploreMode(false, false);
+    updateDGTPosition({play: 'reload', fen: setupBoardFen, pgn: '*'});
+    assert.strictEqual(currentPosition, gameHistory);
+    assert.equal(rendered, '*');
+    assert.equal(reloads, 1);
+    // Eboard auto-Explore still follows live updates before any browser move.
+    webExploreMode = true;
+    updateDGTPosition({play: 'reload', fen: setupBoardFen, pgn: '*'});
+    assert.equal(reloads, 2);
+})().catch(error => {console.error(error); process.exitCode = 1;});
+"""
+        subprocess.run(["node", "-e", program], capture_output=True, text=True,
+                       check=True, timeout=10)
+
     def test_same_position_refresh_does_not_reset_chessground_fen(self):
         script = (Path(__file__).parents[1] / "web/picoweb/static/js/app.js").read_text(encoding="utf-8")
         start = script.index("function chessgroundNeedsFenUpdate(")

@@ -1795,6 +1795,9 @@ class DgtDisplay(DisplayMsg):
             if self.play_move == chess.Move.null():
                 # issue #45 - we do not want eval display while user needs to perform computer move
                 hint_text = self.dgttranslate.text("C10_picotutor_msg", message.eval_str)
+                display_maxtime = getattr(message, "display_maxtime", None)
+                if display_maxtime is not None:
+                    hint_text.maxtime = display_maxtime
                 await DispatchDgt.fire(hint_text)
                 if message.eval_str.startswith("BRAIN_"):
                     hint_display = self.dgtmenu.get_brain_hint_display()

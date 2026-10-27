@@ -1173,8 +1173,9 @@
                     }
                     var source = node._picoMenuSource;
                     var trimmed = source.trim();
-                    if (!trimmed || !menuTextMap[trimmed]) continue;
-                    var translated = source.replace(trimmed, menuText(trimmed));
+                    var translatedTrimmed = menuText(trimmed);
+                    if (!trimmed || translatedTrimmed === trimmed) continue;
+                    var translated = source.replace(trimmed, translatedTrimmed);
                     node._picoMenuTranslated = translated;
                     if (node.nodeValue !== translated) node.nodeValue = translated;
                 }

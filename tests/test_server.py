@@ -142,6 +142,14 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertNotIn("Invalid position</strong>", template)
         self.assertNotIn("'⚠ Invalid'", template)
 
+    def test_dynamic_menu_labels_with_icons_are_translated(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        self.assertIn("var translatedTrimmed = menuText(trimmed);", template)
+        self.assertIn("if (!trimmed || translatedTrimmed === trimmed) continue;", template)
+        self.assertIn("source.replace(trimmed, translatedTrimmed)", template)
+        self.assertNotIn("if (!trimmed || !menuTextMap[trimmed]) continue;", template)
+
     def test_retro_clock_preserves_clock_menu_when_returning(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/retro_clock.html").read_text(encoding="utf-8")
 

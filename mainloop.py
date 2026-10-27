@@ -7589,6 +7589,12 @@ class MainLoop:
                         write_picochess_ini("depth", "{:d}".format(tc_init["depth"]))
                         self.engine.drop_engine_uci_option("PicoNode")  # user overrides
                         write_picochess_ini("node", "{:d}".format(tc_init["node"]))
+                # Startup gives explicit depth/node controls priority over the
+                # stored clock time. Clear stale overrides when a clock-based
+                # control is selected so the new choice survives a restart.
+                if self.state.time_control.move_time != 671:
+                    write_picochess_ini("depth", "0")
+                    write_picochess_ini("node", "0")
             text = Message.TIME_CONTROL(time_text=event.time_text, show_ok=event.show_ok, tc_init=tc_init)
             await DisplayMsg.show(text)
             self.state.stop_fen_timer()

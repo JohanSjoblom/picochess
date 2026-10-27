@@ -300,6 +300,26 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_picotutor_message_uses_requested_display_duration(self, dispatch_fire):
+        display = self.create_display()
+
+        await display._process_message(
+            Message.PICOTUTOR_MSG(eval_str="THREATNf3", display_maxtime=5.0)
+        )
+
+        dispatched_text = dispatch_fire.await_args.args[0]
+        self.assertEqual(5.0, dispatched_text.maxtime)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_short_picotutor_message_keeps_translation_duration(self, dispatch_fire):
+        display = self.create_display()
+
+        await display._process_message(Message.PICOTUTOR_MSG(eval_str="!"))
+
+        dispatched_text = dispatch_fire.await_args.args[0]
+        self.assertEqual(1.0, dispatched_text.maxtime)
+
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
     async def test_exit_menu_restores_time_without_a_pending_engine_move(self, dispatch_fire):
         display = self.create_display()
         display.dgtmenu.set_mode(Mode.NORMAL)

@@ -3228,6 +3228,8 @@ class MainLoop:
                 )
                 pending_messages.clear()
                 return
+            if isinstance(message, Message.PICOTUTOR_MSG) and delay and delay > 0:
+                message.display_maxtime = delay
             await DisplayMsg.show(message)
             if delay and delay > 0:
                 await asyncio.sleep(delay)

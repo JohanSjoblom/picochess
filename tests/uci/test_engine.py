@@ -635,7 +635,11 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
 
     async def test_readiness_protocol_failure_is_not_treated_as_pending(self):
         engine = MockEngine()
-        engine.ping = AsyncMock(side_effect=AssertionError("CommandState.NEW"))
+
+        async def failing_ping():
+            raise AssertionError("CommandState.NEW")
+
+        engine.ping = failing_ping
         analyser = ContinuousAnalysis(
             engine=engine,
             delay=0,

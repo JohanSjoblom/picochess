@@ -1529,6 +1529,7 @@ class DgtTranslate(object):
                 l_move_nl = l_move_nl.replace("Q", "D")
                 l_move_nl = l_move_nl.replace("R", "T")
                 l_move_nl = l_move_nl.replace("B", "L")
+                w_msg_nl = "hint: " + l_move_nl
                 l_msg_nl = "hnt: " + l_move_nl
                 l_msg_nl = l_msg_nl.ljust(11, " ")
                 m_move_nl = msg[4:]
@@ -1568,7 +1569,7 @@ class DgtTranslate(object):
                     small_text=m_msg_g[:6],
                 )
                 nltxt = Dgt.DISPLAY_TEXT(
-                    web_text=l_msg_nl[:38],
+                    web_text=w_msg_nl[:38],
                     large_text=l_msg_nl[:11],
                     medium_text=m_msg_nl[:8],
                     small_text=m_msg_nl[:6],

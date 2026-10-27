@@ -26,6 +26,17 @@ class TestItalianTutorMoveTranslation(unittest.TestCase):
                     self.assertNotIn(english_move, text.web_text)
 
 
+class TestDutchTutorMoveTranslation(unittest.TestCase):
+    def setUp(self):
+        self.translate = DgtTranslate("none", 0, "nl", "version")
+
+    def test_web_hint_uses_full_label_while_clock_text_stays_compact(self):
+        text = self.translate.text("C10_picotutor_msg", "HINTNa3")
+
+        self.assertEqual("hint: Pa3", text.web_text)
+        self.assertEqual("hnt: Pa3   ", text.large_text)
+
+
 class TestDisplayTextLengths(unittest.TestCase):
     LIMITS = {
         "small_text": 6,

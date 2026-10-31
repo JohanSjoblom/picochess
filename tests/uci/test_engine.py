@@ -1745,3 +1745,108 @@ class TestEngineRecoveryProtocol(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(eng._analysis_allowed)
         self.assertFalse(protocol.returncode.done())
         transport.assert_done()
+
+
+class TestBestmove0000(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def _engine_with_live_protocol():
+        engine = object.__new__(UciEngine)
+        engine.engine = Mock()
+        engine.engine.returncode.done.return_value = False
+        engine.engine.ping = AsyncMock()
+        return engine
+
+    @staticmethod
+    def _threefold_board(*, claim_with_next_move):
+        board = chess.Board()
+        moves = ["g1f3", "g8f6", "f3g1", "f6g8"]
+        repetitions = 1 if claim_with_next_move else 2
+        for _ in range(repetitions):
+            for move in moves:
+                board.push_uci(move)
+        if claim_with_next_move:
+            for move in moves[:3]:
+                board.push_uci(move)
+        return board
+
+    async def test_claimable_threefold_is_draw_after_third_occurrence(self):
+        board = self._threefold_board(claim_with_next_move=False)
+        engine = self._engine_with_live_protocol()
+
+        self.assertTrue(board.is_repetition(3))
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_claimable_threefold_is_draw_when_next_move_repeats(self):
+        board = self._threefold_board(claim_with_next_move=True)
+        engine = self._engine_with_live_protocol()
+
+        self.assertFalse(board.is_repetition(3))
+        self.assertTrue(board.can_claim_threefold_repetition())
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_claimable_fifty_moves_is_draw_at_one_hundred_halfmoves(self):
+        board = chess.Board("8/8/8/8/8/8/5k2/R6K w - - 100 51")
+        engine = self._engine_with_live_protocol()
+
+        self.assertTrue(board.is_fifty_moves())
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_claimable_fifty_moves_is_draw_when_next_move_reaches_one_hundred(self):
+        board = chess.Board("8/8/8/8/8/8/5k2/R6K w - - 99 50")
+        engine = self._engine_with_live_protocol()
+
+        self.assertFalse(board.is_fifty_moves())
+        self.assertTrue(board.can_claim_fifty_moves())
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_claimable_draw_does_not_ping_a_live_but_silent_engine(self):
+        board = self._threefold_board(claim_with_next_move=False)
+        engine = self._engine_with_live_protocol()
+        engine.engine.ping.side_effect = asyncio.TimeoutError
+
+        # The 0000 response is the engine's claim.  Some MAME computers stop
+        # responding after it, so an additional ping must not undo the draw.
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_claimable_draw_does_not_hide_a_terminated_engine(self):
+        board = self._threefold_board(claim_with_next_move=False)
+        engine = self._engine_with_live_protocol()
+        engine.engine.returncode.done.return_value = True
+
+        self.assertEqual("*", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_stalemate_remains_a_forced_draw(self):
+        board = chess.Board("7k/5Q2/7K/8/8/8/8/8 b - - 0 1")
+        engine = self._engine_with_live_protocol()
+
+        self.assertTrue(board.is_stalemate())
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_seventyfive_moves_remains_a_forced_draw(self):
+        board = chess.Board("8/8/8/8/8/8/5k2/R6K w - - 150 76")
+        engine = self._engine_with_live_protocol()
+
+        self.assertTrue(board.is_seventyfive_moves())
+        self.assertEqual("1/2-1/2", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_not_awaited()
+
+    async def test_live_engine_still_resigns_without_claimable_draw(self):
+        board = chess.Board()
+        engine = self._engine_with_live_protocol()
+
+        self.assertEqual("0-1", await engine.handle_bestmove_0000(board))
+        engine.engine.ping.assert_awaited_once()
+
+    async def test_dead_engine_still_returns_unknown_result(self):
+        board = chess.Board()
+        engine = object.__new__(UciEngine)
+        engine.engine = None
+
+        self.assertEqual("*", await engine.handle_bestmove_0000(board))

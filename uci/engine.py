@@ -2521,6 +2521,13 @@ class UciEngine(object):
         ):
             return "1/2-1/2"
 
+        # Some engines, notably dedicated computers running through MAME,
+        # report ``bestmove 0000`` when they claim an optional draw. Do not
+        # ping after that final answer, but still distinguish a protocol whose
+        # process has demonstrably terminated from one that is merely silent.
+        if game.can_claim_threefold_repetition() or game.can_claim_fifty_moves():
+            return "1/2-1/2" if self._engine_process_alive() else "*"
+
         # --- Phase 2: No legal reason for 0000 → probe engine health ---
         try:
             if not self.engine:

@@ -31,6 +31,7 @@ import gc
 import logging
 import math
 import traceback
+from dataclasses import dataclass
 from typing import Any
 import asyncio
 from pathlib import Path
@@ -91,6 +92,7 @@ from move_policy import (
     should_resume_game_after_takeback,
     should_show_setpieces_after_lift_timeout,
     user_move_pre_search_messages,
+    user_move_request_matches_position,
     user_move_task_matches_position,
 )
 
@@ -154,6 +156,21 @@ FLOAT_MIN_BACKGROUND_TIME = 1.0  # how often to send PV,SCORE,DEPTH
 
 
 ENGINE_SEARCH_IDLE_TIMEOUT = 3.0
+
+
+@dataclass(frozen=True)
+class SearchStopOutcome:
+    """Task-local result of stopping analysis and the playing search."""
+
+    analysis_stop_completed: bool = True
+    forced_analyser_stop: bool = False
+    engine_idle: bool | None = True
+
+    def legacy_result(self) -> bool:
+        """Reproduce the historical ``stop_search()`` boolean contract."""
+        if not self.analysis_stop_completed:
+            return False
+        return True if self.engine_idle is None else self.engine_idle
 
 
 ENGINE_SEARCH_CANCEL_TIMEOUT = 1.0
@@ -343,6 +360,10 @@ class MainLoop:
         self.engine_match_remote_move_pending = False
         self.engine_match_local_move_wait_started: float | None = None
         self._board_clock_transition_lock = asyncio.Lock()
+        # Serializes only overlapping user-move stop/commit transactions. A
+        # slow engine stop may hold this lock for the bounded stop timeout;
+        # other stop_search_and_clock() callers intentionally remain outside.
+        self._user_move_commit_lock = asyncio.Lock()
         self.shutdown_task: asyncio.Task | None = None
         self.shutdown_requested = shutdown_requested
         self.shutdown_complete = shutdown_complete
@@ -1015,22 +1036,43 @@ class MainLoop:
 
     async def stop_search(self, timeout: float = ENGINE_SEARCH_IDLE_TIMEOUT) -> bool:
         """Stop current search."""
+        return (await self.stop_search_with_outcome(timeout)).legacy_result()
+
+    async def stop_search_with_outcome(
+        self, timeout: float = ENGINE_SEARCH_IDLE_TIMEOUT
+    ) -> SearchStopOutcome:
+        """Stop current search and retain analyser metadata for this caller."""
         engine = self._require_engine()
-        if not await engine.stop():
+        engine_outcome = await engine.stop_with_outcome()
+        if not engine_outcome.completed:
             logger.error("engine search stop aborted because analysis did not stop cleanly")
-            return False
-        if engine.consume_forced_analyser_stop():
+            return SearchStopOutcome(
+                analysis_stop_completed=False,
+                forced_analyser_stop=engine_outcome.forced,
+                engine_idle=None,
+            )
+        if engine_outcome.forced:
             logger.debug("forced analyser stop detected - resetting best depth cache")
             self.state.best_sent_depth.reset()
         if self.emulation_mode():
-            return True
+            return SearchStopOutcome(
+                forced_analyser_stop=engine_outcome.forced,
+                engine_idle=None,
+            )
         idle = await engine.wait_until_idle(timeout)
         if not idle:
             logger.warning("engine still not idle after %.1fs", timeout)
-        return idle
+        return SearchStopOutcome(
+            forced_analyser_stop=engine_outcome.forced,
+            engine_idle=idle,
+        )
 
     async def stop_search_and_clock(self, ponder_hit=False):
         """Depending on the interaction mode stop search and clock."""
+        await self.stop_search_and_clock_with_outcome(ponder_hit=ponder_hit)
+
+    async def stop_search_and_clock_with_outcome(self, ponder_hit=False) -> SearchStopOutcome:
+        """Stop search/clock and return task-local stop metadata."""
         logger.debug(
             "stop_search_and_clock called (mode=%s, ponder_hit=%s, thinking=%s, waiting=%s)\n%s",
             self.state.interaction_mode,
@@ -1043,17 +1085,19 @@ class MainLoop:
             await self.state.stop_clock()
             if self.engine.is_waiting():
                 logger.debug("engine already waiting")
+                return SearchStopOutcome(engine_idle=True)
             else:
                 # @ todo check and simplify this logic
                 if ponder_hit:
-                    pass  # we send the self.engine.hit() lateron!
+                    return SearchStopOutcome(engine_idle=False)
                 else:
-                    await self.stop_search()
+                    return await self.stop_search_with_outcome()
         elif self.state.interaction_mode in (Mode.REMOTE, Mode.OBSERVE):
             await self.state.stop_clock()
-            await self.stop_search()
+            return await self.stop_search_with_outcome()
         elif self.state.interaction_mode in (Mode.ANALYSIS, Mode.KIBITZ, Mode.PONDER, Mode.PGNREPLAY):
-            await self.stop_search()
+            return await self.stop_search_with_outcome()
+        return SearchStopOutcome(engine_idle=None)
 
     def get_comment_file(self) -> str:
         comment_path = self.state.engine_file + "_comments_" + self.args.language + ".txt"
@@ -2688,6 +2732,20 @@ class MainLoop:
         self.state.user_move_revision += 1
         return self.state.user_move_revision
 
+    def _user_move_request_is_current(
+        self, move: chess.Move, expected_fen: str, expected_revision: int
+    ) -> bool:
+        """Return whether an uncommitted move still owns the live position."""
+        return user_move_request_matches_position(
+            move,
+            expected_fen,
+            expected_revision,
+            self.state.get_move_check_board(),
+            self.state.get_fen(),
+            self.state.user_move_revision,
+            self.state.done_computer_fen,
+        )
+
     def _clear_pending_engine_move(self) -> None:
         """Release an announced move before requesting its replacement."""
         self.state.done_computer_fen = None
@@ -2721,6 +2779,9 @@ class MainLoop:
         eval_str = ""
         pending_picotutor_msgs: list[tuple[Message, float | None]] = []
         continuation_events = []
+        pending_analysis_continuation = None
+        reset_analysis_cache = False
+        time_control_message = None
         opening_handled_before_search = False
         info_list: list[InfoDict] | None = None
         analysed_fen = ""
@@ -2770,6 +2831,7 @@ class MainLoop:
                     return False
 
             self._release_coach_position_mode_for_move()
+            user_move_source_fen = self.state.get_fen()
             user_move_revision = self._invalidate_user_move_tasks()
             self.cancel_brain_hint_timer(preserve_best_move=True, resume_paused_clock=False)
             self.state.brain_required_piece_type = None
@@ -2816,80 +2878,122 @@ class MainLoop:
                             # ponder hit! user chose the best ponder move
                             ponder_reply = pv_moves[1] if pv_moves and len(pv_moves) > 1 else chess.Move.null()
                             send_pv = pv_moves and len(pv_moves) > 1
-                            # Cache the deeper clock continuation against the
-                            # analysed position. Publish it after push_move so
-                            # the events can carry the resulting position's FEN.
-                            continuation_events = await self.send_analyse(
+                            # Apply this cache only after this task wins the
+                            # stop/commit transaction. Otherwise an obsolete
+                            # analysis task can overwrite the winning move.
+                            pending_analysis_continuation = (
                                 info,
                                 analysed_fen,
-                                send_pv=bool(send_pv),
-                                ponder_move=ponder_reply,
-                                defer_events=True,
+                                bool(send_pv),
+                                ponder_reply,
                             )
-                            if not send_pv:
-                                self.state.pb_move = chess.Move.null()
-                                self.state.best_sent_depth.reset()
                             ponder_hit = True
                 if not ponder_hit:
                     # user deviated from analysed line (or no info available) - reset cache
+                    reset_analysis_cache = True
+
+            if not self._user_move_request_is_current(
+                move, user_move_source_fen, user_move_revision
+            ):
+                # A newer board event owns this move. Treat this task as
+                # handled so process_fen does not re-arm a stale error timer.
+                logger.info("skipping obsolete user move [%s] before engine stop", move)
+                return True
+
+            # Only user moves share this lock. The engine stop may take its
+            # bounded timeout, but serializing it with the await-free commit
+            # prevents an older stop from affecting a newer move's search.
+            async with self._user_move_commit_lock:
+                if not self._user_move_request_is_current(
+                    move, user_move_source_fen, user_move_revision
+                ):
+                    logger.info("skipping obsolete user move [%s] before commit", move)
+                    return True
+
+                stop_outcome = await self.stop_search_and_clock_with_outcome(
+                    ponder_hit=ponder_hit
+                )
+                if not self._user_move_request_is_current(
+                    move, user_move_source_fen, user_move_revision
+                ):
+                    logger.info("skipping obsolete user move [%s] after engine stop", move)
+                    return True
+
+                if pending_analysis_continuation is not None:
+                    info, analysed_fen, send_pv, ponder_reply = pending_analysis_continuation
+                    continuation_events = await self.send_analyse(
+                        info,
+                        analysed_fen,
+                        send_pv=send_pv,
+                        ponder_move=ponder_reply,
+                        defer_events=True,
+                    )
+                    if not send_pv:
+                        self.state.pb_move = chess.Move.null()
+                        self.state.best_sent_depth.reset()
+                    elif (
+                        stop_outcome.analysis_stop_completed
+                        and stop_outcome.forced_analyser_stop
+                    ):
+                        # Preserve the historical final state: send_analyse()
+                        # ran before the stop, whose forced path then cleared
+                        # only the depth cache. Failed cleanup did not clear it.
+                        self.state.best_sent_depth.reset()
+                elif reset_analysis_cache:
                     self.state.best_sent_depth.reset()
 
-            # Clock logic after user move
-            #
-            await self.stop_search_and_clock(ponder_hit=ponder_hit)
-            if (
-                self.state.interaction_mode
-                in (Mode.NORMAL, Mode.BRAIN, Mode.OBSERVE, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
-                and not sliding
-            ):
-                time_control = self._require_time_control()
-                time_control.add_time(self.state.game.turn)
-                # molli new tournament time control
+                # Clock mutation and the move commit deliberately contain no
+                # await. A newer event can advance the revision only before or
+                # after this indivisible section, never between these steps.
                 if (
-                    time_control.moves_to_go_orig > 0
-                    and self.state.game.fullmove_number == time_control.moves_to_go_orig
+                    self.state.interaction_mode
+                    in (Mode.NORMAL, Mode.BRAIN, Mode.OBSERVE, Mode.REMOTE, Mode.TRAINING, Mode.ENGINE_MATCH)
+                    and not sliding
                 ):
-                    time_control.add_game2(self.state.game.turn)
-                    t_player = True
-                    msg = Message.TIMECONTROL_CHECK(
-                        player=t_player,
-                        movestogo=time_control.moves_to_go_orig,
-                        time1=time_control.game_time,
-                        time2=time_control.game_time2,
-                    )
-                    await DisplayMsg.show(msg)
-                if self.online_mode():
-                    # molli for online pseudo time sync
-                    if self.state.online_decrement > 0:
-                        time_control.sub_online_time(self.state.game.turn, self.state.online_decrement)
+                    time_control = self._require_time_control()
+                    time_control.add_time(self.state.game.turn)
+                    # molli new tournament time control
+                    if (
+                        time_control.moves_to_go_orig > 0
+                        and self.state.game.fullmove_number == time_control.moves_to_go_orig
+                    ):
+                        time_control.add_game2(self.state.game.turn)
+                        time_control_message = Message.TIMECONTROL_CHECK(
+                            player=True,
+                            movestogo=time_control.moves_to_go_orig,
+                            time1=time_control.game_time,
+                            time2=time_control.game_time2,
+                        )
+                    if self.online_mode():
+                        # molli for online pseudo time sync
+                        if self.state.online_decrement > 0:
+                            time_control.sub_online_time(
+                                self.state.game.turn, self.state.online_decrement
+                            )
 
-            #
-            # Remember game_before user move for picotutor thread
-            # And for sending USER_MOVE_DONE below
-            #
-            # Tutor feedback needs the complete position before the move,
-            # but none of the preceding move history.
-            game_before = self.state.game.copy(stack=False)
-            self.state.push_move(move)  # this is where user move is made
-            if legal_fens_before_move is not None:
-                # Publish the previous position's alternatives immediately.
-                # A DGT replacement move may arrive while Tutor feedback is
-                # awaiting display; delayed process_fen cleanup must not leave
-                # that event looking like a stale current-position move.
-                self._publish_user_move_legal_fens(legal_fens_before_move)
-            user_move_fen = self.state.get_fen()
-            await self._publish_analysis_events_for_position(continuation_events, user_move_fen)
-            user_move_owner = (move, user_move_fen, user_move_revision)
-            self._set_game_started(True)
-            self._update_variant_shared()
-            logger.debug("user did a move for user")
-            #
-            # Set and reset information after user move
-            #
-            self.state.done_computer_fen = None
-            self.state.done_move = chess.Move.null()
-            self.state.searchmoves.reset()  # empty list of excluded engine rootmoves
-            self.state.ignore_next_engine_move = False  # real user move has been made
+                # Remember game_before user move for picotutor thread and for
+                # sending USER_MOVE_DONE below. Tutor feedback needs the
+                # complete position before the move, but no preceding history.
+                game_before = self.state.game.copy(stack=False)
+                self.state.push_move(move)
+                if legal_fens_before_move is not None:
+                    # Publish the previous position's alternatives immediately.
+                    self._publish_user_move_legal_fens(legal_fens_before_move)
+                user_move_fen = self.state.get_fen()
+                user_move_owner = (move, user_move_fen, user_move_revision)
+                self._set_game_started(True)
+                self._update_variant_shared()
+                logger.debug("user did a move for user")
+                self.state.done_computer_fen = None
+                self.state.done_move = chess.Move.null()
+                self.state.searchmoves.reset()
+                self.state.ignore_next_engine_move = False
+
+            if time_control_message is not None:
+                await DisplayMsg.show(time_control_message)
+            await self._publish_analysis_events_for_position(
+                continuation_events, user_move_fen
+            )
 
             #
             # Picotutor check

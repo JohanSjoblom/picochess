@@ -24,6 +24,7 @@ import chess
 import chess.engine
 from chess.engine import EngineTerminatedError, Limit, UciProtocol as RealUciProtocol
 from uci.engine import (
+    AnalyserStopOutcome,
     ContinuousAnalysis,
     CooperativeUciProtocol,
     EngineLease,
@@ -793,8 +794,9 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
     async def test_stop_analysis_reports_incomplete_stop_transaction(self):
         eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
         eng.analyser = Mock()
-        eng.analyser.stop_async = AsyncMock(return_value=False)
-        eng.analyser.consume_forced_stop.return_value = True
+        eng.analyser._stop_async_with_outcome = AsyncMock(
+            return_value=AnalyserStopOutcome(completed=False, forced=True)
+        )
 
         self.assertFalse(await eng.stop_analysis())
         self.assertTrue(eng.consume_forced_analyser_stop())

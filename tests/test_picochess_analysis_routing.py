@@ -53,6 +53,7 @@ from move_policy import (
     should_resume_game_after_takeback,
     should_show_setpieces_after_lift_timeout,
     user_move_pre_search_messages,
+    user_move_request_matches_position,
     user_move_task_matches_position,
 )
 
@@ -63,6 +64,7 @@ from mainloop import (
     should_report_local_timeout,
 )
 from picostate import PicochessState
+from uci.engine import AnalyserStopOutcome
 
 
 def start_patch(test_case, target, attribute, replacement):
@@ -308,6 +310,33 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
         self.assertFalse(
             user_move_task_matches_position(
                 move, current_fen, 1, rebased, current_fen, 2, None, require_last_move=False
+            )
+        )
+
+    def test_uncommitted_user_move_requires_legal_move_fen_and_revision(self):
+        board = chess.Board()
+        move = chess.Move.from_uci("e2e4")
+        current_fen = board.fen()
+
+        self.assertTrue(
+            user_move_request_matches_position(
+                move, current_fen, 3, board, current_fen, 3, None
+            )
+        )
+        self.assertFalse(
+            user_move_request_matches_position(
+                move, current_fen, 3, board, current_fen, 4, None
+            )
+        )
+        self.assertFalse(
+            user_move_request_matches_position(
+                move, current_fen, 3, board, current_fen, 3, "pending"
+            )
+        )
+        board.push(move)
+        self.assertFalse(
+            user_move_request_matches_position(
+                move, current_fen, 3, board, board.fen(), 3, None
             )
         )
 
@@ -1748,9 +1777,11 @@ class TestCheckpointReturnResumesEngineSearch(unittest.IsolatedAsyncioTestCase):
 class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.state = SimpleNamespace(best_sent_depth=Mock())
         self.controller.engine = Mock()
-        self.controller.engine.stop = AsyncMock()
-        self.controller.engine.consume_forced_analyser_stop.return_value = False
+        self.controller.engine.stop_with_outcome = AsyncMock(
+            return_value=AnalyserStopOutcome(completed=True)
+        )
         self.controller.engine.wait_until_idle = AsyncMock(return_value=True)
         self.controller.emulation_mode = Mock(return_value=False)
 
@@ -1764,6 +1795,69 @@ class TestStopSearchTimeout(unittest.IsolatedAsyncioTestCase):
         self.controller.engine.wait_until_idle.return_value = False
 
         self.assertFalse(await self.controller.stop_search())
+
+    async def test_forced_emulation_stop_resets_cache_without_claiming_idle(self):
+        self.controller.engine.stop_with_outcome.return_value = AnalyserStopOutcome(
+            completed=True, forced=True
+        )
+        self.controller.emulation_mode.return_value = True
+
+        outcome = await self.controller.stop_search_with_outcome()
+
+        self.assertTrue(outcome.analysis_stop_completed)
+        self.assertTrue(outcome.forced_analyser_stop)
+        self.assertIsNone(outcome.engine_idle)
+        self.assertTrue(outcome.legacy_result())
+        self.controller.state.best_sent_depth.reset.assert_called_once_with()
+        self.controller.engine.wait_until_idle.assert_not_awaited()
+
+    async def test_incomplete_analysis_stop_preserves_legacy_false(self):
+        self.controller.engine.stop_with_outcome.return_value = AnalyserStopOutcome(
+            completed=False, forced=True
+        )
+
+        outcome = await self.controller.stop_search_with_outcome()
+
+        self.assertFalse(outcome.analysis_stop_completed)
+        self.assertFalse(outcome.legacy_result())
+        self.controller.state.best_sent_depth.reset.assert_not_called()
+        self.controller.engine.wait_until_idle.assert_not_awaited()
+
+
+class TestStopSearchAndClockOutcome(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.controller = object.__new__(mainloop.MainLoop)
+        self.controller.state = SimpleNamespace(
+            interaction_mode=Mode.NORMAL,
+            stop_clock=AsyncMock(),
+        )
+        self.controller.engine = SimpleNamespace(
+            is_waiting=Mock(return_value=True),
+            is_thinking=Mock(return_value=False),
+        )
+        self.controller.stop_search_with_outcome = AsyncMock(
+            return_value=mainloop.SearchStopOutcome(engine_idle=True)
+        )
+
+    async def test_already_waiting_skips_stop_and_is_idle(self):
+        outcome = await self.controller.stop_search_and_clock_with_outcome()
+
+        self.assertTrue(outcome.analysis_stop_completed)
+        self.assertTrue(outcome.engine_idle)
+        self.controller.state.stop_clock.assert_awaited_once_with()
+        self.controller.stop_search_with_outcome.assert_not_awaited()
+
+    async def test_ponder_hit_skips_stop_without_claiming_idle(self):
+        self.controller.engine.is_waiting.return_value = False
+
+        outcome = await self.controller.stop_search_and_clock_with_outcome(
+            ponder_hit=True
+        )
+
+        self.assertTrue(outcome.analysis_stop_completed)
+        self.assertFalse(outcome.engine_idle)
+        self.controller.state.stop_clock.assert_awaited_once_with()
+        self.controller.stop_search_with_outcome.assert_not_awaited()
 
 
 class TestInteractionModeSwitch(unittest.IsolatedAsyncioTestCase):
@@ -2200,10 +2294,36 @@ class TestEarlyUserMoveInvalidation(unittest.TestCase):
             node for node in ast.walk(user_move)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "stop_search_and_clock"
+            and node.func.attr == "stop_search_and_clock_with_outcome"
         )
 
         self.assertLess(invalidate.lineno, stop.lineno)
+
+    def test_clock_mutation_and_move_push_are_await_free(self):
+        user_move = next(
+            node for node in self.main_loop.body
+            if getattr(node, "name", None) == "user_move"
+        )
+        add_time = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "add_time"
+        )
+        push_move = next(
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "push_move"
+        )
+        awaits_between = [
+            node for node in ast.walk(user_move)
+            if isinstance(node, ast.Await)
+            and add_time.lineno < node.lineno < push_move.lineno
+        ]
+
+        self.assertLess(add_time.lineno, push_move.lineno)
+        self.assertEqual([], awaits_between)
 
     def test_takeback_paths_invalidate_before_waiting_for_engine_and_clock(self):
         for method_name in ("takeback", "process_fen"):

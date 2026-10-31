@@ -91,6 +91,24 @@ def user_move_task_matches_position(
     )
 
 
+def user_move_request_matches_position(
+    move: chess.Move,
+    expected_fen: str,
+    expected_revision: int,
+    board: chess.Board,
+    current_fen: str,
+    current_revision: int,
+    done_computer_fen: str | None,
+) -> bool:
+    """Return whether an uncommitted user-move task still owns its source position."""
+    return bool(
+        done_computer_fen is None
+        and expected_revision == current_revision
+        and expected_fen == current_fen
+        and move in board.legal_moves
+    )
+
+
 def engine_move_event_matches_state(
     event_fen: str | None,
     current_fen: str,

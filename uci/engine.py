@@ -121,6 +121,14 @@ _MAME_CAPABILITY_PATTERN = re.compile(r"\(((?:pos|edit|info)(?:\+(?:pos|edit|inf
 
 
 @dataclass(frozen=True)
+class AnalyserStopOutcome:
+    """Result of one analyser stop without consulting shared stop flags."""
+
+    completed: bool
+    forced: bool = False
+
+
+@dataclass(frozen=True)
 class MameCapabilities:
     """Capabilities reported by the selected MAME Lua interface."""
 
@@ -824,19 +832,28 @@ class ContinuousAnalysis:
         timeout: float = 1.0,
         cancel_timeout: float = ENGINE_ANALYSER_CANCEL_TIMEOUT,
     ) -> bool:
-        """Stop analyser cleanly and wait until the task has finished."""
+        """Stop analyser cleanly while preserving the legacy boolean API."""
+        outcome = await self._stop_async_with_outcome(timeout, cancel_timeout)
+        self._last_stop_was_forced = outcome.forced
+        return outcome.completed
+
+    async def _stop_async_with_outcome(
+        self,
+        timeout: float = 1.0,
+        cancel_timeout: float = ENGINE_ANALYSER_CANCEL_TIMEOUT,
+    ) -> AnalyserStopOutcome:
+        """Stop analyser and return task-local completion and forced status."""
         task = self._task
-        self._last_stop_was_forced = False
         if not self._running and not task:
-            return True
+            return AnalyserStopOutcome(completed=True)
 
         self._running = False
         if not task:
             self._task = None
-            return True
+            return AnalyserStopOutcome(completed=True)
         if task.done():
             self._task = None
-            return True
+            return AnalyserStopOutcome(completed=True)
 
         if self._waiting_for_lease:
             # Another search (the engine's own move) owns the engine and the task only waits
@@ -848,9 +865,9 @@ class ContinuousAnalysis:
                 pass
             except asyncio.TimeoutError:
                 logger.error("%s analyser task did not finish %.1fs after cancellation", self.whoami, cancel_timeout)
-                return False
+                return AnalyserStopOutcome(completed=False)
             self._task = None
-            return True
+            return AnalyserStopOutcome(completed=True)
 
         await self._request_active_stop()
 
@@ -865,14 +882,15 @@ class ContinuousAnalysis:
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=graceful_timeout)
             self._task = None
-            return True
+            return AnalyserStopOutcome(completed=True)
         except asyncio.TimeoutError:
             logger.warning("%s analyser stop timed out after %.1fs - cancelling task", self.whoami, graceful_timeout)
-            self._last_stop_was_forced = True
+            forced = True
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.warning("%s analyser stop failed before cancellation: %s", self.whoami, e)
+            forced = False
 
         task.cancel()
         try:
@@ -881,13 +899,13 @@ class ContinuousAnalysis:
             pass
         except asyncio.TimeoutError:
             logger.error("%s analyser task did not finish %.1fs after cancellation", self.whoami, cancel_timeout)
-            return False
+            return AnalyserStopOutcome(completed=False, forced=forced)
         except Exception as e:
             logger.warning("%s analyser task failed while cancelling: %s", self.whoami, e)
-            return False
+            return AnalyserStopOutcome(completed=False, forced=forced)
 
         self._task = None
-        return True
+        return AnalyserStopOutcome(completed=True, forced=forced)
 
     def cancel(self):
         """force the analyser to stop by cancelling the async task"""
@@ -1941,11 +1959,18 @@ class UciEngine(object):
             self.is_waiting(),
             "".join(traceback.format_stack(limit=6)),
         )
-        if not await self.stop_analysis():
-            return False
+        outcome = await self.stop_with_outcome()
+        self._last_analyser_stop_was_forced = outcome.forced
+        return outcome.completed
+
+    async def stop_with_outcome(self) -> AnalyserStopOutcome:
+        """Stop analysis/search and return task-local analyser stop metadata."""
+        outcome = await self._stop_analysis_with_outcome()
+        if not outcome.completed:
+            return outcome
         if not self.is_waiting():
             self.force_move()
-        return True
+        return outcome
 
     async def stop_analysis(self) -> bool:
         """Stop background ContinuousAnalyser and wait until it has fully stopped.
@@ -1954,14 +1979,18 @@ class UciEngine(object):
         a subsequent send() → configure() call cannot race an in-flight stop or
         bestmove exchange. ``False`` tells callers not to issue another command.
         """
-        self._last_analyser_stop_was_forced = False
+        outcome = await self._stop_analysis_with_outcome()
+        self._last_analyser_stop_was_forced = outcome.forced
+        return outcome.completed
+
+    async def _stop_analysis_with_outcome(self) -> AnalyserStopOutcome:
+        """Stop the analyser without routing its result through shared flags."""
         if self.analyser:
-            stopped = await self.analyser.stop_async()
-            self._last_analyser_stop_was_forced = self.analyser.consume_forced_stop()
-            if not stopped:
+            outcome = await self.analyser._stop_async_with_outcome()
+            if not outcome.completed:
                 logger.error("%s analyser did not finish its stop/recovery transaction", self.whoami)
-                return False
-        return True
+            return outcome
+        return AnalyserStopOutcome(completed=True)
 
     def consume_forced_analyser_stop(self) -> bool:
         """Return whether the last analyser stop needed forced cancellation and clear the flag."""

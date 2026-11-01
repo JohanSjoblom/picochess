@@ -73,8 +73,10 @@ ponder/ponder-hit implementation.
   later `ponderhit`. A returned ponder move may still be cached as continuation
   information, but that does not create a live ponder-hit lifecycle.
 - The `ponder` argument currently reaches `engine.play()` only on the fallback
-  path where the analysis info loop is disabled, including MAME and configured
-  legacy-analysis engines. This residual path must be audited before removing
+  path where the analysis info loop is disabled, that is for configured
+  legacy-analysis engines. MAME engines use the info loop for their own search
+  (the chessengine plugin sends live info lines) but still skip the engine
+  analyser on the user's turn. This residual path must be audited before removing
   the argument or related state completely.
 - Do not add new engine coordination, timeout, or MAME behavior that depends on
   `ponder_hit` being meaningful. Coordinate active searches through the

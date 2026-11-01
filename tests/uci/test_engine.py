@@ -230,6 +230,13 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Analysis", eng.options)
         eng.playing.set_allow_info_loop.assert_called_once_with(False)
 
+    async def test_mame_engine_keeps_playing_info_loop_but_skips_engine_analyser(self):
+        eng = UciEngine("some_engine", UciShell(), "", self.loop)
+        eng.is_mame = True
+
+        self.assertFalse(eng._should_disable_info_loop())
+        self.assertTrue(eng.should_skip_engine_analyser())
+
     async def test_default_name_overrides_uci_engine_name(self):
         with tempfile.TemporaryDirectory() as directory:
             engine_file = str(Path(directory) / "some_engine")

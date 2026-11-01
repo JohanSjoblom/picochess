@@ -1641,8 +1641,12 @@ class UciEngine(object):
         return self.is_mame or self.is_script or self.legacy_analysis_mode
 
     def _should_disable_info_loop(self) -> bool:
-        """Return True if PlayingContinuousAnalysis must avoid analysis() info loops."""
-        return self.is_mame or self.legacy_analysis_mode
+        """Return True if PlayingContinuousAnalysis must avoid analysis() info loops.
+
+        MAME engines keep the info loop: the chessengine plugin sends UCI info
+        lines while the emulated computer thinks about its own move.
+        """
+        return self.legacy_analysis_mode
 
     def _apply_playing_mode_policy(self):
         """Ensure PlayingContinuousAnalysis matches the current info-loop policy."""

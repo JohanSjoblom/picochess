@@ -320,23 +320,33 @@ class TestPicochessAnalysisRouting(unittest.TestCase):
 
         self.assertTrue(
             user_move_request_matches_position(
-                move, current_fen, 3, board, current_fen, 3, None
+                move, current_fen, 3, None, board, current_fen, 3, None
             )
         )
         self.assertFalse(
             user_move_request_matches_position(
-                move, current_fen, 3, board, current_fen, 4, None
+                move, current_fen, 3, None, board, current_fen, 4, None
             )
         )
         self.assertFalse(
             user_move_request_matches_position(
-                move, current_fen, 3, board, current_fen, 3, "pending"
+                move, current_fen, 3, None, board, current_fen, 3, "pending"
+            )
+        )
+        self.assertTrue(
+            user_move_request_matches_position(
+                move, current_fen, 3, "pending", board, current_fen, 3, "pending"
+            )
+        )
+        self.assertFalse(
+            user_move_request_matches_position(
+                move, current_fen, 3, "pending", board, current_fen, 3, "replacement"
             )
         )
         board.push(move)
         self.assertFalse(
             user_move_request_matches_position(
-                move, current_fen, 3, board, board.fen(), 3, None
+                move, current_fen, 3, None, board, board.fen(), 3, None
             )
         )
 

@@ -2696,13 +2696,18 @@ class MainLoop:
         return self.state.user_move_revision
 
     def _user_move_request_is_current(
-        self, move: chess.Move, expected_fen: str, expected_revision: int
+        self,
+        move: chess.Move,
+        expected_fen: str,
+        expected_revision: int,
+        expected_done_computer_fen: str | None,
     ) -> bool:
         """Return whether an uncommitted move still owns the live position."""
         return user_move_request_matches_position(
             move,
             expected_fen,
             expected_revision,
+            expected_done_computer_fen,
             self.state.get_move_check_board(),
             self.state.get_fen(),
             self.state.user_move_revision,
@@ -2793,6 +2798,11 @@ class MainLoop:
 
             self._release_coach_position_mode_for_move()
             user_move_source_fen = self.state.get_fen()
+            owned_done_computer_fen = (
+                self.state.done_computer_fen
+                if self.state.interaction_mode in (Mode.TRAINING, Mode.PGNREPLAY)
+                else None
+            )
             user_move_revision = self._invalidate_user_move_tasks()
             self.cancel_brain_hint_timer(preserve_best_move=True, resume_paused_clock=False)
             self.state.brain_required_piece_type = None
@@ -2854,7 +2864,10 @@ class MainLoop:
                     reset_analysis_cache = True
 
             if not self._user_move_request_is_current(
-                move, user_move_source_fen, user_move_revision
+                move,
+                user_move_source_fen,
+                user_move_revision,
+                owned_done_computer_fen,
             ):
                 # A newer board event owns this move. Treat this task as
                 # handled so process_fen does not re-arm a stale error timer.
@@ -2866,7 +2879,10 @@ class MainLoop:
             # prevents an older stop from affecting a newer move's search.
             async with self._user_move_commit_lock:
                 if not self._user_move_request_is_current(
-                    move, user_move_source_fen, user_move_revision
+                    move,
+                    user_move_source_fen,
+                    user_move_revision,
+                    owned_done_computer_fen,
                 ):
                     logger.info("skipping obsolete user move [%s] before commit", move)
                     return True
@@ -2875,7 +2891,10 @@ class MainLoop:
                     ponder_hit=ponder_hit
                 )
                 if not self._user_move_request_is_current(
-                    move, user_move_source_fen, user_move_revision
+                    move,
+                    user_move_source_fen,
+                    user_move_revision,
+                    owned_done_computer_fen,
                 ):
                     logger.info("skipping obsolete user move [%s] after engine stop", move)
                     return True

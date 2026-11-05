@@ -3666,6 +3666,7 @@ class MainLoop:
         self.state.done_move = self.state.pb_move = chess.Move.null()
         self.state.searchmoves.reset()
         self.state.game_declared = False
+        ModeInfo.set_game_ending(result="*")
         self.state.takeback_active = False
         self.state.automatic_takeback = False
         self.state.legal_fens = compute_legal_fens(self.state.game)
@@ -4126,6 +4127,7 @@ class MainLoop:
                         self.state.done_move = self.state.pb_move = chess.Move.null()
                         self.state.searchmoves.reset()
                         self.state.game_declared = False
+                        ModeInfo.set_game_ending(result="*")
                         self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
                         self.state.legal_fens_after_cmove = []
                         self.state.last_legal_fens = []

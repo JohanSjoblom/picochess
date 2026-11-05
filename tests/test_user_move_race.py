@@ -228,6 +228,39 @@ class TestUserMoveRace(unittest.IsolatedAsyncioTestCase):
         self.time_control.add_time.assert_called_once_with(chess.WHITE)
         self.controller._think_after_current_user_move.assert_awaited_once()
 
+    async def _assert_pending_move_is_committed(self, mode, move):
+        announced_position = self.board.copy()
+        announced_position.push(self.move)
+        self.state.interaction_mode = mode
+        self.state.done_move = self.move
+        self.state.done_computer_fen = announced_position.board_fen()
+        self.controller.stop_search_and_clock_with_outcome = AsyncMock(
+            return_value=mainloop.SearchStopOutcome()
+        )
+
+        self.assertTrue(await self.controller.user_move(move, sliding=False))
+
+        self.push_move.assert_called_once_with(move)
+        self.controller.stop_search_and_clock_with_outcome.assert_awaited_once()
+        self.assertIsNone(self.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.state.done_move)
+
+    async def test_training_executes_announced_pending_move(self):
+        await self._assert_pending_move_is_committed(Mode.TRAINING, self.move)
+
+    async def test_training_replaces_announced_pending_move(self):
+        await self._assert_pending_move_is_committed(
+            Mode.TRAINING, chess.Move.from_uci("a2b3")
+        )
+
+    async def test_pgn_replay_executes_announced_pending_move(self):
+        await self._assert_pending_move_is_committed(Mode.PGNREPLAY, self.move)
+
+    async def test_pgn_replay_replaces_announced_pending_move(self):
+        await self._assert_pending_move_is_committed(
+            Mode.PGNREPLAY, chess.Move.from_uci("a2b3")
+        )
+
     async def _commit_analysis_hit(self, outcome):
         self.state.interaction_mode = Mode.PONDER
         self.controller.eng_plays.return_value = False

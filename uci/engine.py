@@ -985,6 +985,25 @@ class PlayingContinuousAnalysis:
         """Set the current game identifier."""
         self.game_id = game_id
 
+    def _end_analysis_with_its_command(self, analysis: AnalysisResult) -> None:
+        """Fail the stream if the search command ends without finishing it.
+
+        python-chess leaves the stream open when it can't parse the bestmove, for example
+        the "bestmove ----" of the MAME chessengine plugin after a position it can't set up.
+        """
+
+        def fail_open_stream(_finished=None) -> None:
+            try:
+                analysis.set_exception(chess.engine.EngineError("search ended without a valid bestmove"))
+            except asyncio.InvalidStateError:
+                pass  # the normal end: the stream already has its result
+
+        command = getattr(self.engine, "command", None)
+        if command is None:
+            fail_open_stream()
+        else:
+            command.finished.add_done_callback(fail_open_stream)
+
     def set_allow_info_loop(self, allow: bool):
         """Toggle whether analysis() info loop should run."""
         self.allow_info_loop = allow
@@ -1040,6 +1059,7 @@ class PlayingContinuousAnalysis:
                         info=chess.engine.INFO_ALL,
                     )
                     self._active_analysis = analysis
+                    self._end_analysis_with_its_command(analysis)
                     try:
                         if self._force_event.is_set() or self._cancel_event.is_set():
                             self._request_stop_or_delay(search_generation=search_generation)
@@ -1061,7 +1081,7 @@ class PlayingContinuousAnalysis:
                             if best:
                                 best_move = best.move
                                 ponder_move = best.ponder
-                        except CancelledError:
+                        except (CancelledError, chess.engine.EngineError):
                             raise
                         except Exception:
                             logger.debug("%s analysis.wait() failed to provide best move", self.whoami)

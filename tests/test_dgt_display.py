@@ -465,6 +465,104 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
 
         dispatch_fire.assert_awaited_once()
 
+    @patch("mainloop.DisplayMsg.show", new_callable=AsyncMock)
+    @patch("dgt.display.DispatchDgt.fire", new_callable=AsyncMock)
+    async def test_flexible_ponder_setup_clears_result_and_resumes_rotation(
+        self, dispatch_fire, _display_show
+    ):
+        controller = object.__new__(MainLoop)
+        previous_game = chess.Board("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1")
+        state = SimpleNamespace(
+            error_fen=chess.STARTING_BOARD_FEN,
+            fen_timer_running=True,
+            get_board_fen=previous_game.board_fen,
+            set_position_ack_target_fen=None,
+            position_checkpoint_restore_pending=False,
+            interaction_mode=Mode.PONDER,
+            flag_flexible_ponder=True,
+            coach_triggered=False,
+            newgame_happened=False,
+            flag_startup=False,
+            game=previous_game,
+            dgtmenu=SimpleNamespace(
+                get_picocoach=Mock(return_value=PicoCoach.COACH_OFF)
+            ),
+            variant="standard",
+            _threecheck_board=None,
+            _atomic_board=None,
+            best_sent_depth=SimpleNamespace(reset=Mock()),
+            done_computer_fen="stale",
+            done_move=chess.Move.from_uci("h8g8"),
+            pb_move=chess.Move.from_uci("h8g8"),
+            searchmoves=SimpleNamespace(reset=Mock()),
+            game_declared=True,
+            legal_fens=[],
+            legal_fens_after_cmove=[],
+            last_legal_fens=[],
+            set_position_ack_pending=False,
+        )
+        state.get_variant_board = lambda: state.game
+        state.engine_board_copy = lambda: state.game.copy()
+        state.new_game_msg = Mock(return_value=object())
+        controller.state = state
+        controller.engine = SimpleNamespace(newgame=AsyncMock())
+        controller._update_variant_shared = Mock()
+        controller.set_picotutor_position = AsyncMock()
+        controller._start_or_stop_analysis_as_needed = AsyncMock()
+        ModeInfo.set_game_ending(result="1-0")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
+
+        await controller.expired_fen_timer()
+
+        self.assertEqual("*", ModeInfo.get_game_ending())
+        display = self.create_display()
+        display._inside_main_menu = Mock(return_value=False)
+        display.dgtmenu.set_mode(Mode.PONDER)
+        display.dgtmenu.set_ponder_interval(1)
+        display.depth = 12
+        display.score = display.dgttranslate.text("N10_score", 25)
+        await display._process_once_per_second()
+        dispatch_fire.assert_awaited()
+
+    @patch("mainloop.DisplayMsg.show", new_callable=AsyncMock)
+    async def test_ponder_side_change_clears_recorded_result(self, _display_show):
+        controller = object.__new__(MainLoop)
+        state = SimpleNamespace(
+            position_mode=False,
+            fen_timer_running=False,
+            game=chess.Board(),
+            dgtmenu=SimpleNamespace(get_dgt_fen=Mock(return_value="")),
+            stop_fen_timer=Mock(),
+            error_fen="stale",
+            fen_error_occured=True,
+            best_sent_depth=SimpleNamespace(reset=Mock()),
+            done_computer_fen="stale",
+            done_move=chess.Move.from_uci("e2e4"),
+            pb_move=chess.Move.from_uci("e2e4"),
+            searchmoves=SimpleNamespace(reset=Mock()),
+            game_declared=True,
+            takeback_active=True,
+            automatic_takeback=True,
+            legal_fens=[],
+            legal_fens_after_cmove=[],
+            last_legal_fens=[],
+        )
+        state.get_board_fen = state.game.board_fen
+        state.set_ponder_turn = lambda turn: setattr(state.game, "turn", turn) is None
+        state.engine_board_copy = lambda: state.game.copy()
+        state.new_game_msg = Mock(return_value=object())
+        controller.state = state
+        controller.board_type = EBoard.NOEBOARD
+        controller.engine = SimpleNamespace(newgame=AsyncMock())
+        controller._start_or_stop_analysis_as_needed = AsyncMock()
+        ModeInfo.set_game_ending(result="0-1")
+        self.addCleanup(lambda: ModeInfo.set_game_ending(result="*"))
+
+        await controller._set_ponder_turn(chess.BLACK)
+
+        self.assertEqual("*", ModeInfo.get_game_ending())
+        self.assertEqual(chess.BLACK, state.game.turn)
+
     @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_position_scan_uses_physical_fen_during_retry_allowance(

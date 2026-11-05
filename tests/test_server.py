@@ -146,7 +146,7 @@ class TestSettingsTemplate(unittest.TestCase):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
 
         self.assertIn("var translatedTrimmed = menuText(trimmed);", template)
-        self.assertIn("if (!trimmed || translatedTrimmed === trimmed) continue;", template)
+        self.assertIn("if (!trimmed) continue;", template)
         self.assertIn("source.replace(trimmed, translatedTrimmed)", template)
         self.assertNotIn("if (!trimmed || !menuTextMap[trimmed]) continue;", template)
 

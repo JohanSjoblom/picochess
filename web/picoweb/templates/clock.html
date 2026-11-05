@@ -1174,7 +1174,7 @@
                     var source = node._picoMenuSource;
                     var trimmed = source.trim();
                     var translatedTrimmed = menuText(trimmed);
-                    if (!trimmed || translatedTrimmed === trimmed) continue;
+                    if (!trimmed) continue;
                     var translated = source.replace(trimmed, translatedTrimmed);
                     node._picoMenuTranslated = translated;
                     if (node.nodeValue !== translated) node.nodeValue = translated;

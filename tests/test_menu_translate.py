@@ -42,6 +42,15 @@ class TestWebMenuTranslate(unittest.TestCase):
         self.assertEqual("Jugar", source_map["Play"])
         self.assertEqual("Motor", source_map["Engine"])
 
+    def test_dutch_display_menu_labels_are_translated(self):
+        source_map = get_menu_source_map("nl")
+
+        self.assertEqual("Bord", source_map["Board"])
+        self.assertEqual("Stukken", source_map["Pieces"])
+        self.assertEqual("Thema", source_map["Theme"])
+        self.assertEqual("Alleen klok", source_map["Clock Only"])
+        self.assertEqual("PGN-lijnen", source_map["PGN Lines"])
+
 
 if __name__ == "__main__":
     unittest.main()

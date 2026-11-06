@@ -345,6 +345,37 @@ class TestUserMoveRace(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(chess.Move.null(), self.state.done_move)
         self.controller.start_fen_timer.assert_not_called()
 
+    async def test_sliding_replacement_releases_already_announced_move(self):
+        replacement = chess.Move.from_uci("a2b3")
+        engine_reply = chess.Move.from_uci("g8h8")
+        alternatives = mainloop.compute_legal_fens(self.board)
+        replacement_fen = alternatives[list(self.board.legal_moves).index(replacement)]
+        self.state.last_legal_fens = alternatives
+        self.state.take_back_locked = False
+        self.board.push(self.move)
+        self._publish_best_move_while_stopping(engine_reply)
+        self.state.last_legal_fens = alternatives
+
+        await self.controller.process_main_events(
+            mainloop.Event.BEST_MOVE(
+                move=engine_reply,
+                ponder=None,
+                inbook=False,
+                fen=self.state.get_fen(),
+                search_revision=7,
+            )
+        )
+        self.assertIsNotNone(self.state.done_computer_fen)
+        self.assertEqual(engine_reply, self.state.done_move)
+
+        await self.controller.process_fen(replacement_fen, self.state)
+
+        self.push_move.assert_called_once_with(replacement)
+        self.assertEqual(replacement, self.board.peek())
+        self.assertIsNone(self.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.state.done_move)
+        self.controller.start_fen_timer.assert_not_called()
+
     async def _commit_analysis_hit(self, outcome):
         self.state.interaction_mode = Mode.PONDER
         self.controller.eng_plays.return_value = False

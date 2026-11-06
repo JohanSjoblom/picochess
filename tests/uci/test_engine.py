@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import signal
 from pathlib import Path
 import tempfile
 import unittest
@@ -811,6 +812,60 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
         eng.stop_analysis.assert_awaited_once_with()
         eng._shutdown_standard_engine.assert_awaited_once_with()
         eng._close_remote_connection.assert_awaited_once_with()
+
+    async def test_quit_shuts_mame_down_like_other_engines(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.is_mame = True
+        eng._shutdown_standard_engine = AsyncMock()
+        eng._close_remote_connection = AsyncMock()
+
+        with (
+            patch("uci.engine.asyncio.sleep", new=AsyncMock()),
+            patch("uci.engine.os.system") as system,
+        ):
+            await eng.quit()
+
+        eng._shutdown_standard_engine.assert_awaited_once_with()
+        system.assert_not_called()
+
+    async def test_force_kill_of_local_mame_kills_its_process_group_without_sigterm(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.is_mame = True
+        eng.transport = Mock()
+        eng.transport.get_pid.return_value = 4321
+        eng._wait_for_transport_exit = AsyncMock(return_value=True)
+
+        with patch("uci.engine.os.killpg") as killpg:
+            await eng._force_kill_transport()
+
+        killpg.assert_called_once_with(4321, signal.SIGKILL)
+        eng.transport.terminate.assert_not_called()
+        eng.transport.kill.assert_not_called()
+
+    async def test_force_kill_of_mame_tolerates_a_group_that_is_already_gone(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.is_mame = True
+        eng.transport = Mock()
+        eng.transport.get_pid.return_value = 4321
+        eng._wait_for_transport_exit = AsyncMock(return_value=True)
+
+        with patch("uci.engine.os.killpg", side_effect=ProcessLookupError):
+            await eng._force_kill_transport()
+
+        eng._wait_for_transport_exit.assert_awaited_once()
+
+    async def test_force_kill_of_remote_mame_does_not_touch_local_process_groups(self):
+        eng = UciEngine("some_engine", UciShell(), "", asyncio.get_running_loop())
+        eng.is_mame = True
+        eng.is_remote = True
+        eng.transport = Mock()
+        eng._terminate_and_wait = AsyncMock(return_value=True)
+
+        with patch("uci.engine.os.killpg") as killpg:
+            await eng._force_kill_transport()
+
+        killpg.assert_not_called()
+        eng._terminate_and_wait.assert_awaited_once_with()
 
     async def test_stop_async_waits_for_pending_ping_without_recovery(self):
         ping_started = asyncio.Event()

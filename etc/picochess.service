@@ -14,7 +14,6 @@ User=pi
 Group=pi
 Type=simple
 ExecStart=/opt/picochess/venv/bin/python3 /opt/picochess/picochess.py
-ExecStop=-/usr/bin/pkill -9 -f mess
 WorkingDirectory=/opt/picochess/
 
 [Install]

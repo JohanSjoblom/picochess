@@ -24,7 +24,7 @@ from __future__ import annotations
 import csv
 import logging
 from random import randint
-from typing import Tuple
+from typing import Any, Tuple
 import platform
 import asyncio
 import chess  # type: ignore
@@ -66,32 +66,50 @@ class PicoTutor:
         self.obvious_engine: UciEngine | None = None  # obvious - min
         # snapshot list of best = deep/max-ply, and obvious = shallow/low-ply
         # lists of InfoDict per color - filled in eval_legal_moves()
-        self.best_info = {color: [] for color in [chess.WHITE, chess.BLACK]}
-        self.obvious_info = {color: [] for color in [chess.WHITE, chess.BLACK]}
+        self.best_info: dict[chess.Color, list[InfoDict]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
+        self.obvious_info: dict[chess.Color, list[InfoDict]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
         # snapshot of best_moves and obvious_moves are filled in _eval_pv_list()
         # information comes from InfoDict snapshot lists above: best_info and obvious_info
         # "almost" complete 5-50 list of tuple(pv_key, move, score, mate)
-        self.best_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
-        self.obvious_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
+        self.best_moves: dict[chess.Color, list[tuple]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
+        self.obvious_moves: dict[chess.Color, list[tuple]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
         # history list of user move selected from best_moves and obvious_moves above
         # best_history tuple(pv_key, move, score, mate, effective_depth)
         # obvious_history tuple(pv_key, move, score, mate)
         # pv_key is the index to the snapshot best_info and obvious_info
         # index = None indicates was not found in InfoDict results
         # index not None has no value in history as its an index to a snapshot above
-        self.best_history = {color: [] for color in [chess.WHITE, chess.BLACK]}
-        self.obvious_history = {color: [] for color in [chess.WHITE, chess.BLACK]}
+        self.best_history: dict[chess.Color, list[tuple]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
+        self.obvious_history: dict[chess.Color, list[tuple]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
         # pv_user_move and pv_best_move are the pv array from InfoDict analysis
-        self.pv_user_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
-        self.pv_best_move = {color: [] for color in [chess.WHITE, chess.BLACK]}
+        self.pv_user_move: dict[chess.Color, list[chess.Move]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
+        self.pv_best_move: dict[chess.Color, list[chess.Move]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
         self.hint_move = {color: chess.Move.null() for color in [chess.WHITE, chess.BLACK]}
-        self.op = []  # used for opening book
+        self.op: list[str] = []  # used for opening book
         self.last_inside_book_moveno = 0
         # alt_best_moves are filled in eval_legal_moves()
-        self.alt_best_moves = {color: [] for color in [chess.WHITE, chess.BLACK]}
-        self.comments = []
+        self.alt_best_moves: dict[chess.Color, list[chess.Move]] = {
+            color: [] for color in [chess.WHITE, chess.BLACK]
+        }
+        self.comments: list[str] = []
         self.comment_no = 0
-        self.comments_all = []
+        self.comments_all: list[str] = []
         self.comment_all_no = 0
         self.lang = i_lang
         self.expl_start_position = True
@@ -106,7 +124,7 @@ class PicoTutor:
         self.board = chess.Board()
         self.ucishell = i_ucishell
         self.loop = loop  # main loop everywhere
-        self.deep_limit_depth = None  # override picotutor value in set_mode
+        self.deep_limit_depth: int | None = None  # override picotutor value in set_mode
         # Session-only deep Tutor settings. Requested changes are applied before
         # a later analysis start, never by interrupting a running search.
         self.deep_threads_requested = c.NUM_THREADS
@@ -117,7 +135,7 @@ class PicoTutor:
         self.deep_depth_applied = c.DEEP_DEPTH
         # evaluated moves keeps a memory of all non zero evaluation strings
         # it can then be used to print comments in the PGN file
-        self.evaluated_moves = {}  # key=(fullmove_number, turn, move) value={}
+        self.evaluated_moves: dict[tuple[int, chess.Move, chess.Color], dict[str, Any]] = {}
         # the following setting can be True if engine is not playing
         # or if you want to analyse also engine moves (like pgn_engine)
         self.analyse_both_sides = False  # analyse only user side as default
@@ -140,7 +158,7 @@ class PicoTutor:
 
         self._setup_board(i_fen)
 
-    def set_pgn_game_to_step(self, pgn_game: chess.pgn.Game):
+    def set_pgn_game_to_step(self, pgn_game: chess.pgn.Game | None):
         """store a loaded PGN game here so that it can be stepped through"""
         self.pgn_game = pgn_game  # read by picochess.py read_pgn_file()
 
@@ -153,16 +171,16 @@ class PicoTutor:
             return len(board.move_stack)  # half-move count dont work in library
         return 0
 
-    def get_pgn_game_to_step(self) -> chess.pgn.Game:
+    def get_pgn_game_to_step(self) -> chess.pgn.Game | None:
         """get a stored PGN game - example: check if it exists before calling get_next_pgn_move"""
         return self.pgn_game
 
-    def get_next_pgn_move(self, current_board: chess.Board) -> chess.Move:
+    def get_next_pgn_move(self, current_board: chess.Board) -> chess.Move | None:
         """whats the next move to step through in a loaded PGN game
         send current game board to see if a match is found in the loaded PGN game
         return None if no PGN file loaded or PGN move not found"""
         if self.pgn_game:
-            node = self.pgn_game
+            node: chess.pgn.GameNode = self.pgn_game
             # special case - starting position
             if current_board.fen() == chess.Board.starting_fen:
                 if node.variations:
@@ -204,7 +222,7 @@ class PicoTutor:
             if self.obvious_engine is None:
                 logger.debug("obvious engine loading failed in Picotutor")
 
-    async def _load_engine(self, options: dict, debug_whoami: str) -> UciEngine:
+    async def _load_engine(self, options: dict, debug_whoami: str) -> UciEngine | None:
         """internal function to load each tutor engine"""
         engine = UciEngine(
             self.engine_path,
@@ -219,9 +237,8 @@ class PicoTutor:
         if engine.loaded_ok() is True:
             await engine.startup(options=options)
             engine.set_mode()  # not needed as we dont ponder?
-        else:
-            engine = None
-        return engine
+            return engine
+        return None
 
     def get_engine_name(self):
         """return the full engine name as used by picotutor"""
@@ -231,7 +248,7 @@ class PicoTutor:
         """return the internal chess.Board of picotutor"""
         return self.board
 
-    async def set_mode(self, analyse_both_sides: bool, deep_limit_depth: int = None):
+    async def set_mode(self, analyse_both_sides: bool, deep_limit_depth: int | None = None):
         """normally analyse_both_sides is False but if True both sides will be analysed
         deep_limit_depth defaults to the configured DEEP_DEPTH if not set"""
         self.deep_limit_depth = deep_limit_depth  # None also ok = back to default
@@ -476,12 +493,13 @@ class PicoTutor:
     def _find_longest_matching_opening(self, played: str) -> Tuple[str, str, str]:
         opening_name = moves = eco = ""
         for opening in self.book_data:
-            # if len(opening.get('moves')) > 5:
-            if played[: len(opening.get("moves"))] == opening.get("moves"):
-                if len(opening.get("moves")) > len(moves):
-                    opening_name = opening.get("opening_name")
-                    moves = opening.get("moves")
-                    eco = opening.get("eco")
+            opening_moves = str(opening.get("moves") or "")
+            # if len(opening_moves) > 5:
+            if played[: len(opening_moves)] == opening_moves:
+                if len(opening_moves) > len(moves):
+                    opening_name = str(opening.get("opening_name") or "")
+                    moves = opening_moves
+                    eco = str(opening.get("eco") or "")
         return opening_name, moves, eco
 
     def get_opening(self) -> Tuple[str, str, str, bool]:
@@ -926,7 +944,7 @@ class PicoTutor:
             pv_key = t[0]
             effective_depth = self._effective_deep_depth(self.board.turn, pv_key)
             self.best_history[self.board.turn].append((*t, effective_depth))
-            self.pv_best_move = self.best_info[self.board.turn][0]["pv"]
+            self.pv_best_move[self.board.turn] = self.best_info[self.board.turn][0]["pv"]
             self.pv_user_move[self.board.turn] = self.best_info[self.board.turn][pv_key]["pv"]
         else:
             logger.debug("did not find user move %s in best moves", user_move.uci())
@@ -961,7 +979,7 @@ class PicoTutor:
         info_list = self.best_info[turn] or []
         return min(self._pv_depth(info_list, best_pv), self._pv_depth(info_list, user_pv))
 
-    def in_best_moves(self, user_move: chess.Move) -> tuple:
+    def in_best_moves(self, user_move: chess.Move) -> tuple | None:
         """find move in obvious moves
         return None or tuple(pv_key, move, score, mate)"""
         for t in self.best_moves[self.board.turn]:
@@ -970,7 +988,7 @@ class PicoTutor:
                 return t
         return None
 
-    def in_obvious_moves(self, user_move: chess.Move) -> tuple:
+    def in_obvious_moves(self, user_move: chess.Move) -> tuple | None:
         """find move in obvious moves
         return None or tuple(pv_key, move, score)"""
         for t in self.obvious_moves[self.board.turn]:
@@ -981,7 +999,7 @@ class PicoTutor:
 
     def _get_better_pv_variations(self, turn: chess.Color, user_move: chess.Move, limit: int = 3) -> list[dict]:
         """Return tutor PVs ranked ahead of user_move as compact PGN variation data."""
-        variations = []
+        variations: list[dict] = []
         best_moves = self.best_moves.get(turn, [])
         selected_index = None
         for index, (_pv_key, move, _score, _mate) in enumerate(best_moves):
@@ -1030,8 +1048,8 @@ class PicoTutor:
         result = PlayResult(move=move, ponder=None, info=None)
         if move and self.can_use_coach_analyser():
             analysis_result = await self.get_analysis()
-            result.analysed_fen = analysis_result.get("fen")
-            info_list: list[InfoDict] = analysis_result.get("info")
+            setattr(result, "analysed_fen", analysis_result.get("fen", ""))
+            info_list: list[InfoDict] = analysis_result.get("info") or []
             if info_list:
                 user_move_index = self._find_user_move_index(info_list, move)
                 if user_move_index is not None:
@@ -1045,7 +1063,7 @@ class PicoTutor:
         result = PlayResult(move=None, ponder=None, info=None)
         if self.can_use_coach_analyser():
             analysis_result = await self.get_analysis()
-            info_list: list[InfoDict] = analysis_result.get("info")
+            info_list: list[InfoDict] = analysis_result.get("info") or []
             if info_list:
                 result.info = info_list[0]  # best line
                 if "pv" in result.info and len(result.info["pv"]) > 0:
@@ -1119,10 +1137,15 @@ class PicoTutor:
                 logger.debug("can not evaluate empty board 1st move")
                 return
         # else situation is for get_pos_analysis() where no move is done yet
-        obvious_result = await self.obvious_engine.get_analysis(board_before_usermove)
-        self.obvious_info[turn] = obvious_result.get("info")
-        best_result = await self.best_engine.get_analysis(board_before_usermove)
-        self.best_info[turn] = best_result.get("info")
+        obvious_engine = self.obvious_engine
+        best_engine = self.best_engine
+        if obvious_engine is None or best_engine is None:
+            logger.debug("tutor analysis unavailable because an engine is not loaded")
+            return
+        obvious_result = await obvious_engine.get_analysis(board_before_usermove)
+        self.obvious_info[turn] = obvious_result.get("info") or []
+        best_result = await best_engine.get_analysis(board_before_usermove)
+        self.best_info[turn] = best_result.get("info") or []
         if self.best_info[turn]:
             best_score = PicoTutor._eval_pv_list(turn, self.best_info[turn], self.best_moves[turn])
             if self.best_moves[turn]:
@@ -1382,7 +1405,7 @@ class PicoTutor:
         # not always unique if we have takeback sequence with other moves
         # should work since we evaluate all moves and remove if no evaluation
         e_key = (self.board.ply(), current_move, self.board.turn)  # ply, turn is AFTER current_move
-        e_value = {}  # collect eval values for the move here
+        e_value: dict[str, Any] = {}  # collect eval values for the move here
         e_value["nag"] = PicoTutor.symbol_to_nag(eval_string)
         e_value["depth"] = effective_depth
         if low_depth_blunder:
@@ -1518,7 +1541,7 @@ class PicoTutor:
         return t[0]  # see tuple returned from method below
 
     @staticmethod
-    def halfmove_to_fullmove(halfmove_nr: int, known_turn: chess.Color = None) -> Tuple:
+    def halfmove_to_fullmove(halfmove_nr: int, known_turn: chess.Color | None = None) -> Tuple:
         """convert halfmove_nr after a move to a fullmove_nr and turn
         1. e4 = halfmove 1 = fullmove 0, 1.-e5 = halfmove 2 = fullmove 1
         To support setup position with a black first move we need known_turn
@@ -1555,7 +1578,9 @@ class PicoTutor:
         return filler_str
 
     @staticmethod
-    def fullmove_to_halfmove(fullmove_nr: int, turn: chess.Color, first_move_black: bool = None) -> int:
+    def fullmove_to_halfmove(
+        fullmove_nr: int, turn: chess.Color, first_move_black: bool | None = None
+    ) -> int:
         """convert back from fullmove to halfmove after a move
         1. e4 = halfmove 1 = fullmove 0, 1.-e5 = halfmove 2 = fullmove 1
         Note that board.pop() does not reduce fullmove number
@@ -1592,7 +1617,10 @@ class PicoTutor:
                 cpl_value = float(cpl)
             except (TypeError, ValueError):
                 continue
-            nag_symbol = PicoTutor.nag_to_symbol(value.get("nag"))
+            nag = value.get("nag", chess.pgn.NAG_NULL)
+            if not isinstance(nag, int):
+                nag = chess.pgn.NAG_NULL
+            nag_symbol = PicoTutor.nag_to_symbol(nag)
             if cpl_value <= 0 and not nag_symbol:
                 continue
             user_move = value.get("user_move")
@@ -1709,7 +1737,8 @@ class PicoTutor:
             score = 0
             if self.board.is_capture(move):
                 victim = self.board.piece_type_at(move.to_square)
-                score += 10 * piece_values.get(victim, 0) - piece_values.get(piece_type, 0)
+                victim_value = piece_values.get(victim, 0) if victim is not None else 0
+                score += 10 * victim_value - piece_values.get(piece_type, 0)
             board = self.board.copy()
             board.push(move)
             if board.is_check():

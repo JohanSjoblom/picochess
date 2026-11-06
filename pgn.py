@@ -67,7 +67,7 @@ def game_with_legal_pending_move(game: chess.Board, move_uci: object, variant: s
         logger.debug("ignoring invalid pending engine move at game end: %r", move_uci)
         return game
 
-    variant_boards = {
+    variant_boards: dict[str, type[chess.Board]] = {
         "atomic": chess.variant.AtomicBoard,
         "antichess": chess.variant.AntichessBoard,
         "racingkings": chess.variant.RacingKingsBoard,
@@ -118,7 +118,7 @@ def _picotutor_variation_first_move_exists(parent: chess.pgn.GameNode, move: che
     return any(variation.move == move for variation in parent.variations)
 
 
-def _copy_variation_subtree(target_parent: chess.pgn.GameNode, source_node: chess.pgn.GameNode) -> None:
+def _copy_variation_subtree(target_parent: chess.pgn.GameNode, source_node: chess.pgn.ChildNode) -> None:
     """Copy a PGN subtree below target_parent."""
     target_node = target_parent.add_variation(source_node.move)
     target_node.comment = source_node.comment
@@ -202,7 +202,7 @@ def pgn_has_variations(game: chess.pgn.Game | None) -> bool:
     """Return True if a PGN game contains any side variations."""
     if not game:
         return False
-    stack = [game]
+    stack: list[chess.pgn.GameNode] = [game]
     while stack:
         node = stack.pop()
         if len(node.variations) > 1:
@@ -746,7 +746,7 @@ class PgnDisplay(DisplayMsg):
 
         return pgn_game
 
-    def get_node_at_halfmove_nr(self, game: chess.pgn.Game, halfmove_nr: int) -> Optional[chess.pgn.GameNode]:
+    def get_node_at_halfmove_nr(self, game: chess.pgn.Game, halfmove_nr: int) -> Optional[chess.pgn.ChildNode]:
         """get the node halfmove_nr (ply) in the game tree - 0 is like 1. e4"""
         nodes = list(game.mainline())
         if halfmove_nr - 1 < len(nodes):

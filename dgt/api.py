@@ -344,7 +344,10 @@ class Message:
     ONLINE_FAILED = ClassFactory(MessageApi.ONLINE_FAILED, [])
     LOST_ON_TIME = ClassFactory(MessageApi.LOST_ON_TIME, [])
     SET_NOBOOK = ClassFactory(MessageApi.SET_NOBOOK, ["book_index"])
-    PICOTUTOR_MSG = ClassFactory(MessageApi.PICOTUTOR_MSG, ["eval_str", "game", "score"])
+    PICOTUTOR_MSG = ClassFactory(
+        MessageApi.PICOTUTOR_MSG,
+        ["eval_str", "game", "score", "display_maxtime"],
+    )
     POSITION_FAIL = ClassFactory(MessageApi.POSITION_FAIL, ["fen_result"])
     TIMECONTROL_CHECK = ClassFactory(MessageApi.TIMECONTROL_CHECK, ["player", "movestogo", "time1", "time2"])
     PROMOTION_DONE = ClassFactory(MessageApi.PROMOTION_DONE, ["move"])

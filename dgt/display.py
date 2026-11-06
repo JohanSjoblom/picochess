@@ -1202,6 +1202,11 @@ class DgtDisplay(DisplayMsg):
         # molli: rolling display
         if not self._inside_main_menu():
             if self.dgtmenu.get_mode() == Mode.PONDER:
+                # GAME_ENDS is recorded before the display queues process it.
+                # Keep its untimed result text on the clock instead of letting
+                # this timer restore analysis cached for the previous position.
+                if ModeInfo.get_game_ending() != "*":
+                    return
                 if not Rev2Info.get_web_only():
                     if self.show_move_or_value >= self.dgtmenu.get_ponderinterval():
                         if self.hint_move:
@@ -1795,6 +1800,9 @@ class DgtDisplay(DisplayMsg):
             if self.play_move == chess.Move.null():
                 # issue #45 - we do not want eval display while user needs to perform computer move
                 hint_text = self.dgttranslate.text("C10_picotutor_msg", message.eval_str)
+                display_maxtime = getattr(message, "display_maxtime", None)
+                if display_maxtime is not None:
+                    hint_text.maxtime = display_maxtime
                 await DispatchDgt.fire(hint_text)
                 if message.eval_str.startswith("BRAIN_"):
                     hint_display = self.dgtmenu.get_brain_hint_display()

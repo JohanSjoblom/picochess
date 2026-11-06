@@ -38,7 +38,7 @@ from dgt.util import game_ending_from_result
 
 from configobj import ConfigObj, ConfigObjError, DuplicateError  # type: ignore
 
-from typing import Optional
+from typing import MutableMapping, Optional
 
 from pathlib import Path
 
@@ -52,8 +52,8 @@ _WINDOW_CONTROL_BACKEND_PREFERENCE = "auto"
 evt_queue: asyncio.Queue = asyncio.Queue()
 dispatch_queue: asyncio.Queue = asyncio.Queue()
 
-msgdisplay_devices = []
-dgtdisplay_devices = []
+msgdisplay_devices: list["DisplayMsg"] = []
+dgtdisplay_devices: list["DisplayDgt"] = []
 
 
 class Observable(object):
@@ -98,7 +98,7 @@ class DisplayMsg(object):
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super(DisplayMsg, self).__init__()
-        self.msg_queue = asyncio.Queue()
+        self.msg_queue: asyncio.Queue[object] = asyncio.Queue()
         self.loop = loop  # everyone to use main loop
         msgdisplay_devices.append(self)
 
@@ -135,7 +135,7 @@ class DisplayDgt(object):
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super(DisplayDgt, self).__init__()
-        self.dgt_queue = asyncio.Queue()
+        self.dgt_queue: asyncio.Queue[object] = asyncio.Queue()
         self.loop = loop  # everyone to use main loop
         dgtdisplay_devices.append(self)
 
@@ -154,7 +154,7 @@ class DisplayDgt(object):
 class AsyncRepeatingTimer:
     """Call function on a given interval - Async version to replace RepeatedTimer"""
 
-    lag_warning_seconds = None  # Enable only for event-loop diagnostics.
+    lag_warning_seconds: float | None = None  # Enable only for event-loop diagnostics.
 
     def __init__(self, interval, callback, loop: asyncio.AbstractEventLoop, repeating=True, args=None, kwargs=None):
         self.interval = interval  # Interval between each execution
@@ -474,7 +474,7 @@ async def update_picochess(dgtpi: bool, auto_reboot: bool, dgttranslate: DgtTran
         # Check if update is needed - need to make sure, we get english answers
         output = do_popen([git, "status", "-uno"], force_en_env=True)
         if "up-to-date" not in output and "Your branch is ahead of" not in output:
-            DispatchDgt.fire(dgttranslate.text("Y25_update"))
+            await DispatchDgt.fire(dgttranslate.text("Y25_update"))
             # Update
             logging.debug("updating picochess")
             do_popen([git, "pull", "origin", branch])
@@ -769,7 +769,7 @@ def keep_essential_headers(headers: dict) -> dict:
     return {k: v for k, v in headers.items() if k in important_header_keys}
 
 
-def ensure_important_headers(headers: dict) -> None:
+def ensure_important_headers(headers: MutableMapping[str, str]) -> None:
     """Ensure standard PGN headers exist, filling headers dict with '?' if missing"""
     for key in important_header_keys:
         if key not in headers:

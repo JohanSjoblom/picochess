@@ -1532,11 +1532,7 @@ class DgtTranslate(object):
                 w_msg_nl = "hint: " + l_move_nl
                 l_msg_nl = "hnt: " + l_move_nl
                 l_msg_nl = l_msg_nl.ljust(11, " ")
-                m_move_nl = msg[4:]
-                m_move_nl = l_move_g.replace("N", "S")
-                m_move_nl = l_move_g.replace("Q", "D")
-                m_move_nl = l_move_g.replace("R", "T")
-                m_move_nl = l_move_g.replace("B", "L")
+                m_move_nl = l_move_nl
                 if len(msg[4:]) > 4:
                     m_msg = "hnt" + msg[4:]
                     m_msg_g = "Tip" + m_move_g

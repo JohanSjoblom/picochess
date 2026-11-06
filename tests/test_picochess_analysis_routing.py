@@ -2146,6 +2146,15 @@ class TestTutorMessageOwnership(unittest.IsolatedAsyncioTestCase):
         self.sleep.assert_awaited_once_with(3.0)
         self.assertEqual([], messages)
 
+    async def test_tutor_delay_is_carried_as_display_duration(self):
+        message = Message.PICOTUTOR_MSG(eval_str="??")
+        messages = [(message, 3.0)]
+
+        await self.controller._deliver_picotutor_messages(messages, self.owner)
+
+        delivered = self.show.await_args.args[0]
+        self.assertEqual(3.0, delivered.display_maxtime)
+
     async def test_replacement_move_discards_remaining_tutor_messages(self):
         async def replace_move(_delay):
             self.controller.state.user_move_revision = 2

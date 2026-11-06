@@ -2119,6 +2119,7 @@ class MainLoop:
             logger.info("sliding move detected")
             if self.state.interaction_mode in (Mode.NORMAL, Mode.BRAIN, Mode.TRAINING):
                 if self.state.is_not_user_turn():
+                    self._invalidate_engine_search_results()
                     await self.stop_search()
                     self.state.pop_move()
                     if self.picotutor_mode():
@@ -2695,6 +2696,11 @@ class MainLoop:
         self.state.user_move_revision += 1
         return self.state.user_move_revision
 
+    def _invalidate_engine_search_results(self) -> int:
+        """Reject results from the search an accepted board move is stopping."""
+        self.state.engine_search_revision += 1
+        return self.state.engine_search_revision
+
     def _user_move_request_is_current(
         self,
         move: chess.Move,
@@ -2887,6 +2893,8 @@ class MainLoop:
                     logger.info("skipping obsolete user move [%s] before commit", move)
                     return True
 
+                if not ponder_hit:
+                    self._invalidate_engine_search_results()
                 stop_outcome = await self.stop_search_and_clock_with_outcome(
                     ponder_hit=ponder_hit
                 )

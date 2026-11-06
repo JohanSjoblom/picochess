@@ -25,6 +25,7 @@ from collections import deque
 from dataclasses import dataclass
 import os
 import re
+import signal
 import traceback
 from typing import Any, Optional, Iterable, Awaitable, Callable, Mapping
 import logging
@@ -1365,7 +1366,9 @@ class UciEngine(object):
         logger.info("mfile %s", mfile)
         logger.info("opening engine locally")
         if self.is_mame:
-            self.transport, self.engine = await chess.engine.popen_uci(mfile)
+            # The start script runs MAME as its child, so signals to the script alone leave
+            # MAME running. A process group of their own lets the shutdown reach both.
+            self.transport, self.engine = await chess.engine.popen_uci(mfile, setpgrp=True)
         else:
             self.transport, self.engine = await CooperativeUciProtocol.popen(mfile)
             self.engine.output_label = self.whoami
@@ -1804,10 +1807,7 @@ class UciEngine(object):
                 logger.warning("%s continuing direct shutdown after incomplete analyser stop", self.whoami)
         if self.playing and self.playing.is_waiting_for_move():
             self.playing.cancel()  # quit can force full cancel
-        if self.is_mame:
-            os.system("sudo pkill -9 -f mess")  # RR - MAME sometimes refuses to exit
-        else:
-            await self._shutdown_standard_engine()
+        await self._shutdown_standard_engine()
         await asyncio.sleep(1)  # give it some time to quit
         await self._close_remote_connection()
 
@@ -1863,6 +1863,11 @@ class UciEngine(object):
         if not self.transport:
             return
 
+        if self.is_mame and not self.is_remote:
+            self._kill_process_group()
+            await self._wait_for_transport_exit(ENGINE_KILL_TIMEOUT)
+            return
+
         if not await self._terminate_and_wait():
             logger.warning("%s engine still running - killing process", self.engine_name)
             try:
@@ -1872,6 +1877,22 @@ class UciEngine(object):
             except Exception:
                 logger.debug("transport kill failed for %s", self.engine_name, exc_info=True)
             await self._wait_for_transport_exit(ENGINE_KILL_TIMEOUT)
+
+    def _kill_process_group(self) -> None:
+        """Kill a MAME engine and its start script, and nothing else.
+
+        SIGTERM is skipped: it would end the start script only, and MAME doesn't
+        exit on it while the chessengine plugin waits for input.
+        """
+        if not self.transport:
+            return
+        logger.warning("%s engine failed to quit - killing its process group", self.engine_name)
+        try:
+            os.killpg(self.transport.get_pid(), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            logger.debug("process group kill failed for %s", self.engine_name, exc_info=True)
 
     async def _terminate_and_wait(self) -> bool:
         """Send SIGTERM and wait for the engine to exit."""

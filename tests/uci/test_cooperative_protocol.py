@@ -326,7 +326,7 @@ for command in sys.stdin:
         with patch("chess.engine.popen_uci", new_callable=AsyncMock, return_value=(Mock(), Mock())) as popen:
             with patch.object(CooperativeUciProtocol, "popen", new_callable=AsyncMock) as cooperative:
                 await engine._open_local_engine()
-        popen.assert_awaited_once_with([engine.file, engine.mame_par])
+        popen.assert_awaited_once_with([engine.file, engine.mame_par], setpgrp=True)
         cooperative.assert_not_awaited()
 
     async def test_remote_protocol_selection_keeps_tolerance_and_mame_behavior(self):

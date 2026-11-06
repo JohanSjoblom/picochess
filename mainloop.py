@@ -2155,6 +2155,8 @@ class MainLoop:
                 if self.state.is_not_user_turn():
                     self._invalidate_engine_search_results()
                     await self.stop_search()
+                    if self.state.done_computer_fen:
+                        self._clear_pending_engine_move()
                     self.state.pop_move()
                     if self.picotutor_mode():
                         if self.state.best_move_posted:

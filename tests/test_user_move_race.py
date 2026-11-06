@@ -39,6 +39,7 @@ class TestUserMoveRace(unittest.IsolatedAsyncioTestCase):
             brain_required_piece_type=None,
             hand_coach_task=None,
             user_move_revision=0,
+            engine_search_revision=7,
             done_computer_fen=None,
             pb_move=chess.Move.null(),
             time_control=self.time_control,
@@ -73,6 +74,8 @@ class TestUserMoveRace(unittest.IsolatedAsyncioTestCase):
         self.controller._think_after_current_user_move = AsyncMock(return_value=True)
         self.controller._current_opening_message = Mock(return_value=None)
         self.controller.analyse = AsyncMock()
+        self.controller.pgn_mode = Mock(return_value=False)
+        self.controller.set_picotutor_position = AsyncMock()
 
         self.game_ending = patch.object(mainloop.ModeInfo, "get_game_ending", return_value="*")
         self.show = patch.object(mainloop.DisplayMsg, "show", new=AsyncMock())
@@ -260,6 +263,87 @@ class TestUserMoveRace(unittest.IsolatedAsyncioTestCase):
         await self._assert_pending_move_is_committed(
             Mode.PGNREPLAY, chess.Move.from_uci("a2b3")
         )
+
+    def _publish_best_move_while_stopping(self, engine_move):
+        waiting = False
+        self.controller.board_type = EBoard.DGT
+        self.state.get_board_fen = self.board.board_fen
+        self.state.get_variant_board = Mock(return_value=None)
+        self.state.game_copy = self.board.copy
+        self.state.stop_clock = AsyncMock()
+        self.state.start_clock = AsyncMock()
+        self.state.time_control.internal_running = Mock(return_value=False)
+        self.state.time_control.get_parameters = Mock(return_value={})
+        self.state.searchmoves.exclude = Mock()
+        self.state.legal_fens = []
+        self.state.last_legal_fens = []
+        self.state.legal_fens_after_cmove = []
+        self.state.flag_startup = True
+        self.state.best_move_posted = False
+        self.state.engine_move_was_book = False
+        self.state.newgame_happened = False
+        self.state.variant = "chess"
+        self.state.error_fen = None
+        self.state.fen_error_occured = False
+        self.state.position_checkpoint_restore_pending = False
+        self.state.set_position_ack_target_fen = None
+        self.state.play_mode = mainloop.PlayMode.USER_WHITE
+        self.state.stop_fen_timer = Mock()
+        self.state.is_not_user_turn = Mock(return_value=True)
+        self.state.pop_move = Mock(side_effect=self.board.pop)
+        self.state.dgtmenu.get_flip_board = Mock(return_value=True)
+        self.controller.start_fen_timer = Mock()
+
+        async def wait_until_idle(_timeout):
+            nonlocal waiting
+            await self.controller.process_main_events(
+                mainloop.Event.BEST_MOVE(
+                    move=engine_move,
+                    ponder=None,
+                    inbook=False,
+                    fen=self.state.get_fen(),
+                    search_revision=7,
+                )
+            )
+            waiting = True
+            return True
+
+        self.controller.engine = Mock()
+        self.controller.engine.is_thinking.return_value = True
+        self.controller.engine.is_waiting.side_effect = lambda: waiting
+        self.controller.engine.stop_with_outcome = AsyncMock(
+            return_value=SimpleNamespace(completed=True, forced=False)
+        )
+        self.controller.engine.wait_until_idle = AsyncMock(side_effect=wait_until_idle)
+
+    async def test_training_move_owns_result_released_by_its_engine_stop(self):
+        self.state.interaction_mode = Mode.TRAINING
+        self._publish_best_move_while_stopping(self.move)
+
+        self.assertTrue(await self.controller.user_move(self.move, sliding=False))
+
+        self.push_move.assert_called_once_with(self.move)
+        self.assertIsNone(self.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.state.done_move)
+        self.assertEqual(8, self.state.engine_search_revision)
+
+    async def test_sliding_replacement_owns_result_released_by_earlier_stop(self):
+        replacement = chess.Move.from_uci("a2b3")
+        alternatives = mainloop.compute_legal_fens(self.board)
+        replacement_fen = alternatives[list(self.board.legal_moves).index(replacement)]
+        self.state.last_legal_fens = alternatives
+        self.state.take_back_locked = False
+        self.board.push(self.move)
+        self._publish_best_move_while_stopping(chess.Move.from_uci("g8h8"))
+        self.state.last_legal_fens = alternatives
+
+        await self.controller.process_fen(replacement_fen, self.state)
+
+        self.push_move.assert_called_once_with(replacement)
+        self.assertEqual(replacement, self.board.peek())
+        self.assertIsNone(self.state.done_computer_fen)
+        self.assertEqual(chess.Move.null(), self.state.done_move)
+        self.controller.start_fen_timer.assert_not_called()
 
     async def _commit_analysis_hit(self, outcome):
         self.state.interaction_mode = Mode.PONDER

@@ -1,8 +1,8 @@
 PicoChess
 =========
-PicoChess is chess engine management software for Raspberry Pi and other Linux computers; it is not itself a chess engine. Its distinctive strength is combining modern and retro chess engines with physical electronic chess boards. Retro chess computers can be emulated through MAME.
+PicoChess is chess engine management software for Raspberry Pi, other Linux computers, Windows, and macOS; it is not itself a chess engine. Its distinctive strength is combining modern and retro chess engines with physical electronic chess boards. Retro chess computers can be emulated through MAME on Linux. Native Windows and macOS support is experimental and intended primarily for web-only play with native UCI engines. See the [Windows](docs/windows-install.md) and [macOS](docs/mac-install.md) installation guides for setup and current limitations.
 
-PicoChess can also be used without an electronic board: play entirely from a web browser on a phone, tablet, or desktop. Installation includes Stockfish and Leela Chess Zero (LC0) as examples, and you can add other modern or retro engines, including classics such as Mephisto and TuroChamp. See the "How to add more engines" section below for details.
+PicoChess can also be used without an electronic board: play entirely from a web browser on a phone, tablet, or desktop. Raspberry Pi and Linux installations include Stockfish and Leela Chess Zero (LC0) as examples, and you can add other modern or retro engines, including classics such as Mephisto and TuroChamp. See the "How to add more engines" section below for details. Windows and macOS use their own native engine setup, described in the platform guides.
 
 [♟️ Support AI-assisted PicoChess development](https://paypal.me/picochess)
 
@@ -31,7 +31,7 @@ About This Fork
 ===============
 This fork of Picochess focuses on:
 - Upgrading dependencies – Uses the latest Python with the latest chess and Tornado libraries.
-- Ability to run both on Raspberry Pi and Linux computers.
+- Runs on Raspberry Pi and other Linux computers, with experimental native Windows and macOS support.
 - Asynchronous Architecture – Replaces threads with an async-based architecture for improved performance and scalability.
 - Keep the main program picochess.py as it was, rewrites are mainly focusing on engine.py and picotutor.py to use the latest python chess library, but as the new library is quite different some changes are visible in picochess.py as well.
 - Wayland support with native audio backend for web/desktop installs (no X11/PulseAudio requirement).
@@ -50,8 +50,13 @@ Requirements
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
 - RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Web/desktop installs default to `audio-backend = native`. DGTPi clock users may need either `native` or `sox`, depending on the Pi audio setup.
 
-Quick Installation
-------------------
+Alternatively, use 64-bit Windows 10/11 (x64/AMD64) or macOS on Apple silicon
+or 64-bit Intel, with native CPython 3.11-3.13. Follow the
+[Windows installation](#windows-installation) or
+[macOS installation](#macos-installation) section below.
+
+Quick Installation (Raspberry Pi / Linux)
+-----------------------------------------
 Get the installation script, give it execution rights, and run it as sudo. It will clone the repository to /opt/picochess and install the needed services. It also downloads a basic set of engines (Stockfish 17.1 and LC0 0.32) plus LC0 weights; downloading the weights can take a while.
 
 - `wget -L https://raw.github.com/JohanSjoblom/Picochess/master/install-picochess.sh`
@@ -190,13 +195,13 @@ To add a custom book, place the `.bin` file in `books/` and add a matching entry
 
 Windows installation
 --------------------
-The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs books, opening data, and games database data, but deliberately installs no chess engines or Windows services:
+The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs the small Windows engine pack, books, opening data, and games database data by default. It does not install Windows services:
 
 ```powershell
 .\install-picochess-windows.ps1
 ```
 
-Windows users must supply a native UCI engine under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations.
+Windows users can also supply their own native UCI engines under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations. A graphical installer and control panel are documented in [win/README.md](win/README.md).
 
 If the user has separately installed Scid vs. PC for Windows, `start-picochess-windows.ps1` can start its `tcscid.exe` games helper together with PicoChess. Failure to find Scid affects only the optional Games tab.
 
@@ -216,6 +221,8 @@ macOS users can supply their own native UCI engine under `engines/arm64` on Appl
 silicon or `engines/mac_x86_64` on Intel. An existing architecture directory is
 left untouched. See the
 [macOS installation guide](docs/mac-install.md) for options and limitations.
+An experimental graphical control panel for installation, startup, and upgrades
+is documented in [mac/README.md](mac/README.md).
 
 Installation with more detailed info
 ------------------------------------

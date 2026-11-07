@@ -2,11 +2,35 @@
 
 ## Purpose
 
-This file captures repo-wide behavioral constraints that matter when changing
-analysis routing and display behavior.
+This file captures repo-wide architecture, design decisions, policies, and
+behavioral constraints for AI-assisted work.
 
-Start with this top-level file. Add more local `AGENTS.md` files only when a
-subdirectory has rules that are specific to that subsystem.
+All AI coding assistants, including Codex, Claude Code, and GitHub Copilot,
+must read and respect this file before working in the repository. Before
+changing files in a subdirectory, also read and respect any applicable local
+`AGENTS.md` files along that path.
+
+Keep shared AI guidance about architecture, design, project information, and
+policies in `AGENTS.md` files. Update them when those decisions change.
+Start with this top-level file. Add local `AGENTS.md` files only for rules
+specific to a subsystem. Keep `CLAUDE.md` and
+`.github/copilot-instructions.md` as short entry points to this shared guidance
+rather than maintaining separate copies of project rules.
+
+## MCP Server For Integration Testing
+
+The experimental MCP server lives in `mcp-server/`. Read
+[`mcp-server/README.md`](mcp-server/README.md) for setup, available tools, and
+limitations. Compatible AI clients can use it to inspect a running PicoChess,
+play moves, and exercise game, analysis, engine, and Tutor workflows through
+the same HTTP and WebSocket interfaces as the browser.
+
+Consider these tools for integration testing alongside the regression checks
+below. They require a running PicoChess instance; `make_move` requires
+`board-type = noeboard`. With a physical eboard, moves are made on the board.
+Use a test game for actions that replace or end games, overwrite save slots,
+or change persistent settings. MCP checks complement unit tests and do not
+replace physical board/clock testing.
 
 ## Wayland And Artwork
 

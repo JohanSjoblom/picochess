@@ -674,6 +674,32 @@ the same code path.
 - Takeback is always allowed in PONDER. The normal MAME, online-engine, and
   takeback-lock restrictions apply to playing modes, not flexible analysis.
 
+## Selecting A MAME Engine Starts A New Game
+
+Switching to a MAME/retro emulation engine intentionally starts a new game
+instead of continuing the current position and move history. This also applies
+when switching from one MAME engine to another. For standard chess, the board
+returns to the starting position with White to move and the user playing White.
+
+- This is expected behavior, not an engine-switch regression. AI agents doing
+  manual, browser, or MCP testing must account for this reset and must not flag
+  it as a bug or add tests that require the current game to survive selection
+  of a MAME engine.
+- Keep this behavior even when the selected MAME engine supports position
+  setup. Explicit Scan, Set Pos, and Read Game are separate workflows; their
+  position/history rules do not imply that engine selection preserves a game.
+- MAME position setup can be slow on some hardware, particularly Raspberry Pi
+  3, because adapters may set pieces one by one through Lua. Automatically
+  restoring the current position during engine selection adds timing and
+  compatibility risks. Do not change this policy or add a continue-game option
+  unless the project owner explicitly requests it.
+- A failed engine selection that falls back to the previous engine and
+  automatic MAME crash recovery are separate paths. Do not apply this
+  intentional new-game reset to recovery.
+
+The decision in [issue #521](https://github.com/JohanSjoblom/picochess/issues/521)
+is to retain the existing behavior and document it, with no code change.
+
 ## Non-Playing Mode Engine Switch Rules
 
 - `eng_plays()` is false outside `NORMAL`, `BRAIN`, and `TRAINING`.

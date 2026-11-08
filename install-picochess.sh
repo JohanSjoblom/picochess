@@ -4,6 +4,40 @@
 # Run this script as root (sudo)
 #
 
+usage() {
+    cat <<EOF
+Usage: $0 [pico] [small|large] [noengines] [dgtpi|dgt3000] [kiosk] [pi3] [master] [reset]
+
+Run with sudo. Engine packages:
+  small   Minimum engine package (default).
+  large   Larger engine package, including MAME, Rodent engines and PGN audio.
+
+Package choice controls contents and download size, independently of headless or desktop use.
+"lite" is a deprecated alias for "large". DGTPi clock support and kiosk setup are separate options.
+
+Other options:
+  pico        Skip system update (must be first).
+  noengines   Skip engine installation.
+  dgtpi       Install DGTPi GPIO clock support.
+  dgt3000     Use a standalone DGT3000 through a DGT eboard.
+  kiosk       Enable autologin and kiosk autostart.
+  pi3         Install Raspberry Pi 3 Bluetooth unblock service.
+  master      Switch checkout to origin/master.
+  reset       Back up and replace kiosk.sh and picochess.ini with defaults.
+
+Examples:
+  sudo ./install-picochess.sh small
+  sudo ./install-picochess.sh large
+  sudo ./install-picochess.sh large dgtpi
+EOF
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help|help) usage; exit 0 ;;
+    esac
+done
+
 # REPO_DIR must be set early and remember that the Python code has hardcoded /opt/picochess paths
 # See install-picochess.md documentation for more info
 REPO_DIR="/opt/picochess"
@@ -36,7 +70,7 @@ UNTRACKED_DIR="$BACKUP_DIR/untracked_files"
 
 # Parameters:
 #   pico       -> skip system update
-#   small/lite -> choose engine pack (default: small)
+#   small/large -> choose engine pack (default: small; lite is a deprecated alias)
 #   noengines  -> skip engine installation
 #   dgt3000    -> select a standalone DGT3000 connected through a DGT eboard
 #   DGT3000    -> select a standalone DGT3000 connected through a DGT eboard
@@ -65,8 +99,13 @@ fi
 # Parse remaining args for engine variant / noengines
 for arg in "$@"; do
     case "$arg" in
-        small|lite)
+        small|large)
             ENGINE_VARIANT="$arg"
+            EXPLICIT_ENGINE_VARIANT=true
+            ;;
+        lite)
+            echo 'Warning: engine package "lite" is deprecated; use "large" instead.' >&2
+            ENGINE_VARIANT="large"
             EXPLICIT_ENGINE_VARIANT=true
             ;;
         noengines)

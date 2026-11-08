@@ -2,6 +2,17 @@
 
 This document explains the main variables used in the Picochess installation and update script.
 
+## Engine package selection
+
+Run `sudo ./install-picochess.sh small` for the minimum engine package (the default),
+or `sudo ./install-picochess.sh large` for the larger package with MAME, Rodent
+engines and PGN audio. This choice controls contents and download size,
+independently of headless or desktop use. DGTPi clock support (`dgtpi`) and kiosk
+setup (`kiosk`) are separate options and can be combined with either package.
+
+`lite` remains a deprecated alias for `large` and prints a notice. Existing release
+archive filenames and package contents are unchanged. Use `--help` for all options.
+
 ---
 
 **REPO_DIR** - The full path where the Picochess repository is stored.  

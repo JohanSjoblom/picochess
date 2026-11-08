@@ -62,7 +62,7 @@ Get the installation script, give it execution rights, and run it as sudo. It wi
 - `wget -L https://raw.github.com/JohanSjoblom/Picochess/master/install-picochess.sh`
 - `chmod +x install-picochess.sh`
 - `sudo ./install-picochess.sh`
-- Default engine pack is `small`. If you want more engines and are OK with a longer download, use `sudo ./install-picochess.sh lite`.
+- Default engine pack is `small`. If you want more engines and are OK with a longer download, use `sudo ./install-picochess.sh large`.
 - If PicoChess runs inside a DGTPi clock, use `sudo ./install-picochess.sh dgtpi`.
 - For a standalone DGT3000 connected by cable to a DGT eboard, use `sudo ./install-picochess.sh dgt3000`; this keeps `dgtpi=False` because clock communication runs through the eboard.
 - If you install on a standard Raspberry Pi 3 without a DGTPi/DGT3000 clock, run: `sudo ./install-picochess.sh pi3`
@@ -74,9 +74,11 @@ The script installs the following services in `/etc/systemd/system/`:
 - gamesdb (games window on web page)
 - unblock-bt (installed when using the `pi3` or `dgtpi` parameter; unblocks Bluetooth on boot)
 
+Engine package choice controls contents and download size, independently of headless or desktop use. Both packages work with either setup. `lite` remains a deprecated alias for `large`. DGTPi clock support and kiosk setup are separate options.
+
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).
-- `small` (default) or `lite` selects the engine pack to install. On reruns, an explicit `small`/`lite` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
+- `small` (default) or `large` selects the engine pack to install. On reruns, an explicit `small`/`large` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
 - `noengines` skips installing engines (used internally during code-only updates).
 - `dgtpi` installs the DGTPi GPIO clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
 - `dgt3000` or `DGT3000` selects a standalone DGT3000 connected through a DGT eboard. It keeps `dgtpi=False`, removes legacy DGTPi service and clock-timing configuration, and does not install the DGTPi GPIO clock service.
@@ -170,16 +172,16 @@ How to add more engines?
 ------------------------
 Picochess ships with engine resource packs. The installer runs install-engines.sh once after cloning and installs the default small pack (includes Stockfish and LC0). You can re-run install-engines.sh anytime; it only downloads folders that are missing.
 
-Please note that you should choose either the small or the lite package, not both. To move from small to lite, command #1 below moves your current engines to backup. Command #2 then downloads the lite package. Alternatively, you can re-run `install-picochess.sh lite` and it will perform the backup and reinstall automatically for the current architecture.
+Please note that you should choose either the small or the large package, not both. To move from small to large, command #1 below moves your current engines to backup. Command #2 then downloads the large package. Alternatively, you can re-run `install-picochess.sh large` and it will perform the backup and reinstall automatically for the current architecture.
 
-To switch from small to the larger lite pack:
+To switch from small to large:
 1) Run `./move-engines-to-backup.sh` to move your current engines out of `/opt/picochess/engines`. This prepares a clean install.
-2) Run `./install-engines.sh lite`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Linux) and downloads the matching lite files.
+2) Run `./install-engines.sh large`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Linux) and downloads the matching large files.
 
-If you prefer, you can delete the architecture folder under `/opt/picochess/engines` instead of using the backup script, then run `./install-engines.sh lite`. The script requires an argument: `small` or `lite`.
+If you prefer, you can delete the architecture folder under `/opt/picochess/engines` instead of using the backup script, then run `./install-engines.sh large`. The script requires an argument: `small` or `large`.
 
-The lite download is larger and takes longer than small.
-If you choose the lite package, it also downloads the LC0 personality weights into `/opt/picochess/engines/lc0_weights`, which can take a while, but gives you a wider set of LC0 personalities to choose from, including many Maia strengths.
+The large package takes longer to download.
+If you choose the large package, it also downloads the LC0 personality weights into `/opt/picochess/engines/lc0_weights`, which can take a while, but gives you a wider set of LC0 personalities to choose from, including many Maia strengths.
 To add more engine manually yourself you need:
 - locate the /opt/picochess/engines folder - Pi uses aarch64 and Linux x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine

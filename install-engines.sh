@@ -7,19 +7,21 @@
 
 usage() {
     cat <<EOF
-Usage: $0 [small|lite]
+Usage: $0 [small|large]
 
 Options:
-  small   Install the smaller engine bundle for your architecture (aarch64 or x86_64).
-  lite    Install the lite/DGT-focused engine bundle for your architecture (aarch64 or x86_64).
+  small   Install the minimum engine bundle for your architecture (aarch64 or x86_64).
+  large   Install the larger engine bundle for your architecture (aarch64 or x86_64).
 
 Notes:
+  - Package choice controls contents and download size, independently of headless or desktop use.
+  - "lite" is a deprecated alias for "large".
   - Script only installs engines when the target directories are missing.
   - To force a reinstall, first run move-engines-to-backup.sh.
-  - You must specify either "small" or "lite".
+  - You must specify either "small" or "large".
 
 Example:
-  ./install-engines.sh lite
+  ./install-engines.sh large
 EOF
     exit "${1:-0}"
 }
@@ -36,7 +38,11 @@ esac
 
 ENGINE_VARIANT=$1
 ENGINE_VARIANT=$(printf "%s" "$ENGINE_VARIANT" | tr '[:upper:]' '[:lower:]')
-if [ "$ENGINE_VARIANT" != "small" ] && [ "$ENGINE_VARIANT" != "lite" ]; then
+if [ "$ENGINE_VARIANT" = "lite" ]; then
+    echo 'Warning: engine package "lite" is deprecated; use "large" instead.' >&2
+    ENGINE_VARIANT="large"
+fi
+if [ "$ENGINE_VARIANT" != "small" ] && [ "$ENGINE_VARIANT" != "large" ]; then
     usage 1
 fi
 
@@ -91,6 +97,8 @@ fi
 mkdir -p "$ENGINES_DIR" || exit 1
 mkdir -p "$TMP_DIR" || exit 1
 
+# Release archive names retain "lite" for compatibility with existing download URLs.
+
 # --- aarch64 -----------------------------------------------------------------
 if [ "$ARCH" = "aarch64" ]; then
     echo "Detected architecture: aarch64 (variant: $ENGINE_VARIANT)"
@@ -99,10 +107,10 @@ if [ "$ARCH" = "aarch64" ]; then
         echo "No engines found for aarch64. Installing requested engine package..."
         mkdir -p "$ENGINES_DIR/aarch64" || exit 1
 
-        if [ "$ENGINE_VARIANT" = "lite" ]; then
+        if [ "$ENGINE_VARIANT" = "large" ]; then
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-aarch64-lite.tar.gz"
             TMPFILE="$TMP_DIR/engines-aarch64-lite.tar.gz"
-            ENGINE_DESC="aarch64 lite engine package"
+            ENGINE_DESC="aarch64 large engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-aarch64-small.tar.gz"
             TMPFILE="$TMP_DIR/engines-aarch64-small.tar.gz"
@@ -133,7 +141,7 @@ if [ "$ARCH" = "aarch64" ]; then
         echo "Engines for aarch64 already present."
     fi
 
-    if [ "$ENGINE_VARIANT" = "lite" ]; then
+    if [ "$ENGINE_VARIANT" = "large" ]; then
         if [ ! -d "$ENGINES_DIR/mame_emulation" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
@@ -167,7 +175,7 @@ if [ "$ARCH" = "aarch64" ]; then
         echo "Skipping MAME emulation package for small variant."
     fi
 
-    if [ "$ENGINE_VARIANT" = "lite" ]; then
+    if [ "$ENGINE_VARIANT" = "large" ]; then
         if [ ! -d "$ENGINES_DIR/rodent3" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
@@ -240,10 +248,10 @@ if [ "$ARCH" = "x86_64" ]; then
         echo "No engines found for x86_64. Installing requested engine package..."
         mkdir -p "$ENGINES_DIR/x86_64" || exit 1
 
-        if [ "$ENGINE_VARIANT" = "lite" ]; then
+        if [ "$ENGINE_VARIANT" = "large" ]; then
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/x86_64_engines_lite.tar.gz"
             TMPFILE="$TMP_DIR/x86_64_engines_lite.tar.gz"
-            ENGINE_DESC="x86_64 lite engine package"
+            ENGINE_DESC="x86_64 large engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/engines-x86_64-small.tar.gz"
             TMPFILE="$TMP_DIR/engines-x86_64-small.tar.gz"
@@ -274,7 +282,7 @@ if [ "$ARCH" = "x86_64" ]; then
         echo "Engines for x86_64 already present."
     fi
 
-    if [ "$ENGINE_VARIANT" = "lite" ]; then
+    if [ "$ENGINE_VARIANT" = "large" ]; then
         if [ ! -d "$ENGINES_DIR/mame_emulation" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
@@ -308,7 +316,7 @@ if [ "$ARCH" = "x86_64" ]; then
         echo "Skipping MAME emulation package for small variant."
     fi
 
-    if [ "$ENGINE_VARIANT" = "lite" ]; then
+    if [ "$ENGINE_VARIANT" = "large" ]; then
         if [ ! -d "$ENGINES_DIR/rodent3" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
@@ -437,7 +445,7 @@ else
 fi
 
 # --- pgn_audio files ---------------------------------------------------
-if [ "$ENGINE_VARIANT" = "lite" ]; then
+if [ "$ENGINE_VARIANT" = "large" ]; then
     if [ ! -d "$ENGINES_DIR/pgn_engine/pgn_audio" ]; then
         echo "Installing pgn_audio files..."
         mkdir -p "$ENGINES_DIR/pgn_engine/pgn_audio" || exit 1

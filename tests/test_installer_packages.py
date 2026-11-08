@@ -9,12 +9,39 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestInstallerPackages(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        fake_bin = root / "bin"
+        fake_bin.mkdir()
+        self.sudo_log = root / "sudo-called"
+        stubs = {
+            "getent": (
+                '#!/bin/sh\n[ "$1" = passwd ] && [ "$2" = installer-test ] || exit 2\n'
+                'printf "installer-test:x:1000:1000:Test:%s:/bin/sh\\n" "$HOME"\n'
+            ),
+            "sudo": '#!/bin/sh\nprintf "unexpected sudo call\\n" > "$SUDO_LOG"\nexit 1\n',
+        }
+        for name, contents in stubs.items():
+            path = fake_bin / name
+            path.write_text(contents)
+            path.chmod(0o755)
+        self.env = {
+            **os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "USER": "installer-test", "SUDO_USER": "installer-test", "HOME": str(root),
+            "SUDO_LOG": str(self.sudo_log),
+        }
+
+    def tearDown(self):
+        self.assertFalse(self.sudo_log.exists(), "Installer tests must not invoke sudo")
+
     def test_help_is_safe_without_an_install_user(self):
         for script in ("install-picochess.sh", "install-engines.sh"):
             with self.subTest(script=script):
                 result = subprocess.run(
                     ["sh", str(REPO_ROOT / script), "--help"],
-                    env={**os.environ, "USER": "root", "SUDO_USER": "root"},
+                    env={**self.env, "USER": "root", "SUDO_USER": "root"},
                     capture_output=True, text=True, check=False,
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
@@ -39,11 +66,11 @@ class TestInstallerPackages(unittest.TestCase):
             with self.subTest(args=args):
                 result = subprocess.run(
                     ["sh", "-c", parser, "installer-test", *args],
-                    env={**os.environ, "SUDO_USER": "pi"},
+                    env=self.env,
                     capture_output=True, text=True, check=False,
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
-                self.assertEqual(expected, result.stdout.strip())
+                self.assertEqual(expected, result.stdout.splitlines()[-1])
                 self.assertEqual("lite" in args, "deprecated" in result.stderr)
 
     def install_engines(self, arch, variant):
@@ -65,8 +92,8 @@ class TestInstallerPackages(unittest.TestCase):
             result = subprocess.run(
                 ["sh", str(REPO_ROOT / "install-engines.sh"), variant],
                 env={
-                    **os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}",
-                    "REPO_DIR": str(root), "HOME": str(root), "SUDO_USER": "pi",
+                    **self.env, "PATH": f"{fake_bin}:{self.env['PATH']}",
+                    "REPO_DIR": str(root), "HOME": str(root),
                     "TEST_ARCH": arch, "DOWNLOAD_LOG": str(log),
                 },
                 capture_output=True, text=True, check=False,
@@ -101,6 +128,7 @@ class TestInstallerPackages(unittest.TestCase):
             with self.subTest(args=args):
                 result = subprocess.run(
                     ["sh", str(REPO_ROOT / "install-engines.sh"), *args],
+                    env=self.env,
                     capture_output=True, text=True, check=False,
                 )
                 self.assertNotEqual(0, result.returncode)

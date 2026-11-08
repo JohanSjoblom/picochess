@@ -1,5 +1,5 @@
 """
-Saitek / Mephisto OSA e-board driver for picochess v4.
+Saitek OSA e-board driver for picochess v4.
 
 Protocol reverse-engineered from the user's "LOG OSA.txt" capture of a real
 session against a board that announces itself as:
@@ -10,6 +10,18 @@ This driver is the OSA counterpart of the Novag Citrine driver: it plugs into
 picochess through the exact same two objects (an ``EBoard``-protocol board and
 a ``DisplayMsg`` consumer), but speaks the OSA serial protocol instead of the
 Novag one.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LED HANDLING AT A GLANCE — WHO DRIVES WHAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  This variant sends NO DSA / MOSAL message 27 writes at all (no LED
+  addressing code exists in this file). ALL move guidance, for BOTH a normal
+  move AND a capture, is 100% FIRMWARE: FROM and TO are blinked entirely by
+  the board's own native logic, including on a capture (where the firmware
+  simply shows nothing extra for the occupied TO square — this driver does
+  not attempt to fill that gap). Compatible with any board whose firmware
+  handles its own move display, including Renaissance, PRECISELY BECAUSE this
+  driver never touches the LEDs itself.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SERIAL PARAMETERS
@@ -29,7 +41,7 @@ COMMANDS  (PC → board, ASCII text, terminated with \\r\\n)
                     silent and the board only reports the human's moves.
                     This is OSA's "external engine / referee" equivalent and
                     must be active whenever we expect a human move back.
-  NORMAL            normal display mode (used right after showing our move)
+  NORMAL            normal display mode (not used: it un-flips the board)
   PLAY              play mode
   BOARD OFF         disable the board (LEDs) before injecting our move
   BOARD ON          enable the board (lights up the move we just sent)
@@ -44,12 +56,10 @@ COMMANDS  (PC → board, ASCII text, terminated with \\r\\n)
       BOARD OFF                            PC   ->   acknowledge / disarm
       MOVE D7-D5                           PC   ->   the engine's reply
       BOARD ON                             PC   ->   light the move
-      NORMAL                               PC   ->   show it on the board
-      (tempo ~1 s)                                   let the display settle
-      ANALYSIS                             PC   ->   re-arm for the next move
+      ANALYSIS                             PC   ->   show it + re-arm next move
 
-  ANALYSIS must follow NORMAL only AFTER a short delay: sent immediately it
-  cancels the move that was just injected. The board is also put in analysis
+  ANALYSIS alone displays the injected move and re-arms reception of the next
+  human move; NORMAL is not needed. The board is also put in analysis
   at connect / new game so the internal engine stays silent.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -118,23 +128,6 @@ _RTSCTS   = False    # no hardware flow control
 _EOL      = "\r\n"   # line terminator for PC -> board (CRLF). If your board
                      # needs bare CR, change this to "\r".
 
-# Tempo (seconds) to wait after NORMAL's ack before re-arming ANALYSIS.
-# This is NOT command pacing (that is handled by the 0x17 handshake below).
-#
-# It used to be 0.5 s to guard against ANALYSIS "cancelling" the move just shown
-# when sent too soon after NORMAL. LOG_OSA.txt shows that guard is unnecessary
-# once the 0x17 handshake is in place: in every normal ply (moves 1,2,3,7,8) the
-# board sends NORMAL's ready prompt (">" + 0x17) and ANALYSIS is sent IMMEDIATELY
-# after it, with no settle delay and no move ever cancelled —
-#       >[17]NORMAL
-#       >[17]ANALYSIS
-#       >[17]  2. e4-e5 ...        <- next human move, fine
-# The old 0.5 s delay was a leftover from the fixed-sleep era (before 0x17 sync)
-# and was simply added on top of every engine move — a guaranteed 0.5 s/ply of
-# dead time. With the handshake it is pure overhead, so the default is now 0.
-# Set it back to e.g. 0.5 ONLY if a specific board turns out to need it.
-_MOVE_DISPLAY_TEMPO = 0.0
-
 # The OSA board is synchronous on 0x17: after a command it returns the single
 # byte 0x17 once that command has been integrated and it is ready for the next
 # — the byte the reference BASIC driver blocks on with
@@ -178,6 +171,41 @@ _NEWGAME_SUPPRESS_WINDOW = 6.0
 # take-back line within this window is swallowed. A real second physical undo
 # takes far longer than this to perform, so it is never lost.
 _TAKEBACK_DEBOUNCE = 1.0
+# A take-back seen while we are still waiting for the HUMAN's actual reply to
+# our own last MOVE/BOARD ON/ANALYSIS (i.e. _awaiting_human_reply is True) is
+# treated as a manipulation error, not a real undo: it can only be a reversed-
+# order pickup on that pending move (whether it's the human physically
+# replaying our own injected move, or the human's own next capture) -- there
+# is no legitimate earlier ply to undo yet. In that -- and ONLY that -- case
+# we do not forward Event.TAKE_BACK; we immediately re-send the move sequence
+# (BOARD OFF / MOVE / BOARD ON / ANALYSIS) instead. Any take-back seen outside
+# that window is genuine and forwarded normally.
+
+_RESEND_SETTLE_DELAY = 1.5  # seconds to wait BEFORE starting the manipulation-
+                            # error resend. Evidence (log): firing BOARD OFF
+                            # immediately after the take-back burst got no
+                            # 0x17 ack within the normal 1.2s window, and the
+                            # very next command (MOVE) was then rejected
+                            # outright ('???') -- the board was still busy
+                            # digesting the take-back burst internally. The
+                            # move logic self-corrects regardless (the real
+                            # completion echo is still recognised later), but
+                            # the '???' appears to leave the firmware's native
+                            # LED guidance dark for the rest of that move. This
+                            # delay gives the board time to finish settling
+                            # before we touch it again. Tune based on testing;
+                            # 1.5s is a first guess, not a measured minimum.
+
+# Like take-backs, a single physical reset / NEW GAME press can make the OSA
+# board emit the "New Game" line MORE THAN ONCE (a short burst). picochess
+# aborts the running game and starts a fresh one on EVERY Event.NEW_GAME, so one
+# event per burst line makes it announce "abort" + "new game" several times for a
+# single reset. We coalesce the burst: the first board-originated "New Game"
+# fires Event.NEW_GAME, any further one within this window is swallowed. A real
+# second manual reset takes far longer than this, so it is never lost. (This is
+# independent of the _pending_new_acks counter, which only suppresses the reply
+# to a NEW *we* sent.)
+_NEWGAME_DEBOUNCE = 1.5
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Promotion letter -> chess piece type
@@ -339,7 +367,7 @@ class OsaDisplay(DisplayMsg):
 
 class OsaBoard:
     """
-    Async driver for a Saitek / Mephisto OSA electronic chess board.
+    Async driver for a Saitek OSA electronic chess board.
 
     Lifecycle
     ---------
@@ -395,7 +423,7 @@ class OsaBoard:
 
         # Referee/orientation bookkeeping (kept for parity with the Citrine
         # driver; OSA has no physical flip, so this is informational only).
-        self._computer_is_white = False
+        self._computer_is_white = None    # None until the first PLAY_MODE
 
         # True once a move (human or engine) has been played in the current game.
         # picochess re-emits Message.PLAY_MODE whenever the side TO MOVE changes
@@ -413,6 +441,24 @@ class OsaBoard:
         # Timestamp of the last take-back we forwarded, to coalesce the board's
         # repeated/garbled "Takeback" burst into a single Event.TAKE_BACK.
         self._last_takeback_time = 0.0
+
+        # Raw payload of the last MOVE we sent (for the manipulation-error
+        # resend below) and whether we're still awaiting the human's real
+        # reply to it.
+        self._last_sent_payload: Optional[str] = None
+        self._awaiting_human_reply = False  # True from our own MOVE/BOARD ON/
+                                             # ANALYSIS until the human's real
+                                             # reply move is confirmed
+
+        # Timestamp of the last board-originated "New Game" we forwarded, to
+        # coalesce a repeated "New Game" burst into a single Event.NEW_GAME
+        # (otherwise picochess announces "abort" + "new game" once per line).
+        self._last_newgame_time = 0.0
+
+        # Pending trailing-edge ANALYSIS re-arm after a board "New Game" burst.
+        # Rescheduled on every burst line so it runs only once the board has
+        # settled (ANALYSIS sent mid-reset is silently dropped by the board).
+        self._newgame_arm_task: Optional[asyncio.Task] = None
 
         self.board_version = "Saitek OSA"
 
@@ -480,6 +526,23 @@ class OsaBoard:
         logger.info("OsaBoard: pushing start position to displays")
         await Observable.fire(Event.KEYBOARD_FEN(fen=chess.STARTING_BOARD_FEN))
 
+        # Arm the board for the human's move now, instead of relying on the
+        # first PLAY_MODE -> set_computer_color to do it. After NEW the OSA board
+        # sits in its native NORMAL mode (internal engine active); the handshake
+        # leaves it there on purpose (post-NEW is the only state PLAY flips from
+        # for the engine-White case). But on a fresh boot picochess does not
+        # reliably re-emit PLAY_MODE for the startup NEW_GAME (same reason the
+        # comment above notes START_NEW_GAME is withheld), so set_computer_color
+        # is never called and the board stays in NORMAL.
+        #
+        # _arm_after_reset sends ANALYSIS + BOARD ON, the human-White default —
+        # the orientation the board itself boots into. We can await it directly
+        # here (we are in connect, NOT the read loop, so the read loop stays free
+        # to deliver the 0x17 acks). _computer_is_white is left None, so if the
+        # user picks Black, the PLAY_MODE(True) that follows still passes
+        # set_computer_color's guard and performs the BOARD OFF + PLAY flip.
+        await self._arm_after_reset()
+
         logger.info("OsaBoard: ready on %s", port)
         return True
 
@@ -501,11 +564,13 @@ class OsaBoard:
         self._suppress_newgame_until = self._loop.time() + _NEWGAME_SUPPRESS_WINDOW
         await self._send("NEW", ack_timeout=_ACK_TIMEOUT)
 
-        # Only now is it safe to disable the internal engine and light the board.
-        await self._send("ANALYSIS")
-        await self._send("BOARD ON")      # board powers up OFF -> turn it ON
-        self._board_on = True
-        logger.info("OsaBoard: handshake complete (analysis mode armed)")
+        # Do NOT arm ANALYSIS / BOARD ON here. The board is left in the clean
+        # post-NEW state, which is the ONLY state PLAY flips from. The board is
+        # then armed PER COLOUR on the first PLAY_MODE (set_computer_color):
+        # Black -> ANALYSIS + BOARD ON ; White -> BOARD OFF + PLAY (flip). This
+        # keeps a single NEW per game (no re-NEW needed to undo an ANALYSIS).
+        self._board_on = False
+        logger.info("OsaBoard: handshake complete (post-NEW; armed per colour on PLAY_MODE)")
 
     async def new_game(self) -> None:
         """picochess started a fresh game (not the board's own NEW GAME button)."""
@@ -513,8 +578,9 @@ class OsaBoard:
             return
         self._turn = chess.WHITE
         self._last_sent_sig = None
-        self._board_on = True
-        self._computer_is_white = False
+        self._awaiting_human_reply = False
+        self._board_on = False
+        self._computer_is_white = None
         self._game_started = False        # new game -> orientation choice allowed again
         # Arm the "New Game" suppression BEFORE sending NEW (see _handshake): the
         # board's "New Game" reply lands during the ack wait, so the counter must
@@ -522,23 +588,24 @@ class OsaBoard:
         self._pending_new_acks += 1
         self._suppress_newgame_until = self._loop.time() + _NEWGAME_SUPPRESS_WINDOW
         await self._send("NEW", ack_timeout=_ACK_TIMEOUT)
-        await self._send("ANALYSIS")                  # disable internal engine
-        await self._send("BOARD ON")                  # enable the board
-        self._board_on = True
-        logger.debug("OsaBoard: new game sent")
+        # No ANALYSIS / BOARD ON here: leave the board in the clean post-NEW
+        # state (the only state PLAY flips from) and let set_computer_color arm
+        # it per colour on the PLAY_MODE picochess emits next. One NEW per game.
+        logger.debug("OsaBoard: new game sent (post-NEW; armed per colour on PLAY_MODE)")
 
     async def send_move(self, move: chess.Move, board: chess.Board) -> None:
         """
         Inject the engine's move, show it, then re-arm for the next move.
 
-        Sequence:  BOARD OFF · MOVE x · BOARD ON · NORMAL · (tempo) · ANALYSIS
-        The tempo before ANALYSIS is required, otherwise ANALYSIS cancels the
-        move just injected.
+        Sequence:  BOARD OFF · MOVE x · BOARD ON · ANALYSIS
+        NORMAL is never sent: it resets the board orientation (it un-flips an
+        engine-as-White board), and ANALYSIS alone displays the injected move.
         """
         if not self._connected:
             return
         payload = _uci_to_osa(move, board)
         self._last_sent_sig = _move_signature(payload)
+        self._last_sent_payload = payload
 
         if self._board_on:
             await self._send("BOARD OFF")
@@ -550,17 +617,13 @@ class OsaBoard:
 
         await self._send("BOARD ON")     # light up the move on the board
         self._board_on = True
-        await self._send("NORMAL")        # show the move on the board
-        # Tempo: even once NORMAL is acked, switching straight to ANALYSIS can
-        # cancel the move just shown (board state-machine quirk, not pacing —
-        # the 0x17 handshake already guarantees NORMAL was processed). Keep a
-        # short settle delay before re-arming reception of the next move.
-        if _MOVE_DISPLAY_TEMPO:
-            await asyncio.sleep(_MOVE_DISPLAY_TEMPO)
-        await self._send("ANALYSIS")      # re-arm for the next human move
+        await self._send("ANALYSIS")      # display the move + re-arm reception
+        self._awaiting_human_reply = True  # any take-back until the human's
+                                            # real reply move is confirmed is a
+                                            # manipulation error, not a real undo
 
-        # NO extra BOARD ON here. The Termite reference shows the per-move tail
-        # is exactly  MOVE -> BOARD ON -> NORMAL -> ANALYSIS  for BOTH colours:
+        # NO extra BOARD ON here. The per-move tail is exactly
+        # MOVE -> BOARD ON -> ANALYSIS  for BOTH colours:
         # the injected move is already displayed (LED + on the physical board)
         # by the BOARD ON above. Adding a BOARD ON after ANALYSIS re-touches the
         # board just after reception of the next move was re-armed and is not
@@ -589,8 +652,8 @@ class OsaBoard:
 
         Engine-as-White requires the board's PLAY mode for that colour. Per the
         Termite reference, the start sequence is
-            NEW -> NORMAL -> BOARD OFF -> PLAY -> MOVE -> BOARD ON -> NORMAL -> ANALYSIS
-        (the MOVE/BOARD ON/NORMAL/ANALYSIS tail lives in send_move). PLAY is NOT
+            NEW -> BOARD OFF -> PLAY -> MOVE -> BOARD ON -> ANALYSIS
+        (the MOVE/BOARD ON/ANALYSIS tail lives in send_move). PLAY is NOT
         a toggle and there is no direct un-flip; a NEW (new game) restores
         White-in-front / human-White, which is why new_game resets the flag.
 
@@ -611,28 +674,24 @@ class OsaBoard:
             return
         self._computer_is_white = computer_white
         if computer_white:
-            # USER_BLACK: the computer plays White and makes the first move; the
-            # board must be FLIPPED (human plays Black, from the far side). On
-            # OSA, PLAY only flips from the clean post-NEW state: once the board
-            # has been put in NORMAL or ANALYSIS mode (as the handshake does),
-            # PLAY no longer flips. So re-issue NEW here to restore that clean
-            # state, then BOARD OFF -> PLAY — reproducing the known-good Termite
-            # sequence NEW -> BOARD OFF -> PLAY exactly. We are still before the
-            # first move (guarded by _game_started above), so re-NEWing the board
-            # loses nothing; its "New Game" echo is suppressed so picochess is
-            # not disturbed. send_move injects the first White move next.
-            logger.info("OsaBoard: computer plays White -> NEW + BOARD OFF + PLAY (flip)")
-            self._pending_new_acks += 1
-            self._suppress_newgame_until = self._loop.time() + _NEWGAME_SUPPRESS_WINDOW
-            await self._send("NEW", ack_timeout=_ACK_TIMEOUT)
+            # USER_BLACK: computer plays White and moves first -> FLIP the board.
+            # The board is in the clean post-NEW state (handshake/new_game sent
+            # NEW and nothing since), which is the only state PLAY flips from, so
+            # BOARD OFF -> PLAY reproduces the Termite sequence NEW -> BOARD OFF
+            # -> PLAY exactly. No NORMAL (it would block the flip) and no re-NEW
+            # (board already post-NEW). send_move injects the first White move.
+            logger.info("OsaBoard: computer plays White -> BOARD OFF + PLAY (flip)")
             await self._send("BOARD OFF")
             self._board_on = False
             await self._send("PLAY")
         else:
-            # USER_WHITE: the human plays White first; the board keeps the
-            # ANALYSIS + BOARD ON state armed by the handshake so it reports the
-            # human's first move. Nothing to send here.
-            logger.info("OsaBoard: computer plays Black (no flip needed)")
+            # USER_WHITE: human plays White and moves first. Arm the board for the
+            # human's move: ANALYSIS (silence the internal engine / referee mode)
+            # + BOARD ON. No PLAY -> default orientation (White in front).
+            logger.info("OsaBoard: computer plays Black -> ANALYSIS + BOARD ON")
+            await self._send("ANALYSIS")
+            await self._send("BOARD ON")
+            self._board_on = True
 
     # ─────────────────────────────────────────────────────────────────────────
     # EBoard-protocol stubs (no-ops — OSA has no Revelation LEDs / clock display)
@@ -651,6 +710,10 @@ class OsaBoard:
 
     async def disconnect(self) -> None:
         """Cleanly shut down the connection."""
+        if self._newgame_arm_task and not self._newgame_arm_task.done():
+            self._newgame_arm_task.cancel()
+            self._newgame_arm_task = None
+
         if self._read_task:
             self._read_task.cancel()
             try:
@@ -677,14 +740,34 @@ class OsaBoard:
     # ─────────────────────────────────────────────────────────────────────────
 
     async def _arm_after_reset(self) -> None:
-        """Re-arm analysis mode after a physical user reset, OFF the read loop.
+        """Re-arm analysis mode after a reset, OFF the read loop.
 
-        Called via create_task from _handle_line so the read loop stays free to
-        deliver the 0x17 acks these commands wait on.
+        Sends ANALYSIS (silence the internal engine) + BOARD ON. Run as a task
+        (or awaited from connect, which is not the read loop) so the read loop
+        stays free to deliver the 0x17 acks these commands wait on.
         """
         await self._send("ANALYSIS")     # disable internal engine
         await self._send("BOARD ON")     # enable the board
         self._board_on = True
+
+    async def _arm_after_newgame_settle(self) -> None:
+        """Trailing-edge ANALYSIS re-arm after a board-initiated New Game burst.
+
+        A physical reset can emit several "New Game" lines while the board is
+        still resetting, and ANALYSIS sent during that window is silently
+        dropped (the internal engine stays on, board stuck in NORMAL). Each
+        "New Game" line in _handle_line reschedules this task, so it fires only
+        once the burst has been quiet for _NEWGAME_DEBOUNCE — by then the board
+        has settled and accepts ANALYSIS. Cancellation (a further burst line, or
+        disconnect) simply aborts this pending re-arm.
+        """
+        try:
+            await asyncio.sleep(_NEWGAME_DEBOUNCE)
+        except asyncio.CancelledError:
+            return
+        if not self._connected:
+            return
+        await self._arm_after_reset()
 
     async def _send(self, text: str, wait_ack: bool = True,
                     ack_timeout: float = _CMD_ACK_TIMEOUT) -> None:
@@ -828,21 +911,51 @@ class OsaBoard:
                 logger.debug("OsaBoard: swallowed expected 'New Game' ack "
                              "(%d still pending)", self._pending_new_acks)
                 return
-            # genuine user reset -> tell picochess, and clear any stale counter
+            # A single physical reset can emit several "New Game" lines (a burst,
+            # like the garbled "Takeback" stream). The two things we must do
+            # happen on the two EDGES of that burst:
+            #
+            #  * LEADING edge  -> tell picochess ONCE. picochess aborts + starts a
+            #    fresh game on every Event.NEW_GAME, so firing per line makes it
+            #    announce "abort"/"new game" repeatedly.
+            #  * TRAILING edge -> re-arm ANALYSIS. DURING the burst the board is
+            #    still resetting, and ANALYSIS sent mid-reset is silently dropped
+            #    (the internal engine stays on -> board stuck in NORMAL). So we
+            #    arm only once the burst has been quiet for _NEWGAME_DEBOUNCE,
+            #    i.e. the board has settled and will accept ANALYSIS.
+            #
+            # Every "New Game" line (re)schedules the trailing-edge task, so it
+            # always fires after the LAST line of the burst, never mid-reset.
+            is_repeat = (now - self._last_newgame_time) < _NEWGAME_DEBOUNCE
+            self._last_newgame_time = now
+            if self._newgame_arm_task and not self._newgame_arm_task.done():
+                self._newgame_arm_task.cancel()
+            self._newgame_arm_task = self._loop.create_task(
+                self._arm_after_newgame_settle())
+
+            if is_repeat:
+                logger.debug("OsaBoard: swallowed repeated New Game %r "
+                             "(re-arm rescheduled)", line)
+                return
+
+            # leading edge -> genuine user reset -> tell picochess, clear counter
             self._pending_new_acks = 0
             logger.info("OsaBoard: New Game from board (user reset) -> picochess")
             self._turn = chess.WHITE
-            self._board_on = True
+            self._board_on = False
             self._last_sent_sig = None
-            self._computer_is_white = False
+            self._awaiting_human_reply = False
+            self._computer_is_white = None
             self._game_started = False    # new game -> orientation choice allowed again
             await Observable.fire(Event.NEW_GAME(pos960=518))
-            # Re-arm analysis mode in a SEPARATE task: we are running inside the
-            # read loop here, and the re-arm commands now block on their 0x17
-            # acks — which only this same read loop can deliver. Awaiting them
-            # inline would dead-lock until the timeout fires on every command.
-            # Spawning a task lets the read loop return and keep feeding acks.
-            self._loop.create_task(self._arm_after_reset())
+            # ANALYSIS re-arm is handled on the TRAILING edge by
+            # _arm_after_newgame_settle (scheduled above), once the board has
+            # finished resetting. After its reset the OSA board sits in its native
+            # NORMAL mode (internal engine active) and nothing else switches it to
+            # ANALYSIS — picochess does not re-emit PLAY_MODE for a board NEW_GAME.
+            # _computer_is_white is left None, so if the user then picks Black via
+            # picochess, the PLAY_MODE(True) that follows still passes
+            # set_computer_color's guard and performs the BOARD OFF + PLAY flip.
             return
 
         # ── Take-back on the board ───────────────────────────────────────────
@@ -860,10 +973,30 @@ class OsaBoard:
                 logger.debug("OsaBoard: swallowed repeated take-back %r", line)
                 return
             self._last_takeback_time = now
+
+            # ── Manipulation-error case: reversed-order pickup ──────────────
+            # A take-back seen while we're still waiting for the human's real
+            # reply to our own MOVE/BOARD ON/ANALYSIS cannot be a genuine undo
+            # (no new ply has been confirmed yet to undo) -- it can only be a
+            # reversed-order pickup on that pending move (capturing piece
+            # lifted after, not before, the captured one). Do NOT forward
+            # Event.TAKE_BACK; re-send the move sequence instead, so the
+            # firmware is put back on our move rather than left believing an
+            # undo is under way. This is the ONLY case that resends anything.
+            if self._awaiting_human_reply:
+                logger.info(
+                    "OsaBoard: take-back %r right after our own MOVE/BOARD ON/"
+                    "ANALYSIS -> manipulation error, re-sending %s",
+                    line, self._last_sent_payload)
+                self._loop.create_task(
+                    self._resend_move_sequence(self._last_sent_payload))
+                return
+
+            # ── Genuine take-back ────────────────────────────────────────────
             logger.info("OsaBoard: take-back received: %r", line)
             # Just forward it. Do NOT send anything to the board here: the OSA
             # board displays and chains take-backs on its own, and any command
-            # sent now (BOARD ON / NORMAL / ANALYSIS) interrupts that native LED
+            # sent now (BOARD ON / ANALYSIS) interrupts that native LED
             # sequence. The board is no longer left dark either — the spurious
             # PLAY_MODE flip that used to send BOARD OFF + PLAY is suppressed
             # mid-game (see set_computer_color), so there is nothing to re-arm.
@@ -902,4 +1035,65 @@ class OsaBoard:
         logger.info("OsaBoard: human move %s", move.uci())
         self._turn = not self._turn
         self._game_started = True        # orientation is now fixed for this game
+        self._awaiting_human_reply = False  # real reply confirmed; a take-back
+                                             # from here on is genuine again
         await Observable.fire(Event.KEYBOARD_MOVE(move=move))
+
+    async def _resend_move_sequence(self, payload: str) -> None:
+        """Manipulation-error recovery (see the take-back handler above): a
+        take-back arriving while we're still awaiting the human's reply to our
+        own last move can only be a reversed-order pickup, not a real undo.
+        Re-send the move sequence immediately -- BOARD OFF / MOVE / BOARD ON /
+        ANALYSIS, the same tail as a normal send_move -- so the firmware is put
+        back on displaying/tracking OUR move rather than left believing an
+        undo is under way. Runs as its own task (called from within the read
+        loop's call chain, which must stay free to deliver acks for these
+        very sends). picochess's move stack is never touched here.
+
+        IMPORTANT: the board replies to MOVE almost immediately (tens of ms) —
+        this is the board's own protocol echo of the command, NOT a report of
+        the human's physical completion. _last_sent_sig is what makes that
+        echo recognised and swallowed; if it was already consumed by an
+        earlier echo (the normal case, since it always arrives fast) it will
+        be None by the time we get here, so we must re-arm it before
+        re-sending or this second echo is mistaken for a genuine human move
+        (and forwarded to picochess as one -- observed: rejected as illegal,
+        and _awaiting_human_reply wrongly cleared, leaving the NEXT real
+        take-back unguarded).
+
+        DISPROVEN HYPOTHESIS (do not re-add without new evidence): re-sending
+        PLAY here, on the theory that a flipped board needs it re-asserted for
+        the firmware's native LED guidance to resume, was tried and made
+        things WORSE -- the board rejected the following MOVE outright ('???'
+        response), and BOARD OFF itself failed to ack within the normal
+        window right beforehand. This matches set_computer_color's own
+        warning that PLAY only flips from the clean post-NEW state; sending
+        it again mid-game does not re-arm anything, it confuses the board.
+
+        CURRENT FIX: wait _RESEND_SETTLE_DELAY before sending anything. Two
+        separate captures show BOARD OFF getting no ack within 1.2s right
+        after the take-back burst, and the command immediately following it
+        (PLAY, then plain MOVE on retest) being rejected with '???' -- i.e.
+        the board was still busy digesting the burst. The move-tracking side
+        recovers regardless (the real completion echo is still recognised
+        later), but the '???' appears to leave the firmware's native LED
+        guidance dark for the rest of that move. Giving the board a moment to
+        settle before touching it again is the current, untested-on-bench
+        attempt at fixing that.
+
+        Note: _last_sent_sig is re-armed BEFORE the sleep, not after -- if the
+        board recovers on its own during the wait and sends the completion
+        line, it must still be recognised as our echo, not as a fresh (and
+        by now stale) human move.
+        """
+        self._last_sent_sig = _move_signature(payload)
+        await asyncio.sleep(_RESEND_SETTLE_DELAY)
+        try:
+            await self._send("BOARD OFF")
+            self._board_on = False
+            await self._send(f"MOVE {payload}")
+            await self._send("BOARD ON")
+            self._board_on = True
+            await self._send("ANALYSIS")
+        except asyncio.CancelledError:
+            raise

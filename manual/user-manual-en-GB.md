@@ -11,10 +11,11 @@ PicoChess lets you play chess against a chess engine, analyse positions, replay
 games, use a physical electronic chess board, and control the game from a web
 browser.
 
-A defining PicoChess feature is its wide choice of engines. The Modern menu
-contains current engines, while the Retro menu includes classic chess-computer
-engines, including MAME-based emulations. This lets you play and analyse with
-many different engine personalities and historical playing styles.
+A defining PicoChess feature is its wide choice of engines. The engine menu has
+Modern, NNUE, Retro, Special, Variants, and Favorites categories. Retro includes
+classic chess-computer engines and MAME-based emulations. Special contains
+script and utility engines supplied by the engine package; it is not the user's
+Favorites list.
 
 You can also extend the engine list with your own modern or retro engines by
 adding an engine executable and its configuration. See the README section
@@ -255,6 +256,14 @@ The Engine menu selects the chess engine and, when available, its level.
 
 Modern engines are current engines intended for normal play and analysis.
 
+### NNUE
+
+NNUE contains engines that use efficiently updatable neural-network evaluation.
+On small/lite installations, PicoChess generates `nnue.ini` from matching
+profiles in the installed `engines.ini`. The first marker line identifies this
+as managed metadata, so a later engine-installation run may regenerate it. To
+maintain a custom `nnue.ini` manually, remove that generated-marker line first.
+
 ### Retro
 
 Retro engines emulate older chess computers or older playing styles. Some retro
@@ -263,8 +272,32 @@ menu.
 
 ### Special
 
-Special contains engines marked as preferred in the PicoChess engine
-configuration.
+Special contains script, utility, and other unusual engines supplied by the
+engine package, such as historical simulations or PGN replay engines.
+
+### Variants
+
+Variants contains separate profiles for supported chess variants. Profiles can
+share one Fairy-Stockfish executable while retaining their own levels and
+variant settings. Changing between normal chess and a variant asks for New Game
+confirmation when a running or loaded game would be discarded.
+
+The supplied Fairy-Stockfish profiles offer practical strength settings from
+1000 through 3000, normally in steps of 250; the legacy 2850 setting remains
+available for saved configurations. These are `UCI_Elo` settings, not calibrated
+ratings that can be compared reliably between different chess variants.
+
+### Favorites
+
+Favorites is an ordered view of profiles marked with the star in the web client
+or with the Fav yes/no question on a DGT clock. A profile remains in its source
+category. Set `engine-fav-prompt = false` to suppress the DGT Fav question; web
+stars remain available, but favorites then cannot be changed on the clock.
+
+A known favorite whose binary or managed `.uci` file is missing remains visible
+in Favorites so it can be unstarred. It cannot be started. An ID removed from
+all catalogs is ignored and removed at the next favorite update; an incoming
+web, clock, or MCP request containing an unknown ID is rejected.
 
 ### Engine Levels
 

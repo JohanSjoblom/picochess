@@ -260,6 +260,26 @@ class TestEngine(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("Name", eng.get_pgn_options())
             eng.engine.configure.assert_awaited_once_with({"Hash": "64", "Threads": "1"})
 
+    async def test_profile_can_load_uci_file_separate_from_binary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            engine_file = str(Path(directory) / "fairy")
+            uci_file = str(Path(directory) / "fairy-atomic.uci")
+            Path(uci_file).write_text(
+                "[Atomic@1500]\nVariant = atomic\nUCI_Variant = atomic\nHash = 64\n",
+                encoding="utf-8",
+            )
+            eng = UciEngine(engine_file, UciShell(), "", self.loop, uci_file=uci_file)
+            eng.engine = MockEngine()
+            eng.engine.options = {"Hash": None}
+            eng.engine.configure = AsyncMock()
+
+            startup_ok = await eng.startup({})
+
+            self.assertTrue(startup_ok)
+            self.assertEqual("atomic", eng.variant)
+            self.assertEqual("atomic", eng.uci_variant)
+            eng.engine.configure.assert_awaited_once_with({"Hash": "64"})
+
     async def test_name_override_survives_engine_process_restart(self):
         eng = UciEngine("some_engine", UciShell(), "", self.loop)
         eng.engine = MockEngine()

@@ -161,7 +161,7 @@ async def main() -> None:
     logger.debug("startup parameters: %s", a_copy)
     _warn_unknown_parameters(unknown)
 
-    EngineProvider.init(args.engine_menu_sort)
+    EngineProvider.init(args.engine_menu_sort, args.engine_favorites)
 
     Rev2Info.set_dgtpi(args.dgtpi)
     try:
@@ -217,6 +217,7 @@ async def main() -> None:
         brain_reveal_text=args.tutor_brain_reveal_text == "on",
         brain_hint_countdown=args.countdown_during_brain_display,
         audio_backend=args.audio_backend,
+        engine_fav_prompt=args.engine_fav_prompt,
     )
     state = PicochessState(main_loop, dgttranslate, dgtmenu)
     state.flag_flexible_ponder = args.flexible_analysis
@@ -322,6 +323,7 @@ async def main() -> None:
     )
 
     non_main_tasks.add(asyncio.create_task(pico_talker.message_consumer()))
+    shared["state"] = state
 
     # Launch web server
     if args.web_server_port:

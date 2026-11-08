@@ -1,0 +1,44 @@
+[DEFAULT]
+Threads = 1
+Variant = racingkings
+UCI_Variant = racingkings
+
+[RK@1000]
+UCI_LimitStrength = true
+UCI_Elo = 1000
+
+[RK@1250]
+UCI_LimitStrength = true
+UCI_Elo = 1250
+
+[RK@1500]
+UCI_LimitStrength = true
+UCI_Elo = 1500
+
+[RK@1750]
+UCI_LimitStrength = true
+UCI_Elo = 1750
+
+[RK@2000]
+UCI_LimitStrength = true
+UCI_Elo = 2000
+
+[RK@2250]
+UCI_LimitStrength = true
+UCI_Elo = 2250
+
+[RK@2500]
+UCI_LimitStrength = true
+UCI_Elo = 2500
+
+[RK@2750]
+UCI_LimitStrength = true
+UCI_Elo = 2750
+
+[RK@2850]
+UCI_LimitStrength = true
+UCI_Elo = 2850
+
+[RK@3000]
+UCI_LimitStrength = true
+UCI_Elo = 3000

@@ -19,12 +19,14 @@ def str_to_bool(value: str) -> bool:
 
 
 class Configuration:
-    def __init__(self):
+    def __init__(self, default_config_files=None):
         # Command line argument parsing
-        self.parser = configargparse.ArgParser(
-            default_config_files=[
+        if default_config_files is None:
+            default_config_files = [
                 os.path.join(os.path.dirname(__file__), "picochess.ini"),
             ]
+        self.parser = configargparse.ArgParser(
+            default_config_files=default_config_files
         )
         self.parser.add_argument(
             "-e",
@@ -33,12 +35,31 @@ class Configuration:
             help="UCI engine filename/path such as 'engines/<platform>/stockfish'",
             default=None,
         )
+        self.parser.add_argument(
+            "--engine-profile",
+            type=str,
+            help="stable logical engine profile ID (used when profiles share one executable)",
+            default=None,
+        )
         self.parser.add_argument("-el", "--engine-level", type=str, help="UCI engine level", default=None)
         self.parser.add_argument(
             "--engine-menu-sort",
             choices=["file", "engine", "manufacturer"],
             default="file",
             help="Retro engine menu order: file, engine name, or manufacturer",
+        )
+        self.parser.add_argument(
+            "--engine-favorites",
+            nargs="*",
+            type=str,
+            default=[],
+            help="ordered list of favorite engine profile IDs (stored as JSON in picochess.ini)",
+        )
+        self.parser.add_argument(
+            "--engine-fav-prompt",
+            type=str_to_bool,
+            default=True,
+            help="show the Fav yes/no prompt when selecting an engine on the DGT clock",
         )
         self.parser.add_argument(
             "-er",

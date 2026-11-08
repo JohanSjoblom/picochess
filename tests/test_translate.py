@@ -129,6 +129,12 @@ class TestDisplayTextLengths(unittest.TestCase):
             self.assertTrue(text.medium_text.endswith("1000%"))
             self.assertTrue(text.small_text.endswith("1000%"))
 
+    def test_variant_level_keeps_stable_key_but_displays_compact_elo(self):
+        text = DgtTranslate("none", 0, "en", "0.9m").text("B00_level", "Atomic@1500")
+
+        self.assertEqual("Elo 1500", text.web_text)
+        self.assertEqual("E1500", text.small_text)
+
     def test_fivefold_repetition_uses_fivefold_message(self):
         text = DgtTranslate("none", 0, "en", "0.9m").text(GameResult.FIVEFOLD_REPETITION.value)
 

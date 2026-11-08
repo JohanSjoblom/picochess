@@ -14,7 +14,8 @@ Options:
   lite    Install the lite/DGT-focused engine bundle for your architecture (aarch64 or x86_64).
 
 Notes:
-  - Script only installs engines when the target directories are missing.
+  - Engine binaries are downloaded only when the target directories are missing.
+  - Missing catalog metadata may be added to an existing architecture directory.
   - To force a reinstall, first run move-engines-to-backup.sh.
   - You must specify either "small" or "lite".
 
@@ -372,6 +373,11 @@ if [ "$ARCH" = "x86_64" ]; then
         echo "Skipping Rodent III and IV packages for small variant."
     fi
 fi
+
+# Install catalog/profile metadata even when the architecture directory already
+# existed.  This gives upgrades the new Special name and Fairy variant profiles
+# without replacing files the user or an engine package already supplied.
+sh "$REPO_DIR/install-engine-catalogs.sh" "$ARCH" || exit 1
 
 # --- Common LC0 weights ------------------------------------------------------
 if [ ! -d "$ENGINES_DIR/lc0_weights" ]; then

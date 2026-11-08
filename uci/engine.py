@@ -1285,6 +1285,7 @@ class UciEngine(object):
         engine_debug_name: str = "engine",
         suppress_info: bool = True,
         remote_binary_override: str | None = None,
+        uci_file: str | None = None,
     ):
         """initialise engine with file and mame_par info"""
         super(UciEngine, self).__init__()
@@ -1298,6 +1299,7 @@ class UciEngine(object):
         self.engine_rating = -1
         self.uci_elo_eval_fn = None  # saved UCI_Elo eval function
         self.file = file
+        self.uci_file = uci_file or file + ".uci"
         self.mame_par = mame_par
         self.is_mame = "/mame/" in self.file
         self.is_script = "/script/" in self.file
@@ -2426,13 +2428,13 @@ class UciEngine(object):
         parser.optionxform = str  # type: ignore
 
         if not options:
-            success = bool(parser.read(self.get_file() + ".uci"))
+            success = bool(parser.read(self.uci_file))
             if success:
                 sections = parser.sections()
                 if sections:
                     options = dict(parser[sections.pop()])
                 else:
-                    logger.warning("uci file has no sections: %s.uci", self.get_file())
+                    logger.warning("uci file has no sections: %s", self.uci_file)
                     return False
 
         self.level_support = bool(options)

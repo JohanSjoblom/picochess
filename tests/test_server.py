@@ -111,6 +111,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("if (settings.engine_file) return eng.file === settings.engine_file;", template)
         self.assertIn("settings.engine_category === cat", template)
         self.assertIn("if (isCurrentCategory && !hasManufacturers)", template)
+        self.assertIn("var hasManufacturers = categoryManufacturers.length > 1;", template)
+        self.assertIn("_showEngineList(cat, '', true);", template)
         self.assertIn("_showEngineList(cat, manufacturer, containsCurrent)", template)
         self.assertIn("var current = currentTimeControl();", template)
         self.assertIn("tilePageForItem(currentIndex, items.length)", template)
@@ -513,16 +515,25 @@ class TestServerDisplayTextHelpers(unittest.TestCase):
 class TestEngineMenuHelpers(unittest.TestCase):
     def setUp(self):
         self.original_modern = EngineProvider.modern_engines
+        self.original_nnue = EngineProvider.nnue_engines
         self.original_retro = EngineProvider.retro_engines
-        self.original_favorites = EngineProvider.favorite_engines
+        self.original_special = EngineProvider.special_engines
+        self.original_variants = EngineProvider.variant_engines
+        self.original_favorite_ids = EngineProvider.favorite_profile_ids
         self.original_sort = EngineProvider.engine_menu_sort
         EngineProvider.modern_engines = [{"name": "Modern", "file": "modern", "level_dict": {}}]
-        EngineProvider.favorite_engines = [{"name": "Favorite", "file": "favorite", "level_dict": {}}]
+        EngineProvider.nnue_engines = []
+        EngineProvider.special_engines = [{"name": "Special", "file": "special", "level_dict": {}}]
+        EngineProvider.variant_engines = []
+        EngineProvider.favorite_profile_ids = []
 
     def tearDown(self):
         EngineProvider.modern_engines = self.original_modern
+        EngineProvider.nnue_engines = self.original_nnue
         EngineProvider.retro_engines = self.original_retro
-        EngineProvider.favorite_engines = self.original_favorites
+        EngineProvider.special_engines = self.original_special
+        EngineProvider.variant_engines = self.original_variants
+        EngineProvider.favorite_profile_ids = self.original_favorite_ids
         EngineProvider.engine_menu_sort = self.original_sort
 
     def test_payload_uses_grouped_presentation_order_and_original_files(self):
@@ -576,41 +587,86 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual("retro", settings["engine_category"])
         self.assertEqual("Novag", settings["engine_manufacturer"])
 
-    def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
+    def test_current_engine_settings_use_profile_identity_for_shared_binary(self):
+        EngineProvider.modern_engines = [
+            {"profile_id": "fairy", "name": "Fairy", "file": "/engines/fairy", "level_dict": {}},
+        ]
+        EngineProvider.retro_engines = []
+        EngineProvider.variant_engines = [
+            {
+                "profile_id": "fairy-atomic",
+                "name": "Atomic",
+                "file": "/engines/fairy",
+                "manufacturer": "Fairy-Stockfish",
+                "level_dict": {},
+            },
+        ]
+        menu = Mock()
+        menu.get_engine.return_value = EngineProvider.variant_engines[0]
+
+        settings = _current_engine_menu_settings({"dgtmenu": menu, "system_info": {}})
+
+        self.assertEqual("fairy-atomic", settings["engine_profile"])
+        self.assertEqual("variants", settings["engine_category"])
+        self.assertEqual("Fairy-Stockfish", settings["engine_manufacturer"])
+
+    def test_payload_groups_modern_and_special_when_metadata_exists(self):
         EngineProvider.modern_engines = [
             {"name": "Zulu", "file": "modern-0", "level_dict": {}, "manufacturer": ""},
             {"name": "Alpha", "file": "modern-1", "level_dict": {}, "manufacturer": "Maker"},
         ]
         EngineProvider.retro_engines = []
-        EngineProvider.favorite_engines = [
+        EngineProvider.special_engines = [
             {"name": "Beta", "file": "fav-0", "level_dict": {}, "manufacturer": "Studio"},
         ]
         EngineProvider.set_engine_menu_sort("manufacturer")
 
         payload = _engine_menu_payload()
         modern = [entry for entry in payload["engines"] if entry["category"] == "modern"]
-        favorites = [entry for entry in payload["engines"] if entry["category"] == "favorites"]
+        special = [entry for entry in payload["engines"] if entry["category"] == "special"]
 
         self.assertEqual(["modern-1", "modern-0"], [entry["file"] for entry in modern])
         self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
-        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
+        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in special])
+
+    def test_payload_marks_favorites_without_changing_source_category(self):
+        EngineProvider.modern_engines = [
+            {"profile_id": "stockfish", "name": "Stockfish", "file": "stockfish", "level_dict": {}},
+        ]
+        EngineProvider.variant_engines = [
+            {"profile_id": "fairy-atomic", "name": "Atomic", "file": "fairy", "level_dict": {}},
+        ]
+        EngineProvider.favorite_profile_ids = ["fairy-atomic"]
+
+        payload = _engine_menu_payload()
+        entries = {entry["profile_id"]: entry for entry in payload["engines"]}
+
+        self.assertFalse(entries["stockfish"]["is_favorite"])
+        self.assertTrue(entries["fairy-atomic"]["is_favorite"])
+        self.assertEqual("variants", entries["fairy-atomic"]["category"])
 
     def test_engine_menu_labels_default_to_english_web_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
         self.assertEqual("Engine Info", labels["categories"]["info"])
 
         self.assertEqual("Modern", labels["categories"]["modern"])
+        self.assertEqual("NNUE", labels["categories"]["nnue"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Special", labels["categories"]["favorites"])
+        self.assertEqual("Special", labels["categories"]["special"])
+        self.assertEqual("Variants", labels["categories"]["variants"])
+        self.assertEqual("Favorites", labels["categories"]["favorites"])
         self.assertEqual("Sort Order", labels["categories"]["sort"])
 
     def test_engine_menu_labels_use_web_menu_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "es", "version"))
 
         self.assertEqual("Moderno", labels["categories"]["modern"])
+        self.assertEqual("NNUE", labels["categories"]["nnue"])
         self.assertEqual("Información del motor", labels["categories"]["info"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Especial", labels["categories"]["favorites"])
+        self.assertEqual("Especial", labels["categories"]["special"])
+        self.assertEqual("Variantes", labels["categories"]["variants"])
+        self.assertEqual("Favoritos", labels["categories"]["favorites"])
         self.assertEqual("Orden", labels["categories"]["sort"])
         self.assertEqual("Nombre del motor", labels["sort_options"]["engine"])
 
@@ -1486,6 +1542,43 @@ class TestServerWebEngineSelection(unittest.TestCase):
             {"engine_name": "Stockfish", "engine_elo": 2500, "engine_level": "Elo@1800"},
             _current_engine_metadata(shared),
         )
+
+    def test_variant_payload_preserves_level_key_and_adds_elo_label(self):
+        original = (
+            EngineProvider.modern_engines,
+            EngineProvider.nnue_engines,
+            EngineProvider.retro_engines,
+            EngineProvider.special_engines,
+            EngineProvider.variant_engines,
+            EngineProvider.favorite_profiles,
+        )
+        try:
+            EngineProvider.modern_engines = []
+            EngineProvider.nnue_engines = []
+            EngineProvider.retro_engines = []
+            EngineProvider.special_engines = []
+            EngineProvider.variant_engines = [{
+                "profile_id": "fairy-atomic",
+                "file": "/engines/fairy",
+                "name": "Atomic",
+                "elo": "",
+                "level_dict": {"Atomic@2000": {}, "Atomic@900": {}, "Atomic@1000": {}},
+            }]
+            EngineProvider.favorite_profiles = []
+
+            entry = _engine_menu_payload()["engines"][0]
+
+            self.assertEqual(["Atomic@900", "Atomic@1000", "Atomic@2000"], entry["levels"])
+            self.assertEqual("Elo 1000", entry["level_labels"]["Atomic@1000"])
+        finally:
+            (
+                EngineProvider.modern_engines,
+                EngineProvider.nnue_engines,
+                EngineProvider.retro_engines,
+                EngineProvider.special_engines,
+                EngineProvider.variant_engines,
+                EngineProvider.favorite_profiles,
+            ) = original
 
 
 class TestServerEngineBookSelection(unittest.TestCase):

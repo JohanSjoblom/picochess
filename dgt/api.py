@@ -59,6 +59,7 @@ class EventApi:
     PROMOTION = "EVT_PROMOTION"  # Promotion piece selected
     SET_OPENING_BOOK = "EVT_SET_OPENING_BOOK"  # User chooses an opening book
     NEW_ENGINE = "EVT_NEW_ENGINE"  # Change engine
+    ENGINE_FAVORITES = "EVT_ENGINE_FAVORITES"  # Ordered favorite engine profile IDs changed
     SET_INTERACTION_MODE = "EVT_SET_INTERACTION_MODE"  # Change interaction mode
     SET_PGN_REPLAY_TUTOR_REGENERATION = "EVT_SET_PGN_REPLAY_TUTOR_REGENERATION"
     RESTORE_POSITION_CHECKPOINT = "EVT_RESTORE_POSITION_CHECKPOINT"
@@ -367,7 +368,11 @@ class Event:
     ENGINE_MATCH_STOP = ClassFactory(EventApi.ENGINE_MATCH_STOP, ["reason"])
     PROMOTION = ClassFactory(EventApi.PROMOTION, ["move", "fen"])
     SET_OPENING_BOOK = ClassFactory(EventApi.SET_OPENING_BOOK, ["book", "book_text", "show_ok"])
-    NEW_ENGINE = ClassFactory(EventApi.NEW_ENGINE, ["eng", "eng_text", "options", "show_ok"])
+    NEW_ENGINE = ClassFactory(
+        EventApi.NEW_ENGINE,
+        ["eng", "eng_text", "options", "show_ok", "confirmed", "game_generation", "context_fingerprint"],
+    )
+    ENGINE_FAVORITES = ClassFactory(EventApi.ENGINE_FAVORITES, ["profile_ids"])
     SET_INTERACTION_MODE = ClassFactory(EventApi.SET_INTERACTION_MODE, ["mode", "mode_text", "show_ok"])
     SET_PGN_REPLAY_TUTOR_REGENERATION = ClassFactory(
         EventApi.SET_PGN_REPLAY_TUTOR_REGENERATION,

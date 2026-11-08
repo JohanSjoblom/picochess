@@ -23,6 +23,7 @@
 #
 
 import logging
+from engine_switch import variant_level_elo
 from dgt.util import Beep, BeepLevel
 from dgt.api import Dgt
 
@@ -3514,6 +3515,19 @@ class DgtTranslate(object):
                 frtxt = entxt
                 estxt = entxt
                 ittxt = entxt
+            elif (variant_elo := variant_level_elo(msg)) is not None:
+                elo = str(variant_elo)
+                entxt = Dgt.DISPLAY_TEXT(
+                    web_text="Elo " + elo,
+                    large_text="Elo " + elo,
+                    medium_text="Elo " + elo,
+                    small_text="E" + elo,
+                )
+                detxt = entxt
+                nltxt = entxt
+                frtxt = entxt
+                estxt = entxt
+                ittxt = entxt
             elif msg.startswith("Level@"):
                 msg = str(int(msg[6:])).rjust(2)
                 entxt = Dgt.DISPLAY_TEXT(
@@ -3861,6 +3875,18 @@ class DgtTranslate(object):
                 medium_text="Modernos",
                 small_text="mod   ",
             )
+        if text_id == "engine_menu_nnue":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="NNUE Engines",
+                large_text="NNUE Eng.",
+                medium_text="NNUE",
+                small_text="NNUE  ",
+            )
+            detxt = entxt
+            ittxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
         if text_id == "engine_menu_retro":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="Retro-Engines",
@@ -3883,7 +3909,7 @@ class DgtTranslate(object):
                 medium_text="Clásicos",
                 small_text="retro ",
             )
-        if text_id == "engine_menu_favorites":
+        if text_id == "engine_menu_special":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="Special & Historical Engines",
                 large_text="Special Eng",
@@ -3893,27 +3919,89 @@ class DgtTranslate(object):
             detxt = Dgt.DISPLAY_TEXT(
                 web_text="Spezial & historische Engines",
                 large_text="Spezial Eng",
-                medium_text="Special",
+                medium_text="Spezial",
                 small_text="Spezl.",
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Scelta motori preferiti e speciali",
-                large_text="M.Pref/Spec",
+                web_text="Scelta motori speciali",
+                large_text="Mot.Special",
                 medium_text="Speciali",
                 small_text="Spec. ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="Speciale en historische engines",
-                large_text="Favorieten",
-                medium_text="Favor.",
-                small_text="Favor.",
+                large_text="Speciaal",
+                medium_text="Speciaal",
+                small_text="Spec. ",
             )
-            frtxt = entxt
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Moteurs speciaux et historiques",
+                large_text="Mot.spec.",
+                medium_text="Speciaux",
+                small_text="Spec. ",
+            )
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Motores especiales e históricos",
-                large_text="Motores fav",
-                medium_text="Favorit",
-                small_text="favor",
+                large_text="Especiales",
+                medium_text="Especial",
+                small_text="Esp.  ",
+            )
+        if text_id == "engine_menu_variants":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Chess Variants",
+                large_text="Variants",
+                medium_text="Variants",
+                small_text="Var.  ",
+            )
+        if text_id == "engine_menu_favorites":
+            entxt = Dgt.DISPLAY_TEXT(web_text="Favorite Engines", large_text="Favorites", medium_text="Favorite", small_text="Fav.  ")
+            detxt = Dgt.DISPLAY_TEXT(web_text="Favorisierte Engines", large_text="Favoriten", medium_text="Favorit", small_text="Fav.  ")
+            ittxt = Dgt.DISPLAY_TEXT(web_text="Motori preferiti", large_text="Preferiti", medium_text="Preferit", small_text="Pref. ")
+            nltxt = Dgt.DISPLAY_TEXT(web_text="Favoriete engines", large_text="Favorieten", medium_text="Favoriet", small_text="Fav.  ")
+            frtxt = Dgt.DISPLAY_TEXT(web_text="Moteurs favoris", large_text="Favoris", medium_text="Favoris", small_text="Fav.  ")
+            estxt = Dgt.DISPLAY_TEXT(web_text="Motores favoritos", large_text="Favoritos", medium_text="Favorit", small_text="Fav.  ")
+        if text_id in ("engine_favorite_yes", "engine_favorite_no"):
+            enabled = text_id.endswith("_yes")
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Favorite yes" if enabled else "Favorite no",
+                large_text="Fav yes" if enabled else "Fav no",
+                medium_text="Fav yes" if enabled else "Fav no",
+                small_text="FavYes" if enabled else "FavNo ",
+            )
+            detxt = entxt
+            ittxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Schachvarianten",
+                large_text="Varianten",
+                medium_text="Variant.",
+                small_text="Var.  ",
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Varianti di scacchi",
+                large_text="Varianti",
+                medium_text="Varianti",
+                small_text="Var.  ",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Schaakvarianten",
+                large_text="Varianten",
+                medium_text="Variant.",
+                small_text="Var.  ",
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Variantes d'echecs",
+                large_text="Variantes",
+                medium_text="Variant",
+                small_text="Var.  ",
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Variantes de ajedrez",
+                large_text="Variantes",
+                medium_text="Variant",
+                small_text="Var.  ",
             )
         if text_id == "engine_menu_retrosettings":
             entxt = Dgt.DISPLAY_TEXT(

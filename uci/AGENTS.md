@@ -8,6 +8,21 @@ to know how the underlying chess library starts analysis, stops analysis,
 returns best moves, exposes info packets, handles protocol state, or requires
 workarounds.
 
+## Logical Engine Profiles
+
+- `profile_id` identifies a menu/profile choice; `file` identifies the
+  executable process. Several profiles may deliberately share one binary.
+- `UciEngine.uci_file` is optional and defaults to `file + ".uci"`. Pass the
+  profile-specific path when a shared binary has managed sidecars such as
+  `fairy-atomic.uci`.
+- Changing profile ID restarts the engine even when `file` is unchanged. A
+  level change inside one profile may reconfigure the existing process.
+- Keep managed variant sidecars read-only at runtime. The generic package
+  generator may create the binary's ordinary sidecar but must not create or
+  overwrite profile-specific sidecars.
+- Preserve the paired semantics of `PicoDepth` and `PicoNode` when a new
+  profile starts; no stale depth/node limit may leak from the old profile.
+
 When updating `uci/engine.py`, preserve this boundary:
 
 - Keep chess-library-specific mechanics inside `UciEngine`,

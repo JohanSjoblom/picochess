@@ -64,7 +64,9 @@ This document explains the full move cycle inside PicoChess, including:
    A-1. CONFIGURATION
    ------------------
      * Parse picochess.ini + command-line args (configargparse).
-     * Read engines.ini, retro.ini, favorites.ini via EngineProvider.init()
+     * Read engines.ini, nnue.ini, retro.ini, special.ini, and variants.ini via
+       EngineProvider.init() (legacy engine packages may still call the Special
+       catalog favorites.ini)
        -> builds the installed_engines list.
      * Each engine entry references a .uci file that stores its levels
        and UCI option defaults.

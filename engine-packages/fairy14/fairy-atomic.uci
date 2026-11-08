@@ -1,0 +1,44 @@
+[DEFAULT]
+Threads = 1
+Variant = atomic
+UCI_Variant = atomic
+
+[Atomic@1000]
+UCI_LimitStrength = true
+UCI_Elo = 1000
+
+[Atomic@1250]
+UCI_LimitStrength = true
+UCI_Elo = 1250
+
+[Atomic@1500]
+UCI_LimitStrength = true
+UCI_Elo = 1500
+
+[Atomic@1750]
+UCI_LimitStrength = true
+UCI_Elo = 1750
+
+[Atomic@2000]
+UCI_LimitStrength = true
+UCI_Elo = 2000
+
+[Atomic@2250]
+UCI_LimitStrength = true
+UCI_Elo = 2250
+
+[Atomic@2500]
+UCI_LimitStrength = true
+UCI_Elo = 2500
+
+[Atomic@2750]
+UCI_LimitStrength = true
+UCI_Elo = 2750
+
+[Atomic@2850]
+UCI_LimitStrength = true
+UCI_Elo = 2850
+
+[Atomic@3000]
+UCI_LimitStrength = true
+UCI_Elo = 3000

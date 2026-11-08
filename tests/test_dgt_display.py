@@ -254,9 +254,9 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         with patch("platform.machine", return_value=".." + os.sep + "tests"), patch("subprocess.run"):
             EngineProvider.modern_engines = read_engine_ini(filename="engines.ini")
             EngineProvider.retro_engines = read_engine_ini(filename="retro.ini")
-            EngineProvider.favorite_engines = read_engine_ini(filename="favorites.ini")
+            EngineProvider.special_engines = read_engine_ini(filename="favorites.ini")
             EngineProvider.installed_engines = list(
-                EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.favorite_engines
+                EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.special_engines
             )
 
             trans = DgtTranslate("none", 0, "en", "version")

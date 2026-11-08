@@ -139,6 +139,44 @@ class TestVariantContracts(unittest.TestCase):
         self.assertIsNone(controller.state.get_variant_board())
         self.assertEqual(chess.STARTING_FEN, controller.state.game.fen())
 
+    def test_started_engine_variant_is_committed_in_transaction_order(self):
+        controller = object.__new__(MainLoop)
+        capabilities = Mock()
+        capabilities.retro_info.return_value = {"system": "new"}
+        controller.engine = SimpleNamespace(
+            variant="atomic",
+            get_mame_capabilities=Mock(return_value=capabilities),
+        )
+        calls = Mock()
+        controller._prepare_new_game_for_variant = calls.prepare
+        controller._init_variant_from_engine = calls.initialize
+
+        with patch("mainloop.ModeInfo.set_retro_features") as set_retro:
+            switched = controller._commit_started_engine_variant("chess")
+
+        self.assertTrue(switched)
+        self.assertEqual(["prepare", "initialize"], [call[0] for call in calls.method_calls])
+        calls.prepare.assert_called_once_with("atomic")
+        set_retro.assert_called_once_with({"system": "new"})
+
+    def test_restored_engine_does_not_reset_same_variant(self):
+        controller = object.__new__(MainLoop)
+        capabilities = Mock()
+        capabilities.retro_info.return_value = {}
+        controller.engine = SimpleNamespace(
+            variant="kingofthehill",
+            get_mame_capabilities=Mock(return_value=capabilities),
+        )
+        controller._prepare_new_game_for_variant = Mock()
+        controller._init_variant_from_engine = Mock()
+
+        with patch("mainloop.ModeInfo.set_retro_features"):
+            switched = controller._commit_started_engine_variant("kingofthehill")
+
+        self.assertFalse(switched)
+        controller._prepare_new_game_for_variant.assert_not_called()
+        controller._init_variant_from_engine.assert_called_once_with()
+
     def test_atomic_move_uses_explosion_rules_and_ends_game(self):
         fen = "7k/6p1/8/8/8/8/6Q1/K7 w - - 0 1"
         self.state.variant = "atomic"

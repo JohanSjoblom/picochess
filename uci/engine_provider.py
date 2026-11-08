@@ -51,7 +51,7 @@ class EngineProvider(object):
     engine_menu_sort = "file"
 
     @classmethod
-    def init(cls, engine_menu_sort: str = "file", engine_favorites: str = "[]"):
+    def init(cls, engine_menu_sort: str = "file", engine_favorites: str | List[str] = "[]"):
         cls.set_engine_menu_sort(engine_menu_sort)
         cls.modern_engines = read_engine_ini(filename="engines.ini")
         cls.retro_engines = read_engine_ini(filename="retro.ini")

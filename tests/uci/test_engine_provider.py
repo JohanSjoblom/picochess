@@ -203,6 +203,12 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
         self.assertEqual([classic], EngineProvider.modern_engines)
         self.assertEqual([stockfish_nnue], EngineProvider.nnue_engines)
 
+    def test_single_cli_json_argument_is_parsed_as_favorite_list(self):
+        self.assertEqual(
+            ["script/turing", "fairy-atomic"],
+            EngineProvider.parse_favorite_ids(['["script/turing","fairy-atomic"]']),
+        )
+
     @patch("uci.engine_provider.Path.is_file", return_value=True)
     @patch("uci.engine_provider.read_engine_ini")
     def test_special_ini_is_preferred(self, read_ini, _is_file):

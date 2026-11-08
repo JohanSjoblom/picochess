@@ -172,7 +172,14 @@ class EngineProvider(object):
     def parse_favorite_ids(value) -> List[str]:
         """Parse the persisted ordered JSON list, ignoring malformed and duplicate IDs."""
         if isinstance(value, (list, tuple)):
-            parsed = value
+            parsed = list(value)
+            if len(parsed) == 1 and isinstance(parsed[0], str) and parsed[0].strip().startswith("["):
+                try:
+                    decoded = json.loads(parsed[0])
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    decoded = None
+                if isinstance(decoded, list):
+                    parsed = decoded
         else:
             try:
                 parsed = json.loads(str(value or "[]"))

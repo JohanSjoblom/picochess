@@ -23,9 +23,14 @@ Features
 ========
 - Play via Web Browser. Enjoy chess directly from your browser. You do not need an electronic chess board.
 - Use phone browser audio as an alternative to local speakers. This is useful on headless systems such as DGT3000 clock setups or Pi systems without external speakers.
-- Electronic Chess Board support for an authentic playing experience. Compatible with DGT e-board, Certabo, Chesslink, Chessnut, and Ichessone. Note that no guarantees can be given that it will work with all of these boards, but the community has worked hard to maintain this possibility. I currently use a DGT e-board and a DGT Pi 3000 myself.
+- Electronic Chess Board support for an authentic playing experience. Compatible with DGT e-board, Certabo, ChessLink, Chessnut, iChessOne, Novag Citrine, and Saitek OSA (Leonardo, Galileo, and Renaissance). Note that no guarantees can be given that it will work with all of these boards, but the community has worked hard to maintain this possibility. I currently use a DGT e-board and a DGT Pi 3000 myself.
 - DGT Clock Compatibility. Runs on the DGT Pi 3000 electronic clock which becomes an all-in one chess computer.
 - Responsive web layout scales well on large desktop screens.
+
+Select **Novag Citrine** or **Saitek OSA** in the E-Board Type menu, or set
+`board-type = citrine` or `board-type = osa` in `picochess.ini`. The current
+Saitek OSA driver uses the board's internal firmware to display moves on all
+three models.
 
 About This Fork
 ===============

@@ -2614,12 +2614,17 @@
                         setCurrentSetting('engine_menu_sort', data.engine_menu_sort || 'file');
                         if (data.engine_menu_labels) setCurrentSetting('engine_menu_labels', data.engine_menu_labels);
                         if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
-                        var hasManufacturers = _engAllData.some(function(eng) {
-                            return _engineInCategory(eng, cat) && Boolean(eng.manufacturer);
+                        var categoryManufacturers = [];
+                        _engAllData.forEach(function(eng) {
+                            if (!_engineInCategory(eng, cat) || !eng.manufacturer) return;
+                            if (categoryManufacturers.indexOf(eng.manufacturer) === -1) {
+                                categoryManufacturers.push(eng.manufacturer);
+                            }
                         });
+                        var hasManufacturers = categoryManufacturers.length > 1;
                         var isCurrentCategory = settings.engine_category === cat;
                         if (isCurrentCategory && !hasManufacturers) {
-                            _showEngineList(cat, settings.engine_manufacturer || '', true);
+                            _showEngineList(cat, '', true);
                         } else if (hasManufacturers) {
                             _showManufacturerList(cat);
                         } else {

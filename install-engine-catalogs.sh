@@ -14,6 +14,8 @@ esac
 REPO_DIR=${REPO_DIR:-/opt/picochess}
 ENGINES_DIR=${ENGINES_DIR:-$REPO_DIR/engines}
 PROFILE_SOURCE=${PROFILE_SOURCE:-$REPO_DIR/engine-packages/fairy14}
+NNUE_NAMES_SOURCE=${NNUE_NAMES_SOURCE:-$REPO_DIR/engine-packages/nnue/engine-names.txt}
+NNUE_BUILDER=${NNUE_BUILDER:-$REPO_DIR/build-nnue-catalog.py}
 TARGET_DIR="$ENGINES_DIR/$ARCH"
 
 if [ ! -d "$TARGET_DIR" ]; then
@@ -26,6 +28,13 @@ fi
 if [ -f "$TARGET_DIR/favorites.ini" ] && [ ! -f "$TARGET_DIR/special.ini" ]; then
     cp "$TARGET_DIR/favorites.ini" "$TARGET_DIR/special.ini"
     echo "Installed special.ini from the legacy Special catalog."
+fi
+
+# NNUE is a catalog classification of binaries already supplied by the chosen
+# small/lite package.  Generate it only at install time and never replace a
+# catalog maintained by the user or a future engine package.
+if [ -f "$TARGET_DIR/engines.ini" ] && [ ! -f "$TARGET_DIR/nnue.ini" ]; then
+    python3 "$NNUE_BUILDER" "$TARGET_DIR/engines.ini" "$NNUE_NAMES_SOURCE" "$TARGET_DIR/nnue.ini"
 fi
 
 # These files are useful only with the shared Fairy-Stockfish executable.  Do

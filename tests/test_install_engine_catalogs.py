@@ -8,6 +8,8 @@ import unittest
 class TestInstallEngineCatalogs(unittest.TestCase):
     script = Path(__file__).parents[1] / "install-engine-catalogs.sh"
     profile_source = Path(__file__).parents[1] / "engine-packages" / "fairy14"
+    nnue_names_source = Path(__file__).parents[1] / "engine-packages" / "nnue" / "engine-names.txt"
+    nnue_builder = Path(__file__).parents[1] / "build-nnue-catalog.py"
 
     def _run(self, root: Path):
         environment = dict(os.environ)
@@ -16,6 +18,8 @@ class TestInstallEngineCatalogs(unittest.TestCase):
                 "REPO_DIR": str(root),
                 "ENGINES_DIR": str(root / "engines"),
                 "PROFILE_SOURCE": str(self.profile_source),
+                "NNUE_NAMES_SOURCE": str(self.nnue_names_source),
+                "NNUE_BUILDER": str(self.nnue_builder),
             }
         )
         return subprocess.run(
@@ -32,11 +36,26 @@ class TestInstallEngineCatalogs(unittest.TestCase):
             target = root / "engines" / "aarch64"
             target.mkdir(parents=True)
             (target / "favorites.ini").write_text("[script/turing]\n", encoding="utf-8")
+            (target / "engines.ini").write_text(
+                "[a-stockf]\n"
+                "name = Stockfish 19\nsmall = SF19\nmedium = Stockf19\nlarge = Stockfish19\nelo = 3600\n"
+                "\n[c-arasan]\n"
+                "name = ArasanNN v26.0\nsmall = Arasan\nmedium = ArasanNN\nlarge = Arasan NN\nelo = 3500\n"
+                "\n[classic]\n"
+                "name = Classic Engine\nsmall = Classic\nmedium = Classic\nlarge = Classic\nelo = 2000\n",
+                encoding="utf-8",
+            )
+            (target / "a-stockf").write_bytes(b"binary")
+            (target / "c-arasan").write_bytes(b"binary")
 
             self._run(root)
 
             self.assertEqual("[script/turing]\n", (target / "special.ini").read_text(encoding="utf-8"))
             self.assertFalse((target / "variants.ini").exists())
+            nnue = (target / "nnue.ini").read_text(encoding="utf-8")
+            self.assertIn("[a-stockf]", nnue)
+            self.assertIn("[c-arasan]", nnue)
+            self.assertNotIn("[classic]", nnue)
 
             (target / "fairy").write_bytes(b"binary")
             self._run(root)
@@ -64,12 +83,15 @@ class TestInstallEngineCatalogs(unittest.TestCase):
             (target / "special.ini").write_text("custom special", encoding="utf-8")
             (target / "variants.ini").write_text("custom variants", encoding="utf-8")
             (target / "fairy-atomic.uci").write_text("custom atomic", encoding="utf-8")
+            (target / "engines.ini").write_text("[engine]\n", encoding="utf-8")
+            (target / "nnue.ini").write_text("custom nnue", encoding="utf-8")
 
             self._run(root)
 
             self.assertEqual("custom special", (target / "special.ini").read_text(encoding="utf-8"))
             self.assertEqual("custom variants", (target / "variants.ini").read_text(encoding="utf-8"))
             self.assertEqual("custom atomic", (target / "fairy-atomic.uci").read_text(encoding="utf-8"))
+            self.assertEqual("custom nnue", (target / "nnue.ini").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

@@ -369,6 +369,38 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             EngineProvider.installed_engines = original_installed
 
     @patch("platform.machine")
+    async def test_single_fairy_manufacturer_opens_variant_profiles_directly(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        original_variants = EngineProvider.variant_engines
+        original_installed = EngineProvider.installed_engines
+        try:
+            variants = []
+            for profile_id, name in (("fairy-koth", "King of the Hill"), ("fairy-antichess", "Antichess")):
+                profile = dict(EngineProvider.modern_engines[0])
+                profile.update(
+                    profile_id=profile_id,
+                    name=name,
+                    file="/engines/fairy",
+                    manufacturer="Fairy-Stockfish",
+                )
+                variants.append(profile)
+            EngineProvider.variant_engines = variants
+            EngineProvider.installed_engines = original_installed + variants
+
+            menu.enter_variants_eng_menu()
+            text = await menu.main_down()
+
+            self.assertEqual(MenuState.ENG_VARIANTS_NAME, menu.state)
+            self.assertEqual(variants[0]["text"].large_text, text.large_text)
+
+            menu.set_state_current_engine("/engines/fairy", "fairy-koth")
+            self.assertEqual("fairy-koth", EngineProvider.installed_engines[menu.menu_engine_index]["profile_id"])
+            self.assertEqual(0, menu.menu_variants_engine_index)
+        finally:
+            EngineProvider.variant_engines = original_variants
+            EngineProvider.installed_engines = original_installed
+
+    @patch("platform.machine")
     async def test_current_engine_state_tolerates_completely_empty_catalogs(self, machine_mock):
         menu = self.create_menu(machine_mock)
         original_installed = EngineProvider.installed_engines

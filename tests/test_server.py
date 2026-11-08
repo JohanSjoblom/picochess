@@ -111,6 +111,8 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertIn("if (settings.engine_file) return eng.file === settings.engine_file;", template)
         self.assertIn("settings.engine_category === cat", template)
         self.assertIn("if (isCurrentCategory && !hasManufacturers)", template)
+        self.assertIn("var hasManufacturers = categoryManufacturers.length > 1;", template)
+        self.assertIn("_showEngineList(cat, '', true);", template)
         self.assertIn("_showEngineList(cat, manufacturer, containsCurrent)", template)
         self.assertIn("var current = currentTimeControl();", template)
         self.assertIn("tilePageForItem(currentIndex, items.length)", template)

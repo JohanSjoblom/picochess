@@ -5711,12 +5711,10 @@ class MainLoop:
                 Mode.ENGINE_MATCH,
             ):  # engine isnt started/searching => stop the clock
                 await self.state.stop_clock()
-            self.state.engine_text = self.state.dgtmenu.get_current_engine_name()
-            self.state.dgtmenu.exit_menu()
-
             self.state.old_engine_level = self.state.new_engine_level
             self.state.engine_level = self.state.new_engine_level
             self.state.dgtmenu.set_state_current_engine(self.state.engine_file, self.state.engine_profile)
+            self.state.engine_text = self.state.dgtmenu.get_current_engine_name()
             self.state.dgtmenu.exit_menu()
             # here dont care if engine supports pondering, cause Mode.NORMAL from startup
             if (

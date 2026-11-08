@@ -85,6 +85,23 @@ class TestEngineProvider(unittest.TestCase):
             EngineProvider.get_engine_groups(engines),
         )
 
+    def test_single_manufacturer_does_not_add_redundant_menu_level(self):
+        engines = [
+            {"name": "King of the Hill", "manufacturer": "Fairy-Stockfish"},
+            {"name": "Antichess", "manufacturer": "Fairy-Stockfish"},
+        ]
+
+        self.assertEqual(1, len(EngineProvider.get_engine_groups(engines)))
+        self.assertEqual([], EngineProvider.get_engine_menu_groups(engines))
+
+    def test_multiple_manufacturers_keep_menu_level(self):
+        engines = [
+            {"name": "One", "manufacturer": "Maker One"},
+            {"name": "Two", "manufacturer": "Maker Two"},
+        ]
+
+        self.assertEqual(2, len(EngineProvider.get_engine_menu_groups(engines)))
+
     def test_flat_retro_engine_sort_preserves_original_indexes(self):
         EngineProvider.retro_engines = [{"name": "Zulu"}, {"name": "Alpha"}, {"name": "Beta"}]
         EngineProvider.set_engine_menu_sort("engine")
@@ -173,6 +190,18 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
         EngineProvider.favorite_profile_ids = self.original_favorite_ids
         EngineProvider.favorite_profiles = self.original_favorite_profiles
         EngineProvider.engine_menu_sort = self.original_sort
+
+    def test_nnue_catalog_reclassifies_profiles_out_of_modern(self):
+        stockfish_modern = {"profile_id": "a-stockf", "name": "Stockfish 19"}
+        classic = {"profile_id": "classic", "name": "Classic"}
+        stockfish_nnue = {"profile_id": "a-stockf", "name": "Stockfish 19"}
+        EngineProvider.modern_engines = [stockfish_modern, classic]
+        EngineProvider.nnue_engines = [stockfish_nnue]
+
+        EngineProvider._apply_nnue_catalog_override()
+
+        self.assertEqual([classic], EngineProvider.modern_engines)
+        self.assertEqual([stockfish_nnue], EngineProvider.nnue_engines)
 
     @patch("uci.engine_provider.Path.is_file", return_value=True)
     @patch("uci.engine_provider.read_engine_ini")

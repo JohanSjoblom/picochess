@@ -1,0 +1,9 @@
+Stockfish 19
+ArasanNN v26.0
+Black Diamond NNUE v13.1b
+Bluefish NNUE v13.1b
+Crystal 9 Dev NNUE
+Harmon NNUE v13.1b
+Honey NNUE v14.2
+Igel 3.2.0 NNUE
+Oki Maguro NNUE v13.1b

@@ -63,6 +63,7 @@ class EngineProvider(object):
                 logger.warning("favorites.ini is deprecated; rename the Special catalog to special.ini")
         cls.nnue_engines = read_engine_ini(filename="nnue.ini")
         cls.variant_engines = read_engine_ini(filename="variants.ini")
+        cls._apply_nnue_catalog_override()
         cls.unavailable_profiles = []
         for category, attribute in (
             ("modern", "modern_engines"),
@@ -98,6 +99,17 @@ class EngineProvider(object):
         )
         cls._rebuild_profile_index()
         cls.set_favorite_ids(engine_favorites)
+
+    @classmethod
+    def _apply_nnue_catalog_override(cls):
+        """Keep profiles classified as NNUE out of the Modern catalog."""
+        nnue_profile_ids = {str(profile.get("profile_id", "")) for profile in cls.nnue_engines}
+        if nnue_profile_ids:
+            cls.modern_engines = [
+                profile
+                for profile in cls.modern_engines
+                if str(profile.get("profile_id", "")) not in nnue_profile_ids
+            ]
 
     @classmethod
     def _rebuild_profile_index(cls):
@@ -277,6 +289,12 @@ class EngineProvider(object):
         if cls.engine_menu_sort == "manufacturer":
             group_items.sort(key=lambda item: item[0].casefold())
         return [{"manufacturer": manufacturer, "engine_indexes": indexes} for manufacturer, indexes in group_items]
+
+    @classmethod
+    def get_engine_menu_groups(cls, engines: List[Dict]) -> List[Dict]:
+        """Return manufacturer groups only when they add a real menu choice."""
+        groups = cls.get_engine_groups(engines)
+        return groups if len(groups) > 1 else []
 
     @classmethod
     def get_flat_retro_engine_indexes(cls) -> List[int]:

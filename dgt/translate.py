@@ -3883,7 +3883,7 @@ class DgtTranslate(object):
                 medium_text="Clásicos",
                 small_text="retro ",
             )
-        if text_id == "engine_menu_favorites":
+        if text_id == "engine_menu_special":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="Special & Historical Engines",
                 large_text="Special Eng",
@@ -3893,27 +3893,32 @@ class DgtTranslate(object):
             detxt = Dgt.DISPLAY_TEXT(
                 web_text="Spezial & historische Engines",
                 large_text="Spezial Eng",
-                medium_text="Special",
+                medium_text="Spezial",
                 small_text="Spezl.",
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Scelta motori preferiti e speciali",
-                large_text="M.Pref/Spec",
+                web_text="Scelta motori speciali",
+                large_text="Mot.Special",
                 medium_text="Speciali",
                 small_text="Spec. ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="Speciale en historische engines",
-                large_text="Favorieten",
-                medium_text="Favor.",
-                small_text="Favor.",
+                large_text="Speciaal",
+                medium_text="Speciaal",
+                small_text="Spec. ",
             )
-            frtxt = entxt
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Moteurs speciaux et historiques",
+                large_text="Mot.speciaux",
+                medium_text="Speciaux",
+                small_text="Spec. ",
+            )
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Motores especiales e históricos",
-                large_text="Motores fav",
-                medium_text="Favorit",
-                small_text="favor",
+                large_text="Especiales",
+                medium_text="Especial",
+                small_text="Esp.  ",
             )
         if text_id == "engine_menu_retrosettings":
             entxt = Dgt.DISPLAY_TEXT(

@@ -12,19 +12,29 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from collections import OrderedDict
+import logging
+from pathlib import Path
 from typing import Dict, List, Optional
 
+from uci.architecture import local_engine_directory
 from uci.read import read_engine_ini
+
+
+logger = logging.getLogger(__name__)
 
 
 class EngineProvider(object):
     """
-    EngineProvider is a data holder for defined engines in engines.ini, retro.ini and favorites.ini.
+    Hold the Modern, Retro and Special engine catalogs.
+
+    New engine packages call the static Special catalog ``special.ini``.  The
+    old name ``favorites.ini`` remains a read-only compatibility fallback; it
+    must never be confused with the user's dynamic list of favorite engines.
     """
 
     modern_engines: List[Dict[str, str]] = []
     retro_engines: List[Dict[str, str]] = []
-    favorite_engines: List[Dict[str, str]] = []
+    special_engines: List[Dict[str, str]] = []
     installed_engines: List[Dict[str, str]] = []
     engine_menu_sort = "file"
 
@@ -33,13 +43,20 @@ class EngineProvider(object):
         cls.set_engine_menu_sort(engine_menu_sort)
         cls.modern_engines = read_engine_ini(filename="engines.ini")
         cls.retro_engines = read_engine_ini(filename="retro.ini")
-        cls.favorite_engines = read_engine_ini(filename="favorites.ini")
-        # set retro/favorite engines to the list of modern engines in case retro.ini or favorites.ini is empty
+        special_ini = Path(local_engine_directory(), "special.ini")
+        if special_ini.is_file():
+            cls.special_engines = read_engine_ini(filename="special.ini")
+        else:
+            cls.special_engines = read_engine_ini(filename="favorites.ini")
+            if cls.special_engines:
+                logger.warning("favorites.ini is deprecated; rename the Special catalog to special.ini")
+        # Preserve the historical empty-catalog fallback for this refactor.
+        # It is removed deliberately in the later catalog implementation.
         if not cls.retro_engines:
             cls.retro_engines = cls.modern_engines
-        if not cls.favorite_engines:
-            cls.favorite_engines = cls.modern_engines
-        cls.installed_engines = cls.modern_engines + cls.retro_engines + cls.favorite_engines
+        if not cls.special_engines:
+            cls.special_engines = cls.modern_engines
+        cls.installed_engines = cls.modern_engines + cls.retro_engines + cls.special_engines
 
     @classmethod
     def set_engine_menu_sort(cls, sort_order: str) -> str:

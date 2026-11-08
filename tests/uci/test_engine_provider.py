@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import call, patch
 
 from uci.engine_provider import EngineProvider
 
@@ -138,3 +139,70 @@ class TestEngineProvider(unittest.TestCase):
         )
         self.assertIs(engines, EngineProvider.retro_engines)
         self.assertEqual(["Zulu", "Beta", "Alpha"], [engine["name"] for engine in engines])
+
+
+class TestEngineProviderCatalogNames(unittest.TestCase):
+    def setUp(self):
+        self.original_modern = EngineProvider.modern_engines
+        self.original_retro = EngineProvider.retro_engines
+        self.original_special = EngineProvider.special_engines
+        self.original_installed = EngineProvider.installed_engines
+        self.original_sort = EngineProvider.engine_menu_sort
+
+    def tearDown(self):
+        EngineProvider.modern_engines = self.original_modern
+        EngineProvider.retro_engines = self.original_retro
+        EngineProvider.special_engines = self.original_special
+        EngineProvider.installed_engines = self.original_installed
+        EngineProvider.engine_menu_sort = self.original_sort
+
+    @patch("uci.engine_provider.Path.is_file", return_value=True)
+    @patch("uci.engine_provider.read_engine_ini")
+    def test_special_ini_is_preferred(self, read_ini, _is_file):
+        modern = [{"file": "modern"}]
+        retro = [{"file": "retro"}]
+        special = [{"file": "special"}]
+        read_ini.side_effect = [modern, retro, special]
+
+        EngineProvider.init()
+
+        self.assertEqual(
+            [call(filename="engines.ini"), call(filename="retro.ini"), call(filename="special.ini")],
+            read_ini.call_args_list,
+        )
+        self.assertIs(special, EngineProvider.special_engines)
+        self.assertEqual(modern + retro + special, EngineProvider.installed_engines)
+
+    @patch("uci.engine_provider.Path.is_file", return_value=False)
+    @patch("uci.engine_provider.read_engine_ini")
+    def test_legacy_favorites_ini_is_special_fallback(self, read_ini, _is_file):
+        modern = [{"file": "modern"}]
+        retro = [{"file": "retro"}]
+        legacy_special = [{"file": "script/turing"}]
+        read_ini.side_effect = [modern, retro, legacy_special]
+
+        with self.assertLogs("uci.engine_provider", level="WARNING") as logs:
+            EngineProvider.init()
+
+        self.assertEqual(call(filename="favorites.ini"), read_ini.call_args_list[-1])
+        self.assertIs(legacy_special, EngineProvider.special_engines)
+        self.assertIn("favorites.ini is deprecated", logs.output[0])
+
+    @patch("uci.engine_provider.Path.is_file", return_value=True)
+    @patch("uci.engine_provider.read_engine_ini")
+    def test_empty_special_ini_does_not_read_legacy_file(self, read_ini, _is_file):
+        modern = [{"file": "modern"}]
+        retro = [{"file": "retro"}]
+        read_ini.side_effect = [modern, retro, []]
+
+        EngineProvider.init()
+
+        self.assertEqual(call(filename="special.ini"), read_ini.call_args_list[-1])
+        self.assertNotIn(call(filename="favorites.ini"), read_ini.call_args_list)
+        # The old empty-catalog fallback is intentionally preserved in this
+        # behavior-neutral rename commit and removed by the catalog feature.
+        self.assertIs(modern, EngineProvider.special_engines)
+
+
+if __name__ == "__main__":
+    unittest.main()

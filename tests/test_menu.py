@@ -17,9 +17,9 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         machine_mock.return_value = ".." + os.sep + "tests"  # return the tests path as the platform engine path
         EngineProvider.modern_engines = read_engine_ini(filename="engines.ini")
         EngineProvider.retro_engines = read_engine_ini(filename="retro.ini")
-        EngineProvider.favorite_engines = read_engine_ini(filename="favorites.ini")
+        EngineProvider.special_engines = read_engine_ini(filename="favorites.ini")
         EngineProvider.installed_engines = list(
-            EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.favorite_engines
+            EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.special_engines
         )
         EngineProvider.set_engine_menu_sort("file")
 
@@ -230,15 +230,15 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         menu.main_right()
         self.assertEqual(MenuState.RETROSETTINGS, menu.state)
         menu.main_right()
-        self.assertEqual(MenuState.ENG_FAV, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL, menu.state)
         menu.main_up()
         self.assertEqual(MenuState.ENGINE, menu.state)
         await menu.main_down()
-        self.assertEqual(MenuState.ENG_FAV, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL, menu.state)
         menu.main_right()
         self.assertEqual(MenuState.ENG_MODERN, menu.state)
         menu.main_left()
-        self.assertEqual(MenuState.ENG_FAV, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL, menu.state)
         menu.main_left()
         self.assertEqual(MenuState.RETROSETTINGS, menu.state)
         menu.main_left()
@@ -270,18 +270,18 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         menu.main_right()
         self.assertEqual(MenuState.RETROSETTINGS, menu.state)
         menu.main_right()
-        # favorite engines
-        self.assertEqual(MenuState.ENG_FAV, menu.state)
-        fav_engine_name = await menu.main_down()
-        self.assertEqual(MenuState.ENG_FAV_NAME, menu.state)
-        self.assertEqual("Lc0 v0.27.0", fav_engine_name.large_text)
-        fav_engine_name = menu.main_right()
-        self.assertEqual("Stockfish DD", fav_engine_name.large_text)
-        fav_engine_name = menu.main_left()
-        self.assertEqual("Lc0 v0.27.0", fav_engine_name.large_text)
-        # level of a favorite engine
+        # Special engines
+        self.assertEqual(MenuState.ENG_SPECIAL, menu.state)
+        special_engine_name = await menu.main_down()
+        self.assertEqual(MenuState.ENG_SPECIAL_NAME, menu.state)
+        self.assertEqual("Lc0 v0.27.0", special_engine_name.large_text)
+        special_engine_name = menu.main_right()
+        self.assertEqual("Stockfish DD", special_engine_name.large_text)
+        special_engine_name = menu.main_left()
+        self.assertEqual("Lc0 v0.27.0", special_engine_name.large_text)
+        # level of a Special engine
         level = await menu.main_down()
-        self.assertEqual(MenuState.ENG_FAV_NAME_LEVEL, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL_NAME_LEVEL, menu.state)
         self.assertEqual("1 Core", level.large_text)
         level = menu.main_right()
         self.assertEqual("2 Cores", level.large_text)
@@ -289,7 +289,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("1 Core", level.large_text)
 
         menu.main_up()
-        self.assertEqual(MenuState.ENG_FAV_NAME, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL_NAME, menu.state)
         menu.main_up()
         menu.main_right()
         modern_engine_name = await menu.main_down()
@@ -369,7 +369,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         menu = self.create_menu(machine_mock)
         for engine, manufacturer in zip(EngineProvider.modern_engines, ["Open Source", "Other", "Other"]):
             engine["manufacturer"] = manufacturer
-        for engine, manufacturer in zip(EngineProvider.favorite_engines, ["Favorites", "Favorites", "Classic"]):
+        for engine, manufacturer in zip(EngineProvider.special_engines, ["Special", "Special", "Classic"]):
             engine["manufacturer"] = manufacturer
 
         menu.enter_modern_eng_menu()
@@ -382,17 +382,17 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         menu.main_up()
         self.assertEqual(MenuState.ENG_MODERN_MANUFACTURER, menu.state)
 
-        menu.enter_fav_eng_menu()
+        menu.enter_special_eng_menu()
         manufacturer = await menu.main_down()
-        self.assertEqual(MenuState.ENG_FAV_MANUFACTURER, menu.state)
-        self.assertEqual("Favorites", manufacturer.web_text)
+        self.assertEqual(MenuState.ENG_SPECIAL_MANUFACTURER, menu.state)
+        self.assertEqual("Special", manufacturer.web_text)
         menu.main_right()
         engine_name = await menu.main_down()
-        self.assertEqual(MenuState.ENG_FAV_NAME, menu.state)
-        self.assertEqual(2, menu.menu_fav_engine_index)
-        self.assertEqual(EngineProvider.favorite_engines[2]["text"].large_text, engine_name.large_text)
+        self.assertEqual(MenuState.ENG_SPECIAL_NAME, menu.state)
+        self.assertEqual(2, menu.menu_special_engine_index)
+        self.assertEqual(EngineProvider.special_engines[2]["text"].large_text, engine_name.large_text)
         menu.main_up()
-        self.assertEqual(MenuState.ENG_FAV_MANUFACTURER, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL_MANUFACTURER, menu.state)
 
     @patch("platform.machine")
     async def test_flat_retro_engine_sort_changes_navigation_not_indexes(self, machine_mock):
@@ -562,7 +562,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Mep. Milano", text.large_text)
 
     @patch("platform.machine")
-    async def test_set_state_current_engine_favorite(self, machine_mock):
+    async def test_set_state_current_engine_special(self, machine_mock):
         menu = self.create_menu(machine_mock)
         menu.set_state_current_engine("mame/milano")
         menu.enter_top_menu()
@@ -581,7 +581,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
     async def test_engine_not_in_modern_nor_in_retro(self, machine_mock):
         menu = self.create_menu(machine_mock)
         menu.set_state_current_engine("someEngine")
-        self.assertEqual(MenuState.ENG_FAV_NAME, menu.state)
+        self.assertEqual(MenuState.ENG_SPECIAL_NAME, menu.state)
         menu.enter_top_menu()
         text = await menu.main_down()
         self.assertEqual("Engine", text.medium_text.strip())

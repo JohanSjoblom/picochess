@@ -514,15 +514,15 @@ class TestEngineMenuHelpers(unittest.TestCase):
     def setUp(self):
         self.original_modern = EngineProvider.modern_engines
         self.original_retro = EngineProvider.retro_engines
-        self.original_favorites = EngineProvider.favorite_engines
+        self.original_special = EngineProvider.special_engines
         self.original_sort = EngineProvider.engine_menu_sort
         EngineProvider.modern_engines = [{"name": "Modern", "file": "modern", "level_dict": {}}]
-        EngineProvider.favorite_engines = [{"name": "Favorite", "file": "favorite", "level_dict": {}}]
+        EngineProvider.special_engines = [{"name": "Special", "file": "special", "level_dict": {}}]
 
     def tearDown(self):
         EngineProvider.modern_engines = self.original_modern
         EngineProvider.retro_engines = self.original_retro
-        EngineProvider.favorite_engines = self.original_favorites
+        EngineProvider.special_engines = self.original_special
         EngineProvider.engine_menu_sort = self.original_sort
 
     def test_payload_uses_grouped_presentation_order_and_original_files(self):
@@ -576,24 +576,24 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual("retro", settings["engine_category"])
         self.assertEqual("Novag", settings["engine_manufacturer"])
 
-    def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
+    def test_payload_groups_modern_and_special_when_metadata_exists(self):
         EngineProvider.modern_engines = [
             {"name": "Zulu", "file": "modern-0", "level_dict": {}, "manufacturer": ""},
             {"name": "Alpha", "file": "modern-1", "level_dict": {}, "manufacturer": "Maker"},
         ]
         EngineProvider.retro_engines = []
-        EngineProvider.favorite_engines = [
+        EngineProvider.special_engines = [
             {"name": "Beta", "file": "fav-0", "level_dict": {}, "manufacturer": "Studio"},
         ]
         EngineProvider.set_engine_menu_sort("manufacturer")
 
         payload = _engine_menu_payload()
         modern = [entry for entry in payload["engines"] if entry["category"] == "modern"]
-        favorites = [entry for entry in payload["engines"] if entry["category"] == "favorites"]
+        special = [entry for entry in payload["engines"] if entry["category"] == "special"]
 
         self.assertEqual(["modern-1", "modern-0"], [entry["file"] for entry in modern])
         self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
-        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
+        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in special])
 
     def test_engine_menu_labels_default_to_english_web_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
@@ -601,7 +601,7 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
         self.assertEqual("Modern", labels["categories"]["modern"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Special", labels["categories"]["favorites"])
+        self.assertEqual("Special", labels["categories"]["special"])
         self.assertEqual("Sort Order", labels["categories"]["sort"])
 
     def test_engine_menu_labels_use_web_menu_translations(self):
@@ -610,7 +610,7 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual("Moderno", labels["categories"]["modern"])
         self.assertEqual("Información del motor", labels["categories"]["info"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Especial", labels["categories"]["favorites"])
+        self.assertEqual("Especial", labels["categories"]["special"])
         self.assertEqual("Orden", labels["categories"]["sort"])
         self.assertEqual("Nombre del motor", labels["sort_options"]["engine"])
 

@@ -725,8 +725,10 @@ is to retain the existing behavior and document it, with no code change.
 - Presentation sorting and grouping must retain stable indexes into the
   original engine catalogs; engine selection and persisted paths depend on
   those indexes.
-- Keep the web menu and DGT/clock menu behavior aligned for Modern, Retro, and
-  Special/Favorites catalogs.
+- Keep the web menu and DGT/clock menu behavior aligned for the Modern, Retro,
+  and Special catalogs. `special.ini` is the static Special catalog;
+  `favorites.ini` is only its deprecated package-name fallback and must not be
+  treated as the user's dynamic Favorites list.
 
 ## Tutor Behavior Outside PONDER
 

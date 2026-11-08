@@ -547,7 +547,7 @@ def _engine_menu_payload() -> dict:
 
     _extend_category(EngineProvider.modern_engines, "modern")
     _extend_category(EngineProvider.retro_engines, "retro")
-    _extend_category(EngineProvider.favorite_engines, "favorites")
+    _extend_category(EngineProvider.special_engines, "special")
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
@@ -581,7 +581,7 @@ def _current_engine_menu_settings(shared: dict) -> dict:
     for category, catalog in (
         ("modern", EngineProvider.modern_engines),
         ("retro", EngineProvider.retro_engines),
-        ("favorites", EngineProvider.favorite_engines),
+        ("special", EngineProvider.special_engines),
     ):
         for engine in catalog:
             same_file = bool(engine_file) and engine.get("file", "") == engine_file
@@ -642,7 +642,7 @@ def _engine_menu_labels(dgttranslate) -> dict:
         "categories": {
             "modern": get_menu_text(language, "engine.modern"),
             "retro": get_menu_text(language, "engine.retro"),
-            "favorites": get_menu_text(language, "engine.special"),
+            "special": get_menu_text(language, "engine.special"),
             "sort": get_menu_text(language, "engine.sort_order"),
             "info": get_menu_text(language, "engine.info"),
         },

@@ -441,7 +441,7 @@ class EngineTop(MyEnum):
     MODERN_ENGINE = "B00_engine_menu_modern"
     RETRO_ENGINE = "B00_engine_menu_retro"
     RETROSETTINGS = "B00_engine_menu_retrosettings"
-    FAV_ENGINE = "B00_engine_menu_favorites"
+    SPECIAL_ENGINE = "B00_engine_menu_special"
 
     @classmethod
     def items(cls):
@@ -449,7 +449,7 @@ class EngineTop(MyEnum):
             EngineTop.MODERN_ENGINE,
             EngineTop.RETRO_ENGINE,
             EngineTop.RETROSETTINGS,
-            EngineTop.FAV_ENGINE,
+            EngineTop.SPECIAL_ENGINE,
         ]
 
 

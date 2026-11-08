@@ -2063,7 +2063,7 @@ piece {
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* Category tab strip (Engine modern/retro/favorites) */
+/* Category tab strip (Engine Modern/Retro/Special) */
 .pico-cat-tabs {
     display: flex;
     gap: 4px;

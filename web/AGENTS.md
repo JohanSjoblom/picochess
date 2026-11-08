@@ -95,7 +95,9 @@ explicitly requires it.
 ## Engine Manufacturer Metadata
 
 - Parse strict `; Manufacturer: ...` directives in every engine INI catalog,
-  including `engines.ini`, `retro.ini`, `favorites.ini`, and future catalogs.
+  including `engines.ini`, `retro.ini`, `special.ini`, and future catalogs.
+  Older packages may expose the Special catalog as `favorites.ini`; that name
+  is a compatibility fallback, not the user's dynamic Favorites list.
 - Each engine category independently enables its manufacturer level when at
   least one entry has metadata. Missing metadata in a grouped category belongs
   to `Other`.

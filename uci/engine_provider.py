@@ -18,6 +18,7 @@ from pathlib import Path
 import re
 from typing import Dict, List, Optional
 
+from engine_switch import variant_from_level_name
 from uci.architecture import local_engine_directory
 from uci.read import read_engine_ini
 
@@ -205,17 +206,7 @@ class EngineProvider(object):
         """Resolve an old combined Fairy level to its new visible variant profile."""
         if not profile or profile.get("profile_id") != "fairy" or not level_name:
             return profile
-        level_prefix = str(level_name).partition("@")[0].strip().casefold()
-        legacy_variants = {
-            "3check": "3check",
-            "koth": "kingofthehill",
-            "atomic": "atomic",
-            "rk": "racingkings",
-            "racingkings": "racingkings",
-            "anti": "antichess",
-            "antichess": "antichess",
-        }
-        target_variant = legacy_variants.get(level_prefix)
+        target_variant = variant_from_level_name(level_name)
         if target_variant is None:
             return profile
         for candidate in cls.variant_engines:

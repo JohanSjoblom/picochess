@@ -259,6 +259,10 @@ Modern engines are current engines intended for normal play and analysis.
 ### NNUE
 
 NNUE contains engines that use efficiently updatable neural-network evaluation.
+On small/lite installations, PicoChess generates `nnue.ini` from matching
+profiles in the installed `engines.ini`. The first marker line identifies this
+as managed metadata, so a later engine-installation run may regenerate it. To
+maintain a custom `nnue.ini` manually, remove that generated-marker line first.
 
 ### Retro
 

@@ -60,6 +60,7 @@ from engine_switch import (
     confirmation_matches,
     game_context_fingerprint,
     profile_variant,
+    variant_level_elo,
     variant_switch_forbidden,
     variant_switch_requires_confirmation,
 )
@@ -538,9 +539,7 @@ def _engine_menu_payload() -> dict:
             "elo": engine.get("elo", ""),
             "levels": levels,
             "level_labels": {
-                level: (f"Elo {int(level.rpartition('@')[2])}" if level.rpartition("@")[0].casefold()
-                        in {"3check", "koth", "atomic", "rk", "racingkings", "anti", "antichess"}
-                        and level.rpartition("@")[2].isdigit() else level)
+                level: (f"Elo {elo}" if (elo := variant_level_elo(level)) is not None else level)
                 for level in levels
             },
             "category": category,
@@ -1435,11 +1434,11 @@ class ChannelHandler(ServerRequestHandler):
                         }
                     )
                     return
-                events = _engine_change_events(eng, level, dgttranslate)
-                events[1].confirmed = confirmed
-                events[1].game_generation = game_generation
-                events[1].context_fingerprint = context_fingerprint
-                for event in events:
+                level_event, engine_event = _engine_change_events(eng, level, dgttranslate)
+                engine_event.confirmed = confirmed
+                engine_event.game_generation = game_generation
+                engine_event.context_fingerprint = context_fingerprint
+                for event in (level_event, engine_event):
                     await Observable.fire(event)
                 self.set_header("Content-Type", "application/json")
                 self.write({"success": True})

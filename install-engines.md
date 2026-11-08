@@ -46,6 +46,11 @@ user runs `./install-engines.sh small` or `./install-engines.sh lite`.
 For compatibility, an existing static `favorites.ini` is copied to
 `special.ini` when the latter is absent. The original file is retained.
 
+The installer generates `nnue.ini` from matching profiles in the installed
+`engines.ini`. A generated file starts with a managed-metadata marker and may
+be refreshed by later installation runs. Remove that marker before making
+manual changes that must be retained. An unmarked `nnue.ini` is never replaced.
+
 ---
 
 ## ⚙️ Script behavior

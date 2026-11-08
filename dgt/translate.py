@@ -23,6 +23,7 @@
 #
 
 import logging
+from engine_switch import variant_level_elo
 from dgt.util import Beep, BeepLevel
 from dgt.api import Dgt
 
@@ -3514,16 +3515,8 @@ class DgtTranslate(object):
                 frtxt = entxt
                 estxt = entxt
                 ittxt = entxt
-            elif msg.partition("@")[0].casefold() in {
-                "3check",
-                "koth",
-                "atomic",
-                "rk",
-                "racingkings",
-                "anti",
-                "antichess",
-            } and msg.partition("@")[2].isdigit():
-                elo = str(int(msg.partition("@")[2]))
+            elif (variant_elo := variant_level_elo(msg)) is not None:
+                elo = str(variant_elo)
                 entxt = Dgt.DISPLAY_TEXT(
                     web_text="Elo " + elo,
                     large_text="Elo " + elo,

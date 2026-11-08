@@ -1760,6 +1760,15 @@ class MainLoop:
         self.state.game_declared = False
         self._reset_loaded_pgn_lifecycle()
 
+    def _commit_started_engine_variant(self, old_variant: str) -> bool:
+        """Commit variant state only after all startup fallback decisions are complete."""
+        variant_switched = old_variant != self.engine.variant
+        if variant_switched:
+            self._prepare_new_game_for_variant(self.engine.variant)
+        self._init_variant_from_engine()
+        ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
+        return variant_switched
+
     def _update_variant_shared(self):
         """Update shared dict with variant info for web interface."""
         if self.shared is not None:
@@ -5509,12 +5518,6 @@ class MainLoop:
                         )
 
             startup_ok = await self.engine.startup(event.options, self.state.rating)
-            if startup_ok:
-                variant_switched = old_variant != self.engine.variant
-                if variant_switched:
-                    self._prepare_new_game_for_variant(self.engine.variant)
-                # Initialize variant support from new engine settings
-                self._init_variant_from_engine()
             if not startup_ok:
                 logger.error("new engine options missing, reverting to %s", old_file)
                 engine_fallback = True
@@ -5553,8 +5556,6 @@ class MainLoop:
                     await asyncio.sleep(3)
                     sys.exit(-1)
 
-            ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
-
             if self.online_mode():
                 await self.state.stop_clock()
                 await DisplayMsg.show(Message.ONLINE_LOGIN())
@@ -5577,7 +5578,7 @@ class MainLoop:
                     failed_online_file = self.state.engine_file
                     fallback_engine = EngineProvider.resolve_fallback_engine(
                         failed_file=failed_online_file,
-                        preferred_file=str(local_default_engine_path()),
+                        preferred_file=old_file or str(local_default_engine_path()),
                     )
                     if fallback_engine is None:
                         logger.error("online login failed and no alternative installed engine is available")
@@ -5624,11 +5625,11 @@ class MainLoop:
                         await DisplayMsg.show(Message.ENGINE_FAIL())
                         await asyncio.sleep(3)
                         sys.exit(-1)
-                    self._init_variant_from_engine()
-                    ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
                 else:
                     await asyncio.sleep(2)
+                variant_switched = self._commit_started_engine_variant(old_variant)
             elif self.emulation_mode() or self.pgn_mode():
+                variant_switched = self._commit_started_engine_variant(old_variant)
                 # molli for emulation engines we have to reset to starting position
                 await self.stop_search_and_clock()
                 game_fen = self.state.game.board_fen()
@@ -5656,6 +5657,7 @@ class MainLoop:
                 msg = self.state.new_game_msg(newgame=real_new_game)
                 await DisplayMsg.show(msg)
             else:
+                variant_switched = self._commit_started_engine_variant(old_variant)
                 # issue #72 - avoid problems by not sending newgame to new engine
                 await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
                 # Still notify the display layer about the new game (variant info etc.)

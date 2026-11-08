@@ -7,6 +7,31 @@ import chess
 import chess.variant
 
 
+VARIANT_LEVEL_PREFIXES = {
+    "3check": "3check",
+    "koth": "kingofthehill",
+    "atomic": "atomic",
+    "rk": "racingkings",
+    "racingkings": "racingkings",
+    "anti": "antichess",
+    "antichess": "antichess",
+}
+
+
+def variant_from_level_name(level_name: str) -> str | None:
+    """Resolve the stable legacy level prefix to a logical variant."""
+    prefix = str(level_name or "").partition("@")[0].strip().casefold()
+    return VARIANT_LEVEL_PREFIXES.get(prefix)
+
+
+def variant_level_elo(level_name: str) -> int | None:
+    """Return the numeric Elo suffix used by managed variant levels."""
+    _, separator, suffix = str(level_name or "").partition("@")
+    if separator and variant_from_level_name(level_name) and suffix.isdigit():
+        return int(suffix)
+    return None
+
+
 def profile_variant(profile: dict) -> str:
     """Return the profile's logical variant; ordinary engines are chess."""
     return str(profile.get("variant") or "chess")

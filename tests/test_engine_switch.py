@@ -10,6 +10,8 @@ from engine_switch import (
     has_protected_game_context,
     variant_switch_forbidden,
     variant_switch_requires_confirmation,
+    variant_from_level_name,
+    variant_level_elo,
 )
 
 
@@ -27,6 +29,14 @@ def _state(game=None, variant="chess", **overrides):
 
 
 class TestEngineSwitchPolicy(unittest.TestCase):
+    def test_variant_level_aliases_share_one_mapping(self):
+        self.assertEqual("kingofthehill", variant_from_level_name("KotH@1500"))
+        self.assertEqual("racingkings", variant_from_level_name("RK@2000"))
+        self.assertEqual("antichess", variant_from_level_name("Anti@1000"))
+        self.assertEqual(1500, variant_level_elo("KotH@1500"))
+        self.assertIsNone(variant_level_elo("Elo@1500"))
+        self.assertIsNone(variant_level_elo("KotH@custom"))
+
     def test_untouched_variant_start_does_not_require_confirmation(self):
         state = _state(chess.variant.RacingKingsBoard(), "racingkings")
 

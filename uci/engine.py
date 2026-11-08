@@ -1661,6 +1661,30 @@ class UciEngine(object):
         """Return True if this engine runs through the MAME/MESS emulation layer."""
         return self.is_mame
 
+    def set_mame_speed(self, rspeed: float, mame_par: str) -> bool:
+        """Change the emulation speed of the running MAME engine without restarting it.
+
+        rspeed is the retro speed factor (1.0 = real time, 0.0 = unthrottled). The
+        chessengine Lua plugin accepts "setoption name Speed" at any time, also while
+        the machine is thinking, so the line is written directly: python-chess
+        configure() would wait for or interrupt the running search. mame_par is kept
+        for a later restart of this engine. Returns False if the speed was not sent.
+        """
+        if not self.is_mame or self.engine is None or not hasattr(self.engine, "send_line"):
+            return False
+        returncode = getattr(self.engine, "returncode", None)
+        if returncode is not None and returncode.done():
+            return False
+        percent = 0 if rspeed < 0.01 else round(rspeed * 100)
+        try:
+            self.engine.send_line(f"setoption name Speed value {percent}")
+        except Exception:
+            logger.exception("could not send the retro speed to %s", self.file)
+            return False
+        self.mame_par = mame_par
+        logger.info("retro speed changed live: %s%%, mame parameters=%s", percent, mame_par)
+        return True
+
     def get_mame_capabilities(self) -> MameCapabilities:
         """Return capabilities reported by the selected MAME Lua interface."""
         return self.mame_capabilities

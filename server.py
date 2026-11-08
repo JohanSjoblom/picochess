@@ -1897,7 +1897,7 @@ class ChannelHandler(ServerRequestHandler):
                 dgtmenu.set_retro_sound(rsound)
             write_picochess_ini("rsound", rsound)
             if rsound_changed:
-                await Observable.fire(Event.RSPEED(rspeed=dgtmenu.get_engine_rspeed()))
+                await Observable.fire(Event.RETRO_RESTART())
             await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rsound setting saved: %s", rsound)
         elif action == "rdisplay":
@@ -1908,7 +1908,7 @@ class ChannelHandler(ServerRequestHandler):
                 dgtmenu.set_retro_display(rdisplay)
             write_picochess_ini("rdisplay", rdisplay)
             if rdisplay_changed:
-                await Observable.fire(Event.RSPEED(rspeed=dgtmenu.get_engine_rspeed()))
+                await Observable.fire(Event.RETRO_RESTART())
             await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rdisplay setting saved: %s", rdisplay)
         elif action == "rwindow":

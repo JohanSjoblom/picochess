@@ -3278,8 +3278,8 @@ class DgtMenu(object):
             if self.engine_retrosound != self.res_engine_retrosound:
                 self.res_engine_retrosound = self.engine_retrosound
                 write_picochess_ini("rsound", self.engine_retrosound)
-                # trigger rspeed event for rsound change (does just an engine restart)
-                await self._fire_event(Event.RSPEED(rspeed=self.retrospeed_factor))
+                # sound is a MAME start option: restart the engine
+                await self._fire_event(Event.RETRO_RESTART())
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okrsound"))
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
 
@@ -3302,8 +3302,8 @@ class DgtMenu(object):
             if self.engine_retrodisplay != self.res_engine_retrodisplay:
                 self.res_engine_retrodisplay = self.engine_retrodisplay
                 write_picochess_ini("rdisplay", self.engine_retrodisplay)
-                # trigger rspped event for rsound change (does just an engine restart)
-                await self._fire_event(Event.RSPEED(rspeed=self.retrospeed_factor))
+                # the artwork display needs another MAME start script: restart the engine
+                await self._fire_event(Event.RETRO_RESTART())
 
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okrdisplay"))
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))

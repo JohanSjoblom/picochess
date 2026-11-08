@@ -5355,6 +5355,10 @@ class MainLoop:
                     engine_file_to_load = engine_file_art  # load mame
                 else:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NO_ARTWORK"))
+            if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rspeed() != 1.0:
+                # a newly selected retro machine starts at real speed (100%)
+                self.state.dgtmenu.set_retro_speed(1.0)
+                write_picochess_ini("rspeed", 1.0)
 
             await DisplayMsg.show(Message.ENGINE_SETUP())
             await self.engine.quit()
@@ -7626,75 +7630,17 @@ class MainLoop:
         elif isinstance(event, Event.RSPEED):
             self.state.dgtmenu.set_retro_speed(event.rspeed)
             if self.emulation_mode():
-                # restart engine with new retro speed
-                self.state.artwork_in_use = False
-                engine_file_to_load = self.state.engine_file  # assume not mame
-                if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rdisplay():
-                    engine_file_art = self.state.engine_file + "_art"
-                    my_file = Path(engine_file_art)
-                    if my_file.is_file():
-                        self.state.artwork_in_use = True
-                        engine_file_to_load = engine_file_art  # load mame
-                old_options = self.engine.get_pgn_options()
-                await DisplayMsg.show(Message.ENGINE_SETUP())
-                await self.engine.quit()
-                self.engine = UciEngine(
-                    file=engine_file_to_load,
-                    uci_shell=self.uci_local_shell,
-                    mame_par=self.calc_engine_mame_par(),
-                    loop=self.loop,
-                )
-                await self.engine.open_engine()
-                if engine_file_to_load != self.state.engine_file:
-                    await asyncio.sleep(1)  # mame artwork wait
-                await self.engine.startup(old_options, self.state.rating)
-                ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
-                await self.stop_search_and_clock()
-
-                if (
-                    self.state.dgtmenu.get_engine_rdisplay()
-                    and not is_wayland_session()
-                    and not self.state.dgtmenu.get_engine_rwindow()
-                    and self.state.artwork_in_use
-                ):
-                    # Preserve the old X11 fullscreen fallback. Wayland startup mode
-                    # is controlled by MAME -window/-nowindow parameters.
-                    cmd = get_window_command("toggle_fullscreen")
-                    if cmd:
-                        process = await asyncio.create_subprocess_shell(
-                            cmd,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                        )
-                        stdout, stderr = await process.communicate()
-                        if process.returncode != 0:
-                            logger.error(
-                                "Command failed with return code %s: %s", process.returncode, stderr.decode()
-                            )
-                game_fen = self.state.game.board_fen()
-                if self.state.variant == "racingkings":
-                    self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+                # MAME takes a new speed while it runs, even in the middle of a search:
+                # keep the game, the clocks and a pending engine move
+                if self.engine.set_mame_speed(event.rspeed, self.calc_engine_mame_par()):
+                    await DisplayMsg.show(Message.RSPEED(rspeed=event.rspeed))
                 else:
-                    self.state.game = chess.Board()
-                self.state.game.turn = chess.WHITE
-                self.state.reset_variant_board()
-                self.state.play_mode = PlayMode.USER_WHITE
-                starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
-                if game_fen != starting_fen:
-                    msg = self.state.new_game_msg(newgame=True)
-                    await DisplayMsg.show(msg)
-                await self.engine.newgame(self.state.engine_board_copy())
-                self.state.best_sent_depth.reset()
-                self.state.done_computer_fen = None
-                self.state.done_move = self.state.pb_move = chess.Move.null()
-                self.state.searchmoves.reset()
-                self.state.game_declared = False
-                self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                self.state.last_legal_fens = []
-                self.state.legal_fens_after_cmove = []
-                await self.engine_mode()
-                await DisplayMsg.show(Message.RSPEED(rspeed=event.rspeed))
-                await self.update_elo_display()
+                    await self.restart_retro_engine()
+
+        elif isinstance(event, Event.RETRO_RESTART):
+            # sound and artwork display are MAME start options: restart with a new game
+            if self.emulation_mode():
+                await self.restart_retro_engine()
 
         elif isinstance(event, Event.TAKE_BACK):
             if self.state.interaction_mode == Mode.ENGINE_MATCH:
@@ -7956,6 +7902,77 @@ class MainLoop:
         else:  # Default
             logger.info("event not handled : [%s]", event)
             await asyncio.sleep(0.05)  # balance message queues
+
+    async def restart_retro_engine(self):
+        """Restart the retro (MAME) engine with the current retro settings and start a new game."""
+        self.state.artwork_in_use = False
+        engine_file_to_load = self.state.engine_file  # assume not mame
+        if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rdisplay():
+            engine_file_art = self.state.engine_file + "_art"
+            my_file = Path(engine_file_art)
+            if my_file.is_file():
+                self.state.artwork_in_use = True
+                engine_file_to_load = engine_file_art  # load mame
+        old_options = self.engine.get_pgn_options()
+        await DisplayMsg.show(Message.ENGINE_SETUP())
+        await self.engine.quit()
+        self.engine = UciEngine(
+            file=engine_file_to_load,
+            uci_shell=self.uci_local_shell,
+            mame_par=self.calc_engine_mame_par(),
+            loop=self.loop,
+        )
+        await self.engine.open_engine()
+        if engine_file_to_load != self.state.engine_file:
+            await asyncio.sleep(1)  # mame artwork wait
+        await self.engine.startup(old_options, self.state.rating)
+        ModeInfo.set_retro_features(self.engine.get_mame_capabilities().retro_info())
+        await self.stop_search_and_clock()
+
+        if (
+            self.state.dgtmenu.get_engine_rdisplay()
+            and not is_wayland_session()
+            and not self.state.dgtmenu.get_engine_rwindow()
+            and self.state.artwork_in_use
+        ):
+            # Preserve the old X11 fullscreen fallback. Wayland startup mode
+            # is controlled by MAME -window/-nowindow parameters.
+            cmd = get_window_command("toggle_fullscreen")
+            if cmd:
+                process = await asyncio.create_subprocess_shell(
+                    cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+                if process.returncode != 0:
+                    logger.error(
+                        "Command failed with return code %s: %s", process.returncode, stderr.decode()
+                    )
+        game_fen = self.state.game.board_fen()
+        if self.state.variant == "racingkings":
+            self.state.game = chess.Board("8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1")
+        else:
+            self.state.game = chess.Board()
+        self.state.game.turn = chess.WHITE
+        self.state.reset_variant_board()
+        self.state.play_mode = PlayMode.USER_WHITE
+        starting_fen = RK_STARTING_BOARD_FEN if self.state.variant == "racingkings" else chess.STARTING_BOARD_FEN
+        if game_fen != starting_fen:
+            msg = self.state.new_game_msg(newgame=True)
+            await DisplayMsg.show(msg)
+        await self.engine.newgame(self.state.engine_board_copy())
+        self.state.best_sent_depth.reset()
+        self.state.done_computer_fen = None
+        self.state.done_move = self.state.pb_move = chess.Move.null()
+        self.state.searchmoves.reset()
+        self.state.game_declared = False
+        self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
+        self.state.last_legal_fens = []
+        self.state.legal_fens_after_cmove = []
+        await self.engine_mode()
+        await DisplayMsg.show(Message.RSPEED(rspeed=self.state.dgtmenu.get_engine_rspeed()))
+        await self.update_elo_display()
 
     def exit_sigterm(self, signum, frame):
         """A handler function to register for systemctl stop signal"""

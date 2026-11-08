@@ -539,7 +539,7 @@ def _engine_menu_payload() -> dict:
             "levels": levels,
             "level_labels": {
                 level: (f"Elo {int(level.rpartition('@')[2])}" if level.rpartition("@")[0].casefold()
-                        in {"3check", "koth", "atomic", "rk", "racingkings", "antichess"}
+                        in {"3check", "koth", "atomic", "rk", "racingkings", "anti", "antichess"}
                         and level.rpartition("@")[2].isdigit() else level)
                 for level in levels
             },

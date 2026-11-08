@@ -317,6 +317,14 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
         self.assertIs(atomic, EngineProvider.migrate_legacy_fairy_profile(legacy, "Atomic@1500"))
         self.assertIs(legacy, EngineProvider.migrate_legacy_fairy_profile(legacy, "Unknown@1500"))
 
+        antichess = {
+            "profile_id": "fairy-antichess",
+            "file": "/engines/fairy",
+            "variant": "antichess",
+        }
+        EngineProvider.variant_engines.append(antichess)
+        self.assertIs(antichess, EngineProvider.migrate_legacy_fairy_profile(legacy, "Anti@1500"))
+
     def test_level_names_sort_numeric_suffixes_numerically(self):
         profile = {"level_dict": {"Atomic@2000": {}, "Atomic@900": {}, "Atomic@1000": {}}}
 

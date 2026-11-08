@@ -109,3 +109,22 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
         )
 
         self.assertEqual("script/turing", engines[0]["profile_id"])
+
+    def test_managed_fairy_profiles_cover_five_variants_and_full_strength_range(self):
+        profile_path = Path(__file__).parents[2] / "engine-packages" / "fairy14"
+
+        engines = read_engine_ini(engine_path=str(profile_path), filename="variants.ini")
+
+        self.assertEqual(
+            ["3check", "kingofthehill", "atomic", "racingkings", "antichess"],
+            [engine["variant"] for engine in engines],
+        )
+        self.assertEqual(5, len({engine["profile_id"] for engine in engines}))
+        for engine in engines:
+            levels = list(engine["level_dict"].values())
+            self.assertEqual(10, len(levels))
+            self.assertEqual(
+                [1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 2850, 3000],
+                [int(level["UCI_Elo"]) for level in levels],
+            )
+            self.assertTrue(all(level["UCI_LimitStrength"] == "true" for level in levels))

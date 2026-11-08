@@ -14,6 +14,10 @@ Version 3.1
 - Empty NNUE, Retro, Special, and Variants catalogs now remain empty instead of
   showing duplicate Modern engines. Empty clock categories are skipped; the
   web client shows them disabled.
+- Added managed Fairy-Stockfish 14 profiles for Three-Check, King of the Hill,
+  Atomic, Racing Kings, and Antichess. Their practical strength settings run
+  from 1000 through 3000 in steps of 250, retaining legacy 2850, and are not
+  calibrated variant ratings.
 
 - Support of different eboard types (DGT,  Certabo, Chesslink, ChessNut) - this is so cool!
 

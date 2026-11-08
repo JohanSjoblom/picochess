@@ -278,6 +278,11 @@ share one Fairy-Stockfish executable while retaining their own levels and
 variant settings. Changing between normal chess and a variant asks for New Game
 confirmation when a running or loaded game would be discarded.
 
+The supplied Fairy-Stockfish profiles offer practical strength settings from
+1000 through 3000, normally in steps of 250; the legacy 2850 setting remains
+available for saved configurations. These are `UCI_Elo` settings, not calibrated
+ratings that can be compared reliably between different chess variants.
+
 ### Favorites
 
 Favorites is an ordered view of profiles marked with the star in the web client

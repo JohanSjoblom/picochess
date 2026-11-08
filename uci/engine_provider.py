@@ -200,6 +200,7 @@ class EngineProvider(object):
             "atomic": "atomic",
             "rk": "racingkings",
             "racingkings": "racingkings",
+            "anti": "antichess",
             "antichess": "antichess",
         }
         target_variant = legacy_variants.get(level_prefix)

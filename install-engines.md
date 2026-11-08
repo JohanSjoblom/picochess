@@ -28,8 +28,23 @@ engines/
  └── aarch64/
       ├── stockfish
       ├── berserk
-      └── lc0
+      ├── lc0
+      ├── variants.ini
+      ├── fairy-atomic.uci
+      └── other managed Fairy profile sidecars
 ```
+
+When the package contains the Fairy-Stockfish executable named `fairy`, include
+`variants.ini` and all five `fairy-*.uci` files from `engine-packages/fairy14/` at the
+archive root. The installer also adds these files to an existing installation
+when they are missing. Existing user or package files are never overwritten.
+
+Cloning the PicoChess repository does not activate any of these catalogs. The
+source templates live outside `engines/<arch>` and are deployed only when the
+user runs `./install-engines.sh small` or `./install-engines.sh lite`.
+
+For compatibility, an existing static `favorites.ini` is copied to
+`special.ini` when the latter is absent. The original file is retained.
 
 ---
 
@@ -41,7 +56,11 @@ engines/
 - Extracts it into place
 - Cleans up temporary files afterward
 
-If the folder already exists, the script skips installation to avoid overwriting existing engines. To force an update you must first run `move-engines-to-backup.sh`, which empties the `engines/` folder and allows the installer to download everything again.
+If the folder already exists, the script skips the binary archive to avoid
+overwriting existing engines. It may still add missing, repository-managed
+catalog metadata. To force a binary-package update you must first run
+`move-engines-to-backup.sh`, which empties the `engines/` folder and allows the
+installer to download everything again.
 
 ---
 

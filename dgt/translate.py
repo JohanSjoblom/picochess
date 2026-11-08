@@ -3520,6 +3520,7 @@ class DgtTranslate(object):
                 "atomic",
                 "rk",
                 "racingkings",
+                "anti",
                 "antichess",
             } and msg.partition("@")[2].isdigit():
                 elo = str(int(msg.partition("@")[2]))

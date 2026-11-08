@@ -1,4 +1,4 @@
-Stockfish 19
+StockfishNN 19
 ArasanNN v26.0
 Black Diamond NNUE v13.1b
 Bluefish NNUE v13.1b

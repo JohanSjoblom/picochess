@@ -37,25 +37,43 @@ class TestInstallEngineCatalogs(unittest.TestCase):
             target.mkdir(parents=True)
             (target / "favorites.ini").write_text("[script/turing]\n", encoding="utf-8")
             (target / "engines.ini").write_text(
-                "[a-stockf]\n"
-                "name = Stockfish 19\nsmall = SF19\nmedium = Stockf19\nlarge = Stockfish19\nelo = 3600\n"
-                "\n[c-arasan]\n"
+                "[NNUE/StockfishNN]\n"
+                "name = StockfishNN 19\nweb = Stockfish NNUE 19\n"
+                "small = SF19\nmedium = Stockf19\nlarge = Stockfish19\nelo = 3600\n"
+                "\n[NNUE/ArasanNN]\n"
                 "name = ArasanNN v26.0\nsmall = Arasan\nmedium = ArasanNN\nlarge = Arasan NN\nelo = 3500\n"
                 "\n[classic]\n"
                 "name = Classic Engine\nsmall = Classic\nmedium = Classic\nlarge = Classic\nelo = 2000\n",
                 encoding="utf-8",
             )
-            (target / "a-stockf").write_bytes(b"binary")
-            (target / "c-arasan").write_bytes(b"binary")
+            (target / "NNUE").mkdir()
+            (target / "NNUE" / "StockfishNN").write_bytes(b"binary")
+            (target / "NNUE" / "ArasanNN").write_bytes(b"binary")
 
             self._run(root)
 
             self.assertEqual("[script/turing]\n", (target / "special.ini").read_text(encoding="utf-8"))
             self.assertFalse((target / "variants.ini").exists())
             nnue = (target / "nnue.ini").read_text(encoding="utf-8")
-            self.assertIn("[a-stockf]", nnue)
-            self.assertIn("[c-arasan]", nnue)
+            self.assertIn("[NNUE/StockfishNN]", nnue)
+            self.assertIn("[NNUE/ArasanNN]", nnue)
             self.assertNotIn("[classic]", nnue)
+
+            # A catalog created by this installer is managed metadata and may
+            # be regenerated on upgrade to add newly classified profiles.
+            (target / "engines.ini").write_text(
+                (target / "engines.ini").read_text(encoding="utf-8")
+                + "\n[NNUE/BlackDiamondNN]\n"
+                "name = Black Diamond NNUE v13.1b\n"
+                "small = BDiamond\nmedium = BlackDia\nlarge = BlackDiamond\nelo = 3500\n",
+                encoding="utf-8",
+            )
+            (target / "NNUE" / "BlackDiamondNN").write_bytes(b"binary")
+            self._run(root)
+            self.assertIn(
+                "[NNUE/BlackDiamondNN]",
+                (target / "nnue.ini").read_text(encoding="utf-8"),
+            )
 
             (target / "fairy").write_bytes(b"binary")
             self._run(root)

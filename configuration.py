@@ -33,12 +33,30 @@ class Configuration:
             help="UCI engine filename/path such as 'engines/<platform>/stockfish'",
             default=None,
         )
+        self.parser.add_argument(
+            "--engine-profile",
+            type=str,
+            help="stable logical engine profile ID (used when profiles share one executable)",
+            default=None,
+        )
         self.parser.add_argument("-el", "--engine-level", type=str, help="UCI engine level", default=None)
         self.parser.add_argument(
             "--engine-menu-sort",
             choices=["file", "engine", "manufacturer"],
             default="file",
             help="Retro engine menu order: file, engine name, or manufacturer",
+        )
+        self.parser.add_argument(
+            "--engine-favorites",
+            type=str,
+            default="[]",
+            help="ordered JSON list of favorite engine profile IDs",
+        )
+        self.parser.add_argument(
+            "--engine-fav-prompt",
+            type=str_to_bool,
+            default=True,
+            help="show the Fav yes/no prompt when selecting an engine on the DGT clock",
         )
         self.parser.add_argument(
             "-er",

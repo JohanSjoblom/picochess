@@ -3,10 +3,10 @@ import os
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from dgt.api import EventApi
+from dgt.api import Event, EventApi
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
-from dgt.util import Beep, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
+from dgt.util import Beep, EngineTop, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
 from uci.read import read_engine_ini
 from uci.engine_provider import EngineProvider
 
@@ -18,6 +18,10 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         EngineProvider.modern_engines = read_engine_ini(filename="engines.ini")
         EngineProvider.retro_engines = read_engine_ini(filename="retro.ini")
         EngineProvider.special_engines = read_engine_ini(filename="favorites.ini")
+        for engine in (
+            EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.special_engines
+        ):
+            engine["available"] = True
         EngineProvider.installed_engines = list(
             EngineProvider.modern_engines + EngineProvider.retro_engines + EngineProvider.special_engines
         )
@@ -53,6 +57,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             contlast=False,
             altmove=False,
             dgttranslate=trans,
+            engine_fav_prompt=False,
         )
         return menu
 
@@ -283,6 +288,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         level = await menu.main_down()
         self.assertEqual(MenuState.ENG_SPECIAL_NAME_LEVEL, menu.state)
         self.assertEqual("1 Core", level.large_text)
+
         level = menu.main_right()
         self.assertEqual("2 Cores", level.large_text)
         level = menu.main_left()
@@ -322,6 +328,201 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
 
         menu.main_up()
         self.assertEqual(MenuState.ENG_RETRO_NAME, menu.state)
+
+    @patch("platform.machine")
+    async def test_nnue_and_variants_extend_engine_cycle_without_moving_retro_settings(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        original_nnue = EngineProvider.nnue_engines
+        original_variants = EngineProvider.variant_engines
+        original_installed = EngineProvider.installed_engines
+        try:
+            nnue = dict(EngineProvider.modern_engines[0], profile_id="test-nnue")
+            variant = dict(EngineProvider.modern_engines[0], profile_id="fairy-atomic", name="Atomic")
+            EngineProvider.nnue_engines = [nnue]
+            EngineProvider.variant_engines = [variant]
+            EngineProvider.installed_engines = original_installed + [nnue, variant]
+
+            menu.enter_modern_eng_menu()
+            text = menu.main_right()
+            self.assertEqual(MenuState.ENG_NNUE, menu.state)
+            self.assertEqual("NNUE", text.medium_text.strip())
+            text = await menu.main_down()
+            self.assertEqual(MenuState.ENG_NNUE_NAME, menu.state)
+            self.assertEqual(nnue["text"].large_text, text.large_text)
+
+            menu.main_up()
+            text = menu.main_right()
+            self.assertEqual(MenuState.ENG_RETRO, menu.state)
+            self.assertEqual("Retro", text.medium_text.strip())
+            text = menu.main_right()
+            self.assertEqual(MenuState.RETROSETTINGS, menu.state)
+            self.assertEqual("Ret-Sett", text.medium_text.strip())
+            text = menu.main_right()
+            self.assertEqual(MenuState.ENG_SPECIAL, menu.state)
+            self.assertEqual("Special", text.medium_text.strip())
+            text = menu.main_right()
+            self.assertEqual(MenuState.ENG_VARIANTS, menu.state)
+            self.assertEqual("Variants", text.medium_text.strip())
+        finally:
+            EngineProvider.nnue_engines = original_nnue
+            EngineProvider.variant_engines = original_variants
+            EngineProvider.installed_engines = original_installed
+
+    @patch("platform.machine")
+    async def test_current_engine_state_tolerates_completely_empty_catalogs(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        original_installed = EngineProvider.installed_engines
+        try:
+            EngineProvider.installed_engines = []
+
+            menu.set_state_current_engine("/missing/engine", "missing-profile")
+
+            self.assertEqual(MenuState.ENGINE, menu.state)
+            self.assertEqual(0, menu.res_engine_index)
+        finally:
+            EngineProvider.installed_engines = original_installed
+
+    @patch("dgt.menu.write_picochess_ini")
+    @patch("platform.machine")
+    async def test_favorite_prompt_marks_profile_before_level_selection(self, machine_mock, write_ini):
+        menu = self.create_menu(machine_mock)
+        menu.engine_fav_prompt = True
+        original_ids = EngineProvider.favorite_profile_ids
+        original_profiles = EngineProvider.favorite_profiles
+        original_map = EngineProvider.profiles_by_id
+        original_visible = EngineProvider.visible_profiles
+        original_nnue = EngineProvider.nnue_engines
+        original_variants = EngineProvider.variant_engines
+        original_hidden = EngineProvider.hidden_profiles
+        try:
+            EngineProvider.nnue_engines = []
+            EngineProvider.variant_engines = []
+            EngineProvider.hidden_profiles = []
+            EngineProvider._rebuild_profile_index()
+            EngineProvider.favorite_profile_ids = []
+            EngineProvider.favorite_profiles = []
+            profile = EngineProvider.modern_engines[0]
+
+            menu.enter_modern_eng_menu()
+            await menu.main_down()
+            text = await menu.main_down()
+            self.assertEqual(MenuState.ENG_FAVORITE_PROMPT, menu.state)
+            self.assertEqual("Fav no", text.medium_text.strip())
+
+            text = menu.main_right()
+            self.assertEqual("Fav yes", text.medium_text.strip())
+            text = await menu.main_down()
+
+            self.assertEqual(MenuState.ENG_MODERN_NAME_LEVEL, menu.state)
+            self.assertIn(profile["profile_id"], EngineProvider.favorite_profile_ids)
+            write_ini.assert_called_once_with("engine-favorites", EngineProvider.serialized_favorite_ids())
+            self.assertEqual("1 Core", text.large_text)
+
+            event = Event.NEW_ENGINE(eng=profile, eng_text=profile["text"], options={}, show_ok=True)
+            menu.begin_variant_confirmation(event, 3, "fingerprint")
+            await menu.main_down()  # default is New Game: no
+            self.assertIn(profile["profile_id"], EngineProvider.favorite_profile_ids)
+            write_ini.assert_called_once()
+        finally:
+            EngineProvider.favorite_profile_ids = original_ids
+            EngineProvider.favorite_profiles = original_profiles
+            EngineProvider.profiles_by_id = original_map
+            EngineProvider.visible_profiles = original_visible
+            EngineProvider.nnue_engines = original_nnue
+            EngineProvider.variant_engines = original_variants
+            EngineProvider.hidden_profiles = original_hidden
+
+    @patch("dgt.menu.write_picochess_ini")
+    @patch("platform.machine")
+    async def test_unavailable_favorite_can_be_removed_without_engine_change(self, machine_mock, write_ini):
+        menu = self.create_menu(machine_mock)
+        menu.engine_fav_prompt = True
+        original_ids = EngineProvider.favorite_profile_ids
+        original_profiles = EngineProvider.favorite_profiles
+        original_map = EngineProvider.profiles_by_id
+        try:
+            profile = dict(
+                EngineProvider.modern_engines[0],
+                profile_id="missing-atomic",
+                source_category="variants",
+                available=False,
+            )
+            EngineProvider.favorite_profile_ids = ["missing-atomic"]
+            EngineProvider.favorite_profiles = [profile]
+            EngineProvider.profiles_by_id = {"missing-atomic": profile}
+
+            menu.enter_favorites_eng_menu()
+            await menu.main_down()
+            text = await menu.main_down()
+            self.assertEqual("Fav yes", text.medium_text.strip())
+            menu.main_right()
+            text = await menu.main_down()
+
+            self.assertEqual([], EngineProvider.favorite_profile_ids)
+            self.assertEqual("Engine error", text.web_text)
+            write_ini.assert_called_once_with("engine-favorites", "[]")
+            self.assertFalse(menu.engine_restart)
+        finally:
+            EngineProvider.favorite_profile_ids = original_ids
+            EngineProvider.favorite_profiles = original_profiles
+            EngineProvider.profiles_by_id = original_map
+
+    @patch("dgt.menu.write_picochess_ini")
+    @patch("platform.machine")
+    async def test_removing_last_favorite_rehomes_to_source_and_keeps_selection(self, machine_mock, write_ini):
+        menu = self.create_menu(machine_mock)
+        menu.engine_fav_prompt = True
+        original_ids = EngineProvider.favorite_profile_ids
+        original_profiles = EngineProvider.favorite_profiles
+        original_map = EngineProvider.profiles_by_id
+        original_visible = EngineProvider.visible_profiles
+        try:
+            profile = EngineProvider.modern_engines[0]
+            profile["source_category"] = "modern"
+            EngineProvider.favorite_profile_ids = [profile["profile_id"]]
+            EngineProvider.favorite_profiles = [profile]
+            EngineProvider.profiles_by_id = {profile["profile_id"]: profile}
+            EngineProvider.visible_profiles = [profile]
+
+            menu.enter_favorites_eng_menu()
+            await menu.main_down()
+            await menu.main_down()
+            menu.main_right()
+            text = await menu.main_down()
+
+            self.assertEqual([], EngineProvider.favorite_profile_ids)
+            self.assertEqual(MenuState.ENG_MODERN_NAME_LEVEL, menu.state)
+            self.assertEqual(EngineTop.MODERN_ENGINE, menu.menu_engine)
+            self.assertEqual("1 Core", text.large_text)
+            write_ini.assert_called_once_with("engine-favorites", "[]")
+        finally:
+            EngineProvider.favorite_profile_ids = original_ids
+            EngineProvider.favorite_profiles = original_profiles
+            EngineProvider.profiles_by_id = original_map
+            EngineProvider.visible_profiles = original_visible
+
+    @patch("dgt.menu.Observable.fire", new_callable=AsyncMock)
+    @patch("platform.machine")
+    async def test_variant_confirmation_refires_only_after_yes(self, machine_mock, fire):
+        menu = self.create_menu(machine_mock)
+        profile = EngineProvider.modern_engines[0]
+        event = Event.NEW_ENGINE(eng=profile, eng_text=profile["text"], options={}, show_ok=True)
+
+        text = menu.begin_variant_confirmation(event, 4, "fingerprint")
+        self.assertEqual(MenuState.ENG_VARIANT_CONFIRM, menu.state)
+        self.assertEqual("NewGame no", text.large_text.strip())
+        text = await menu.main_down()
+        self.assertEqual(MenuState.ENG_MODERN_NAME, menu.state)
+        fire.assert_not_awaited()
+
+        menu.begin_variant_confirmation(event, 4, "fingerprint")
+        menu.main_right()
+        await menu.main_down()
+
+        fire.assert_awaited_once_with(event)
+        self.assertTrue(event.confirmed)
+        self.assertEqual(4, event.game_generation)
+        self.assertEqual("fingerprint", event.context_fingerprint)
 
     @patch("platform.machine")
     async def test_grouped_retro_engine_menu_traversal_uses_stable_indexes(self, machine_mock):
@@ -426,7 +627,7 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         text = menu.main_left()
         self.assertEqual("Fairy-Stock", text.large_text)  # last engine
         text = await menu.main_down()
-        self.assertEqual("3check@1000", text.large_text)  # level of Fairy-Stock
+        self.assertEqual("Elo 1000", text.large_text)  # stable 3check@1000 key gets a compact visible label
         text = await menu.main_down()
         self.assertFalse(text)  # select Fairy-Stock engine
         self.assertEqual("Fairy-Stock", menu.get_current_engine_name().large_text)

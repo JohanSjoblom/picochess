@@ -95,6 +95,13 @@ from move_policy import (
     user_move_request_matches_position,
     user_move_task_matches_position,
 )
+from engine_switch import (
+    confirmation_matches,
+    game_context_fingerprint,
+    profile_variant,
+    variant_switch_forbidden,
+    variant_switch_requires_confirmation,
+)
 
 from uci.architecture import local_default_engine_path
 from uci.engine import UciShell, UciEngine
@@ -116,6 +123,7 @@ from utilities import (
 )
 from utilities import (
     Observable,
+    DispatchDgt,
     DisplayMsg,
     version,
     evt_queue,
@@ -373,8 +381,31 @@ class MainLoop:
 
         # Resolve the configured engine to its catalog entry, falling back when it has gone missing.
         self.requested_engine_file = self.args.engine
+        self.requested_engine_profile = getattr(self.args, "engine_profile", None)
         self.state.engine_file = self.requested_engine_file
-        if self.state.engine_file is None:
+        resolved_engine = EngineProvider.resolve_profile(self.requested_engine_profile)
+        if resolved_engine is None and not self.requested_engine_profile:
+            legacy_engine = EngineProvider.resolve_engine(self.requested_engine_file)
+            resolved_engine = EngineProvider.migrate_legacy_fairy_profile(legacy_engine, self.args.engine_level)
+            if resolved_engine is not legacy_engine:
+                logger.info(
+                    "migrating legacy Fairy level '%s' to engine profile '%s'",
+                    self.args.engine_level,
+                    resolved_engine.get("profile_id"),
+                )
+        if resolved_engine is not None and not resolved_engine.get("available", True):
+            logger.warning("configured engine profile '%s' is not available on this platform", self.requested_engine_profile)
+            resolved_engine = None
+        if resolved_engine is not None:
+            self.state.engine_file = resolved_engine["file"]
+        elif self.requested_engine_profile:
+            logger.warning(
+                "configured engine profile '%s' not found; falling back to the configured engine path",
+                self.requested_engine_profile,
+            )
+        if resolved_engine is not None:
+            pass
+        elif self.state.engine_file is None:
             resolved_engine = EngineProvider.resolve_engine(None)
             if resolved_engine is None:
                 logger.error("no installed engines available at startup")
@@ -401,6 +432,7 @@ class MainLoop:
                     self.requested_engine_file,
                     self.state.engine_file,
                 )
+        self.state.engine_profile = str((resolved_engine or {}).get("profile_id", ""))
 
         self.engine_remote_home = self.args.engine_remote_home
 
@@ -420,7 +452,7 @@ class MainLoop:
         # ensure dgtmenu knows which engine will actually be loaded so the startup
         # announcement reflects the saved configuration
         if self.state.dgtmenu and self.state.engine_file:
-            self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
+            self.state.dgtmenu.set_state_current_engine(self.state.engine_file, self.state.engine_profile)
 
         self.all_books = get_opening_books()
         if not self.all_books:
@@ -505,11 +537,13 @@ class MainLoop:
 
         uci_shell = self.uci_remote_shell if self.remote_engine_mode() and self.uci_remote_shell else self.uci_local_shell
 
+        selected_profile = EngineProvider.resolve_profile(getattr(self.state, "engine_profile", None))
         self.engine = UciEngine(
             file=engine_file_to_load,
             uci_shell=uci_shell,
             mame_par=self.calc_engine_mame_par(),
             loop=self.loop,
+            uci_file=(selected_profile or {}).get("uci_file"),
         )
         await self.engine.open_engine()
         if engine_file_to_load != self.state.engine_file:
@@ -1534,7 +1568,7 @@ class MainLoop:
         """Transfer an engine level to its level_dict plus an index."""
         for eng in EngineProvider.installed_engines:
             if eng["file"] == self.state.engine_file:
-                level_list = sorted(eng["level_dict"])
+                level_list = EngineProvider.level_names(eng)
                 try:
                     level_index = level_list.index(engine_level)
                     return eng["level_dict"][level_list[level_index]], level_index
@@ -1710,6 +1744,21 @@ class MainLoop:
         # Update shared dict for web interface
         self._update_variant_shared()
         ModeInfo.set_variant(self.state.variant)
+
+    def _prepare_new_game_for_variant(self, variant: str) -> None:
+        """Commit the logical start position only after the candidate engine has started."""
+        if variant == "racingkings":
+            self.state.game = chess.Board(RK_STARTING_BOARD_FEN + " w - - 0 1")
+        else:
+            self.state.game = chess.Board()
+        self.state.game_started = False
+        self.shared.setdefault("system_info", {})["game_started"] = False
+        self.state.game_generation += 1
+        self.state.done_computer_fen = None
+        self.state.done_move = self.state.pb_move = chess.Move.null()
+        self.state.searchmoves.reset()
+        self.state.game_declared = False
+        self._reset_loaded_pgn_lifecycle()
 
     def _update_variant_shared(self):
         """Update shared dict with variant info for web interface."""
@@ -5328,7 +5377,35 @@ class MainLoop:
                 )
             )
 
+        elif isinstance(event, Event.ENGINE_FAVORITES):
+            await DisplayMsg.show(Message.SYSTEM_INFO(info={"engine_favorites": list(event.profile_ids)}))
+
         elif isinstance(event, Event.NEW_ENGINE):
+            event_engine = getattr(event, "eng", None)
+            if event_engine is not None and not event_engine.get("available", True):
+                logger.warning("engine profile '%s' is unavailable", event_engine.get("profile_id", ""))
+                self.state.dgtmenu.exit_menu()
+                await DisplayMsg.show(Message.ENGINE_FAIL())
+                return
+            if event_engine is not None and variant_switch_forbidden(self.state, profile_variant(event_engine)):
+                logger.warning("variant switch refused in externally authoritative mode")
+                self.state.dgtmenu.exit_menu()
+                await DisplayMsg.show(Message.ENGINE_FAIL())
+                return
+            if event_engine is not None and variant_switch_requires_confirmation(self.state, profile_variant(event_engine)):
+                confirmed = bool(getattr(event, "confirmed", False))
+                if not confirmed or not confirmation_matches(
+                    self.state,
+                    getattr(event, "game_generation", -1),
+                    getattr(event, "context_fingerprint", ""),
+                ):
+                    text = self.state.dgtmenu.begin_variant_confirmation(
+                        event,
+                        self.state.game_generation,
+                        game_context_fingerprint(self.state),
+                    )
+                    await DispatchDgt.fire(text)
+                    return
             # Explicit engine selection is also an escape from pending Set Pos.
             self._clear_set_position_ack()
             # if we are waiting for an engine move, get rid of that first
@@ -5336,6 +5413,10 @@ class MainLoop:
             self.state.best_sent_depth.reset()
             await DisplayMsg.show(Message.WEB_ANALYSIS(analysis={"source": "engine", "clear": True}))
             old_file = self.state.engine_file
+            old_variant = self.state.variant
+            variant_switched = False
+            old_profile_id = getattr(self.state, "engine_profile", "")
+            old_profile = EngineProvider.resolve_profile(old_profile_id) or {}
             old_options = {}
             old_options = self.engine.get_pgn_options()
             engine_fallback = False
@@ -5345,6 +5426,7 @@ class MainLoop:
             # Closeout the engine process and threads
 
             self.state.engine_file = event.eng["file"]
+            self.state.engine_profile = str(event.eng.get("profile_id", ""))
             self.state.artwork_in_use = False
             engine_file_to_load = self.state.engine_file  # assume not mame
             if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rdisplay():
@@ -5365,6 +5447,7 @@ class MainLoop:
                 uci_shell=uci_shell,
                 mame_par=self.calc_engine_mame_par(),
                 loop=self.loop,
+                uci_file=event.eng.get("uci_file"),
             )
             await self.engine.open_engine()
             if engine_file_to_load != self.state.engine_file:
@@ -5375,6 +5458,7 @@ class MainLoop:
                 engine_fallback = True
                 event.options = old_options
                 self.state.engine_file = old_file
+                self.state.engine_profile = old_profile_id
                 # restart old mame engine?
                 self.state.artwork_in_use = False
                 if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
@@ -5391,6 +5475,7 @@ class MainLoop:
                     uci_shell=uci_shell,
                     mame_par=self.calc_engine_mame_par(),
                     loop=self.loop,
+                    uci_file=old_profile.get("uci_file"),
                 )
                 await self.engine.open_engine()
                 if not self.engine.loaded_ok():
@@ -5425,6 +5510,9 @@ class MainLoop:
 
             startup_ok = await self.engine.startup(event.options, self.state.rating)
             if startup_ok:
+                variant_switched = old_variant != self.engine.variant
+                if variant_switched:
+                    self._prepare_new_game_for_variant(self.engine.variant)
                 # Initialize variant support from new engine settings
                 self._init_variant_from_engine()
             if not startup_ok:
@@ -5432,6 +5520,7 @@ class MainLoop:
                 engine_fallback = True
                 event.options = old_options
                 self.state.engine_file = old_file
+                self.state.engine_profile = old_profile_id
                 self.state.artwork_in_use = False
                 await self.engine.quit()
                 if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
@@ -5448,6 +5537,7 @@ class MainLoop:
                     uci_shell=uci_shell,
                     mame_par=self.calc_engine_mame_par(),
                     loop=self.loop,
+                    uci_file=old_profile.get("uci_file"),
                 )
                 await self.engine.open_engine()
                 if not self.engine.loaded_ok():
@@ -5508,6 +5598,7 @@ class MainLoop:
                     )
                     await self.engine.quit()
                     self.state.engine_file = fallback_file
+                    self.state.engine_profile = str(fallback_engine.get("profile_id", ""))
                     self.state.artwork_in_use = False
                     old_file = fallback_file
 
@@ -5518,6 +5609,7 @@ class MainLoop:
                         uci_shell=uci_shell,
                         mame_par=self.calc_engine_mame_par(),
                         loop=self.loop,
+                        uci_file=fallback_engine.get("uci_file"),
                     )
                     await self.engine.open_engine()
                     if not self.engine.loaded_ok():
@@ -5567,7 +5659,7 @@ class MainLoop:
                 # issue #72 - avoid problems by not sending newgame to new engine
                 await self.engine.newgame(self.state.engine_board_copy(), send_ucinewgame=False)
                 # Still notify the display layer about the new game (variant info etc.)
-                await DisplayMsg.show(self.state.new_game_msg(newgame=False))
+                await DisplayMsg.show(self.state.new_game_msg(newgame=variant_switched))
 
             await self.engine_mode()
 
@@ -5624,7 +5716,7 @@ class MainLoop:
 
             self.state.old_engine_level = self.state.new_engine_level
             self.state.engine_level = self.state.new_engine_level
-            self.state.dgtmenu.set_state_current_engine(self.state.engine_file)
+            self.state.dgtmenu.set_state_current_engine(self.state.engine_file, self.state.engine_profile)
             self.state.dgtmenu.exit_menu()
             # here dont care if engine supports pondering, cause Mode.NORMAL from startup
             if (
@@ -5635,6 +5727,7 @@ class MainLoop:
             ):
                 # dont write engine(_level) if remote/online engine or engine failure
                 write_picochess_ini("engine", event.eng["file"])
+                write_picochess_ini("engine-profile", self.state.engine_profile)
                 write_picochess_ini("engine-level", self.state.engine_level)
 
             if self.pgn_mode():

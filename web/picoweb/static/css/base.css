@@ -2652,3 +2652,22 @@ html[data-theme="dark"] .promotion-overlay square {
 .pico-col-back:hover {
     background: rgba(255, 255, 255, 0.08);
 }
+.pico-engine-picker-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.4rem;
+    width: 100%;
+}
+
+.pico-engine-picker-row .pico-engine-picker-item {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pico-engine-favorite {
+    flex: 0 0 44px;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 1.35rem;
+    line-height: 1;
+}

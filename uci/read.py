@@ -73,15 +73,20 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
 
     library = []
     for section in config.sections():
+        confsect = config[section]
+        profile_id = section
+        engine_filename = confsect.get("file", section).strip()
+        configured_uci = confsect.get("uci", "").strip()
+        uci_filename = configured_uci or engine_filename + ".uci"
         parser = configparser.ConfigParser()
         parser.optionxform = str  # type: ignore
 
         level_dict: dict[str, dict] = {}
         if engine_shell is None:
-            success = bool(parser.read(engine_path + os.sep + section + ".uci"))
+            success = bool(parser.read(engine_path + os.sep + uci_filename))
         else:
             try:
-                with engine_shell.open(engine_path + os.sep + section + ".uci", "r") as file:
+                with engine_shell.open(engine_path + os.sep + uci_filename, "r") as file:
                     parser.read_file(file)
                 success = True
             except FileNotFoundError:
@@ -92,7 +97,6 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
                 for option in parser.options(p_section):
                     level_dict[p_section][option] = parser[p_section][option]
 
-        confsect = config[section]
         l_web_text = confsect["web"] if "web" in confsect else confsect["large"]
         text = Dgt.DISPLAY_TEXT(
             web_text=l_web_text,
@@ -105,12 +109,25 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
             devs={"ser", "i2c", "web"},
         )
         engine = {
-            "file": engine_path + os.sep + section,
+            "profile_id": profile_id,
+            "file": engine_path + os.sep + engine_filename,
+            "uci_file": engine_path + os.sep + uci_filename,
             "level_dict": level_dict,
             "text": text,
             "name": confsect["name"],
             "elo": confsect["elo"],
+            "available": (
+                True
+                if engine_shell is not None
+                else os.path.isfile(engine_path + os.sep + engine_filename)
+                and (not configured_uci or success)
+            ),
         }
+        variants = {
+            str(options.get("Variant", "chess"))
+            for options in level_dict.values()
+        }
+        engine["variant"] = variants.pop() if len(variants) == 1 else "chess"
         engine["manufacturer"] = manufacturers.get(section, "")
         library.append(engine)
     return library

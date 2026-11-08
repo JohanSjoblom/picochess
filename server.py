@@ -56,6 +56,13 @@ from utilities import (
 from audio_volume import set_system_volume
 from web.picoweb import picoweb as pw
 from web.menu_translate import get_menu_catalog, get_menu_source_map, get_menu_text
+from engine_switch import (
+    confirmation_matches,
+    game_context_fingerprint,
+    profile_variant,
+    variant_switch_forbidden,
+    variant_switch_requires_confirmation,
+)
 
 from dgt.api import Dgt, DgtApi, Event, Message
 from dgt.util import (
@@ -192,6 +199,7 @@ INI_COMMENT_RE = re.compile(r"^\s*#\s*(.+)$")
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
     {
         "new_engine",
+        "set_engine_favorite",
         "new_engine_book",
         "new_time",
         "picotutor",
@@ -522,13 +530,23 @@ def _engine_menu_payload() -> dict:
     engines = []
 
     def _entry(engine, category, manufacturer=""):
+        levels = EngineProvider.level_names(engine)
         return {
+            "profile_id": engine.get("profile_id", ""),
             "name": engine.get("name", ""),
             "file": engine.get("file", ""),
             "elo": engine.get("elo", ""),
-            "levels": list(engine.get("level_dict", {}).keys()),
+            "levels": levels,
+            "level_labels": {
+                level: (f"Elo {int(level.rpartition('@')[2])}" if level.rpartition("@")[0].casefold()
+                        in {"3check", "koth", "atomic", "rk", "racingkings", "antichess"}
+                        and level.rpartition("@")[2].isdigit() else level)
+                for level in levels
+            },
             "category": category,
             "manufacturer": manufacturer,
+            "is_favorite": engine.get("profile_id", "") in EngineProvider.favorite_profile_ids,
+            "available": engine.get("available", True),
         }
 
     def _extend_category(catalog, category):
@@ -546,8 +564,20 @@ def _engine_menu_payload() -> dict:
         )
 
     _extend_category(EngineProvider.modern_engines, "modern")
+    _extend_category(EngineProvider.nnue_engines, "nnue")
     _extend_category(EngineProvider.retro_engines, "retro")
     _extend_category(EngineProvider.special_engines, "special")
+    _extend_category(EngineProvider.variant_engines, "variants")
+    visible_ids = {entry["profile_id"] for entry in engines}
+    for profile in EngineProvider.favorite_profiles:
+        if profile.get("profile_id") not in visible_ids:
+            engines.append(
+                _entry(
+                    profile,
+                    str(profile.get("source_category", "")),
+                    str(profile.get("manufacturer", "")),
+                )
+            )
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
@@ -575,18 +605,22 @@ def _current_engine_menu_settings(shared: dict) -> dict:
 
     system_info = shared.get("system_info", {})
     engine_file = str(selected.get("file", "") or "")
+    profile_id = str(selected.get("profile_id", "") or "")
     engine_name = str(selected.get("name", "") or system_info.get("engine_name", "") or "")
     match = None
     match_category = ""
     for category, catalog in (
         ("modern", EngineProvider.modern_engines),
+        ("nnue", EngineProvider.nnue_engines),
         ("retro", EngineProvider.retro_engines),
         ("special", EngineProvider.special_engines),
+        ("variants", EngineProvider.variant_engines),
     ):
         for engine in catalog:
-            same_file = bool(engine_file) and engine.get("file", "") == engine_file
+            same_profile = bool(profile_id) and engine.get("profile_id", "") == profile_id
+            same_file = not profile_id and bool(engine_file) and engine.get("file", "") == engine_file
             same_name = not engine_file and engine_name and engine.get("name", "") == engine_name
-            if same_file or same_name:
+            if same_profile or same_file or same_name:
                 match = engine
                 match_category = category
                 break
@@ -595,10 +629,12 @@ def _current_engine_menu_settings(shared: dict) -> dict:
 
     if match is not None:
         engine_file = str(match.get("file", engine_file))
+        profile_id = str(match.get("profile_id", profile_id))
         engine_name = str(match.get("name", engine_name))
 
     return {
         "engine_file": engine_file,
+        "engine_profile": profile_id,
         "engine_name": engine_name,
         "engine_category": match_category,
         "engine_manufacturer": str((match or {}).get("manufacturer", "")),
@@ -641,8 +677,11 @@ def _engine_menu_labels(dgttranslate) -> dict:
     labels = {
         "categories": {
             "modern": get_menu_text(language, "engine.modern"),
+            "nnue": get_menu_text(language, "engine.nnue"),
             "retro": get_menu_text(language, "engine.retro"),
             "special": get_menu_text(language, "engine.special"),
+            "variants": get_menu_text(language, "engine.variants"),
+            "favorites": get_menu_text(language, "engine.favorites"),
             "sort": get_menu_text(language, "engine.sort_order"),
             "info": get_menu_text(language, "engine.info"),
         },
@@ -1361,11 +1400,68 @@ class ChannelHandler(ServerRequestHandler):
             from uci.engine_provider import EngineProvider
 
             file = self.get_argument("file")
+            profile_id = self.get_argument("profile_id", "")
             level = self.get_argument("level", "")
-            eng = EngineProvider.resolve_engine(file)
+            eng = EngineProvider.resolve_profile(profile_id) if profile_id else EngineProvider.resolve_engine(file)
             if eng:
-                for event in _engine_change_events(eng, level, dgttranslate):
+                if not eng.get("available", True):
+                    self.set_status(409)
+                    self.write({"success": False, "error": "Engine profile is not available on this platform"})
+                    return
+                state = self.shared.get("state")
+                if state and variant_switch_forbidden(state, profile_variant(eng)):
+                    self.set_status(409)
+                    self.write({"success": False, "error": "Variant switching is not allowed in this mode"})
+                    return
+                requires_confirmation = bool(
+                    state and variant_switch_requires_confirmation(state, profile_variant(eng))
+                )
+                confirmed = self.get_argument("confirmed", "").strip().lower() in ("1", "true", "yes")
+                try:
+                    game_generation = int(self.get_argument("game_generation", "-1"))
+                except ValueError:
+                    game_generation = -1
+                context_fingerprint = self.get_argument("context_fingerprint", "")
+                if requires_confirmation and not (
+                    confirmed and confirmation_matches(state, game_generation, context_fingerprint)
+                ):
+                    self.set_header("Content-Type", "application/json")
+                    self.write(
+                        {
+                            "success": False,
+                            "confirmation_required": True,
+                            "game_generation": state.game_generation,
+                            "context_fingerprint": game_context_fingerprint(state),
+                        }
+                    )
+                    return
+                events = _engine_change_events(eng, level, dgttranslate)
+                events[1].confirmed = confirmed
+                events[1].game_generation = game_generation
+                events[1].context_fingerprint = context_fingerprint
+                for event in events:
                     await Observable.fire(event)
+                self.set_header("Content-Type", "application/json")
+                self.write({"success": True})
+            elif profile_id:
+                self.set_status(400)
+                self.write({"success": False, "error": "Unknown engine profile"})
+        elif action == "set_engine_favorite":
+            from uci.engine_provider import EngineProvider
+
+            profile_id = self.get_argument("profile_id", "")
+            favorite = self.get_argument("favorite", "").strip().lower() in ("1", "true", "yes", "on")
+            self.set_header("Content-Type", "application/json")
+            if not EngineProvider.set_favorite(profile_id, favorite):
+                self.set_status(400)
+                self.write({"success": False, "error": "Unknown or hidden engine profile"})
+            else:
+                write_picochess_ini("engine-favorites", EngineProvider.serialized_favorite_ids())
+                favorite_ids = list(EngineProvider.favorite_profile_ids)
+                EventHandler.write_to_clients(
+                    {"event": "SystemInfo", "msg": {"engine_favorites": favorite_ids}}
+                )
+                self.write({"success": True, "engine_favorites": favorite_ids})
         elif action == "engine_menu_sort":
             selected_sort = _apply_engine_menu_sort(self.shared, self.get_argument("val", ""))
             self.set_header("Content-Type", "application/json")

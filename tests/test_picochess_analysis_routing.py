@@ -2187,13 +2187,15 @@ class TestBestMoveModeTransitionRace(unittest.IsolatedAsyncioTestCase):
             for node in ast.walk(tree)
             if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_main_events"
         )
-        prepare_call = next(
-            node
-            for node in ast.walk(process_events)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "_prepare_engine_move"
-            and node.lineno > 6700
+        prepare_call = max(
+            (
+                node
+                for node in ast.walk(process_events)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "_prepare_engine_move"
+            ),
+            key=lambda node: node.lineno,
         )
         validation_if = max(
             (

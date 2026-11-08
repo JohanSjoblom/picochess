@@ -12,8 +12,10 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from collections import OrderedDict
+import json
 import logging
 from pathlib import Path
+import re
 from typing import Dict, List, Optional
 
 from uci.architecture import local_engine_directory
@@ -33,13 +35,22 @@ class EngineProvider(object):
     """
 
     modern_engines: List[Dict[str, str]] = []
+    nnue_engines: List[Dict[str, str]] = []
     retro_engines: List[Dict[str, str]] = []
     special_engines: List[Dict[str, str]] = []
+    variant_engines: List[Dict[str, str]] = []
+    hidden_profiles: List[Dict[str, str]] = []
+    unavailable_profiles: List[Dict[str, str]] = []
     installed_engines: List[Dict[str, str]] = []
+    visible_profiles: List[Dict[str, str]] = []
+    all_profiles: List[Dict[str, str]] = []
+    profiles_by_id: Dict[str, Dict[str, str]] = {}
+    favorite_profile_ids: List[str] = []
+    favorite_profiles: List[Dict[str, str]] = []
     engine_menu_sort = "file"
 
     @classmethod
-    def init(cls, engine_menu_sort: str = "file"):
+    def init(cls, engine_menu_sort: str = "file", engine_favorites: str = "[]"):
         cls.set_engine_menu_sort(engine_menu_sort)
         cls.modern_engines = read_engine_ini(filename="engines.ini")
         cls.retro_engines = read_engine_ini(filename="retro.ini")
@@ -50,13 +61,189 @@ class EngineProvider(object):
             cls.special_engines = read_engine_ini(filename="favorites.ini")
             if cls.special_engines:
                 logger.warning("favorites.ini is deprecated; rename the Special catalog to special.ini")
-        # Preserve the historical empty-catalog fallback for this refactor.
-        # It is removed deliberately in the later catalog implementation.
-        if not cls.retro_engines:
-            cls.retro_engines = cls.modern_engines
-        if not cls.special_engines:
-            cls.special_engines = cls.modern_engines
-        cls.installed_engines = cls.modern_engines + cls.retro_engines + cls.special_engines
+        cls.nnue_engines = read_engine_ini(filename="nnue.ini")
+        cls.variant_engines = read_engine_ini(filename="variants.ini")
+        cls.unavailable_profiles = []
+        for category, attribute in (
+            ("modern", "modern_engines"),
+            ("nnue", "nnue_engines"),
+            ("retro", "retro_engines"),
+            ("special", "special_engines"),
+            ("variants", "variant_engines"),
+        ):
+            available = []
+            for profile in getattr(cls, attribute):
+                profile["source_category"] = category
+                if profile.get("available", True):
+                    available.append(profile)
+                else:
+                    cls.unavailable_profiles.append(profile)
+            setattr(cls, attribute, available)
+        cls.hidden_profiles = []
+        if cls.variant_engines:
+            visible_modern = []
+            for profile in cls.modern_engines:
+                if profile.get("profile_id") == "fairy":
+                    cls.hidden_profiles.append(profile)
+                else:
+                    visible_modern.append(profile)
+            cls.modern_engines = visible_modern
+        # Keep the historical installed order stable; new catalogs are appended.
+        cls.installed_engines = (
+            cls.modern_engines
+            + cls.retro_engines
+            + cls.special_engines
+            + cls.nnue_engines
+            + cls.variant_engines
+        )
+        cls._rebuild_profile_index()
+        cls.set_favorite_ids(engine_favorites)
+
+    @classmethod
+    def _rebuild_profile_index(cls):
+        """Index logical profiles globally while retaining deterministic first-wins behavior."""
+        catalogs = (
+            ("modern", cls.modern_engines),
+            ("nnue", cls.nnue_engines),
+            ("retro", cls.retro_engines),
+            ("special", cls.special_engines),
+            ("variants", cls.variant_engines),
+        )
+        cls.visible_profiles = []
+        cls.profiles_by_id = {}
+        for category, catalog in catalogs:
+            for profile in catalog:
+                profile.setdefault("source_category", category)
+                profile_id = str(profile.get("profile_id", profile.get("file", "")))
+                profile["profile_id"] = profile_id
+                cls.visible_profiles.append(profile)
+                if profile_id in cls.profiles_by_id:
+                    if cls.profiles_by_id[profile_id] is profile:
+                        # Historical empty-catalog fallback aliases Modern into
+                        # another category; it is not a second definition.
+                        continue
+                    logger.warning(
+                        "duplicate engine profile id '%s' in %s; keeping first definition",
+                        profile_id,
+                        category,
+                    )
+                    continue
+                cls.profiles_by_id[profile_id] = profile
+        cls.all_profiles = list(cls.visible_profiles)
+        for profile in cls.hidden_profiles:
+            profile_id = str(profile.get("profile_id", profile.get("file", "")))
+            profile["profile_id"] = profile_id
+            profile["hidden"] = True
+            cls.all_profiles.append(profile)
+            if profile_id in cls.profiles_by_id:
+                logger.warning("hidden engine profile id '%s' duplicates a visible profile; keeping visible", profile_id)
+            else:
+                cls.profiles_by_id[profile_id] = profile
+        for profile in cls.unavailable_profiles:
+            profile_id = str(profile.get("profile_id", profile.get("file", "")))
+            profile["profile_id"] = profile_id
+            cls.all_profiles.append(profile)
+            if profile_id in cls.profiles_by_id:
+                logger.warning("unavailable engine profile id '%s' duplicates another profile; keeping first", profile_id)
+            else:
+                cls.profiles_by_id[profile_id] = profile
+
+    @classmethod
+    def resolve_profile(cls, profile_id: Optional[str]) -> Optional[Dict[str, str]]:
+        """Resolve an exact logical profile ID without falling back to another engine."""
+        if not profile_id:
+            return None
+        return cls.profiles_by_id.get(profile_id)
+
+    @staticmethod
+    def parse_favorite_ids(value) -> List[str]:
+        """Parse the persisted ordered JSON list, ignoring malformed and duplicate IDs."""
+        if isinstance(value, (list, tuple)):
+            parsed = value
+        else:
+            try:
+                parsed = json.loads(str(value or "[]"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                logger.warning("invalid engine-favorites value; ignoring it")
+                return []
+        if not isinstance(parsed, list):
+            logger.warning("engine-favorites must be a JSON list; ignoring it")
+            return []
+        result = []
+        for item in parsed:
+            profile_id = str(item)
+            if profile_id and profile_id not in result:
+                result.append(profile_id)
+        return result
+
+    @classmethod
+    def set_favorite_ids(cls, value) -> List[str]:
+        """Load favorites, silently dropping profile IDs no longer in the catalog."""
+        requested = cls.parse_favorite_ids(value)
+        cls.favorite_profile_ids = [
+            profile_id
+            for profile_id in requested
+            if profile_id in cls.profiles_by_id and not cls.profiles_by_id[profile_id].get("hidden")
+        ]
+        cls._refresh_favorite_profiles()
+        return list(cls.favorite_profile_ids)
+
+    @classmethod
+    def migrate_legacy_fairy_profile(cls, profile: Optional[Dict[str, str]], level_name: Optional[str]):
+        """Resolve an old combined Fairy level to its new visible variant profile."""
+        if not profile or profile.get("profile_id") != "fairy" or not level_name:
+            return profile
+        level_prefix = str(level_name).partition("@")[0].strip().casefold()
+        legacy_variants = {
+            "3check": "3check",
+            "koth": "kingofthehill",
+            "atomic": "atomic",
+            "rk": "racingkings",
+            "racingkings": "racingkings",
+            "antichess": "antichess",
+        }
+        target_variant = legacy_variants.get(level_prefix)
+        if target_variant is None:
+            return profile
+        for candidate in cls.variant_engines:
+            if candidate.get("file") == profile.get("file") and candidate.get("variant") == target_variant:
+                return candidate
+        return profile
+
+    @staticmethod
+    def level_names(profile: Dict) -> List[str]:
+        """Return level names in numeric order without renaming stable section keys."""
+        def sort_key(name: str):
+            prefix, separator, suffix = str(name).rpartition("@")
+            if separator and re.fullmatch(r"-?\d+", suffix):
+                return prefix.casefold(), 0, int(suffix), str(name).casefold()
+            return str(name).casefold(), 1, 0, str(name).casefold()
+
+        return sorted(profile.get("level_dict", {}), key=sort_key)
+
+    @classmethod
+    def _refresh_favorite_profiles(cls):
+        cls.favorite_profiles = [cls.profiles_by_id[profile_id] for profile_id in cls.favorite_profile_ids]
+
+    @classmethod
+    def set_favorite(cls, profile_id: str, favorite: bool) -> bool:
+        """Set the desired favorite state; return False for an invalid request."""
+        profile = cls.resolve_profile(profile_id)
+        if profile is None or profile.get("hidden"):
+            return False
+        if favorite:
+            if profile not in cls.visible_profiles:
+                return False
+            if profile_id not in cls.favorite_profile_ids:
+                cls.favorite_profile_ids.append(profile_id)
+        elif profile_id in cls.favorite_profile_ids:
+            cls.favorite_profile_ids.remove(profile_id)
+        cls._refresh_favorite_profiles()
+        return True
+
+    @classmethod
+    def serialized_favorite_ids(cls) -> str:
+        return json.dumps(cls.favorite_profile_ids, separators=(",", ":"))
 
     @classmethod
     def set_engine_menu_sort(cls, sort_order: str) -> str:
@@ -113,7 +300,7 @@ class EngineProvider(object):
     @classmethod
     def resolve_engine(cls, requested_file: Optional[str]) -> Optional[Dict[str, str]]:
         """Resolve a configured engine path to an installed engine, falling back to the first entry."""
-        for eng in cls.installed_engines:
+        for eng in cls.installed_engines + cls.hidden_profiles:
             if cls.engine_matches(eng["file"], requested_file):
                 return eng
         if cls.installed_engines:
@@ -139,4 +326,7 @@ class EngineProvider(object):
     @classmethod
     def has_engine(cls, requested_file: Optional[str]) -> bool:
         """Return True if the configured engine is present in the installed engine list."""
-        return any(cls.engine_matches(eng["file"], requested_file) for eng in cls.installed_engines)
+        return any(
+            cls.engine_matches(eng["file"], requested_file)
+            for eng in cls.installed_engines + cls.hidden_profiles
+        )

@@ -144,16 +144,34 @@ class TestEngineProvider(unittest.TestCase):
 class TestEngineProviderCatalogNames(unittest.TestCase):
     def setUp(self):
         self.original_modern = EngineProvider.modern_engines
+        self.original_nnue = EngineProvider.nnue_engines
         self.original_retro = EngineProvider.retro_engines
         self.original_special = EngineProvider.special_engines
+        self.original_variants = EngineProvider.variant_engines
+        self.original_hidden = EngineProvider.hidden_profiles
+        self.original_unavailable = EngineProvider.unavailable_profiles
         self.original_installed = EngineProvider.installed_engines
+        self.original_visible = EngineProvider.visible_profiles
+        self.original_all = EngineProvider.all_profiles
+        self.original_profiles_by_id = EngineProvider.profiles_by_id
+        self.original_favorite_ids = EngineProvider.favorite_profile_ids
+        self.original_favorite_profiles = EngineProvider.favorite_profiles
         self.original_sort = EngineProvider.engine_menu_sort
 
     def tearDown(self):
         EngineProvider.modern_engines = self.original_modern
+        EngineProvider.nnue_engines = self.original_nnue
         EngineProvider.retro_engines = self.original_retro
         EngineProvider.special_engines = self.original_special
+        EngineProvider.variant_engines = self.original_variants
+        EngineProvider.hidden_profiles = self.original_hidden
+        EngineProvider.unavailable_profiles = self.original_unavailable
         EngineProvider.installed_engines = self.original_installed
+        EngineProvider.visible_profiles = self.original_visible
+        EngineProvider.all_profiles = self.original_all
+        EngineProvider.profiles_by_id = self.original_profiles_by_id
+        EngineProvider.favorite_profile_ids = self.original_favorite_ids
+        EngineProvider.favorite_profiles = self.original_favorite_profiles
         EngineProvider.engine_menu_sort = self.original_sort
 
     @patch("uci.engine_provider.Path.is_file", return_value=True)
@@ -162,15 +180,15 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
         modern = [{"file": "modern"}]
         retro = [{"file": "retro"}]
         special = [{"file": "special"}]
-        read_ini.side_effect = [modern, retro, special]
+        read_ini.side_effect = [modern, retro, special, [], []]
 
         EngineProvider.init()
 
         self.assertEqual(
             [call(filename="engines.ini"), call(filename="retro.ini"), call(filename="special.ini")],
-            read_ini.call_args_list,
+            read_ini.call_args_list[:3],
         )
-        self.assertIs(special, EngineProvider.special_engines)
+        self.assertEqual(special, EngineProvider.special_engines)
         self.assertEqual(modern + retro + special, EngineProvider.installed_engines)
 
     @patch("uci.engine_provider.Path.is_file", return_value=False)
@@ -179,13 +197,13 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
         modern = [{"file": "modern"}]
         retro = [{"file": "retro"}]
         legacy_special = [{"file": "script/turing"}]
-        read_ini.side_effect = [modern, retro, legacy_special]
+        read_ini.side_effect = [modern, retro, legacy_special, [], []]
 
         with self.assertLogs("uci.engine_provider", level="WARNING") as logs:
             EngineProvider.init()
 
-        self.assertEqual(call(filename="favorites.ini"), read_ini.call_args_list[-1])
-        self.assertIs(legacy_special, EngineProvider.special_engines)
+        self.assertEqual(call(filename="favorites.ini"), read_ini.call_args_list[2])
+        self.assertEqual(legacy_special, EngineProvider.special_engines)
         self.assertIn("favorites.ini is deprecated", logs.output[0])
 
     @patch("uci.engine_provider.Path.is_file", return_value=True)
@@ -193,15 +211,133 @@ class TestEngineProviderCatalogNames(unittest.TestCase):
     def test_empty_special_ini_does_not_read_legacy_file(self, read_ini, _is_file):
         modern = [{"file": "modern"}]
         retro = [{"file": "retro"}]
-        read_ini.side_effect = [modern, retro, []]
+        read_ini.side_effect = [modern, retro, [], [], []]
 
         EngineProvider.init()
 
-        self.assertEqual(call(filename="special.ini"), read_ini.call_args_list[-1])
+        self.assertEqual(call(filename="special.ini"), read_ini.call_args_list[2])
         self.assertNotIn(call(filename="favorites.ini"), read_ini.call_args_list)
-        # The old empty-catalog fallback is intentionally preserved in this
-        # behavior-neutral rename commit and removed by the catalog feature.
-        self.assertIs(modern, EngineProvider.special_engines)
+        self.assertEqual([], EngineProvider.special_engines)
+
+    @patch("uci.engine_provider.Path.is_file", return_value=True)
+    @patch("uci.engine_provider.read_engine_ini", side_effect=[[], [], [], [], []])
+    def test_empty_catalogs_do_not_copy_modern_or_crash_resolution(self, _read_ini, _is_file):
+        EngineProvider.init()
+
+        self.assertEqual([], EngineProvider.modern_engines)
+        self.assertEqual([], EngineProvider.nnue_engines)
+        self.assertEqual([], EngineProvider.retro_engines)
+        self.assertEqual([], EngineProvider.special_engines)
+        self.assertEqual([], EngineProvider.variant_engines)
+        self.assertEqual([], EngineProvider.installed_engines)
+        self.assertIsNone(EngineProvider.resolve_engine("missing"))
+
+    def test_profile_lookup_is_exact_and_preserves_slashes(self):
+        turing = {"profile_id": "script/turing", "file": "/engines/script/turing"}
+        EngineProvider.modern_engines = []
+        EngineProvider.nnue_engines = []
+        EngineProvider.retro_engines = []
+        EngineProvider.special_engines = [turing]
+        EngineProvider.variant_engines = []
+        EngineProvider.hidden_profiles = []
+
+        EngineProvider._rebuild_profile_index()
+
+        self.assertIs(turing, EngineProvider.resolve_profile("script/turing"))
+        self.assertIsNone(EngineProvider.resolve_profile("turing"))
+        self.assertIsNone(EngineProvider.resolve_profile("script\\turing"))
+
+    def test_duplicate_profile_id_warns_and_first_catalog_wins(self):
+        modern = {"profile_id": "shared", "file": "/engines/modern"}
+        special = {"profile_id": "shared", "file": "/engines/special"}
+        EngineProvider.modern_engines = [modern]
+        EngineProvider.nnue_engines = []
+        EngineProvider.retro_engines = []
+        EngineProvider.special_engines = [special]
+        EngineProvider.variant_engines = []
+        EngineProvider.hidden_profiles = []
+
+        with self.assertLogs("uci.engine_provider", level="WARNING") as logs:
+            EngineProvider._rebuild_profile_index()
+
+        self.assertIs(modern, EngineProvider.resolve_profile("shared"))
+        self.assertIn("duplicate engine profile id 'shared'", logs.output[0])
+
+    @patch("uci.engine_provider.Path.is_file", return_value=True)
+    @patch("uci.engine_provider.read_engine_ini")
+    def test_variant_catalog_hides_but_keeps_legacy_fairy_resolvable(self, read_ini, _is_file):
+        fairy = {"profile_id": "fairy", "file": "/engines/fairy"}
+        atomic = {"profile_id": "fairy-atomic", "file": "/engines/fairy"}
+        read_ini.side_effect = [[fairy], [], [], [], [atomic]]
+
+        EngineProvider.init()
+
+        self.assertNotIn(fairy, EngineProvider.installed_engines)
+        self.assertNotIn(fairy, EngineProvider.visible_profiles)
+        self.assertIs(fairy, EngineProvider.resolve_profile("fairy"))
+        self.assertIs(atomic, EngineProvider.resolve_profile("fairy-atomic"))
+
+    def test_favorites_are_ordered_profile_references(self):
+        turing = {"profile_id": "script/turing", "file": "/engines/script/turing"}
+        atomic = {"profile_id": "fairy-atomic", "file": "/engines/fairy"}
+        EngineProvider.profiles_by_id = {"script/turing": turing, "fairy-atomic": atomic}
+        EngineProvider.visible_profiles = [turing, atomic]
+
+        loaded = EngineProvider.set_favorite_ids('["fairy-atomic","missing","script/turing"]')
+
+        self.assertEqual(["fairy-atomic", "script/turing"], loaded)
+        self.assertEqual([atomic, turing], EngineProvider.favorite_profiles)
+        self.assertEqual('["fairy-atomic","script/turing"]', EngineProvider.serialized_favorite_ids())
+
+        self.assertTrue(EngineProvider.set_favorite("fairy-atomic", False))
+        self.assertTrue(EngineProvider.set_favorite("fairy-atomic", True))
+        self.assertEqual(["script/turing", "fairy-atomic"], EngineProvider.favorite_profile_ids)
+
+    def test_hidden_legacy_profile_cannot_be_favorited(self):
+        legacy = {"profile_id": "fairy", "file": "/engines/fairy", "hidden": True}
+        EngineProvider.profiles_by_id = {"fairy": legacy}
+        EngineProvider.visible_profiles = []
+        EngineProvider.favorite_profile_ids = []
+
+        self.assertFalse(EngineProvider.set_favorite("fairy", True))
+        self.assertFalse(EngineProvider.set_favorite("missing", True))
+        self.assertEqual([], EngineProvider.favorite_profile_ids)
+
+        self.assertEqual([], EngineProvider.set_favorite_ids('["fairy"]'))
+
+    def test_legacy_fairy_level_migrates_to_shared_binary_profile(self):
+        legacy = {"profile_id": "fairy", "file": "/engines/fairy"}
+        atomic = {
+            "profile_id": "fairy-atomic",
+            "file": "/engines/fairy",
+            "variant": "atomic",
+        }
+        EngineProvider.variant_engines = [atomic]
+
+        self.assertIs(atomic, EngineProvider.migrate_legacy_fairy_profile(legacy, "Atomic@1500"))
+        self.assertIs(legacy, EngineProvider.migrate_legacy_fairy_profile(legacy, "Unknown@1500"))
+
+    def test_level_names_sort_numeric_suffixes_numerically(self):
+        profile = {"level_dict": {"Atomic@2000": {}, "Atomic@900": {}, "Atomic@1000": {}}}
+
+        self.assertEqual(
+            ["Atomic@900", "Atomic@1000", "Atomic@2000"],
+            EngineProvider.level_names(profile),
+        )
+
+    def test_known_unavailable_favorite_can_be_removed_but_not_added(self):
+        unavailable = {
+            "profile_id": "fairy-atomic",
+            "file": "/engines/fairy",
+            "available": False,
+        }
+        EngineProvider.profiles_by_id = {"fairy-atomic": unavailable}
+        EngineProvider.visible_profiles = []
+        EngineProvider.favorite_profile_ids = ["fairy-atomic"]
+        EngineProvider._refresh_favorite_profiles()
+
+        self.assertTrue(EngineProvider.set_favorite("fairy-atomic", False))
+        self.assertFalse(EngineProvider.set_favorite("fairy-atomic", True))
 
 
 if __name__ == "__main__":

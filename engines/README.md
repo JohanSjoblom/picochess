@@ -28,6 +28,31 @@ In case of rodent_III you must also make sure the engine is running in "SHOW_OPT
 The order of sections in yr_engine_name.uci or engines.ini decides the order for the menu. Also the first 8 sections are used for the queen fields for quick selection.
 So please sort the sections as you want them to be. The "./build/*.py" files, trying to do the best they can to have a reasonable first configuration.
 
+Engine catalogs and profiles
+============================
+
+Engine packages may provide ``engines.ini`` (Modern), ``nnue.ini``,
+``retro.ini``, ``special.ini``, and ``variants.ini``. The old name
+``favorites.ini`` is accepted only as a compatibility fallback for the static
+Special catalog. User favorites are stored as ordered profile IDs in
+``picochess.ini`` and never form a catalog file.
+
+The section name is a stable profile ID. Optional ``file`` and ``uci`` keys let
+several profiles share one executable while using separate managed sidecars.
+Profile IDs, including IDs containing ``/``, must not be renamed after release.
+Managed variant sidecars and ``variants.ini`` are shipped in the engine package;
+the generic build generator may create ``fairy.uci`` but does not create or
+overwrite those profile files.
+
+Favorite/profile state is handled as follows:
+
+| State | Stored configuration | Menus | Selection request |
+|---|---|---|---|
+| Profile ID no longer exists | Ignored and removed on the next favorites write | Not shown | Unknown ID is rejected |
+| Known and available | Kept | Shown normally; may be starred or unstarred | Starts through its source-category route |
+| Known but binary or managed `.uci` missing | Kept | Shown only in Favorites so it can be unstarred | Rejected as unavailable |
+| Hidden legacy profile such as combined `fairy` | Ignored as a favorite | Never shown | Cannot be starred |
+
 If you have problems please don't hassitate to contact me over eMail or gitter.
 
 LocutusOfPenguin

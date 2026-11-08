@@ -106,9 +106,9 @@ async def _last_move_message() -> dict:
     return await asyncio.to_thread(_request_json, "/dgt", {"action": "get_last_move"})
 
 
-async def _post_channel_action(params: dict[str, str]) -> None:
+async def _post_channel_action(params: dict[str, str]) -> dict:
     """Send a /channel action, as the web client's buttons and board do."""
-    await asyncio.to_thread(_request_json, "/channel", params, True)
+    return await asyncio.to_thread(_request_json, "/channel", params, True)
 
 
 async def _wait_until(fetch, accepts, what: str, timeout: float | None = None) -> dict:
@@ -531,8 +531,7 @@ async def _engine_catalog() -> list[dict]:
     payload = await asyncio.to_thread(_request_json, "/info", {"action": "get_engines"})
     engines: dict[str, dict] = {}
     for engine in payload.get("engines") or []:
-        # The Special (favorites) list repeats engines from the other lists.
-        engines.setdefault(engine.get("file", ""), engine)
+        engines.setdefault(engine.get("profile_id") or engine.get("file", ""), engine)
     return list(engines.values())
 
 
@@ -593,7 +592,13 @@ async def list_engines() -> dict[str, Any]:
         open_world_hint=False,
     )
 )
-async def set_engine(engine: str | None = None, level: str | None = None) -> dict[str, str | int]:
+async def set_engine(
+    engine: str | None = None,
+    level: str | None = None,
+    confirm_variant_switch: bool = False,
+    game_generation: int = -1,
+    context_fingerprint: str = "",
+) -> dict[str, Any]:
     """Change PicoChess's engine, its playing strength, or both, like the web client's Engine menu.
 
     engine is an engine name from list_engines, or a unique part of it; leave
@@ -601,7 +606,9 @@ async def set_engine(engine: str | None = None, level: str | None = None) -> dic
     name such as "Elo@1800", or just its number, "1800"; leave it out to use
     the engine's default strength. A game in progress continues with the new
     engine, except that a retro engine (an emulated chess computer) starts a
-    new game: ask the user first when a game is in progress. If the engine is
+    new game. A destructive variant change first returns confirmation_required,
+    game_generation, and context_fingerprint. Ask the user, then repeat with
+    confirm_variant_switch=true and those exact values. If the engine is
     thinking, its move is dropped and the user becomes the side to move, as
     after other interruptions of the game; tell the user, and use play_as to
     let the engine move with the new settings.
@@ -611,14 +618,38 @@ async def set_engine(engine: str | None = None, level: str | None = None) -> dic
     engines = await _engine_catalog()
     settings = await _current_settings()
     if engine is None:
-        target = next((e for e in engines if e.get("file") == settings.get("engine_file")), None)
+        target = next(
+            (
+                e
+                for e in engines
+                if e.get("profile_id") == settings.get("engine_profile")
+                or (not settings.get("engine_profile") and e.get("file") == settings.get("engine_file"))
+            ),
+            None,
+        )
         if target is None:
             raise ToolError("PicoChess has not reported its current engine. Name the engine to use.")
     else:
         target = _find_engine(engines, engine)
     level_name = _find_level(target, level) if level is not None else ""
 
-    await _post_channel_action({"action": "new_engine", "file": target["file"], "level": level_name})
+    request = {
+        "action": "new_engine",
+        "profile_id": target.get("profile_id", ""),
+        "file": target["file"],
+        "level": level_name,
+    }
+    if confirm_variant_switch:
+        request.update(
+            {
+                "confirmed": "true",
+                "game_generation": str(game_generation),
+                "context_fingerprint": context_fingerprint,
+            }
+        )
+    response = await _post_channel_action(request)
+    if response.get("confirmation_required"):
+        return response
 
     # PicoChess restarts the engine even for a new level, and reports the selection before the
     # engine is ready. When it is, system information briefly shows the engine's catalog Elo,
@@ -634,7 +665,9 @@ async def set_engine(engine: str | None = None, level: str | None = None) -> dic
     def ready(state: tuple[dict, dict]) -> bool:
         nonlocal ready_since
         current, info = state
-        if current.get("engine_file") != target["file"] or (current.get("engine_level") or "") != level_name:
+        if current.get("engine_profile") != target.get("profile_id") or (
+            current.get("engine_level") or ""
+        ) != level_name:
             return False
         if info.get("engine_name") in (None, "", "NN"):
             return False

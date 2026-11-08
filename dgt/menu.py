@@ -131,6 +131,11 @@ class MenuState(object):
     ENG_MODERN_NAME = 610000
     ENG_MODERN_NAME_LEVEL = 611000
 
+    ENG_NNUE = 620000
+    ENG_NNUE_MANUFACTURER = 620500
+    ENG_NNUE_NAME = 621000
+    ENG_NNUE_NAME_LEVEL = 621100
+
     ENG_RETRO = 630000
     ENG_RETRO_MANUFACTURER = 630500
     ENG_RETRO_NAME = 631000
@@ -140,6 +145,18 @@ class MenuState(object):
     ENG_SPECIAL_MANUFACTURER = 650500
     ENG_SPECIAL_NAME = 651000
     ENG_SPECIAL_NAME_LEVEL = 651100
+
+    ENG_VARIANTS = 670000
+    ENG_VARIANTS_MANUFACTURER = 670500
+    ENG_VARIANTS_NAME = 671000
+    ENG_VARIANTS_NAME_LEVEL = 671100
+
+    ENG_FAVORITES = 680000
+    ENG_FAVORITES_MANUFACTURER = 680500
+    ENG_FAVORITES_NAME = 681000
+    ENG_FAVORITES_NAME_LEVEL = 681100
+    ENG_FAVORITE_PROMPT = 690000
+    ENG_VARIANT_CONFIRM = 690100
 
     RETROSETTINGS = 660000
     RETROSETTINGS_RETROWINDOW = 665000
@@ -287,6 +304,7 @@ class DgtMenu(object):
         brain_reveal_text: bool = True,
         brain_hint_countdown: bool = False,
         audio_backend: str = "sox",
+        engine_fav_prompt: bool = True,
     ):
         super(DgtMenu, self).__init__()
 
@@ -295,6 +313,13 @@ class DgtMenu(object):
         self.menu_system_display_rolldispbrain = rol_disp_brain
 
         self.menu_system_display_enginename = show_enginename
+        self.engine_fav_prompt = engine_fav_prompt
+        self.pending_engine_category: str | None = None
+        self.pending_engine_profile: dict | None = None
+        self.pending_engine_favorite = False
+        self.favorite_changed = False
+        self.pending_variant_event = None
+        self.pending_variant_confirm = False
 
         self.menu_picotutor = PicoTutor.WATCHER
         self.menu_picotutor_picowatcher = picowatcher
@@ -354,6 +379,10 @@ class DgtMenu(object):
         self.menu_modern_engine_level = 0
         self.menu_modern_manufacturer_index = 0
         self.menu_modern_group_engine_index = 0
+        self.menu_nnue_engine_index = 0
+        self.menu_nnue_engine_level = 0
+        self.menu_nnue_manufacturer_index = 0
+        self.menu_nnue_group_engine_index = 0
         self.menu_retro_engine_index = 0  # index of the currently selected engine within installed retro engines
         self.menu_retro_engine_level = 0
         self.menu_retro_manufacturer_index = 0
@@ -362,6 +391,14 @@ class DgtMenu(object):
         self.menu_special_engine_level = 0
         self.menu_special_manufacturer_index = 0
         self.menu_special_group_engine_index = 0
+        self.menu_variants_engine_index = 0
+        self.menu_variants_engine_level = 0
+        self.menu_variants_manufacturer_index = 0
+        self.menu_variants_group_engine_index = 0
+        self.menu_favorites_engine_index = 0
+        self.menu_favorites_engine_level = 0
+        self.menu_favorites_manufacturer_index = 0
+        self.menu_favorites_group_engine_index = 0
         self.menu_engine = EngineTop.MODERN_ENGINE
 
         self.menu_book = 0
@@ -689,19 +726,28 @@ class DgtMenu(object):
         self.inside_room = False
         self.no_eboard_spinner_suppress_until = 0.0
 
-    def set_state_current_engine(self, current_engine_file_name: str):
-        """Set engine menu index to the one that contains the current engine file name"""
+    def set_state_current_engine(self, current_engine_file_name: str, profile_id: str | None = None):
+        """Set the menu selection by exact profile ID, with legacy file fallback."""
+        if not EngineProvider.installed_engines:
+            self.menu_engine_index = self.res_engine_index = 0
+            self.menu_engine = EngineTop.MODERN_ENGINE
+            self.state = MenuState.ENGINE
+            self.menu_top = Top.ENGINE
+            return
         for index, eng in enumerate(EngineProvider.installed_engines):
-            if eng["file"].endswith(current_engine_file_name):
+            same_profile = bool(profile_id) and eng.get("profile_id") == profile_id
+            same_file = not profile_id and eng["file"].endswith(current_engine_file_name)
+            if same_profile or same_file:
                 self.menu_engine_index = index
                 break
         self.res_engine_index = self.menu_engine_index
         current_engine = EngineProvider.installed_engines[self.menu_engine_index]
         self.state = MenuState.ENG_MODERN_NAME
         is_modern_engine = False
+        is_nnue_engine = False
         is_retro_engine = False
         for index, eng in enumerate(EngineProvider.modern_engines):
-            if current_engine["file"] == eng["file"]:
+            if current_engine.get("profile_id") == eng.get("profile_id"):
                 self.menu_modern_engine_index = index
                 self._sync_engine_group_selection("modern")
                 self.state = (
@@ -712,8 +758,21 @@ class DgtMenu(object):
                 self.menu_engine = EngineTop.MODERN_ENGINE
                 is_modern_engine = True
                 break
+        for index, eng in enumerate(EngineProvider.nnue_engines):
+            if current_engine.get("profile_id") == eng.get("profile_id"):
+                self.menu_nnue_engine_index = index
+                if not is_modern_engine:
+                    self._sync_engine_group_selection("nnue")
+                    self.state = (
+                        MenuState.ENG_NNUE_MANUFACTURER
+                        if EngineProvider.get_engine_groups(EngineProvider.nnue_engines)
+                        else MenuState.ENG_NNUE_NAME
+                    )
+                    self.menu_engine = EngineTop.NNUE_ENGINE
+                    is_nnue_engine = True
+                break
         for index, eng in enumerate(EngineProvider.retro_engines):
-            if current_engine["file"] == eng["file"]:
+            if current_engine.get("profile_id") == eng.get("profile_id"):
                 self.menu_retro_engine_index = index
                 self._sync_engine_group_selection("retro")
                 self.state = (
@@ -725,9 +784,9 @@ class DgtMenu(object):
                 is_retro_engine = True
                 break
         for index, eng in enumerate(EngineProvider.special_engines):
-            if current_engine["file"] == eng["file"]:
+            if current_engine.get("profile_id") == eng.get("profile_id"):
                 self.menu_special_engine_index = index
-                if not is_modern_engine and not is_retro_engine:
+                if not is_modern_engine and not is_nnue_engine and not is_retro_engine:
                     self._sync_engine_group_selection("special")
                     self.state = (
                         MenuState.ENG_SPECIAL_MANUFACTURER
@@ -736,12 +795,23 @@ class DgtMenu(object):
                     )
                     self.menu_engine = EngineTop.SPECIAL_ENGINE
                 break
+        for index, eng in enumerate(EngineProvider.variant_engines):
+            if current_engine.get("profile_id") == eng.get("profile_id"):
+                self.menu_variants_engine_index = index
+                self._sync_engine_group_selection("variants")
+                self.state = (
+                    MenuState.ENG_VARIANTS_MANUFACTURER
+                    if EngineProvider.get_engine_groups(EngineProvider.variant_engines)
+                    else MenuState.ENG_VARIANTS_NAME
+                )
+                self.menu_engine = EngineTop.VARIANTS_ENGINE
+                break
         self.menu_top = Top.ENGINE
 
     def set_engine_menu_sort(self, sort_order: str) -> str:
         """Apply a live presentation-order change while retaining each engine index."""
         selected_sort = EngineProvider.set_engine_menu_sort(sort_order)
-        for category in ("modern", "retro", "special"):
+        for category in ("modern", "nnue", "retro", "special", "variants"):
             self._sync_engine_group_selection(category)
         return selected_sort
 
@@ -890,8 +960,11 @@ class DgtMenu(object):
     def _engine_catalog(category: str):
         return {
             "modern": EngineProvider.modern_engines,
+            "nnue": EngineProvider.nnue_engines,
             "retro": EngineProvider.retro_engines,
             "special": EngineProvider.special_engines,
+            "variants": EngineProvider.variant_engines,
+            "favorites": EngineProvider.favorite_profiles,
         }[category]
 
     @staticmethod
@@ -1140,10 +1213,16 @@ class DgtMenu(object):
         self.res_engine_level = self.menu_engine_level = level
         if self.menu_engine == EngineTop.MODERN_ENGINE:
             self.menu_modern_engine_level = level
+        if self.menu_engine == EngineTop.NNUE_ENGINE:
+            self.menu_nnue_engine_level = level
         if self.menu_engine == EngineTop.RETRO_ENGINE:
             self.menu_retro_engine_level = level
         if self.menu_engine == EngineTop.SPECIAL_ENGINE:
             self.menu_special_engine_level = level
+        if self.menu_engine == EngineTop.VARIANTS_ENGINE:
+            self.menu_variants_engine_level = level
+        if self.menu_engine == EngineTop.FAVORITES_ENGINE:
+            self.menu_favorites_engine_level = level
 
     def set_enginename(self, showname: bool):
         """Set the flag."""
@@ -1751,6 +1830,10 @@ class DgtMenu(object):
         text = self.dgttranslate.text(EngineTop.MODERN_ENGINE.value)
         return text
 
+    def enter_nnue_eng_menu(self):
+        self.state = MenuState.ENG_NNUE
+        return self.dgttranslate.text(EngineTop.NNUE_ENGINE.value)
+
     def enter_retro_eng_menu(self):
         """Set the menu state."""
         self.state = MenuState.ENG_RETRO
@@ -1779,6 +1862,11 @@ class DgtMenu(object):
         self._sync_engine_group_selection("modern")
         return self._get_current_engine_manufacturer_name("modern")
 
+    def enter_eng_nnue_manufacturer_menu(self):
+        self.state = MenuState.ENG_NNUE_MANUFACTURER
+        self._sync_engine_group_selection("nnue")
+        return self._get_current_engine_manufacturer_name("nnue")
+
     def _get_current_retro_manufacturer_name(self):
         """Backward-compatible Retro manufacturer text helper."""
         return self._get_current_engine_manufacturer_name("retro")
@@ -1795,14 +1883,32 @@ class DgtMenu(object):
         self._sync_engine_group_selection("special")
         return self._get_current_engine_manufacturer_name("special")
 
+    def enter_eng_variants_manufacturer_menu(self):
+        self.state = MenuState.ENG_VARIANTS_MANUFACTURER
+        self._sync_engine_group_selection("variants")
+        return self._get_current_engine_manufacturer_name("variants")
+
     def enter_special_eng_menu(self):
         """Set the menu state."""
         self.state = MenuState.ENG_SPECIAL
         text = self.dgttranslate.text(EngineTop.SPECIAL_ENGINE.value)
         return text
 
+    def enter_variants_eng_menu(self):
+        self.state = MenuState.ENG_VARIANTS
+        return self.dgttranslate.text(EngineTop.VARIANTS_ENGINE.value)
+
+    def enter_favorites_eng_menu(self):
+        self.state = MenuState.ENG_FAVORITES
+        return self.dgttranslate.text(EngineTop.FAVORITES_ENGINE.value)
+
     def _get_current_modern_engine_name(self):
         text = EngineProvider.modern_engines[self.menu_modern_engine_index]["text"]
+        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
+        return text
+
+    def _get_current_nnue_engine_name(self):
+        text = EngineProvider.nnue_engines[self.menu_nnue_engine_index]["text"]
         text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
         return text
 
@@ -1813,6 +1919,11 @@ class DgtMenu(object):
 
     def _get_current_special_engine_name(self):
         text = EngineProvider.special_engines[self.menu_special_engine_index]["text"]
+        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
+        return text
+
+    def _get_current_variants_engine_name(self):
+        text = EngineProvider.variant_engines[self.menu_variants_engine_index]["text"]
         text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
         return text
 
@@ -1827,6 +1938,10 @@ class DgtMenu(object):
         self.state = MenuState.ENG_MODERN_NAME
         return self._get_current_modern_engine_name()
 
+    def enter_eng_nnue_name_menu(self):
+        self.state = MenuState.ENG_NNUE_NAME
+        return self._get_current_nnue_engine_name()
+
     def enter_eng_retro_name_menu(self):
         """Set the menu state."""
         self.state = MenuState.ENG_RETRO_NAME
@@ -1837,59 +1952,290 @@ class DgtMenu(object):
         self.state = MenuState.ENG_SPECIAL_NAME
         return self._get_current_special_engine_name()
 
-    def enter_modern_eng_name_level_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.ENG_MODERN_NAME_LEVEL
-        eng = EngineProvider.installed_engines[self.menu_modern_engine_index]
-        level_dict = eng["level_dict"]
+    def enter_eng_variants_name_menu(self):
+        self.state = MenuState.ENG_VARIANTS_NAME
+        return self._get_current_variants_engine_name()
+
+    @staticmethod
+    def _installed_profile_index(profile: dict) -> int:
+        profile_id = profile.get("profile_id")
+        for index, installed in enumerate(EngineProvider.installed_engines):
+            if installed.get("profile_id") == profile_id:
+                return index
+        raise ValueError(f"profile is not installed: {profile_id}")
+
+    def _enter_engine_level_menu(self, category: str, state: MenuState):
+        self.state = state
+        catalog = self._engine_catalog(category)
+        engine_index = getattr(self, f"menu_{category}_engine_index")
+        level_attr = f"menu_{category}_engine_level"
+        level_index = getattr(self, level_attr)
+        profile = catalog[engine_index]
+        level_dict = profile["level_dict"]
         if level_dict:
-            if self.menu_modern_engine_level is None or len(level_dict) <= self.menu_modern_engine_level:
-                self.menu_modern_engine_level = len(level_dict) - 1
-            msg = sorted(level_dict)[self.menu_modern_engine_level]
-            text = self.dgttranslate.text("B00_level", msg)
-        else:
-            self.res_engine_index = self.menu_modern_engine_index
-            self.res_engine_level = self.menu_modern_engine_level
-            text = self.save_choices()
-        return text
+            if level_index is None or len(level_dict) <= level_index:
+                level_index = len(level_dict) - 1
+                setattr(self, level_attr, level_index)
+            return self.dgttranslate.text("B00_level", EngineProvider.level_names(profile)[level_index])
+        self.res_engine_index = self.menu_engine_index = self._installed_profile_index(profile)
+        self.res_engine_level = level_index
+        return self.save_choices()
+
+    def enter_nnue_eng_name_level_menu(self):
+        return self._enter_engine_level_menu("nnue", MenuState.ENG_NNUE_NAME_LEVEL)
+
+    def enter_variants_eng_name_level_menu(self):
+        return self._enter_engine_level_menu("variants", MenuState.ENG_VARIANTS_NAME_LEVEL)
+
+    def enter_modern_eng_name_level_menu(self):
+        return self._enter_engine_level_menu("modern", MenuState.ENG_MODERN_NAME_LEVEL)
 
     def enter_retro_eng_name_level_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.ENG_RETRO_NAME_LEVEL
-        retro_eng = EngineProvider.retro_engines[self.menu_retro_engine_index]
-        retro_level_dict = retro_eng["level_dict"]
-        if retro_level_dict:
-            if self.menu_retro_engine_level is None or len(retro_level_dict) <= self.menu_retro_engine_level:
-                self.menu_retro_engine_level = len(retro_level_dict) - 1
-            msg = sorted(retro_level_dict)[self.menu_retro_engine_level]
-            text = self.dgttranslate.text("B00_level", msg)
-        else:
-            self.res_engine_index = self.menu_engine_index = (
-                len(EngineProvider.modern_engines) + self.menu_retro_engine_index
-            )
-            self.res_engine_level = self.menu_retro_engine_level
-            text = self.save_choices()
-        return text
+        return self._enter_engine_level_menu("retro", MenuState.ENG_RETRO_NAME_LEVEL)
 
     def enter_special_eng_name_level_menu(self):
-        """Set the menu state."""
-        self.state = MenuState.ENG_SPECIAL_NAME_LEVEL
-        special_eng = EngineProvider.special_engines[self.menu_special_engine_index]
-        special_level_dict = special_eng["level_dict"]
-        if special_level_dict:
-            if self.menu_special_engine_level is None or len(special_level_dict) <= self.menu_special_engine_level:
-                self.menu_special_engine_level = len(special_level_dict) - 1
-            msg = sorted(special_level_dict)[self.menu_special_engine_level]
-            text = self.dgttranslate.text("B00_level", msg)
-        else:
-            self.res_engine_index = self.menu_engine_index
-            self.res_engine_level = self.menu_engine_level
-            text = self.save_choices()
-        return text
+        return self._enter_engine_level_menu("special", MenuState.ENG_SPECIAL_NAME_LEVEL)
 
     def enter_engine_menu(self):
         self.state = MenuState.ENGINE
         return self.dgttranslate.text(Top.ENGINE.value)
+
+    @staticmethod
+    def _engine_top_state(item: EngineTop) -> MenuState:
+        return {
+            EngineTop.MODERN_ENGINE: MenuState.ENG_MODERN,
+            EngineTop.NNUE_ENGINE: MenuState.ENG_NNUE,
+            EngineTop.RETRO_ENGINE: MenuState.ENG_RETRO,
+            EngineTop.RETROSETTINGS: MenuState.RETROSETTINGS,
+            EngineTop.SPECIAL_ENGINE: MenuState.ENG_SPECIAL,
+            EngineTop.VARIANTS_ENGINE: MenuState.ENG_VARIANTS,
+            EngineTop.FAVORITES_ENGINE: MenuState.ENG_FAVORITES,
+        }[item]
+
+    @staticmethod
+    def _engine_top_available(item: EngineTop) -> bool:
+        catalogs = {
+            EngineTop.MODERN_ENGINE: EngineProvider.modern_engines,
+            EngineTop.NNUE_ENGINE: EngineProvider.nnue_engines,
+            EngineTop.RETRO_ENGINE: EngineProvider.retro_engines,
+            EngineTop.SPECIAL_ENGINE: EngineProvider.special_engines,
+            EngineTop.VARIANTS_ENGINE: EngineProvider.variant_engines,
+            EngineTop.FAVORITES_ENGINE: EngineProvider.favorite_profiles,
+        }
+        return item == EngineTop.RETROSETTINGS or bool(catalogs[item])
+
+    def _step_engine_top(self, direction: int):
+        candidate = self.menu_engine
+        for _ in EngineTop.items():
+            candidate = EngineTopLoop.next(candidate) if direction > 0 else EngineTopLoop.prev(candidate)
+            if self._engine_top_available(candidate):
+                self.menu_engine = candidate
+                self.state = self._engine_top_state(candidate)
+                return self.dgttranslate.text(candidate.value)
+        self.state = MenuState.ENGINE
+        return self.dgttranslate.text("N00_noengine")
+
+    @staticmethod
+    def _engine_category_states(category: str):
+        return {
+            "modern": (
+                MenuState.ENG_MODERN,
+                MenuState.ENG_MODERN_MANUFACTURER,
+                MenuState.ENG_MODERN_NAME,
+                MenuState.ENG_MODERN_NAME_LEVEL,
+            ),
+            "nnue": (
+                MenuState.ENG_NNUE,
+                MenuState.ENG_NNUE_MANUFACTURER,
+                MenuState.ENG_NNUE_NAME,
+                MenuState.ENG_NNUE_NAME_LEVEL,
+            ),
+            "retro": (
+                MenuState.ENG_RETRO,
+                MenuState.ENG_RETRO_MANUFACTURER,
+                MenuState.ENG_RETRO_NAME,
+                MenuState.ENG_RETRO_NAME_LEVEL,
+            ),
+            "special": (
+                MenuState.ENG_SPECIAL,
+                MenuState.ENG_SPECIAL_MANUFACTURER,
+                MenuState.ENG_SPECIAL_NAME,
+                MenuState.ENG_SPECIAL_NAME_LEVEL,
+            ),
+            "variants": (
+                MenuState.ENG_VARIANTS,
+                MenuState.ENG_VARIANTS_MANUFACTURER,
+                MenuState.ENG_VARIANTS_NAME,
+                MenuState.ENG_VARIANTS_NAME_LEVEL,
+            ),
+            "favorites": (
+                MenuState.ENG_FAVORITES,
+                MenuState.ENG_FAVORITES_MANUFACTURER,
+                MenuState.ENG_FAVORITES_NAME,
+                MenuState.ENG_FAVORITES_NAME_LEVEL,
+            ),
+        }[category]
+
+    @classmethod
+    def _engine_category_for_state(cls, state: MenuState) -> str | None:
+        for category in ("modern", "nnue", "retro", "special", "variants", "favorites"):
+            if state in cls._engine_category_states(category):
+                return category
+        return None
+
+    def _enter_engine_name(self, category: str):
+        state = self._engine_category_states(category)[2]
+        self.state = state
+        catalog = self._engine_catalog(category)
+        index = getattr(self, f"menu_{category}_engine_index")
+        text = catalog[index]["text"]
+        text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
+        return text
+
+    async def _engine_category_down(self, category: str):
+        top_state, manufacturer_state, name_state, level_state = self._engine_category_states(category)
+        catalog = self._engine_catalog(category)
+        engine_index_attr = f"menu_{category}_engine_index"
+        level_index_attr = f"menu_{category}_engine_level"
+        if self.state == top_state:
+            if EngineProvider.get_engine_groups(catalog):
+                self.state = manufacturer_state
+                self._sync_engine_group_selection(category)
+                return self._get_current_engine_manufacturer_name(category)
+            return self._enter_engine_name(category)
+        if self.state == manufacturer_state:
+            self._select_first_engine_in_group(category)
+            return self._enter_engine_name(category)
+        profile = catalog[getattr(self, engine_index_attr)]
+        if self.state == name_state:
+            if self.engine_fav_prompt:
+                self.pending_engine_category = category
+                self.pending_engine_profile = profile
+                self.pending_engine_favorite = profile.get("profile_id") in EngineProvider.favorite_profile_ids
+                self.state = MenuState.ENG_FAVORITE_PROMPT
+                text_id = "B00_engine_favorite_yes" if self.pending_engine_favorite else "B00_engine_favorite_no"
+                return self.dgttranslate.text(text_id)
+            if not profile.get("available", True):
+                self.exit_menu()
+                return self.dgttranslate.text("Y10_erroreng")
+            text = self._enter_engine_level_menu(category, level_state)
+            if text:
+                return text
+            await Observable.fire(
+                Event.LEVEL(options={}, level_text=self.dgttranslate.text("N07_default", ""), level_name="")
+            )
+            await Observable.fire(
+                Event.NEW_ENGINE(
+                    eng=profile,
+                    eng_text=self.dgttranslate.text("B10_okengine"),
+                    options={},
+                    show_ok=True,
+                )
+            )
+            self.engine_restart = True
+            return text
+        level_dict = profile["level_dict"]
+        level_index = getattr(self, level_index_attr)
+        if level_dict:
+            level_name = EngineProvider.level_names(profile)[level_index]
+            options = level_dict[level_name]
+            await Observable.fire(
+                Event.LEVEL(
+                    options={},
+                    level_text=self.dgttranslate.text("B10_level", level_name),
+                    level_name=level_name,
+                )
+            )
+        else:
+            options = {}
+        event = Event.NEW_ENGINE(
+            eng=profile,
+            eng_text=self.dgttranslate.text("B10_okengine"),
+            options=options,
+            show_ok=True,
+        )
+        text = await self._fire_event(event)
+        self.engine_restart = True
+        self.res_engine_index = self.menu_engine_index = self._installed_profile_index(profile)
+        self.res_engine_level = level_index
+        return text
+
+    def _favorite_prompt_text(self):
+        text_id = "B00_engine_favorite_yes" if self.pending_engine_favorite else "B00_engine_favorite_no"
+        return self.dgttranslate.text(text_id)
+
+    def _cancel_favorite_prompt(self):
+        category = self.pending_engine_category or "modern"
+        self.pending_engine_category = None
+        self.pending_engine_profile = None
+        return self._enter_engine_name(category)
+
+    def _confirm_favorite_prompt(self):
+        profile = self.pending_engine_profile
+        if profile is None:
+            return self.enter_engine_menu()
+        before = list(EngineProvider.favorite_profile_ids)
+        EngineProvider.set_favorite(str(profile.get("profile_id", "")), self.pending_engine_favorite)
+        self.favorite_changed = before != EngineProvider.favorite_profile_ids
+        if self.favorite_changed:
+            write_picochess_ini("engine-favorites", EngineProvider.serialized_favorite_ids())
+        if not profile.get("available", True):
+            self.pending_engine_category = None
+            self.pending_engine_profile = None
+            self.exit_menu()
+            return self.dgttranslate.text("Y10_erroreng")
+        source_category = str(profile.get("source_category", self.pending_engine_category or "modern"))
+        catalog = self._engine_catalog(source_category)
+        source_index = next(
+            index for index, item in enumerate(catalog) if item.get("profile_id") == profile.get("profile_id")
+        )
+        setattr(self, f"menu_{source_category}_engine_index", source_index)
+        self.menu_engine = {
+            "modern": EngineTop.MODERN_ENGINE,
+            "nnue": EngineTop.NNUE_ENGINE,
+            "retro": EngineTop.RETRO_ENGINE,
+            "special": EngineTop.SPECIAL_ENGINE,
+            "variants": EngineTop.VARIANTS_ENGINE,
+        }[source_category]
+        self.pending_engine_category = None
+        self.pending_engine_profile = None
+        level_state = self._engine_category_states(source_category)[3]
+        return self._enter_engine_level_menu(source_category, level_state)
+
+    def begin_variant_confirmation(self, event, game_generation: int, context_fingerprint: str):
+        """Pause a DGT engine selection on the existing New Game yes/no question."""
+        event.game_generation = game_generation
+        event.context_fingerprint = context_fingerprint
+        self.pending_variant_event = event
+        self.pending_variant_confirm = False
+        self.state = MenuState.ENG_VARIANT_CONFIRM
+        return self.dgttranslate.text("B00_game_new_no")
+
+    def _cancel_variant_confirmation(self):
+        event = self.pending_variant_event
+        self.pending_variant_event = None
+        self.pending_variant_confirm = False
+        if event is None:
+            return self.enter_engine_menu()
+        category = str(event.eng.get("source_category", "modern"))
+        return self._enter_engine_name(category)
+
+    def _step_engine_category(self, category: str, direction: int):
+        _, manufacturer_state, name_state, level_state = self._engine_category_states(category)
+        if self.state == manufacturer_state:
+            self._step_engine_manufacturer(category, direction)
+            return self._get_current_engine_manufacturer_name(category)
+        if self.state == name_state:
+            self._step_engine_in_group(category, direction)
+            return self._enter_engine_name(category)
+        catalog = self._engine_catalog(category)
+        engine_index = getattr(self, f"menu_{category}_engine_index")
+        level_attr = f"menu_{category}_engine_level"
+        level_dict = catalog[engine_index]["level_dict"]
+        level_index = (getattr(self, level_attr) + direction) % len(level_dict)
+        setattr(self, level_attr, level_index)
+        self.state = level_state
+        return self.dgttranslate.text("B00_level", EngineProvider.level_names(catalog[engine_index])[level_index])
 
     def enter_sys_menu(self):
         """Set the menu state."""
@@ -2347,6 +2693,12 @@ class DgtMenu(object):
         elif self.state == MenuState.ENGINE:
             text = self.enter_top_menu()
 
+        elif self.state == MenuState.ENG_FAVORITE_PROMPT:
+            text = self._cancel_favorite_prompt()
+
+        elif self.state == MenuState.ENG_VARIANT_CONFIRM:
+            text = self._cancel_variant_confirmation()
+
         elif self.state == MenuState.ENG_MODERN:
             text = self.enter_engine_menu()
 
@@ -2361,6 +2713,21 @@ class DgtMenu(object):
 
         elif self.state == MenuState.ENG_MODERN_NAME_LEVEL:
             text = self.enter_eng_modern_name_menu()
+
+        elif self.state == MenuState.ENG_NNUE:
+            text = self.enter_engine_menu()
+
+        elif self.state == MenuState.ENG_NNUE_MANUFACTURER:
+            text = self.enter_nnue_eng_menu()
+
+        elif self.state == MenuState.ENG_NNUE_NAME:
+            if EngineProvider.get_engine_groups(EngineProvider.nnue_engines):
+                text = self.enter_eng_nnue_manufacturer_menu()
+            else:
+                text = self.enter_nnue_eng_menu()
+
+        elif self.state == MenuState.ENG_NNUE_NAME_LEVEL:
+            text = self.enter_eng_nnue_name_menu()
 
         elif self.state == MenuState.ENG_RETRO:
             text = self.enter_engine_menu()
@@ -2391,6 +2758,37 @@ class DgtMenu(object):
 
         elif self.state == MenuState.ENG_SPECIAL_NAME_LEVEL:
             text = self.enter_eng_special_name_menu()
+
+        elif self.state == MenuState.ENG_VARIANTS:
+            text = self.enter_engine_menu()
+
+        elif self.state == MenuState.ENG_VARIANTS_MANUFACTURER:
+            text = self.enter_variants_eng_menu()
+
+        elif self.state == MenuState.ENG_VARIANTS_NAME:
+            if EngineProvider.get_engine_groups(EngineProvider.variant_engines):
+                text = self.enter_eng_variants_manufacturer_menu()
+            else:
+                text = self.enter_variants_eng_menu()
+
+        elif self.state == MenuState.ENG_VARIANTS_NAME_LEVEL:
+            text = self.enter_eng_variants_name_menu()
+
+        elif self.state == MenuState.ENG_FAVORITES:
+            text = self.enter_engine_menu()
+
+        elif self.state == MenuState.ENG_FAVORITES_MANUFACTURER:
+            text = self.enter_favorites_eng_menu()
+
+        elif self.state == MenuState.ENG_FAVORITES_NAME:
+            if EngineProvider.get_engine_groups(EngineProvider.favorite_profiles):
+                self.state = MenuState.ENG_FAVORITES_MANUFACTURER
+                text = self._get_current_engine_manufacturer_name("favorites")
+            else:
+                text = self.enter_favorites_eng_menu()
+
+        elif self.state == MenuState.ENG_FAVORITES_NAME_LEVEL:
+            text = self._enter_engine_name("favorites")
 
         elif self.state == MenuState.RETROSETTINGS:
             text = self.enter_engine_menu()
@@ -3127,6 +3525,26 @@ class DgtMenu(object):
             event = Event.SET_OPENING_BOOK(book=self.all_books[self.menu_book], book_text=book_text, show_ok=True)
             text = await self._fire_event(event)
 
+        elif self.state == MenuState.ENG_FAVORITE_PROMPT:
+            text = self._confirm_favorite_prompt()
+            if self.favorite_changed:
+                await Observable.fire(Event.ENGINE_FAVORITES(profile_ids=list(EngineProvider.favorite_profile_ids)))
+
+        elif self.state == MenuState.ENG_VARIANT_CONFIRM:
+            event = self.pending_variant_event
+            confirmed = self.pending_variant_confirm
+            if confirmed and event is not None:
+                self.pending_variant_event = None
+                self.pending_variant_confirm = False
+                event.confirmed = True
+                await Observable.fire(event)
+                text = self.dgttranslate.text("B10_okgamenew")
+            else:
+                text = self._cancel_variant_confirmation()
+
+        elif (engine_category := self._engine_category_for_state(self.state)) is not None:
+            text = await self._engine_category_down(engine_category)
+
         elif self.state == MenuState.ENG_MODERN:
             if EngineProvider.get_engine_groups(EngineProvider.modern_engines):
                 text = self.enter_eng_modern_manufacturer_menu()
@@ -3330,12 +3748,18 @@ class DgtMenu(object):
         elif self.state == MenuState.ENGINE:
             if self.menu_engine == EngineTop.MODERN_ENGINE:
                 text = self.enter_modern_eng_menu()
+            elif self.menu_engine == EngineTop.NNUE_ENGINE:
+                text = self.enter_nnue_eng_menu()
             elif self.menu_engine == EngineTop.RETRO_ENGINE:
                 text = self.enter_retro_eng_menu()
             elif self.menu_engine == EngineTop.RETROSETTINGS:
                 text = self.enter_retrosettings_menu()
             elif self.menu_engine == EngineTop.SPECIAL_ENGINE:
                 text = self.enter_special_eng_menu()
+            elif self.menu_engine == EngineTop.VARIANTS_ENGINE:
+                text = self.enter_variants_eng_menu()
+            elif self.menu_engine == EngineTop.FAVORITES_ENGINE:
+                text = self.enter_favorites_eng_menu()
 
         elif self.state == MenuState.SYS:
             # System menu: add new submenus by extending System enum/items,
@@ -4082,10 +4506,34 @@ class DgtMenu(object):
             self.menu_top = TopLoop.prev(self.menu_top)
             text = self.dgttranslate.text(self.menu_top.value)
 
-        elif self.state == MenuState.ENG_MODERN:
-            self.state = MenuState.ENG_SPECIAL
-            self.menu_engine = EngineTopLoop.prev(self.menu_engine)
-            text = self.dgttranslate.text(self.menu_engine.value)
+        elif self.state == MenuState.ENG_FAVORITE_PROMPT:
+            self.pending_engine_favorite = not self.pending_engine_favorite
+            text = self._favorite_prompt_text()
+
+        elif self.state == MenuState.ENG_VARIANT_CONFIRM:
+            self.pending_variant_confirm = not self.pending_variant_confirm
+            msg = "yes" if self.pending_variant_confirm else "no"
+            text = self.dgttranslate.text("B00_game_new_" + msg)
+
+        elif self.state in (
+            MenuState.ENG_MODERN,
+            MenuState.ENG_NNUE,
+            MenuState.ENG_RETRO,
+            MenuState.RETROSETTINGS,
+            MenuState.ENG_SPECIAL,
+            MenuState.ENG_VARIANTS,
+            MenuState.ENG_FAVORITES,
+        ):
+            text = self._step_engine_top(-1)
+
+        elif self.state in self._engine_category_states("nnue")[1:]:
+            text = self._step_engine_category("nnue", -1)
+
+        elif self.state in self._engine_category_states("variants")[1:]:
+            text = self._step_engine_category("variants", -1)
+
+        elif self.state in self._engine_category_states("favorites")[1:]:
+            text = self._step_engine_category("favorites", -1)
 
         elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
             self._step_engine_manufacturer("modern", -1)
@@ -4780,10 +5228,34 @@ class DgtMenu(object):
             self.menu_top = TopLoop.next(self.menu_top)
             text = self.dgttranslate.text(self.menu_top.value)
 
-        elif self.state == MenuState.ENG_MODERN:
-            self.state = MenuState.ENG_RETRO
-            self.menu_engine = EngineTopLoop.next(self.menu_engine)
-            text = self.dgttranslate.text(self.menu_engine.value)
+        elif self.state == MenuState.ENG_FAVORITE_PROMPT:
+            self.pending_engine_favorite = not self.pending_engine_favorite
+            text = self._favorite_prompt_text()
+
+        elif self.state == MenuState.ENG_VARIANT_CONFIRM:
+            self.pending_variant_confirm = not self.pending_variant_confirm
+            msg = "yes" if self.pending_variant_confirm else "no"
+            text = self.dgttranslate.text("B00_game_new_" + msg)
+
+        elif self.state in (
+            MenuState.ENG_MODERN,
+            MenuState.ENG_NNUE,
+            MenuState.ENG_RETRO,
+            MenuState.RETROSETTINGS,
+            MenuState.ENG_SPECIAL,
+            MenuState.ENG_VARIANTS,
+            MenuState.ENG_FAVORITES,
+        ):
+            text = self._step_engine_top(1)
+
+        elif self.state in self._engine_category_states("nnue")[1:]:
+            text = self._step_engine_category("nnue", 1)
+
+        elif self.state in self._engine_category_states("variants")[1:]:
+            text = self._step_engine_category("variants", 1)
+
+        elif self.state in self._engine_category_states("favorites")[1:]:
+            text = self._step_engine_category("favorites", 1)
 
         elif self.state == MenuState.ENG_MODERN_MANUFACTURER:
             self._step_engine_manufacturer("modern", 1)

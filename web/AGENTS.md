@@ -95,7 +95,8 @@ explicitly requires it.
 ## Engine Manufacturer Metadata
 
 - Parse strict `; Manufacturer: ...` directives in every engine INI catalog,
-  including `engines.ini`, `retro.ini`, `special.ini`, and future catalogs.
+  including `engines.ini`, `nnue.ini`, `retro.ini`, `special.ini`,
+  `variants.ini`, and future catalogs.
   Older packages may expose the Special catalog as `favorites.ini`; that name
   is a compatibility fallback, not the user's dynamic Favorites list.
 - Each engine category independently enables its manufacturer level when at
@@ -103,6 +104,9 @@ explicitly requires it.
   to `Other`.
 - If a category has no manufacturer metadata, preserve the previous flat list.
   Under engine or manufacturer sorting, that fallback list is alphabetical.
+- Favorites is an ordered filter over source profiles, not a second catalog.
+  Keep `category` as the source category and expose favorite state separately.
+  Stars must remain a separate touch target from engine selection.
 
 ## MAME Capability Visibility
 

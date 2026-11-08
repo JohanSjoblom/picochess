@@ -2378,8 +2378,11 @@
             }
             var _engCatDefs = [
                 { icon: '💻', labelKey: 'modern',    fallbackLabel: 'Modern',     value: 'modern'    },
+                { icon: '🧠', labelKey: 'nnue',      fallbackLabel: 'NNUE',       value: 'nnue'      },
                 { icon: '🕰️', labelKey: 'retro',     fallbackLabel: 'Retro',      value: 'retro'     },
                 { icon: '🧩', labelKey: 'special',   fallbackLabel: 'Special',    value: 'special'   },
+                { icon: '♞', labelKey: 'variants',  fallbackLabel: 'Variants',   value: 'variants'  },
+                { icon: '★', labelKey: 'favorites', fallbackLabel: 'Favorites',  value: 'favorites' },
                 { icon: '↕️', labelKey: 'sort',      fallbackLabel: 'Sort Order', value: 'sort'      },
                 { icon: 'ℹ️', labelKey: 'info',      fallbackLabel: 'Engine Info', value: 'info'     }
             ];
@@ -2433,6 +2436,15 @@
                     var btn = document.createElement('button');
                     var currentCategory = (window._picoCurrentSettings || {}).engine_category || '';
                     btn.className = 'pico-tile' + (cat.value === currentCategory ? ' selected' : '');
+                    var isCatalog = cat.value !== 'sort' && cat.value !== 'info';
+                    var isEmpty = isCatalog && window._picoEngineCatalogsLoaded
+                        && !_engAllData.some(function(eng) {
+                            return cat.value === 'favorites' ? eng.is_favorite : eng.category === cat.value;
+                        });
+                    if (isEmpty) {
+                        btn.disabled = true;
+                        btn.classList.add('disabled');
+                    }
                     var lEl = document.createElement('span'); lEl.className = 'pico-tile-label';
                     lEl.textContent = cat.icon + ' ' + _engineCatLabel(cat);
                     btn.appendChild(lEl);
@@ -2447,7 +2459,12 @@
                         infoSub.textContent = _mameCapabilitySummary();
                         btn.appendChild(infoSub);
                     }
-                    btn.addEventListener('click', function() {
+                    if (isEmpty) {
+                        var emptyEl = document.createElement('span');
+                        emptyEl.className = 'pico-tile-sub';
+                        emptyEl.textContent = menuKey('engine.no_engines');
+                        btn.appendChild(emptyEl);
+                    } else btn.addEventListener('click', function() {
                         if (cat.value === 'sort') {
                             navigateTo(showEngineSort);
                         } else if (cat.value === 'info') {
@@ -2598,7 +2615,7 @@
                         if (data.engine_menu_labels) setCurrentSetting('engine_menu_labels', data.engine_menu_labels);
                         if (!_engAllData.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">No engines found</div>'; return; }
                         var hasManufacturers = _engAllData.some(function(eng) {
-                            return (eng.category || '') === cat && Boolean(eng.manufacturer);
+                            return _engineInCategory(eng, cat) && Boolean(eng.manufacturer);
                         });
                         var isCurrentCategory = settings.engine_category === cat;
                         if (isCurrentCategory && !hasManufacturers) {
@@ -2619,23 +2636,29 @@
                 document.getElementById('ovl-engine-sub-label').style.display = 'none';
                 document.getElementById('ovl-engine-cat-grid').style.display = '';
                 renderEngineCatTiles();
-                fetch('/info?action=get_current_settings')
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) {
-                        window._picoCurrentSettings = d;
-                        applyMenuText(d);
+                Promise.all([
+                    fetch('/info?action=get_current_settings').then(function(r) { return r.json(); }),
+                    fetch('/info?action=get_engines').then(function(r) { return r.json(); })
+                ])
+                    .then(function(results) {
+                        var settings = results[0] || {};
+                        var engines = results[1] || {};
+                        window._picoCurrentSettings = settings;
+                        _engAllData = engines.engines || [];
+                        window._picoEngineCatalogsLoaded = true;
+                        applyMenuText(settings);
                         renderEngineCatTiles();
                     })
                     .catch(function() {});
             }
 
-            function populateLevels(file, levels, applyWhenEmpty) {
+            function populateLevels(profileId, file, levels, levelLabels, applyWhenEmpty) {
                 var col    = document.getElementById('ovl-level-col');
                 var listEl = document.getElementById('ovl-level-list');
                 listEl.innerHTML = '';
                 if (!levels || !levels.length) {
                     col.style.display = 'none';
-                    if (applyWhenEmpty !== false) applyEngine(file, '');
+                    if (applyWhenEmpty !== false) applyEngine(profileId, file, '');
                     return;
                 }
                 col.style.display = 'flex';
@@ -2643,21 +2666,35 @@
                 levels.forEach(function(level) {
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item';
-                    btn.textContent = level;
+                    btn.textContent = (levelLabels && levelLabels[level]) || level;
                     if (level === _curLevel) btn.classList.add('selected');
                     btn.addEventListener('click', function() {
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
-                        setTimeout(function() { applyEngine(file, level); }, 180);
+                        setTimeout(function() { applyEngine(profileId, file, level); }, 180);
                     });
                     listEl.appendChild(btn);
                 });
                 scrollSelectedMenuItem(listEl);
             }
 
-            function applyEngine(file, level) {
-                post('action=new_engine&file=' + encodeURIComponent(file) + '&level=' + encodeURIComponent(level));
-                close();
+            function applyEngine(profileId, file, level) {
+                var base = 'action=new_engine&profile_id=' + encodeURIComponent(profileId)
+                    + '&file=' + encodeURIComponent(file) + '&level=' + encodeURIComponent(level);
+                post(base).then(function(response) {
+                    if (!response) return null;
+                    return response.json();
+                }).then(function(data) {
+                    if (!data) return;
+                    if (data.confirmation_required) {
+                        if (!confirm(menuKey('game.start_confirm'))) return;
+                        post(base + '&confirmed=true&game_generation=' + encodeURIComponent(data.game_generation)
+                            + '&context_fingerprint=' + encodeURIComponent(data.context_fingerprint))
+                            .then(function(retry) { if (retry && retry.ok) close(); });
+                        return;
+                    }
+                    if (data.success) close();
+                });
             }
 
             /* ── time picker ─────────────────────────── */
@@ -2828,8 +2865,14 @@
             /* ── engine category filter ──────────────── */
             var _engCurrentCat = 'modern';
             var _engAllData    = [];
+
+            function _engineInCategory(eng, cat) {
+                if (cat === 'favorites') return Boolean(eng.is_favorite);
+                return !cat || cat === 'all' || (eng.category || 'modern') === cat;
+            }
             function _isCurrentEngine(eng) {
                 var settings = window._picoCurrentSettings || {};
+                if (settings.engine_profile) return eng.profile_id === settings.engine_profile;
                 if (settings.engine_file) return eng.file === settings.engine_file;
                 return Boolean(settings.engine_name) && (eng.name || eng.file) === settings.engine_name;
             }
@@ -2843,13 +2886,13 @@
                 setOverlayPath('Engine > ' + _engineCatLabel(catDef) + ' > Manufacturer');
                 var manufacturers = [];
                 _engAllData.forEach(function(eng) {
-                    if ((eng.category || '') !== cat || !eng.manufacturer) return;
+                    if (!_engineInCategory(eng, cat) || !eng.manufacturer) return;
                     if (manufacturers.indexOf(eng.manufacturer) === -1) manufacturers.push(eng.manufacturer);
                 });
                 manufacturers.forEach(function(manufacturer) {
                     var btn = document.createElement('button');
                     var containsCurrent = _engAllData.some(function(eng) {
-                        return eng.category === cat && eng.manufacturer === manufacturer
+                        return _engineInCategory(eng, cat) && eng.manufacturer === manufacturer
                             && _isCurrentEngine(eng);
                     });
                     btn.className = 'pico-picker-item' + (containsCurrent ? ' selected' : '');
@@ -2875,32 +2918,71 @@
                     setOverlayPath('Engine > ' + _engineCatLabel(catDef) + ' > ' + manufacturer);
                 }
                 var filtered = _engAllData.filter(function(e) {
-                    var categoryMatches = !cat || cat === 'all' || (e.category || 'modern') === cat;
+                    var categoryMatches = _engineInCategory(e, cat);
                     return categoryMatches && (!manufacturer || e.manufacturer === manufacturer);
                 });
                 if (!filtered.length) { listEl.innerHTML = '<div style="opacity:0.5;font-size:0.8rem;padding:0.3rem;">None</div>'; return; }
                 var currentEntry = null;
                 filtered.forEach(function(eng) {
+                    var row = document.createElement('div');
+                    row.className = 'pico-engine-picker-row';
                     var btn = document.createElement('button');
                     btn.className = 'pico-picker-item pico-engine-picker-item';
+                    if (eng.available === false) {
+                        btn.classList.add('disabled');
+                        btn.setAttribute('aria-disabled', 'true');
+                    }
                     var engName = eng.name || eng.file;
                     var nameEl = document.createElement('strong');
                     nameEl.textContent = engName;
                     btn.appendChild(nameEl);
+                    if (eng.available === false) {
+                        var unavailable = document.createElement('span');
+                        unavailable.className = 'picker-sub';
+                        unavailable.textContent = menuKey('common.unavailable');
+                        btn.appendChild(unavailable);
+                    }
                     if (_isCurrentEngine(eng)) {
                         btn.classList.add('selected');
                         currentEntry = eng;
                     }
                     btn.addEventListener('click', function() {
+                        if (eng.available === false) {
+                            alert(menuKey('common.unavailable'));
+                            return;
+                        }
                         listEl.querySelectorAll('.pico-picker-item').forEach(function(el) { el.classList.remove('selected'); });
                         btn.classList.add('selected');
-                        populateLevels(eng.file, eng.levels);
+                        populateLevels(eng.profile_id, eng.file, eng.levels, eng.level_labels);
                     });
-                    listEl.appendChild(btn);
+                    row.appendChild(btn);
+                    var star = document.createElement('button');
+                    star.className = 'pico-engine-favorite';
+                    star.textContent = eng.is_favorite ? '★' : '☆';
+                    star.setAttribute('aria-label', eng.is_favorite ? 'Remove favorite' : 'Add favorite');
+                    star.addEventListener('click', function() {
+                        var desired = !eng.is_favorite;
+                        post('action=set_engine_favorite&profile_id=' + encodeURIComponent(eng.profile_id)
+                            + '&favorite=' + (desired ? 'true' : 'false'))
+                            .then(function(response) { return response && response.json(); })
+                            .then(function(data) {
+                                if (!data || !data.success) return;
+                                eng.is_favorite = desired;
+                                if (cat === 'favorites' && !desired) {
+                                    _showEngineList(cat, manufacturer, false);
+                                } else {
+                                    star.textContent = desired ? '★' : '☆';
+                                    star.setAttribute('aria-label', desired ? 'Remove favorite' : 'Add favorite');
+                                }
+                            });
+                    });
+                    row.appendChild(star);
+                    listEl.appendChild(row);
                 });
                 scrollSelectedMenuItem(listEl);
                 if (openCurrentLevel && currentEntry) {
-                    populateLevels(currentEntry.file, currentEntry.levels, false);
+                    populateLevels(currentEntry.profile_id, currentEntry.file, currentEntry.levels,
+                        currentEntry.level_labels, false);
                 }
             }
 

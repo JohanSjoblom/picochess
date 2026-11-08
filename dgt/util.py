@@ -439,17 +439,23 @@ class TimeModeLoop(object):
 
 class EngineTop(MyEnum):
     MODERN_ENGINE = "B00_engine_menu_modern"
+    NNUE_ENGINE = "B00_engine_menu_nnue"
     RETRO_ENGINE = "B00_engine_menu_retro"
     RETROSETTINGS = "B00_engine_menu_retrosettings"
     SPECIAL_ENGINE = "B00_engine_menu_special"
+    VARIANTS_ENGINE = "B00_engine_menu_variants"
+    FAVORITES_ENGINE = "B00_engine_menu_favorites"
 
     @classmethod
     def items(cls):
         return [
             EngineTop.MODERN_ENGINE,
+            EngineTop.NNUE_ENGINE,
             EngineTop.RETRO_ENGINE,
             EngineTop.RETROSETTINGS,
             EngineTop.SPECIAL_ENGINE,
+            EngineTop.VARIANTS_ENGINE,
+            EngineTop.FAVORITES_ENGINE,
         ]
 
 

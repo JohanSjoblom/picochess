@@ -3,6 +3,18 @@ CHANGELOG
 
 Version 3.1
 -------------------------------------------------------------------------------------------
+- Added separate Modern, NNUE, Retro, Special, Variants, and Favorites engine
+  menus. Favorites are ordered logical engine profiles and can be changed from
+  the web client or DGT clock.
+- Added stable engine profile IDs and profile-specific UCI sidecars so Fairy-
+  Stockfish variants can share one executable. Destructive variant switches
+  require a context-bound New Game confirmation, including MCP callers.
+- Renamed the static Special catalog to `special.ini`; old engine packages
+  using `favorites.ini` remain compatible with a deprecation warning.
+- Empty NNUE, Retro, Special, and Variants catalogs now remain empty instead of
+  showing duplicate Modern engines. Empty clock categories are skipped; the
+  web client shows them disabled.
+
 - Support of different eboard types (DGT,  Certabo, Chesslink, ChessNut) - this is so cool!
 
 - Different ini-files for retro, modern and favorite engines and corresponding menu entries

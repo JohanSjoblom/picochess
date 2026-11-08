@@ -725,10 +725,17 @@ is to retain the existing behavior and document it, with no code change.
 - Presentation sorting and grouping must retain stable indexes into the
   original engine catalogs; engine selection and persisted paths depend on
   those indexes.
-- Keep the web menu and DGT/clock menu behavior aligned for the Modern, Retro,
-  and Special catalogs. `special.ini` is the static Special catalog;
+- Keep the web menu and DGT/clock menu content aligned for Modern, NNUE, Retro,
+  Special, Variants, and Favorites. The clock may skip empty catalogs while
+  the web shows them disabled. `special.ini` is the static Special catalog;
   `favorites.ini` is only its deprecated package-name fallback and must not be
   treated as the user's dynamic Favorites list.
+- Treat a catalog section as a stable logical `profile_id`. Engine process
+  identity uses `file`; menu selection, persistence, and Favorites use the
+  exact profile ID. Never normalize profile IDs containing `/`.
+- A variant profile may share its binary with other profiles but has its own
+  managed `uci_file`. A destructive variant change requires a fresh,
+  server-validated game-context confirmation before engine or board mutation.
 
 ## Tutor Behavior Outside PONDER
 

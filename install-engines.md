@@ -64,6 +64,46 @@ If the folder already exists, the script skips installation to avoid overwriting
 
 ---
 
+## Updating an existing aarch64 lite installation to 4.4.0
+
+The 4.4.0 release supplies DJ Dekker's updated aarch64 lite engine pack and
+Rodent III/IV resources for [issue #468](https://github.com/JohanSjoblom/picochess/issues/468).
+All three archives are needed:
+
+- `engines-aarch64-lite.tar.gz`
+- `engines-rodent3-lite.tar.gz`
+- `aarch64_rodent4_lite.tar.gz`
+
+Updating the PicoChess source alone does not replace existing engine directories.
+After updating to 4.4.0, stop PicoChess before reinstalling the engine resources.
+For a standard Linux service installation:
+
+```bash
+sudo systemctl stop picochess
+cd /opt/picochess
+./move-engines-to-backup.sh
+./install-engines.sh lite
+sudo systemctl start picochess
+```
+
+Run the two engine scripts as your normal install user. The backup script moves
+the current architecture's engines and the shared resource directories to
+`~/pico_backups/current/engines_backup`. It replaces previous backups of those
+directories, so preserve any older backup you need before running it. The
+reinstall also downloads the other lite resources moved by the backup script.
+Keep your custom engine settings and personalities in the backup and reapply
+them selectively after checking the updated files.
+
+If installation fails, keep PicoChess stopped while investigating. To restore
+the previous resources, run `./restore-engines-from-backup.sh all` as the same
+user before starting PicoChess again. The restore script reports any resource
+that had no backup; check those messages before restarting.
+
+These updated archives cover aarch64 lite only. The x86_64 Rodent configurations
+remain to be updated and tested; the small engine packs are unchanged.
+
+---
+
 ## 🧰 Adding new packages
 
 To create and upload a new engine package:

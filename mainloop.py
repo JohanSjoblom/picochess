@@ -5920,6 +5920,12 @@ class MainLoop:
             self._clear_position_checkpoint()
             clear_preserved_mame_history(self.shared)
             engine_match_new_game = getattr(self.state, "interaction_mode", None) == Mode.ENGINE_MATCH
+            mame_search_discarded = self.engine.is_mame_engine() and self.engine.is_thinking()
+            if self.engine.is_mame_engine():
+                self._invalidate_engine_search_results()
+                if not await self.engine.discard_search_for_mame_reset():
+                    logger.error("MAME new game aborted because analysis did not stop cleanly")
+                    return
             await self.get_rid_of_engine_move()
             remote_new_game_ready = False
             remote_new_game_error = None
@@ -5961,6 +5967,7 @@ class MainLoop:
                 or (self.state.game.chess960_pos() != event.pos960)
                 or self.state.best_move_posted
                 or self.state.done_computer_fen
+                or mame_search_discarded
             )
             if newgame:
                 logger.debug("starting a new game with code: %s", event.pos960)

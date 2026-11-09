@@ -1998,11 +1998,11 @@ class UciEngine(object):
         self._last_analyser_stop_was_forced = False
         return result
 
-    def force_move(self, timeout: float = 2.0):
+    def force_move(self, timeout: float | None = None):
         """
         Force engine to move by issuing a stop and, if needed, cancelling a hung search.
 
-        :param timeout: Seconds to wait for the engine to comply before treating it as hung.
+        :param timeout: Seconds to wait; defaults to 5 for MAME and 2 for other engines.
         """
         if not self.engine or not self.playing:
             return
@@ -2015,20 +2015,25 @@ class UciEngine(object):
         # issue 109 - use PlayingContinuousAnalysis force
         self.playing.force()
 
+        if timeout is None:
+            # MAME presses the emulated computer's move key and waits for its display.
+            timeout = 5.0 if self.is_mame else 2.0
         if timeout and timeout > 0:
-            self.loop.create_task(self._monitor_force_completion(timeout))
+            self.loop.create_task(self._monitor_force_completion(timeout, self.playing, self.playing._task))
 
-    async def _monitor_force_completion(self, timeout: float):
+    async def _monitor_force_completion(
+        self, timeout: float, playing: PlayingContinuousAnalysis, task: asyncio.Task | None
+    ):
         """Wait for force() to finish, cancelling the search if it hangs."""
         try:
-            if not self.playing:
+            if task is None:
                 return
-            finished = await self.playing.wait_until_idle(timeout)
-            if finished:
+            done, _ = await asyncio.wait({task}, timeout=timeout)
+            if done or self.playing is not playing or playing._task is not task:
                 return
             logger.warning("force move timed out after %.1fs - cancelling hung engine", timeout)
-            self.playing.cancel()
-            self.playing.abort()
+            playing.cancel()
+            playing.abort()
         except Exception:
             logger.exception("force move watchdog failed")
 
@@ -2309,6 +2314,39 @@ class UciEngine(object):
         self.playing.cancel()
         self.playing.abort()
         return await self.playing.wait_until_idle(timeout)
+
+    async def discard_search_for_mame_reset(self) -> bool:
+        """Discard an unwanted search before an explicit MAME new-game reset.
+
+        Only a reset makes it safe to abandon the protocol exchange without a
+        bestmove. A normal stop must still wait for the emulated move key.
+        """
+        if not self.is_mame or not self.engine:
+            return True
+        if not await self.stop_analysis():
+            return False
+        async with self.engine_lock:
+            playing = self.playing
+            if playing:
+                playing._cancel_event.set()
+            # python-chess cannot finish a NEW next_command with set_finished().
+            # Detach it before finishing the active command, whose callback would
+            # otherwise start it against the position we are about to reset.
+            pending = self.engine.next_command
+            self.engine.next_command = None
+            if pending is not None:
+                pending.result.cancel()
+                pending.finished.cancel()
+            command = self.engine.command
+            if command is not None:
+                command.set_finished()
+            if playing and playing._task:
+                try:
+                    await asyncio.shield(playing._task)
+                except CancelledError:
+                    if not playing._task.cancelled():
+                        raise
+        return True
 
     def is_ready(self):
         """Engine waiting."""

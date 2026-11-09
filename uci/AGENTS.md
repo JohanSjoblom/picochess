@@ -202,6 +202,16 @@ Keep these option rules intact:
 MAME adapters are timing-sensitive and require a compatibility path that is
 deliberately narrower than normal python-chess engine handling.
 
+- An explicit New Game discards the obsolete MAME playing search before the
+  ordinary force-move paths run. No bestmove is needed because `ucinewgame`
+  resets the emulated computer. Invalidate old search results, stop watching
+  analysis, detach pending python-chess commands, and finish the old playing
+  worker before resetting. This command abandonment is safe only for reset;
+  ordinary forced moves still require a bestmove exchange.
+- Forced moves default to 5 seconds for MAME and 2 seconds for other engines.
+  A force watchdog belongs to its original search task and must never cancel
+  a later search or a replacement engine.
+
 - Issue #72 established that MAME needs an eager `ucinewgame`. Waiting for
   python-chess to send it with the first search is too late for these adapters.
 - Send the eager command through python-chess's protocol state and synchronize

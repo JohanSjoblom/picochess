@@ -128,6 +128,7 @@ class TestNewGameHistoryLifecycle(unittest.IsolatedAsyncioTestCase):
         }
         controller.state = SimpleNamespace(position_checkpoint_restore_pending=False, game_generation=0)
         controller.state.local_timeout_reported = True
+        controller.engine = SimpleNamespace(is_mame_engine=lambda: False)
         controller._clear_set_position_ack = Mock()
         controller._clear_position_checkpoint = Mock()
 

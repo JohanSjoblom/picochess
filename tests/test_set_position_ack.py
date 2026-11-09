@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import chess
 
 import mainloop
-from dgt.util import EBoard, Mode
+from dgt.util import EBoard, Mode, PlayMode
 from dgt.api import Event
 
 
@@ -43,7 +43,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
         )
         self.controller.state = self.state
         self.controller.board_type = EBoard.CERTABO
-        self.controller.engine = SimpleNamespace(has_chess960=lambda: False)
+        self.controller.engine = SimpleNamespace(has_chess960=lambda: False, is_mame_engine=lambda: False)
         self.controller.reset_setpieces_window_switch = Mock()
 
     async def test_recovery_events_clear_setup_before_engine_work(self):
@@ -75,6 +75,82 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual("", self.state.set_position_ack_target_fen)
                 await self.controller._finish_set_position_ack(self.target)
                 self.show.assert_not_awaited()
+
+    async def test_mame_new_game_discards_search_before_force_move_path(self):
+        class NewGamePrepared(Exception):
+            pass
+
+        self.controller._clear_position_checkpoint = Mock()
+        self.controller.shared = {}
+        self.state.engine_search_revision = 0
+        self.controller._invalidate_engine_search_results = (
+            mainloop.MainLoop._invalidate_engine_search_results.__get__(self.controller)
+        )
+        self.controller.get_rid_of_engine_move = (
+            mainloop.MainLoop.get_rid_of_engine_move.__get__(self.controller)
+        )
+        self.controller.eng_plays = lambda: True
+        self.controller._set_game_started = Mock(side_effect=NewGamePrepared)
+        thinking = True
+
+        async def discard_search():
+            nonlocal thinking
+            thinking = False
+            return True
+
+        self.controller.engine = SimpleNamespace(
+            is_mame_engine=lambda: True, is_thinking=lambda: thinking,
+            discard_search_for_mame_reset=AsyncMock(side_effect=discard_search),
+            force_move=Mock(),
+        )
+        with self.assertRaises(NewGamePrepared):
+            await self.controller.process_main_events(Event.NEW_GAME(pos960=518))
+        self.controller.engine.discard_search_for_mame_reset.assert_awaited_once_with()
+        self.controller.engine.force_move.assert_not_called()
+        self.assertEqual(1, self.state.engine_search_revision)
+
+    async def test_mame_new_game_resets_search_at_untouched_start_position(self):
+        class EngineReset(Exception):
+            pass
+
+        controller = object.__new__(mainloop.MainLoop)
+        controller.shared = {}
+        controller.state = Mock(
+            game=chess.Board(), game_generation=0, engine_search_revision=0,
+            interaction_mode=Mode.NORMAL, play_mode=PlayMode.USER_WHITE,
+            best_move_posted=False, done_computer_fen=None, game_declared=False,
+            variant="chess", stop_clock=AsyncMock(),
+        )
+        controller._clear_set_position_ack = Mock()
+        controller._clear_position_checkpoint = Mock()
+        controller._set_game_started = Mock()
+        controller._set_pgn_replay_autoplay = Mock()
+        controller._reset_loaded_pgn_lifecycle = Mock()
+        controller.reset_setpieces_window_switch = Mock()
+        controller._update_variant_shared = Mock()
+        controller.game_end_event = Mock()
+        controller.eng_plays = lambda: True
+        controller.emulation_mode = lambda: True
+        controller.pgn_mode = lambda: False
+        controller.online_mode = lambda: False
+        thinking = True
+
+        async def discard_search():
+            nonlocal thinking
+            thinking = False
+            return True
+
+        controller.engine = SimpleNamespace(
+            is_mame_engine=lambda: True, is_thinking=lambda: thinking,
+            is_waiting=lambda: not thinking, has_chess960=lambda: False,
+            discard_search_for_mame_reset=AsyncMock(side_effect=discard_search),
+            force_move=Mock(), newgame=AsyncMock(side_effect=EngineReset),
+        )
+        with patch.object(mainloop.ModeInfo, "get_game_ending", return_value="*"):
+            with self.assertRaises(EngineReset):
+                await controller.process_main_events(Event.NEW_GAME(pos960=518))
+        controller.engine.newgame.assert_awaited_once()
+        controller.engine.force_move.assert_not_called()
 
     async def test_legal_move_at_ok_is_accepted_and_ack_is_not_repeated(self):
         move = chess.Move.from_uci("e7e5")

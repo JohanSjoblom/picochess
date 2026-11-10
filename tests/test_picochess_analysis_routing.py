@@ -1446,6 +1446,8 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         # The engine's clock runs from here, so go() must not wait for the clock to settle (#529).
         self.controller.state.start_clock.assert_awaited_once_with(settle=False)
         self.controller.engine.go.assert_awaited_once()
+        self.controller._cache_engine_abort_result.assert_awaited_once_with()
+        self.fire.assert_awaited_once()
 
     async def test_search_not_started_does_not_wait_for_engine_result(self):
         # go() puts nothing on the result queue when it starts no search, e.g. while the
@@ -1460,6 +1462,24 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         self.controller._cache_engine_abort_result.assert_not_awaited()
         # A search that is still running keeps its pending ignore request.
         self.assertTrue(self.controller.state.ignore_next_engine_move)
+
+    async def test_superseded_result_has_no_feedback_or_shared_state_side_effects(self):
+        for result in (None, chess.engine.PlayResult(chess.Move.from_uci("e2e4"), None)):
+            with self.subTest(result=result):
+                self.controller.state.ignore_next_engine_move = True
+
+                async def superseded_result(result_queue, **_kwargs):
+                    self.controller._invalidate_engine_search_results()
+                    await result_queue.put(result)
+                    return True
+
+                self.controller.engine.go = AsyncMock(side_effect=superseded_result)
+                await self.controller.think(None)
+
+                self.controller._cache_engine_abort_result.assert_not_awaited()
+                self.fire.assert_not_awaited()
+                self.assertTrue(self.controller.state.automatic_takeback)
+                self.assertTrue(self.controller.state.ignore_next_engine_move)
 
 
 class TestWebAnalysisWidthAfterModeChange(unittest.IsolatedAsyncioTestCase):

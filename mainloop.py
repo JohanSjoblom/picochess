@@ -959,6 +959,9 @@ class MainLoop:
                     logger.warning("engine search revision %s was not started", search_revision)
                     return
                 engine_res = await result_queue.get()
+                if search_revision != self.state.engine_search_revision:
+                    logger.info("discarding result from superseded engine search revision %s", search_revision)
+                    return
                 if engine_res:
                     logger.debug("engine moved %s", engine_res.move.uci() if engine_res.move else "0000")
                     if self.state.ignore_next_engine_move:

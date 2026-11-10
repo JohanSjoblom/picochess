@@ -1,12 +1,14 @@
 """MAME New Game must discard a search without waiting for the move key."""
 
 import asyncio
+from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
 import chess.engine
 
+import mainloop
 from uci.engine import EngineLease, PlayingContinuousAnalysis, UciEngine, UciShell
 
 
@@ -80,6 +82,63 @@ class TestMameSearchReset(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await asyncio.wait_for(results.get(), 1))
         self.assertFalse(engine.is_thinking())
         transport.assert_done()
+
+    async def test_discarded_search_consumer_does_not_probe_engine_or_cache_result(self):
+        engine, transport = await self.make_engine()
+        board = chess.Board()
+        board.push_uci("e2e4")
+        controller = object.__new__(mainloop.MainLoop)
+        controller.engine = engine
+        controller.bookreader = None
+        controller._apply_pending_mame_recovery_rebase = AsyncMock()
+        controller._set_game_started = Mock()
+        controller._prepare_engine_for_search = AsyncMock(return_value=True)
+        controller.online_mode = lambda: False
+        controller.pgn_mode = lambda: False
+        controller.state = SimpleNamespace(
+            engine_search_revision=0, game=board, get_fen=board.fen,
+            get_variant_board=lambda: None, start_clock=AsyncMock(),
+            time_control=SimpleNamespace(uci=lambda: {"movetime": 30000}),
+            variant="chess", pending_engine_result=None,
+            automatic_takeback=True, ignore_next_engine_move=True,
+        )
+        transport.expect("position startpos moves e2e4")
+        transport.expect("go movetime 30000")
+        consumer = asyncio.create_task(controller.think(None))
+
+        async def wait_for_search():
+            while engine.playing._active_analysis is None:
+                await asyncio.sleep(0)
+
+        with patch.object(engine.engine, "ping", wraps=engine.engine.ping) as ping:
+            with patch.object(mainloop.Observable, "fire", new_callable=AsyncMock) as fire:
+                try:
+                    await asyncio.wait_for(wait_for_search(), 1)
+                    controller._invalidate_engine_search_results()
+                    self.assertTrue(await asyncio.wait_for(engine.discard_search_for_mame_reset(), 1))
+                    await asyncio.wait_for(consumer, 1)
+
+                    ping.assert_not_awaited()
+                    fire.assert_not_awaited()
+                    self.assertIsNone(controller.state.pending_engine_result)
+                    self.assertTrue(controller.state.automatic_takeback)
+                    self.assertTrue(controller.state.ignore_next_engine_move)
+                    self.assertIsNone(engine.engine.command)
+                    self.assertIsNone(engine.engine.next_command)
+
+                    transport.expect("ucinewgame")
+                    board.reset()
+                    await engine.newgame(board)
+                    results = await self.start_search(engine, transport)
+                    engine.engine.pipe_data_received(1, b"bestmove e7e5\n")
+                    result = await asyncio.wait_for(results.get(), 1)
+                    self.assertEqual(result.move, chess.Move.from_uci("e7e5"))
+                    self.assertIsNone(controller.state.pending_engine_result)
+                    transport.assert_done()
+                finally:
+                    consumer.cancel()
+                    await asyncio.gather(consumer, return_exceptions=True)
+                    await engine.discard_search_for_mame_reset()
 
     async def test_reset_aborts_if_analyser_stop_is_incomplete(self):
         engine, transport = await self.make_engine()

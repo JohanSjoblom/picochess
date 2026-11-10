@@ -208,6 +208,8 @@ deliberately narrower than normal python-chess engine handling.
   analysis, detach pending python-chess commands, and finish the old playing
   worker before resetting. This command abandonment is safe only for reset;
   ordinary forced moves still require a bestmove exchange.
+  Follow the root [Engine Search Result Ownership](../AGENTS.md#engine-search-result-ownership)
+  rules when consuming the discarded result, including `None`.
 - Forced moves default to 5 seconds for MAME and 2 seconds for other engines.
   A force watchdog belongs to its original search task and must never cancel
   a later search or a replacement engine.

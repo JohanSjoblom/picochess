@@ -284,6 +284,30 @@ behavior for that default path:
   positions are entered move-by-move, but entering those modes is still
   user-initiated rather than startup-automatic.
 
+## Engine Search Result Ownership
+
+`state.engine_search_revision` identifies which playing search still owns its
+result. It is separate from `state.game_generation`, which tracks game lifecycle
+changes. A search can become obsolete within the same game.
+
+- `think()` increments the search revision and captures it locally before
+  starting work. Starting another search supersedes the earlier revision.
+- `_invalidate_engine_search_results()` increments it when an accepted user
+  move or sliding correction supersedes the current search, and before
+  discarding a MAME search for New Game. Leaving a playing mode for a
+  non-playing mode also increments it.
+- Immediately after `result_queue.get()`, compare the captured revision with
+  the current value. A mismatch means return immediately, including for a
+  `None` result. Do this before engine health probes, cached failure or
+  resignation results, clock/web feedback, events, or changes to shared flags.
+- Preserve the revision on `Event.BEST_MOVE` and keep the event handler's
+  existing revision and position checks. Those checks protect event delivery;
+  they do not replace the earlier check before result-processing side effects.
+- A matching revision passes this ownership check; it does not replace normal
+  position, legality, or engine-failure handling. Do not use game generation or
+  FEN equality as a substitute for search revision, since an obsolete search
+  may belong to the same game and even the same position.
+
 ## `mainloop.py` Analysis Driver
 
 `analyse()` in `mainloop.py` is the main Picochess policy layer around

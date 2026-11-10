@@ -60,7 +60,7 @@ If the folder already exists, the script skips installation to avoid overwriting
 - `small` keeps the download size lean (used by `install-picochess.sh` and the regular update path).
 - `large` installs the larger engine package plus add-ons such as MAME emulation and Rodent engines.
 
-Package choice controls contents and download size, independently of headless or desktop use. `lite` remains a deprecated alias for `large` and prints a notice. Existing release archives retain `lite` in their filenames so download URLs continue to work.
+Package choice controls contents and download size, independently of headless or desktop use. `lite` remains a deprecated alias for `large` and prints a notice. The large engine, MAME and Rodent archives now use `large` filenames on release 4.4.0. Older release assets remain available for older installers.
 
 > ℹ️ The script only runs as the `pi` user and assumes the target directories do **not** already exist. Run `move-engines-to-backup.sh` first if you need to reinstall over an existing setup.
 
@@ -70,11 +70,11 @@ Package choice controls contents and download size, independently of headless or
 
 The 4.4.0 release supplies DJ Dekker's updated aarch64 large engine pack and
 Rodent III/IV resources for [issue #468](https://github.com/JohanSjoblom/picochess/issues/468).
-All three archives are needed:
+The updated aarch64 engine and Rodent archives use these names:
 
-- `engines-aarch64-lite.tar.gz`
-- `engines-rodent3-lite.tar.gz`
-- `aarch64_rodent4_lite.tar.gz`
+- `engines-aarch64-large.tar.gz`
+- `engines-rodent3-large.tar.gz`
+- `aarch64_rodent4_large.tar.gz`
 
 Updating the PicoChess source alone does not replace existing engine directories.
 After updating to 4.4.0, stop PicoChess before reinstalling the engine resources.
@@ -101,8 +101,56 @@ the previous resources, run `./restore-engines-from-backup.sh all` as the same
 user before starting PicoChess again. The restore script reports any resource
 that had no backup; check those messages before restarting.
 
-These updated archives cover aarch64 large only. The x86_64 Rodent configurations
-remain to be updated and tested; the small engine packs are unchanged.
+The Rodent configuration updates cover aarch64 only. The x86_64 Rodent contents
+are unchanged and are republished under `large` filenames. The small engine packs
+are unchanged.
+
+## MAME 0.289 resources for both architectures
+
+Release 4.4.0 also supplies Randy's updated MAME executable, artwork and
+`chessengine` plugin, together with updated launch scripts and retro catalogs:
+
+| Architecture | Engine pack | MAME resources |
+| --- | --- | --- |
+| aarch64 | `engines-aarch64-large.tar.gz` | `engines-mame-large.tar.gz` |
+| x86_64 | `x86_64_engines_large.tar.gz` | `x86_64_mame_large.tar.gz` |
+
+Both engine packs include the replacement `mame/`, `engines_ini/all_retro.ini`
+and `retro.ini` from Randy's `x86_64_aarch64_mame_files.zip`. Other engine files
+retain their previous contents. The MAME resource archives are Randy's original
+archives with new filenames. The x86_64 build requires Qt 6; `install-picochess.sh`
+installs `libqt6gui6` and `libqt6widgets6`, including their dependencies. For a
+manual x86_64 resource update, install them with
+`sudo apt install libqt6gui6 libqt6widgets6`.
+
+Both new MAME executables require glibc 2.38 or newer and libstdc++ providing
+`GLIBCXX_3.4.32`. Debian/Raspberry Pi OS Trixie supplies these versions;
+the stock Bookworm libraries are too old.
+
+Use the stop, backup, reinstall and start sequence above on either architecture.
+Updating source alone does not replace the installed resources. The engine
+installer downloads both the engine pack and MAME resources for `large`.
+
+The installed `.uci` files have longer level labels for the web interface.
+For DGTPi labels of at most 11 characters, unzip `mame_uci_dgtpi_en.zip` inside
+`engines/<architecture>/mame/` over the installed `.uci` files.
+
+Use ROMs compatible with MAME 0.289. From `engines/mame_emulation`, run
+`./mess -verifyroms`, or `./mess -verifyroms mm5` for one machine. Cartridge and
+module engines also need software-list ROMs. Randy's
+[ROM checker](https://github.com/RandyR99/mame_for_picochess/blob/main/tools/check_softlist_roms.sh)
+reports missing software-list ROMs and looks for matching files under older
+archive names. A copy is included with the 4.4.0 release assets:
+
+```bash
+bash check_softlist_roms.sh
+# Or check another ROM folder:
+ROMPATH=/path/to/roms bash check_softlist_roms.sh
+```
+
+See Randy's [software-list documentation](https://github.com/RandyR99/mame_for_picochess#software-lists)
+for details. The release `SHA256SUMS` covers the new archives as well as the
+original 4.4.0 resources.
 
 ---
 

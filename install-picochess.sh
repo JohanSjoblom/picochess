@@ -10,7 +10,7 @@ Usage: $0 [pico] [small|large] [noengines] [dgtpi|dgt3000] [kiosk] [pi3] [master
 
 Run with sudo. Engine packages:
   small   Minimum engine package (default).
-  large   Larger engine package, including MAME, Rodent engines and PGN audio.
+  large   Larger engine package, including MAME 0.289, Rodent engines and PGN audio.
 
 Package choice controls contents and download size, independently of headless or desktop use.
 "lite" is a deprecated alias for "large". DGTPi clock support and kiosk setup are separate options.
@@ -370,8 +370,12 @@ apt -y install libopenblas-dev
 # following lines are for building leela-chess-zero
 # apt -y install ninja-build meson
 # apt -y install build-essential cmake protobuf-compiler
-# following line are to run mame (missing on lite images)
+# MAME runtime libraries (also needed on minimal OS images).
 apt -y install libsdl2-2.0-0 libsdl2-ttf-2.0-0 qt5ct
+# Randy's x86_64 MAME 0.289 build links against Qt 6.
+if [ "$(uname -m)" = "x86_64" ]; then
+    apt -y install libqt6gui6 libqt6widgets6
+fi
 # following needed for backup to work
 apt -y install rsync
 # following needed for pydub AudioSegment to work in PicoTalker

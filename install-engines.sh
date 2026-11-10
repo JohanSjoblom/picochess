@@ -97,7 +97,7 @@ fi
 mkdir -p "$ENGINES_DIR" || exit 1
 mkdir -p "$TMP_DIR" || exit 1
 
-# Release archive names retain "lite" for compatibility with existing download URLs.
+# Large engine and MAME resources are published together in v4.4.0.
 
 # --- aarch64 -----------------------------------------------------------------
 if [ "$ARCH" = "aarch64" ]; then
@@ -108,8 +108,8 @@ if [ "$ARCH" = "aarch64" ]; then
         mkdir -p "$ENGINES_DIR/aarch64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "large" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-aarch64-lite.tar.gz"
-            TMPFILE="$TMP_DIR/engines-aarch64-lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-aarch64-large.tar.gz"
+            TMPFILE="$TMP_DIR/engines-aarch64-large.tar.gz"
             ENGINE_DESC="aarch64 large engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-aarch64-small.tar.gz"
@@ -146,8 +146,8 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/engines-mame-lite.tar.gz"
-            MAME_TMP="$TMP_DIR/engines-mame-lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-mame-large.tar.gz"
+            MAME_TMP="$TMP_DIR/engines-mame-large.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then
@@ -180,8 +180,8 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
-            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-rodent3-lite.tar.gz"
-            RODENT3_TMP="$TMP_DIR/engines-rodent3-lite.tar.gz"
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/engines-rodent3-large.tar.gz"
+            RODENT3_TMP="$TMP_DIR/engines-rodent3-large.tar.gz"
 
             echo "Downloading Rodent III package..."
             if command -v curl >/dev/null 2>&1; then
@@ -210,8 +210,8 @@ if [ "$ARCH" = "aarch64" ]; then
             echo "No Rodent IV files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
-            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/aarch64_rodent4_lite.tar.gz"
-            RODENT4_TMP="$TMP_DIR/aarch64_rodent4_lite.tar.gz"
+            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/aarch64_rodent4_large.tar.gz"
+            RODENT4_TMP="$TMP_DIR/aarch64_rodent4_large.tar.gz"
 
             echo "Downloading Rodent IV package..."
             if command -v curl >/dev/null 2>&1; then
@@ -249,8 +249,8 @@ if [ "$ARCH" = "x86_64" ]; then
         mkdir -p "$ENGINES_DIR/x86_64" || exit 1
 
         if [ "$ENGINE_VARIANT" = "large" ]; then
-            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.2/x86_64_engines_lite.tar.gz"
-            TMPFILE="$TMP_DIR/x86_64_engines_lite.tar.gz"
+            ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/x86_64_engines_large.tar.gz"
+            TMPFILE="$TMP_DIR/x86_64_engines_large.tar.gz"
             ENGINE_DESC="x86_64 large engine package"
         else
             ENGINE_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/engines-x86_64-small.tar.gz"
@@ -287,8 +287,8 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No MAME emulation files found. Installing package..."
             mkdir -p "$ENGINES_DIR/mame_emulation" || exit 1
 
-            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_mame_lite.tar.gz"
-            MAME_TMP="$TMP_DIR/x86_64_mame_lite.tar.gz"
+            MAME_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/x86_64_mame_large.tar.gz"
+            MAME_TMP="$TMP_DIR/x86_64_mame_large.tar.gz"
 
             echo "Downloading MAME emulation package..."
             if command -v curl >/dev/null 2>&1; then
@@ -321,8 +321,8 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No Rodent III files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent3" || exit 1
 
-            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_rodent3_lite.tar.gz"
-            RODENT3_TMP="$TMP_DIR/x86_64_rodent3_lite.tar.gz"
+            RODENT3_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/x86_64_rodent3_large.tar.gz"
+            RODENT3_TMP="$TMP_DIR/x86_64_rodent3_large.tar.gz"
 
             echo "Downloading Rodent III package..."
             if command -v curl >/dev/null 2>&1; then
@@ -351,8 +351,8 @@ if [ "$ARCH" = "x86_64" ]; then
             echo "No Rodent IV files found. Installing package..."
             mkdir -p "$ENGINES_DIR/rodent4" || exit 1
 
-            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/x86_64_rodent4_lite.tar.gz"
-            RODENT4_TMP="$TMP_DIR/x86_64_rodent4_lite.tar.gz"
+            RODENT4_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/x86_64_rodent4_large.tar.gz"
+            RODENT4_TMP="$TMP_DIR/x86_64_rodent4_large.tar.gz"
 
             echo "Downloading Rodent IV package..."
             if command -v curl >/dev/null 2>&1; then

@@ -108,8 +108,12 @@ class TestInstallerPackages(unittest.TestCase):
                 legacy, alias_result = self.install_engines(arch, "lite")
                 self.assertEqual(large, legacy)
                 self.assertEqual(7, len(large))
-                for component in ("lite.tar.gz", "mame", "rodent3", "rodent4", "pgn_audio"):
+                for component in ("large.tar.gz", "mame", "rodent3", "rodent4", "pgn_audio"):
                     self.assertTrue(any(component in url for url in large), component)
+                for url in large[:4]:
+                    self.assertIn("/v4.4.0/", url)
+                    self.assertIn("large.tar.gz", url)
+                    self.assertNotIn("lite", url)
                 self.assertIn("variant: large", result.stdout)
                 self.assertNotIn("deprecated", result.stderr)
                 self.assertIn('use "large" instead', alias_result.stderr)

@@ -10,8 +10,13 @@ engines and PGN audio. This choice controls contents and download size,
 independently of headless or desktop use. DGTPi clock support (`dgtpi`) and kiosk
 setup (`kiosk`) are separate options and can be combined with either package.
 
-`lite` remains a deprecated alias for `large` and prints a notice. Existing release
-archive filenames and package contents are unchanged. Use `--help` for all options.
+`lite` remains a deprecated alias for `large` and prints a notice. The large
+engine, MAME and Rodent downloads use `large` filenames from release
+4.4.0. MAME resources now include Randy's MAME 0.289 build and updated artwork,
+plugin, launch scripts and catalogs for aarch64 and x86_64. The installer also
+installs the Qt 6 runtime required by the x86_64 build. See
+[engine resource updates](install-engines.md#mame-0289-resources-for-both-architectures)
+for existing-installation and ROM checks. Use `--help` for all options.
 
 ---
 

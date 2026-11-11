@@ -9,8 +9,9 @@ usage() {
 Usage: $0 [pico] [small|large] [noengines] [dgtpi|dgt3000] [kiosk] [pi3] [master] [reset]
 
 Run with sudo. Engine packages:
-  small   Minimum engine package (default).
+  small   Minimum engine package for a fresh installation (default); keeps existing engines.
   large   Larger engine package, including MAME 0.289, Rodent engines and PGN audio.
+          Backs up and reinstalls engine resources when engines are already present.
 
 Package choice controls contents and download size, independently of headless or desktop use.
 "lite" is a deprecated alias for "large". DGTPi clock support and kiosk setup are separate options.
@@ -534,7 +535,7 @@ elif [ -f install-engines.sh ]; then
         ENGINES_PRESENT=true
     fi
     if [ "$ENGINES_PRESENT" = true ]; then
-        if [ "$EXPLICIT_ENGINE_VARIANT" = true ]; then
+        if [ "$EXPLICIT_ENGINE_VARIANT" = true ] && [ "$ENGINE_VARIANT" = "large" ]; then
             echo "Engines present for $(uname -m) and variant explicitly requested ($ENGINE_VARIANT)"
             if [ -f move-engines-to-backup.sh ]; then
                 chmod +x move-engines-to-backup.sh 2>/dev/null
@@ -546,7 +547,7 @@ elif [ -f install-engines.sh ]; then
             echo "Installing engines variant: $ENGINE_VARIANT"
             sudo -u "$INSTALL_USER" ./install-engines.sh "$ENGINE_VARIANT"
         else
-            echo "Engines already installed for $(uname -m); no variant specified - skipping engine install"
+            echo "Engines already installed for $(uname -m); preserving existing resources (no large reinstall requested)"
         fi
     else
         echo "No engines detected for $(uname -m) - installing variant: $ENGINE_VARIANT"

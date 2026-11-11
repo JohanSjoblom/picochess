@@ -387,7 +387,7 @@ if [ ! -d "$ENGINES_DIR/lc0_weights" ]; then
     echo "Installing LC0 weights..."
     mkdir -p "$ENGINES_DIR/lc0_weights" || exit 1
 
-    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/lc0_weights.tar.gz"
+    WEIGHTS_URL="https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/lc0_weights.tar.gz"
     TMPFILE="$TMP_DIR/lc0_weights.tar.gz"
 
     echo "Downloading LC0 weights..."

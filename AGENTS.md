@@ -772,6 +772,10 @@ is to retain the existing behavior and document it, with no code change.
 
 ## Engine Resource Updates
 
+- In `install-picochess.sh`, default/explicit `small` is for a fast initial
+  installation. It must not back up, replace or downgrade existing engine
+  resources. Only explicit `large` (including the legacy `lite` alias) requests
+  the main installer's broad backup and reinstall. `noengines` skips both.
 - `install-engines.sh` installs missing resource directories. A clean reinstall
   using `move-engines-to-backup.sh` requires manual restoration of user data.
 - `update-engines.py` is the preservation workflow for existing Linux engine
@@ -784,6 +788,10 @@ is to retain the existing behavior and document it, with no code change.
   or replace a user's retro selection with the pack's default/full catalog.
 - Packaged engine settings may be refreshed; retain their previous versions in
   the backup. Keep the preservation updater separate from clean installation.
+- LC0 network weights are shared across architectures and operating systems.
+  Install the complete archive only when the weights directory is missing.
+  Do not inspect or repair individual networks. Refreshing weights requires
+  moving the whole directory to backup first; existing collections are reused.
 
 ## Reference Branches
 
@@ -812,6 +820,9 @@ is to retain the existing behavior and document it, with no code change.
 
 ## Regression Checks
 
+- Installer tests must explicitly isolate the repository path after parsing:
+  `install-picochess.sh` assigns its own `REPO_DIR`. Mock privilege commands must
+  record intended actions, never execute backup or installation scripts.
 - Run unit tests through the repository virtual environment. Use
   `venv/bin/tox -e unit` for the full unit suite, or `venv/bin/python -m
   unittest ...` for focused unittest runs. Do not start with the system

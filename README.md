@@ -83,7 +83,7 @@ Engine package choice controls contents and download size, independently of head
 
 `install-picochess.sh` flags:
 - `pico` skips system update (useful on existing systems).
-- `small` (default) or `large` selects the engine pack to install. On reruns, an explicit `small`/`large` triggers an engine backup + reinstall for the current architecture; otherwise engines are left untouched if already present.
+- `small` (default) installs the minimum pack on a fresh installation and keeps existing engine resources on reruns, even when explicitly supplied. An explicit `large` triggers an engine backup + reinstall for the current architecture.
 - `noengines` skips installing engines (used internally during code-only updates).
 - `dgtpi` installs the DGTPi GPIO clock service and applies Raspberry Pi 3 clock timing in `/boot/firmware/config.txt` or `/boot/config.txt`; do not run `install-dgtpi-clock.sh` separately.
 - `dgt3000` or `DGT3000` selects a standalone DGT3000 connected through a DGT eboard. It keeps `dgtpi=False`, removes legacy DGTPi service and clock-timing configuration, and does not install the DGTPi GPIO clock service.
@@ -193,11 +193,15 @@ Run the updater without sudo. It detects aarch64 or x86_64, stages the new packs
 and retains a dated backup. See [engine update details](install-engines.md#updating-without-losing-roms-or-retro-menu-selections)
 for preserved files, runtime requirements and rollback. The older
 `move-engines-to-backup.sh` plus `install-engines.sh` workflow, also used by an
-explicit package reinstall through `install-picochess.sh`, remains a clean
+explicit `large` reinstall through `install-picochess.sh`, remains a clean
 reinstall that requires manual restoration of user data.
 
 The large package takes longer to download.
-If you choose the large package, it also downloads the LC0 personality weights into `/opt/picochess/engines/lc0_weights`, which can take a while, but gives you a wider set of LC0 personalities to choose from, including many Maia strengths.
+Both package sizes download the shared LC0 personality weights into
+`/opt/picochess/engines/lc0_weights`, including Tiny Gyal and the Maia strengths.
+The v4.4.0 weights archive is architecture-independent and is also usable by LC0
+on other operating systems. Existing weights folders are left untouched. To
+refresh the collection, move the entire weights folder to backup first.
 To add more engine manually yourself you need:
 - locate the /opt/picochess/engines folder - Pi uses aarch64 and Linux x86_64 folder
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine

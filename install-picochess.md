@@ -22,8 +22,17 @@ For an engine-only update that keeps collected ROMs and your retro menu
 selection, stop PicoChess and run `./update-engines.py large` as your normal
 install user. Use `--dry-run` to preview it. See
 [preserving existing resources](install-engines.md#updating-without-losing-roms-or-retro-menu-selections).
-The main installer's explicit package reinstall still uses the clean
-backup/reinstall path; it does not perform this preservation step.
+On a fresh installation, `small` installs the minimum engine pack. On an existing
+installation, the default, `pico` alone and explicit `small` leave engine resources
+untouched. Only explicit `large` (or its legacy alias `lite`) uses the main
+installer's clean backup/reinstall path; it does not perform this preservation
+step. `noengines` skips engine installation even when `large` is supplied.
+
+The Linux installer delegates LC0 network installation to `install-engines.sh`.
+Both package sizes use the shared v4.4.0 weights archive, including
+`tinygyal-8.pb.gz`. The full archive is downloaded only when the weights folder
+is missing. To refresh an existing collection, move the whole folder to backup
+first; no individual networks receive special treatment.
 
 ---
 

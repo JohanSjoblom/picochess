@@ -129,6 +129,40 @@ does not rename ROMs, remove menu entries, or add every catalog entry.
 `small` updates the architecture engine pack without replacing MAME or Rodent
 resources already installed. To update the MAME resources, choose `large`.
 
+## Shared LC0 weights
+
+Both Linux package sizes download the same architecture-independent
+[`lc0_weights.tar.gz` from v4.4.0](https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/lc0_weights.tar.gz).
+It contains the previous 21 networks plus `tinygyal-8.pb.gz`, fixing
+[issue #385](https://github.com/JohanSjoblom/picochess/issues/385). The files extract
+directly into `engines/lc0_weights/`, without a parent directory in the archive.
+These network files can also be used by native LC0 on Windows and macOS; they
+contain no architecture-specific executables.
+
+`install-picochess.sh` uses `install-engines.sh` for this download. The complete
+archive is installed only when `engines/lc0_weights/` is missing. Existing
+folders are left untouched, regardless of which networks they contain.
+`update-engines.py` also reuses an existing weights folder without inspecting
+individual files.
+
+To refresh only the weights on an existing installation, stop PicoChess and
+move the entire collection to a unique backup before reinstalling:
+
+```bash
+cd /opt/picochess
+sudo systemctl stop picochess
+mkdir -p "$HOME/pico_backups"
+WEIGHTS_BACKUP=$(mktemp -d "$HOME/pico_backups/lc0-weights.XXXXXX")
+mv engines/lc0_weights "$WEIGHTS_BACKUP/"
+./install-engines.sh large
+# Only restart after a successful installation:
+sudo systemctl start picochess
+```
+
+Run the backup and engine installer as your normal user. Other existing engine
+resource directories are skipped. The older `move-engines-to-backup.sh` workflow
+also moves the whole weights folder, together with the other engine resources.
+
 ## Updating an existing aarch64 large installation to 4.4.0
 
 The 4.4.0 release supplies DJ Dekker's updated aarch64 large engine pack and

@@ -18,6 +18,13 @@ installs the Qt 6 runtime required by the x86_64 build. See
 [engine resource updates](install-engines.md#mame-0289-resources-for-both-architectures)
 for existing-installation and ROM checks. Use `--help` for all options.
 
+For an engine-only update that keeps collected ROMs and your retro menu
+selection, stop PicoChess and run `./update-engines.py large` as your normal
+install user. Use `--dry-run` to preview it. See
+[preserving existing resources](install-engines.md#updating-without-losing-roms-or-retro-menu-selections).
+The main installer's explicit package reinstall still uses the clean
+backup/reinstall path; it does not perform this preservation step.
+
 ---
 
 **REPO_DIR** - The full path where the Picochess repository is stored.  

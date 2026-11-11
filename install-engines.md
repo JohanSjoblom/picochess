@@ -41,7 +41,11 @@ engines/
 - Extracts it into place
 - Cleans up temporary files afterward
 
-If the folder already exists, the script skips installation to avoid overwriting existing engines. To force an update you must first run `move-engines-to-backup.sh`, which empties the `engines/` folder and allows the installer to download everything again.
+If the folder already exists, the script skips installation to avoid overwriting
+existing engines. Use `update-engines.py` below to update an existing installation
+while retaining ROMs and menu selections. The older `move-engines-to-backup.sh`
+followed by `install-engines.sh` is a clean reinstall and requires manual
+restoration of ROMs and custom menus.
 
 ---
 
@@ -62,9 +66,68 @@ If the folder already exists, the script skips installation to avoid overwriting
 
 Package choice controls contents and download size, independently of headless or desktop use. `lite` remains a deprecated alias for `large` and prints a notice. The large engine, MAME and Rodent archives now use `large` filenames on release 4.4.0. Older release assets remain available for older installers.
 
-> ℹ️ The script only runs as the `pi` user and assumes the target directories do **not** already exist. Run `move-engines-to-backup.sh` first if you need to reinstall over an existing setup.
+Run the engine scripts as your normal install user, without sudo. The standalone
+engine installer assumes the target directories do not already exist.
 
 ---
+
+## Updating without losing ROMs or retro menu selections
+
+Use the standalone, standard-library Python script `update-engines.py` for an
+existing Linux aarch64 or x86_64 installation. For a Pi 4, the new MAME builds
+require a 64-bit OS with Trixie-compatible runtime libraries. On x86_64, also
+install `libqt6gui6` and `libqt6widgets6` if they are not already installed.
+
+```bash
+cd /opt/picochess
+./update-engines.py large --dry-run
+sudo systemctl stop picochess
+./update-engines.py large
+# Only restart after the update reports success:
+sudo systemctl start picochess
+```
+
+Stop manually started PicoChess instances too. The updater refuses to proceed
+when `picochess.service` is active. It does not start or stop services itself.
+
+The update downloads and extracts into a staging directory first. It retains:
+
+- The complete existing MAME ROM collection, including software-list subfolders
+  and symlinks. Existing ROM files take precedence over bundled files with the
+  same name; bundled ROMs with new names are also kept.
+- Your `retro.ini` and `favorites.ini` selections and order. Their entries use
+  updated catalog metadata when available. A 185-entry retro menu stays at 185
+  entries, rather than being replaced with the packaged six-entry starter menu
+  or expanded to all 431 engines. Custom entries are retained.
+- MAME `mame.ini`, `ini/`, `cfg/` and `nvram/` settings/data.
+- Unbundled engine files and personalities. Files provided by the new packs,
+  including `.uci` level files, use the new versions; previous customizations
+  of those files remain in the backup for selective reapplication.
+
+Installed LC0 weights, script engines and PGN audio are reused. The updater
+checks that the new MAME executable starts before replacing live resources.
+Download, extraction or compatibility failures leave the live resources in
+place. A failure during replacement rolls back directories already replaced.
+
+Old resource directories are kept in a unique dated backup under
+`engines/.update-backups/`. Earlier backups are never overwritten. Allow disk
+space for the staged packs and a second copy of your ROM collection. Once you
+have verified an update, older backups can be removed manually to reclaim space.
+
+The script prints the exact rollback command:
+
+```bash
+./update-engines.py --restore /opt/picochess/engines/.update-backups/<backup-name>
+```
+
+Stop PicoChess before restoring. Restore also backs up the current resource
+directories, including any ROMs collected after the update. ROMs are retained,
+but compatibility with a newer MAME version must still be checked using
+`./mess -verifyroms` and the software-list checker described below. The updater
+does not rename ROMs, remove menu entries, or add every catalog entry.
+
+`small` updates the architecture engine pack without replacing MAME or Rodent
+resources already installed. To update the MAME resources, choose `large`.
 
 ## Updating an existing aarch64 large installation to 4.4.0
 
@@ -77,29 +140,21 @@ The updated aarch64 engine and Rodent archives use these names:
 - `aarch64_rodent4_large.tar.gz`
 
 Updating the PicoChess source alone does not replace existing engine directories.
-After updating to 4.4.0, stop PicoChess before reinstalling the engine resources.
+After updating the source, stop PicoChess before updating the engine resources.
 For a standard Linux service installation:
 
 ```bash
 sudo systemctl stop picochess
 cd /opt/picochess
-./move-engines-to-backup.sh
-./install-engines.sh large
+./update-engines.py large
+# Only restart after a successful update:
 sudo systemctl start picochess
 ```
 
-Run the two engine scripts as your normal install user. The backup script moves
-the current architecture's engines and the shared resource directories to
-`~/pico_backups/current/engines_backup`. It replaces previous backups of those
-directories, so preserve any older backup you need before running it. The
-reinstall also downloads the other large resources moved by the backup script.
-Keep your custom engine settings and personalities in the backup and reapply
-them selectively after checking the updated files.
-
-If installation fails, keep PicoChess stopped while investigating. To restore
-the previous resources, run `./restore-engines-from-backup.sh all` as the same
-user before starting PicoChess again. The restore script reports any resource
-that had no backup; check those messages before restarting.
+Run the updater as your normal install user. ROMs and menu selections are
+preserved as described above. Reapply any customizations of packaged engine
+settings selectively from the dated backup after checking the updated files.
+If updating fails, keep PicoChess stopped while checking the reported error.
 
 The Rodent configuration updates cover aarch64 only. The x86_64 Rodent contents
 are unchanged and are republished under `large` filenames. The small engine packs

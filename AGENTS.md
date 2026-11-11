@@ -770,6 +770,21 @@ is to retain the existing behavior and document it, with no code change.
 - Calls to `analyse()` made only to refresh analysis after `NEW_ENGINE` should
   use `allow_autoplay=False`.
 
+## Engine Resource Updates
+
+- `install-engines.sh` installs missing resource directories. A clean reinstall
+  using `move-engines-to-backup.sh` requires manual restoration of user data.
+- `update-engines.py` is the preservation workflow for existing Linux engine
+  installations. Stage downloads before replacing live directories; preserve
+  collected ROMs, software-list subfolders, MAME settings and selected retro/
+  favorites menu entries. Refresh those entries from packaged catalog metadata
+  without expanding or reducing the user's selection.
+- Keep unique backups of replaced directories and roll back a failed directory
+  replacement. Do not silently overwrite previous update backups, prune ROMs,
+  or replace a user's retro selection with the pack's default/full catalog.
+- Packaged engine settings may be refreshed; retain their previous versions in
+  the backup. Keep the preservation updater separate from clean installation.
+
 ## Reference Branches
 
 - `web-client-424` is a permanent side branch for accessibility reference

@@ -17,6 +17,7 @@ Notes:
   - Package choice controls contents and download size, independently of headless or desktop use.
   - "lite" is a deprecated alias for "large".
   - Script only installs engines when the target directories are missing.
+  - For an existing installation, use ./update-engines.py large to keep ROMs and menu selections.
   - To force a reinstall, first run move-engines-to-backup.sh.
   - You must specify either "small" or "large".
 

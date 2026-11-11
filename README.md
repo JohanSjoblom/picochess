@@ -177,13 +177,24 @@ How to add more engines?
 ------------------------
 Picochess ships with engine resource packs. The installer runs install-engines.sh once after cloning and installs the default small pack (includes Stockfish and LC0). You can re-run install-engines.sh anytime; it only downloads folders that are missing.
 
-Please note that you should choose either the small or the large package, not both. To move from small to large, command #1 below moves your current engines to backup. Command #2 then downloads the large package. Alternatively, you can re-run `install-picochess.sh large` and it will perform the backup and reinstall automatically for the current architecture.
+To update existing engine packs or switch from small to large while keeping
+collected ROMs and your retro menu selection:
 
-To switch from small to large:
-1) Run `./move-engines-to-backup.sh` to move your current engines out of `/opt/picochess/engines`. This prepares a clean install.
-2) Run `./install-engines.sh large`. The script detects your architecture (aarch64 on Raspberry Pi, x86_64 on Linux) and downloads the matching large files.
+```bash
+cd /opt/picochess
+./update-engines.py large --dry-run
+sudo systemctl stop picochess
+./update-engines.py large
+# Only restart after a successful update:
+sudo systemctl start picochess
+```
 
-If you prefer, you can delete the architecture folder under `/opt/picochess/engines` instead of using the backup script, then run `./install-engines.sh large`. The script requires an argument: `small` or `large`.
+Run the updater without sudo. It detects aarch64 or x86_64, stages the new packs,
+and retains a dated backup. See [engine update details](install-engines.md#updating-without-losing-roms-or-retro-menu-selections)
+for preserved files, runtime requirements and rollback. The older
+`move-engines-to-backup.sh` plus `install-engines.sh` workflow, also used by an
+explicit package reinstall through `install-picochess.sh`, remains a clean
+reinstall that requires manual restoration of user data.
 
 The large package takes longer to download.
 If you choose the large package, it also downloads the LC0 personality weights into `/opt/picochess/engines/lc0_weights`, which can take a while, but gives you a wider set of LC0 personalities to choose from, including many Maia strengths.

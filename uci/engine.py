@@ -1061,7 +1061,7 @@ class PlayingContinuousAnalysis:
             # Capture the outcome so we can release `_waiting` and the lease
             # before the consumer sees a result.
             should_queue = False
-            queue_payload: PlayResult | None = None
+            queue_payload: PlayResult | chess.engine.EngineError | None = None
             try:
                 await self.engine_lease.acquire(owner="playing", preempt=True)
                 lease_acquired = True
@@ -1152,10 +1152,21 @@ class PlayingContinuousAnalysis:
                 should_queue = True
                 queue_payload = None
                 raise
-            except (EngineTerminatedError, chess.engine.EngineError):
+            except EngineTerminatedError:
                 logger.warning("%s engine terminated during play_move", self.whoami)
                 should_queue = True
                 queue_payload = None
+            except chess.engine.EngineError as e:
+                should_queue = True
+                if self._cancel_event.is_set():
+                    # a discarded search (MAME new game) ends its stream on purpose: no result
+                    logger.debug("%s cancelled search ended without bestmove", self.whoami)
+                    queue_payload = None
+                else:
+                    # An illegal or unreadable bestmove: the engine still runs, so pass the error on
+                    # instead of None, which the caller can't tell apart from a resignation (#581).
+                    logger.warning("%s engine sent an unusable bestmove during play_move: %s", self.whoami, e)
+                    queue_payload = e
             except Exception as e:
                 logger.exception("%s unexpected error during play_move: %s", self.whoami, e)
                 should_queue = True
@@ -2155,7 +2166,8 @@ class UciEngine(object):
         parameter variant_board: optional variant board (e.g., chess.variant.ThreeCheckBoard) that provides
                                  extended FEN for variant-aware engines like Fairy-Stockfish
 
-        Returns True when a search was started; its result will arrive on result_queue.
+        Returns True when a search was started; its result will arrive on result_queue:
+        a PlayResult, an EngineError for an illegal or unreadable bestmove, or None.
         Returns False when no search was started; nothing will be put on result_queue."""
         if not self.engine:
             logger.error("go called but no engine loaded")

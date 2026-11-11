@@ -1463,6 +1463,63 @@ class TestThinkEngineIdleContract(unittest.IsolatedAsyncioTestCase):
         # A search that is still running keeps its pending ignore request.
         self.assertTrue(self.controller.state.ignore_next_engine_move)
 
+    def finish_with(self, result):
+        async def go(result_queue, **_kwargs):
+            await result_queue.put(result)
+            return True
+
+        self.controller.engine.go = AsyncMock(side_effect=go)
+
+    async def test_illegal_bestmove_recovers_instead_of_resigning(self):
+        # #581: the engine still runs, so the resignation check must not see this result
+        self.finish_with(chess.engine.EngineError("illegal uci: 'd7f3'"))
+
+        await self.controller.think(None)
+
+        self.controller._publish_engine_search_failure.assert_awaited_once_with(
+            self.controller.state.game.fen(),
+            1,
+        )
+        self.controller._cache_engine_abort_result.assert_not_awaited()
+        self.fire.assert_not_awaited()
+
+    async def test_illegal_bestmove_in_pgn_and_online_mode_keeps_general_handling(self):
+        for mode in ("pgn_mode", "online_mode"):
+            with self.subTest(mode=mode):
+                self.fire.reset_mock()
+                self.controller._publish_engine_search_failure.reset_mock()
+                self.controller.pgn_mode.return_value = mode == "pgn_mode"
+                self.controller.online_mode.return_value = mode == "online_mode"
+                self.finish_with(chess.engine.EngineError("illegal uci: 'd7f3'"))
+
+                await self.controller.think(None)
+
+                self.controller._publish_engine_search_failure.assert_not_awaited()
+                self.fire.assert_awaited_once()
+                event = self.fire.await_args.args[0]
+                self.assertEqual(EventApi.BEST_MOVE, repr(event))
+                self.assertIsNone(event.move)
+
+    async def test_illegal_bestmove_after_takeback_is_ignored(self):
+        self.controller.state.ignore_next_engine_move = True
+        self.finish_with(chess.engine.EngineError("illegal uci: 'd7f3'"))
+
+        await self.controller.think(None)
+
+        self.controller._publish_engine_search_failure.assert_not_awaited()
+        self.fire.assert_not_awaited()
+
+    async def test_null_move_keeps_the_resignation_check(self):
+        # bestmove 0000: resignation, or the PGN replay engine's wrong guess
+        self.finish_with(chess.engine.PlayResult(chess.Move.null(), None))
+
+        await self.controller.think(None)
+
+        self.controller._cache_engine_abort_result.assert_awaited_once_with()
+        self.controller._publish_engine_search_failure.assert_not_awaited()
+        self.fire.assert_awaited_once()
+        self.assertIsNone(self.fire.await_args.args[0].move)
+
     async def test_superseded_result_has_no_feedback_or_shared_state_side_effects(self):
         for result in (None, chess.engine.PlayResult(chess.Move.from_uci("e2e4"), None)):
             with self.subTest(result=result):

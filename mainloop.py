@@ -5341,6 +5341,7 @@ class MainLoop:
             old_file = self.state.engine_file
             old_options = {}
             old_options = self.engine.get_pgn_options()
+            old_rspeed = self.state.dgtmenu.get_engine_rspeed()
             engine_fallback = False
             # Stop the old engine cleanly
             if not self.emulation_mode():
@@ -5358,10 +5359,10 @@ class MainLoop:
                     engine_file_to_load = engine_file_art  # load mame
                 else:
                     await DisplayMsg.show(Message.SHOW_TEXT(text_string="NO_ARTWORK"))
-            if "/mame/" in self.state.engine_file and self.state.dgtmenu.get_engine_rspeed() != 1.0:
-                # a newly selected retro machine starts at real speed (100%)
+            if "/mame/" in self.state.engine_file and old_rspeed != 1.0:
+                # a newly selected retro machine starts at real speed (100%);
+                # saved to picochess.ini only once the selection has succeeded
                 self.state.dgtmenu.set_retro_speed(1.0)
-                write_picochess_ini("rspeed", 1.0)
 
             await DisplayMsg.show(Message.ENGINE_SETUP())
             await self.engine.quit()
@@ -5382,6 +5383,7 @@ class MainLoop:
                 engine_fallback = True
                 event.options = old_options
                 self.state.engine_file = old_file
+                self.state.dgtmenu.set_retro_speed(old_rspeed)  # the old engine keeps its speed
                 # restart old mame engine?
                 self.state.artwork_in_use = False
                 if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
@@ -5439,6 +5441,7 @@ class MainLoop:
                 engine_fallback = True
                 event.options = old_options
                 self.state.engine_file = old_file
+                self.state.dgtmenu.set_retro_speed(old_rspeed)  # the old engine keeps its speed
                 self.state.artwork_in_use = False
                 await self.engine.quit()
                 if "/mame/" in old_file and self.state.dgtmenu.get_engine_rdisplay():
@@ -5578,6 +5581,9 @@ class MainLoop:
 
             await self.engine_mode()
 
+            if not engine_fallback and self.state.dgtmenu.get_engine_rspeed() != old_rspeed:
+                # the new retro machine is running: now save its reset speed
+                write_picochess_ini("rspeed", self.state.dgtmenu.get_engine_rspeed())
             if engine_fallback:
                 msg = Message.ENGINE_FAIL()
                 # molli: in case of engine fail, set correct old engine display settings
@@ -7644,6 +7650,7 @@ class MainLoop:
                 # keep the game, the clocks and a pending engine move
                 if self.engine.set_mame_speed(event.rspeed, self.calc_engine_mame_par()):
                     await DisplayMsg.show(Message.RSPEED(rspeed=event.rspeed))
+                    await self.update_elo_display()  # web and PGN speed metadata
                 else:
                     await self.restart_retro_engine()
 

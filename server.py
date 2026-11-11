@@ -3728,6 +3728,9 @@ class WebDisplay(DisplayMsg):
 
         elif isinstance(message, Message.SYSTEM_INFO):
             self._create_system_info()
+            rspeed_changed = (
+                "rspeed" in message.info and message.info["rspeed"] != self.shared["system_info"].get("rspeed")
+            )
             self.shared["system_info"].update(message.info)
             # Let the web client know whether a physical board is connected so it
             # can make the diagram read-only when appropriate.
@@ -3744,7 +3747,8 @@ class WebDisplay(DisplayMsg):
                 self.shared["system_info"]["user_name_orig"] = self.shared["system_info"]["user_name"]
             if "user_elo" in self.shared["system_info"]:
                 WebDisplay.user_elo_sav = self.shared["system_info"]["user_elo"]
-            if "engine_match_remote_engine_name" in message.info:
+            if "engine_match_remote_engine_name" in message.info or rspeed_changed:
+                # the retro speed is part of the engine name in the headers
                 _build_headers()
                 _send_headers()
 

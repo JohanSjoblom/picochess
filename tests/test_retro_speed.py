@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import mainloop
 from dgt.api import Event, Message
-from dgt.util import Mode
+from dgt.util import Mode, PlayMode
 from pgn import PgnDisplay
 from server import WebDisplay
 from uci.engine import UciEngine
@@ -126,7 +126,11 @@ class TestSpeedMetadataReachesWebAndPgn(unittest.IsolatedAsyncioTestCase):
 
         loop = asyncio.get_running_loop()
         pgn_display = PgnDisplay("test", None, {}, loop)
-        shared = {"headers": {}, "system_info": {"rspeed": 1.0}, "game_info": {}}
+        shared = {
+            "headers": {},
+            "system_info": {"rspeed": 1.0, "engine_name": "Chesster"},
+            "game_info": {"play_mode": PlayMode.USER_WHITE},
+        }
         web_display = WebDisplay(shared, loop)
 
         with patch.object(mainloop.DisplayMsg, "show", new_callable=AsyncMock) as show:
@@ -134,12 +138,23 @@ class TestSpeedMetadataReachesWebAndPgn(unittest.IsolatedAsyncioTestCase):
         infos = [c.args[0] for c in show.await_args_list if isinstance(c.args[0], Message.SYSTEM_INFO)]
         self.assertEqual([{"rspeed": 2.0}], [m.info for m in infos])
 
-        with patch("server.EventHandler.write_to_clients"):
+        with (
+            patch("server.EventHandler.write_to_clients") as write_to_clients,
+            patch.object(WebDisplay, "engine_name", "Chesster"),
+            patch("server.ModeInfo.get_emulation_mode", return_value=True),
+            patch("server.ModeInfo.get_pgn_mode", return_value=False),
+        ):
             for message in infos:
                 await pgn_display._process_message(message)
                 await web_display.task(message)
+            # the same speed again sends no new headers
+            write_to_clients.reset_mock()
+            await web_display.task(Message.SYSTEM_INFO(info={"rspeed": 2.0}))
+            write_to_clients.assert_not_called()
         self.assertEqual(2.0, pgn_display.rspeed)
         self.assertEqual(2.0, shared["system_info"]["rspeed"])
+        # the web page shows the speed in the engine's header name right away
+        self.assertEqual("Chesster (200%)", shared["headers"].get("Black"))
 
 
 class FakeRetroMenu(SimpleNamespace):

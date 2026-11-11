@@ -1,7 +1,10 @@
-"""An engine that ends a search with an unparseable bestmove must not hang the game.
+"""An engine that ends a search with an unusable bestmove must not hang the game.
 
-The MAME chessengine plugin sends "bestmove ----" after a position it can't set up.
-These tests run the real UCI protocol against a small scripted engine.
+The MAME chessengine plugin sends "bestmove ----" after a position it can't set up, and a
+plugin bug once made it send an illegal move. The search then ends with the EngineError,
+so the caller can tell it apart from "bestmove 0000" (a resignation, or the PGN replay
+engine's wrong guess) (#581). These tests run the real UCI protocol against a small
+scripted engine.
 """
 
 import asyncio
@@ -59,14 +62,34 @@ class TestPlayingBestmoveFailure(unittest.IsolatedAsyncioTestCase):
                 transport.close()
             return result, lease._owner
 
+    def assert_engine_error(self, outcome):
+        result, owner = outcome
+        self.assertIsInstance(result, chess.engine.EngineError)
+        self.assertNotIsInstance(result, chess.engine.EngineTerminatedError)
+        self.assertIsNone(owner)
+
     async def test_failure_with_info_loop_completes_and_releases_the_lease(self):
-        self.assertEqual(await self.search("----", 0, True), (None, None))
+        self.assert_engine_error(await self.search("----", 0, True))
 
     async def test_late_failure_with_info_loop_completes_and_releases_the_lease(self):
-        self.assertEqual(await self.search("----", 0.3, True), (None, None))
+        self.assert_engine_error(await self.search("----", 0.3, True))
 
-    async def test_failure_without_info_loop_keeps_its_behaviour(self):
-        self.assertEqual(await self.search("----", 0, False), (None, None))
+    async def test_failure_without_info_loop_completes_and_releases_the_lease(self):
+        self.assert_engine_error(await self.search("----", 0, False))
+
+    async def test_illegal_move_is_reported_as_engine_error(self):
+        for allow_info_loop in (True, False):
+            with self.subTest(allow_info_loop=allow_info_loop):
+                self.assert_engine_error(await self.search("d7f3", 0, allow_info_loop))
+
+    async def test_null_move_is_a_result_not_an_error(self):
+        # "bestmove 0000" keeps its meaning: resignation, or the PGN replay engine's wrong guess
+        for allow_info_loop in (True, False):
+            with self.subTest(allow_info_loop=allow_info_loop):
+                result, owner = await self.search("0000", 0, allow_info_loop)
+                self.assertIsInstance(result, chess.engine.PlayResult)
+                self.assertEqual(result.move, chess.Move.null())
+                self.assertIsNone(owner)
 
     async def test_valid_move_with_info_loop_is_not_failed(self):
         result, owner = await self.search("e2e4", 0, True)

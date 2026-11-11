@@ -790,6 +790,33 @@ class MainLoop:
                 self.state.game.copy(), variant_board=vb.copy() if vb else None
             )
 
+    async def _handle_unusable_bestmove(
+        self, error: chess.engine.EngineError, search_fen: str, search_revision: int
+    ) -> None:
+        """Handle an illegal or unreadable bestmove from the playing engine (#581).
+
+        The engine still runs, so the isready ping in handle_bestmove_0000() would take
+        a missing move for a resignation. Recover as from a failed engine instead: the
+        game stays open, the user's move is taken back and the engine is reopened.
+        PGN replay and online games keep their own handling of a missing move.
+        """
+        logger.error("engine sent an illegal or unreadable bestmove: %s", error)
+        if self.state.ignore_next_engine_move:
+            self.state.ignore_next_engine_move = False  # make sure we handle next move
+            logger.debug("ignored engine error - takeback or state change forced move")
+        elif self.pgn_mode() or self.online_mode():
+            await Observable.fire(
+                Event.BEST_MOVE(
+                    move=None,
+                    ponder=None,
+                    inbook=False,
+                    fen=search_fen,
+                    search_revision=search_revision,
+                )
+            )
+        else:
+            await self._publish_engine_search_failure(search_fen, search_revision)
+
     async def _prepare_engine_for_search(self, search_revision: int) -> bool | None:
         """Stop an obsolete playing search without waiting forever."""
         engine = self._require_engine()
@@ -962,7 +989,9 @@ class MainLoop:
                 if search_revision != self.state.engine_search_revision:
                     logger.info("discarding result from superseded engine search revision %s", search_revision)
                     return
-                if engine_res:
+                if isinstance(engine_res, chess.engine.EngineError):
+                    await self._handle_unusable_bestmove(engine_res, search_fen, search_revision)
+                elif engine_res:
                     logger.debug("engine moved %s", engine_res.move.uci() if engine_res.move else "0000")
                     if self.state.ignore_next_engine_move:
                         self.state.ignore_next_engine_move = False  # make sure we handle next move

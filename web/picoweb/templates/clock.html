@@ -2131,10 +2131,22 @@
                 renderPositionTiles();
             }
 
-            /* ── display picker (board / pieces / theme) ─ */
+            /* ── display picker (board / pieces / theme / clock) ─ */
             var currentThemeSetting = {% raw theme_setting_json %};
 
             var DISPLAY_CATS = {
+                clock: {
+                    label: 'Clock Only',
+                    items: [
+                        ['Retro touch display', 'retro'],
+                        ['DGT 3000 Original', 'original'],
+                        ['DGT 3000 Limited Edition', 'limited']
+                    ],
+                    getCurrent: function() { return null; },
+                    apply: function(val) {
+                        window.location.assign(val === 'retro' ? '/clock' : '/clock?artwork=' + val);
+                    }
+                },
                 board: {
                     label: 'Board Color',
                     items: [
@@ -2274,18 +2286,6 @@
                 var grid = document.createElement('div');
                 grid.className = 'pico-sub-tile-grid';
                 cats.forEach(function(cat) {
-                    if (cat.key === 'clock') {
-                        var clockBtn = document.createElement('button');
-                        clockBtn.className = 'pico-sub-tile';
-                        var clockLabel = document.createElement('span'); clockLabel.className = 'pico-sub-tile-label';
-                        clockLabel.textContent = cat.icon + ' ' + cat.label;
-                        var clockSub = document.createElement('span'); clockSub.className = 'pico-sub-tile-sub';
-                        clockSub.textContent = 'Retro touch display';
-                        clockBtn.appendChild(clockLabel); clockBtn.appendChild(clockSub);
-                        clockBtn.addEventListener('click', function() { window.location.assign('/clock'); });
-                        grid.appendChild(clockBtn);
-                        return;
-                    }
                     if (cat.key === 'pgn-lines') {
                         var linesBtn = document.createElement('button');
                         linesBtn.className = 'pico-sub-tile';

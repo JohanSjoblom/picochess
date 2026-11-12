@@ -145,6 +145,12 @@ explicitly requires it.
 
 ## Clock Controls
 
+- Display > Clock Only offers the existing retro touch clock and two DGT 3000
+  photo clocks (Original and Limited Edition). The web menu selects a `/clock`
+  variant by URL; this is a view choice, not a persistent clock setting.
+- The photo clocks reuse the same `/channel` clock-button actions and websocket
+  clock text as the retro touch clock. Keep the URL artwork value allowlisted
+  and leave the ordinary `/clock` view available.
 - The web client needs quick clock-like controls outside the overlay menu.
 - Keep switch-sides and pause/resume controls visually attached to the clock,
   not buried only inside the menu.

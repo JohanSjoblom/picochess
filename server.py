@@ -2484,7 +2484,10 @@ class RetroClockHandler(ServerRequestHandler):
 
     def get(self):
         self.set_header("Cache-Control", "no-store")
-        self.render("web/picoweb/templates/retro_clock.html", theme=self.theme)
+        artwork = self.get_query_argument("artwork", "")
+        if artwork not in ("original", "limited"):
+            artwork = ""
+        self.render("web/picoweb/templates/retro_clock.html", theme=self.theme, artwork=artwork)
 
 
 class HelpHandler(ServerRequestHandler):

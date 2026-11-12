@@ -1,0 +1,159 @@
+.clock-photo--original {
+    /* Positions are relative to the cropped photo's viewBox. */
+    --photo-ratio: 1500 / 732;
+    --lcd-inset: 25.6% 7.2% 37.4%;
+    --controls-center: 77.9%;
+    --controls-height: 11.3%;
+    --rocker-inset: 0 4.4% auto;
+    --rocker-height: 17%;
+    --photo-lcd-top: #9daeb4;
+    --photo-lcd-bottom: #82979e;
+    --photo-lcd-ink: #152d3a;
+}
+
+.clock-photo--limited {
+    --photo-ratio: 1396 / 650;
+    --lcd-inset: 24.2% 9.2% 39.6% 8.8%;
+    --controls-center: 76.8%;
+    --controls-height: 12.5%;
+    --rocker-inset: 0 7.3% auto 6%;
+    --rocker-height: 16%;
+    --photo-lcd-top: #b9c7c2;
+    --photo-lcd-bottom: #9fafaa;
+    --photo-lcd-ink: #19333d;
+}
+
+.clock-photo.clock-case {
+    position: relative;
+    display: block;
+    width: min(100%, 1100px, calc((100svh - 108px) * (var(--photo-ratio))));
+    height: auto;
+    aspect-ratio: var(--photo-ratio);
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+}
+
+.clock-photo .clock-artwork {
+    display: block;
+    width: 100%;
+    filter: drop-shadow(0 8px 14px #0008);
+}
+
+.clock-photo .clock-rocker-artwork {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    contain: paint;
+    pointer-events: none;
+}
+
+.clock-rocker-artwork[data-rocker-down="left"] .rocker-left-up,
+.clock-rocker-artwork[data-rocker-down="right"] .rocker-right-up {
+    opacity: 0;
+}
+
+.clock-photo .lcd {
+    position: absolute;
+    inset: var(--lcd-inset);
+    display: flex;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    clip-path: polygon(2.5% 3%, 3.5% 0, 96.5% 0, 97.5% 3%, 100% 92%,
+                       99.5% 97%, 98.5% 100%, 1.5% 100%, .5% 97%, 0 92%);
+    background:
+        linear-gradient(169deg, #ffffff18 0 57%, transparent 57.5%),
+        linear-gradient(to bottom, var(--photo-lcd-top), var(--photo-lcd-bottom));
+    box-shadow: inset 0 0 1.2cqw #162a3570;
+    color: var(--photo-lcd-ink);
+}
+
+.clock-photo .lcd::before {
+    position: absolute;
+    inset: 19% 0 24%;
+    border-block: 1px solid #19303970;
+    content: "";
+    pointer-events: none;
+}
+
+.clock-photo #clock-text {
+    position: relative;
+    display: block;
+    width: 92%;
+    text-align: center;
+    font-size: 4.7cqw;
+    font-weight: 600;
+    letter-spacing: -.04em;
+    line-height: 1.1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.clock-photo #clock-text.lcd-times { display: grid; }
+.clock-photo #clock-text .ctime-inactive { opacity: .65; }
+
+.clock-photo .lcd-digits {
+    display: block;
+    width: 85%;
+    margin-inline: auto;
+    fill: currentColor;
+}
+
+.clock-photo .top-controls { display: contents; }
+
+.clock-photo .controls {
+    position: absolute;
+    inset: var(--controls-center) 4.9% auto;
+    height: max(44px, var(--controls-height));
+    transform: translateY(-50%);
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    background: none;
+}
+
+.clock-photo :is(.controls button, #photo-rocker, #center) {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0;
+    transform: none;
+}
+
+.clock-photo .controls button { height: 100%; }
+.clock-photo .controls .fa { display: none; }
+.clock-photo :is(.controls button, #photo-rocker):hover { outline: none; }
+.clock-photo :is(.controls button, #photo-rocker):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+.clock-photo :is(.controls button, #center):active {
+    background: #ffdf8e35;
+}
+
+.clock-photo #photo-rocker {
+    position: absolute;
+    inset: var(--rocker-inset);
+    height: var(--rocker-height);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.clock-photo #back {
+    position: absolute;
+    top: -50px;
+    right: 0;
+    min-height: 44px;
+}
+
+.clock-photo #connection {
+    position: absolute;
+    top: 100%;
+    width: 100%;
+    margin: 7px 0 0;
+}

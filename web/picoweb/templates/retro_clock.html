@@ -157,11 +157,67 @@
             }
         }
     </style>
+    {% if artwork %}
+    <link rel="stylesheet" href="/static/css/clock-photo.css?v=4">
+    {% end %}
 </head>
 <body>
-    <main class="clock-case" aria-label="Picochess clock">
+    <main class="clock-case{% if artwork %} clock-photo clock-photo--{{ artwork }}{% end %}" aria-label="Picochess clock">
+        {% if artwork == "original" %}
+        <svg class="clock-artwork" viewBox="138 95 1500 732" aria-hidden="true">
+            <defs>
+                <clipPath id="case-outline">
+                    <path d="M219 197 H1555
+                             Q1584 254 1612 426 Q1641 609 1632 800 L1620 812 L1601 813
+                             Q1597 825 1551 825 Q1509 825 1501 813 H270 Q266 825 219 825
+                             Q173 825 167 813 Q146 813 143 806 Q132 675 148 518
+                             Q167 317 219 197 Z"/>
+                </clipPath>
+            </defs>
+            <image href="/static/img/dgt3000-original.webp" width="1772" height="1112" clip-path="url(#case-outline)"/>
+        </svg>
+        <svg class="clock-rocker-artwork" viewBox="138 95 1500 102" data-rocker-down="left" aria-hidden="true">
+            <defs>
+                <clipPath id="rocker-outline">
+                    <path d="M219 197 Q229 165 251 166 L873 166 L883 170 L888 166 L1505 97
+                             Q1526 95 1536 113 L1572 184 L1534 193 L1555 197 Z"/>
+                </clipPath>
+                <image id="rocker-photo" href="/static/img/dgt3000-original.webp" width="1772" height="1112" clip-path="url(#rocker-outline)"/>
+            </defs>
+            <use class="rocker-right-up" href="#rocker-photo"/>
+            <use class="rocker-left-up" href="#rocker-photo" transform="translate(1774 0) scale(-1 1)"/>
+        </svg>
+        {% elif artwork == "limited" %}
+        <svg class="clock-artwork" viewBox="194 82 1396 650" aria-hidden="true">
+            <defs>
+                <clipPath id="case-outline">
+                    <path d="M292 162 H1473
+                             Q1491 173 1536 366 Q1573 519 1587 713 L1552 716
+                             Q1550 728 1503 728 Q1468 728 1459 717 L319 721
+                             Q307 732 260 731 Q228 730 226 720 L203 720 Q195 718 195 710
+                             Q202 455 292 162 Z"/>
+                </clipPath>
+            </defs>
+            <image href="/static/img/dgt3000-limited.webp" width="1772" height="824" clip-path="url(#case-outline)"/>
+        </svg>
+        <svg class="clock-rocker-artwork" viewBox="194 82 1396 80" data-rocker-down="left" aria-hidden="true">
+            <defs>
+                <clipPath id="rocker-outline">
+                    <path d="M292 162 Q307 141 322 142 H874 L877 147 L885 141 L1426 84
+                             Q1449 81 1459 98 L1487 152 L1424 161 L1473 162 Z"/>
+                </clipPath>
+                <image id="rocker-photo" href="/static/img/dgt3000-limited.webp" width="1772" height="824" clip-path="url(#rocker-outline)"/>
+            </defs>
+            <use class="rocker-right-up" href="#rocker-photo"/>
+            <use class="rocker-left-up" href="#rocker-photo" transform="translate(1765 0) scale(-1 1)"/>
+        </svg>
+        {% end %}
         <div class="top-controls">
+            {% if artwork %}
+            <button type="button" id="photo-rocker" aria-label="Switch sides"></button>
+            {% else %}
             <button type="button" id="lever" title="Switch sides" aria-label="Switch sides">Lever</button>
+            {% end %}
             <button type="button" id="back" title="Return to Picochess" aria-label="Return to Picochess"><i class="fa fa-arrow-left" aria-hidden="true"></i></button>
         </div>
         <section class="lcd" aria-live="polite" aria-label="Clock" role="timer">
@@ -178,16 +234,17 @@
             <p id="connection" aria-live="polite"></p>
         </div>
     </main>
+    {% if artwork %}
+    <script src="/static/js/clock-photo.js?v=4"></script>
+    {% end %}
     <script>
         (() => {
             const clockText = document.getElementById('clock-text');
             const connection = document.getElementById('connection');
             const centerButton = document.getElementById('center');
-            const leverButton = document.getElementById('lever');
             const backButton = document.getElementById('back');
             const evaluationButton = document.getElementById('evaluation');
             const hintButton = document.getElementById('hint');
-            let leverRight = false;
 
             const setMenuMode = (active) => {
                 const evaluationIcon = evaluationButton.querySelector('.fa');
@@ -208,7 +265,12 @@
                 .catch(() => {});
 
             const updateClock = (text, running) => {
-                if (typeof text === 'string' && text) clockText.innerHTML = text;
+                if (typeof text === 'string' && text) {
+                    clockText.innerHTML = text;
+                    {% if artwork %}
+                    renderClockPhotoLCD(clockText);
+                    {% end %}
+                }
                 if (typeof running === 'boolean') {
                     const icon = centerButton.querySelector('.fa');
                     icon.classList.toggle('fa-pause', running);
@@ -221,15 +283,29 @@
             const channel = (action, extra = {}) => {
                 const body = new URLSearchParams({ action, ...extra });
                 return fetch('/channel', { method: 'POST', body })
-                    .then(() => window.setTimeout(refreshMenuState, 150))
-                    .catch(() => { connection.textContent = 'Control unavailable'; });
+                    .then((response) => {
+                        if (!response.ok) throw new Error('Control unavailable');
+                        if (connection.textContent === 'Control unavailable') connection.textContent = '';
+                        window.setTimeout(refreshMenuState, 150);
+                        return true;
+                    })
+                    .catch(() => {
+                        connection.textContent = 'Control unavailable';
+                        return false;
+                    });
             };
 
+            {% if artwork %}
+            bindClockPhotoRocker(document.querySelector('.clock-photo'), (button) => channel('clockbutton', { button }));
+            {% else %}
+            const leverButton = document.getElementById('lever');
+            let leverRight = false;
             leverButton.addEventListener('click', () => {
                 leverRight = !leverRight;
                 leverButton.classList.toggle('lever-right', leverRight);
                 channel('clockbutton', { button: leverRight ? '64' : '-64' });
             });
+            {% end %}
             backButton.addEventListener('click', () => window.location.assign('/'));
             document.getElementById('left').addEventListener('click', () => channel('clockbutton', { button: '0' }));
             document.getElementById('evaluation').addEventListener('click', () => channel('clockbutton', { button: '1' }));

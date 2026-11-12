@@ -14,6 +14,7 @@ from dgt.util import GameResult, Mode, PicoCoach, PlayMode, TimeMode
 from server import (
     ChannelHandler,
     EventHandler,
+    RetroClockHandler,
     WebDisplay,
     OBOOKSRV_BOOK_FILE,
     OBOOKSRV_BOOK_LABEL,
@@ -155,6 +156,41 @@ class TestSettingsTemplate(unittest.TestCase):
 
         self.assertIn("backButton.addEventListener('click', () => window.location.assign('/'))", template)
         self.assertNotIn("clock_menu_exit", template)
+
+    def test_clock_only_menu_offers_all_three_displays(self):
+        template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")
+
+        for label, value in (
+            ("Retro touch display", "retro"),
+            ("DGT 3000 Original", "original"),
+            ("DGT 3000 Limited Edition", "limited"),
+        ):
+            self.assertIn(f"['{label}', '{value}']", template)
+        self.assertIn("showDisplayCat(cat.key)", template)
+        self.assertIn("val === 'retro' ? '/clock' : '/clock?artwork=' + val", template)
+
+    def test_clock_only_artwork_is_validated_and_renders(self):
+        from tornado.template import Loader
+
+        root = Path(__file__).parents[1]
+        loader = Loader(str(root))
+        clock_template = loader.load("web/picoweb/templates/retro_clock.html")
+        for requested, selected in (("original", "original"), ("limited", "limited"), ("unknown", "")):
+            with self.subTest(requested=requested):
+                handler = Mock()
+                handler.get_query_argument.return_value = requested
+                RetroClockHandler.get(handler)
+                handler.render.assert_called_once_with(
+                    "web/picoweb/templates/retro_clock.html", theme=handler.theme, artwork=selected
+                )
+                rendered = clock_template.generate(theme="dark", artwork=selected).decode("utf-8")
+                if selected:
+                    self.assertIn(f"/static/img/dgt3000-{selected}.webp", rendered)
+                    self.assertIn('id="photo-rocker"', rendered)
+                    self.assertIn("bindClockPhotoRocker", rendered)
+                else:
+                    self.assertIn('id="lever"', rendered)
+                    self.assertNotIn("clock-photo.js", rendered)
 
     def test_normal_web_clock_exposes_contextual_menu_back_button(self):
         template = (Path(__file__).parents[1] / "web/picoweb/templates/clock.html").read_text(encoding="utf-8")

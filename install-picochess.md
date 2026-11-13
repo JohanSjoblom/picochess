@@ -12,7 +12,7 @@ setup (`kiosk`) are separate options and can be combined with either package.
 
 `lite` remains a deprecated alias for `large` and prints a notice. The large
 engine, MAME and Rodent downloads use `large` filenames from release
-4.4.0. MAME resources now include Randy's MAME 0.289 build and updated artwork,
+4.4.1. MAME resources include Randy's MAME 0.289 build and updated artwork,
 plugin, launch scripts and catalogs for aarch64 and x86_64. The installer also
 installs the Qt 6 runtime required by the x86_64 build. See
 [engine resource updates](install-engines.md#mame-0289-resources-for-both-architectures)
@@ -29,7 +29,7 @@ installer's clean backup/reinstall path; it does not perform this preservation
 step. `noengines` skips engine installation even when `large` is supplied.
 
 The Linux installer delegates LC0 network installation to `install-engines.sh`.
-Both package sizes use the shared v4.4.0 weights archive, including
+Both package sizes use the shared v4.4.1 weights archive, including
 `tinygyal-8.pb.gz`. The full archive is downloaded only when the weights folder
 is missing. To refresh an existing collection, move the whole folder to backup
 first; no individual networks receive special treatment.

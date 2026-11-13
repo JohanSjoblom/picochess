@@ -176,12 +176,13 @@ class TestInstallerPackages(unittest.TestCase):
                 self.assertEqual(7, len(large))
                 for component in ("large.tar.gz", "mame", "rodent3", "rodent4", "pgn_audio"):
                     self.assertTrue(any(component in url for url in large), component)
-                for url in large[:4]:
-                    self.assertIn("/v4.4.0/", url)
-                    self.assertIn("large.tar.gz", url)
+                for url in large:
+                    self.assertIn("/v4.4.1/", url)
                     self.assertNotIn("lite", url)
+                for url in large[:4]:
+                    self.assertIn("large.tar.gz", url)
                 self.assertIn(
-                    "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/lc0_weights.tar.gz",
+                    "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz",
                     large,
                 )
                 self.assertIn("variant: large", result.stdout)
@@ -193,9 +194,10 @@ class TestInstallerPackages(unittest.TestCase):
             with self.subTest(arch=arch):
                 urls, _ = self.install_engines(arch, "small")
                 self.assertEqual(3, len(urls))
+                self.assertTrue(all("/v4.4.1/" in url for url in urls))
                 self.assertIn("small.tar.gz", urls[0])
                 self.assertIn(
-                    "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/lc0_weights.tar.gz",
+                    "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz",
                     urls,
                 )
                 self.assertTrue(any("script_engines" in url for url in urls))

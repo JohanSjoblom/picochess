@@ -199,7 +199,7 @@ reinstall that requires manual restoration of user data.
 The large package takes longer to download.
 Both package sizes download the shared LC0 personality weights into
 `/opt/picochess/engines/lc0_weights`, including Tiny Gyal and the Maia strengths.
-The v4.4.0 weights archive is architecture-independent and is also usable by LC0
+The v4.4.1 weights archive is architecture-independent and is also usable by LC0
 on other operating systems. Existing weights folders are left untouched. To
 refresh the collection, move the entire weights folder to backup first.
 To add more engine manually yourself you need:

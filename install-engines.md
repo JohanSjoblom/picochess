@@ -64,7 +64,7 @@ restoration of ROMs and custom menus.
 - `small` keeps the download size lean (used by `install-picochess.sh` and the regular update path).
 - `large` installs the larger engine package plus add-ons such as MAME emulation and Rodent engines.
 
-Package choice controls contents and download size, independently of headless or desktop use. `lite` remains a deprecated alias for `large` and prints a notice. The large engine, MAME and Rodent archives now use `large` filenames on release 4.4.0. Older release assets remain available for older installers.
+Package choice controls contents and download size, independently of headless or desktop use. `lite` remains a deprecated alias for `large` and prints a notice. The v4.4.1 release gathers all archives used by this installer, with `large` filenames for the large engine, MAME and Rodent packages. Older release assets remain available for older installers.
 
 Run the engine scripts as your normal install user, without sudo. The standalone
 engine installer assumes the target directories do not already exist.
@@ -132,7 +132,7 @@ resources already installed. To update the MAME resources, choose `large`.
 ## Shared LC0 weights
 
 Both Linux package sizes download the same architecture-independent
-[`lc0_weights.tar.gz` from v4.4.0](https://github.com/JohanSjoblom/picochess/releases/download/v4.4.0/lc0_weights.tar.gz).
+[`lc0_weights.tar.gz` from v4.4.1](https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz).
 It contains the previous 21 networks plus `tinygyal-8.pb.gz`, fixing
 [issue #385](https://github.com/JohanSjoblom/picochess/issues/385). The files extract
 directly into `engines/lc0_weights/`, without a parent directory in the archive.

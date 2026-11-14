@@ -71,17 +71,58 @@ def catalog(path):
     return parser, manufacturers
 
 
+def entry_comments(path):
+    """Collect comments belonging to entries, including comments before headers."""
+    comments = {}
+    if not path.is_file():
+        return comments
+    section = None
+    pending = []
+    after_blank = True
+    leading = False
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        header = re.fullmatch(r"\s*\[([^\]]+)\]\s*", line)
+        if header:
+            if pending and section is not None and not leading:
+                comments.setdefault(section, []).extend(pending)
+                pending = []
+            section = header[1]
+            comments.setdefault(section, []).extend(pending)
+            pending = []
+            after_blank = False
+        elif line.lstrip().startswith((";", "#")):
+            if not re.fullmatch(r"; Manufacturer: (.+?)\s*", line):
+                if not pending:
+                    leading = after_blank
+                pending.append(line)
+        elif not line.strip():
+            if pending and section is not None and not leading:
+                comments.setdefault(section, []).extend(pending)
+                pending = []
+            after_blank = True
+        elif line.strip() and section is not None:
+            comments.setdefault(section, []).extend(pending)
+            pending = []
+            after_blank = False
+    if section is not None:
+        comments.setdefault(section, []).extend(pending)
+    return comments
+
+
 def preserve_menu(old_path, new_arch):
     """Keep selection/order, refreshing metadata from the downloaded catalogs."""
     if not old_path.is_file():
         return
     old, old_makers = catalog(old_path)
-    available, makers = {}, {}
+    old_comments = entry_comments(old_path)
+    available, makers, packaged_comments = {}, {}, {}
     for name in ("engines.ini", "retro.ini", "engines_ini/all_retro.ini"):
         current, current_makers = catalog(new_arch / name)
+        current_comments = entry_comments(new_arch / name)
         for section in current.sections():
             available[section] = dict(current[section])
             makers[section] = current_makers.get(section, "")
+            packaged_comments[section] = current_comments.get(section, [])
     rows = []
     for section in old.sections():
         if section not in available:
@@ -93,6 +134,10 @@ def preserve_menu(old_path, new_arch):
     for section, values, maker in rows:
         if grouped:
             text += f"; Manufacturer: {maker or 'Other'}\n"
+        comments = list(dict.fromkeys(old_comments.get(section, [])
+                                          + packaged_comments.get(section, [])))
+        if comments:
+            text += "\n".join(comments) + "\n"
         single = configparser.ConfigParser(interpolation=None)
         single.optionxform = str
         single[section] = values

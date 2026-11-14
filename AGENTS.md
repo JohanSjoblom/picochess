@@ -782,7 +782,9 @@ is to retain the existing behavior and document it, with no code change.
   installations. Stage downloads before replacing live directories; preserve
   collected ROMs, software-list subfolders, MAME settings and selected retro/
   favorites menu entries. Refresh those entries from packaged catalog metadata
-  without expanding or reducing the user's selection.
+  without expanding or reducing the user's selection. Preserve installed
+  per-entry comment lines in retro/favorites menus, including `; Comments:`
+  notes, and include packaged comments for those selected entries.
 - Keep unique backups of replaced directories and roll back a failed directory
   replacement. Do not silently overwrite previous update backups, prune ROMs,
   or replace a user's retro selection with the pack's default/full catalog.

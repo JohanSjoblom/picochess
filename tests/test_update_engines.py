@@ -151,6 +151,48 @@ class TestUpdateEngines(unittest.TestCase):
         self.assertEqual(3, len(menu.sections()))
         self.assertIn("engines-mame-large.tar.gz", (self.root / "downloads").read_text())
 
+    def test_menu_update_preserves_entry_comments(self):
+        arch = self.engines / "x86_64"
+        arch.mkdir()
+        old = arch / "retro.ini"
+        old.write_text(
+            "; Manufacturer: Mephisto\n"
+            "; Comments: Local ROM needs a custom setting.\n"
+            + entry("mame/mm5", "Old MM5").replace(
+                "ponder/brain = n\n\n", "ponder/brain = n\n; End note for MM5\n\n"
+            )
+            + "# Personal note for Boris\n"
+            + entry("mame/borisa", "Old Boris").replace(
+                "name = Old Boris", "name = Old Boris\n; Keep this inline note"
+            )
+        )
+        staged = self.root / "staged"
+        (staged / "engines_ini").mkdir(parents=True)
+        (staged / "engines.ini").write_text("")
+        (staged / "retro.ini").write_text("")
+        (staged / "engines_ini/all_retro.ini").write_text(
+            "; Manufacturer: Mephisto\n"
+            "; Comments: Packaged note.\n"
+            + entry("mame/mm5", "New MM5")
+            + entry("mame/borisa", "New Boris")
+        )
+        updater.preserve_menu(old, staged)
+        result = (staged / "retro.ini").read_text()
+        menu, makers = updater.catalog(staged / "retro.ini")
+        self.assertEqual("New MM5", menu["mame/mm5"]["name"])
+        self.assertEqual("Mephisto", makers["mame/mm5"])
+        for comment in (
+            "; Comments: Local ROM needs a custom setting.",
+            "; Comments: Packaged note.",
+            "; End note for MM5",
+            "# Personal note for Boris",
+            "; Keep this inline note",
+        ):
+            self.assertIn(comment, result)
+        self.assertEqual(1, result.count("; Comments: Packaged note."))
+        self.assertLess(result.index("; End note for MM5"), result.index("[mame/borisa]"))
+        self.assertNotIn("Old MM5", result)
+
     def test_small_update_does_not_replace_existing_mame_or_rodent(self):
         self.prepare()
         self.archive("engines-x86_64-small.tar.gz", {

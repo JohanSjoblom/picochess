@@ -96,8 +96,10 @@ The update downloads and extracts into a staging directory first. It retains:
   and symlinks. Existing ROM files take precedence over bundled files with the
   same name; bundled ROMs with new names are also kept.
 - Your `retro.ini` and `favorites.ini` selections and order. Their entries use
-  updated catalog metadata when available. A 185-entry retro menu stays at 185
-  entries, rather than being replaced with the packaged six-entry starter menu
+  updated catalog metadata when available, while retaining entry comment lines
+  (`;` or `#`) from the installed menu and adding packaged entry comments. A
+  185-entry retro menu stays at 185 entries, rather than being replaced with
+  the packaged six-entry starter menu
   or expanded to all 431 engines. Custom entries are retained.
 - MAME `mame.ini`, `ini/`, `cfg/` and `nvram/` settings/data.
 - Unbundled engine files and personalities. Files provided by the new packs,

@@ -43,7 +43,7 @@ from typing import MutableMapping, Optional
 from pathlib import Path
 
 # picochess version
-version = "4.4.0"
+version = "4.4.1"
 
 logger = logging.getLogger(__name__)
 

@@ -780,10 +780,16 @@ is to retain the existing behavior and document it, with no code change.
   using `move-engines-to-backup.sh` requires manual restoration of user data.
 - `update-engines.py` is the preservation workflow for existing Linux engine
   installations. Stage downloads before replacing live directories; preserve
-  collected ROMs, software-list subfolders, MAME settings and selected retro/
-  favorites menu entries. Refresh those entries from packaged catalog metadata
-  without expanding or reducing the user's selection. Preserve installed
-  per-entry comment lines in retro/favorites menus, including `; Comments:`
+  collected ROMs, artwork absent from the package, software-list subfolders,
+  MAME settings, locally added engine binaries and their `engines.ini` entries,
+  and selected retro/favorites menu entries, including older entries absent
+  from the package. Refresh those menu entries from packaged catalog metadata
+  without expanding or reducing the user's selection. Packaged engine and
+  artwork files replace installed files at the same path, including Stockfish
+  and LC0; do not add version-based exceptions for local builds. Existing ROM
+  files take priority over packaged ROMs at the same path.
+  Preserve installed per-entry comment lines in retro/favorites menus,
+  including `; Comments:`
   notes, and include packaged comments for those selected entries.
 - Keep unique backups of replaced directories and roll back a failed directory
   replacement. Do not silently overwrite previous update backups, prune ROMs,

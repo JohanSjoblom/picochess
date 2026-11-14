@@ -148,6 +148,35 @@ def preserve_menu(old_path, new_arch):
     print(f"Preserved {old_path.name}: {len(rows)} entries in their original order", flush=True)
 
 
+def preserve_extra_engines(old_path, new_path):
+    """Keep locally added engines visible when refreshing the packaged catalog."""
+    if not old_path.is_file():
+        return
+    old, old_makers = catalog(old_path)
+    packaged, _ = catalog(new_path)
+    comments = entry_comments(old_path)
+    additions = io.StringIO()
+    count = 0
+    for section in old.sections():
+        if section in packaged:
+            continue
+        maker = old_makers.get(section)
+        if maker:
+            additions.write(f"; Manufacturer: {maker}\n")
+        for comment in comments.get(section, []):
+            additions.write(f"{comment}\n")
+        single = configparser.ConfigParser(interpolation=None)
+        single.optionxform = str
+        single[section] = dict(old[section])
+        single.write(additions)
+        count += 1
+    if count:
+        with new_path.open("a", encoding="utf-8") as output:
+            output.write("\n# Locally added engines retained by update-engines.py\n")
+            output.write(additions.getvalue())
+        print(f"Preserved {count} locally added engines.ini entries", flush=True)
+
+
 def swap(engines, staged, backup, resources):
     """Move old directories aside, rolling back if any replacement fails."""
     saved, installed = [], []
@@ -218,6 +247,8 @@ def update(repo, arch, variant, backup):
                 raise RuntimeError(f"Downloaded resource is missing or empty: {name}")
         if not (staged / arch / "engines.ini").is_file():
             raise RuntimeError("Downloaded engine pack has no engines.ini")
+        preserve_extra_engines(engines / arch / "engines.ini",
+                               staged / arch / "engines.ini")
         # Refresh menus before adding any older, unbundled files to the new tree.
         for menu in ("retro.ini", "favorites.ini"):
             preserve_menu(engines / arch / menu, staged / arch)

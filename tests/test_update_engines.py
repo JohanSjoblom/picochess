@@ -70,6 +70,10 @@ class TestUpdateEngines(unittest.TestCase):
 
     def prepare(self, arch="x86_64"):
         self.env["TEST_ARCH"] = arch
+        self.write(f"{arch}/engines.ini", entry("a-stockf", "Old Stockfish")
+                   + "; Comments: Local build.\n"
+                   + entry("local-engine", "My extra engine"))
+        self.write(f"{arch}/local-engine", "locally compiled engine")
         self.write(f"{arch}/retro.ini", entry("mame/borisa", "Old Boris", "y")
                    + entry("mame/mm5", "Old MM5") + entry("mame/custom", "My engine"))
         self.write(f"{arch}/favorites.ini", entry("mame/mm5", "Old favorite"))
@@ -78,6 +82,7 @@ class TestUpdateEngines(unittest.TestCase):
         self.write("mame_emulation/roms/classic.zip", "different classic ROM")
         self.write("mame_emulation/roms/saitek_schess/classic.zip", "Sensor Chess ROM")
         self.write("mame_emulation/roms/default.zip", "user ROM takes precedence")
+        self.write("mame_emulation/artwork/mm5/shared.png", "personal artwork")
         self.write("mame_emulation/mame.ini", "rompath roms;some-other-folder\n")
         self.write("mame_emulation/nvram/mm5/state", "old NVRAM")
         self.write("rodent3/personalities/custom.txt", "my personality")
@@ -97,7 +102,9 @@ class TestUpdateEngines(unittest.TestCase):
         self.archive(mame + ".tar.gz", {
             "mess": '#!/bin/sh\n[ -z "$FAIL_MAME" ] || { echo "missing libc" >&2; exit 127; }\n'
                     'echo "MAME test build"\n',
-            "artwork/mm5/new.png": "new artwork", "mame.ini": "packaged settings",
+            "artwork/mm5/new.png": "new artwork",
+            "artwork/mm5/shared.png": "packaged artwork",
+            "mame.ini": "packaged settings",
             "roms/default.zip": "bundled ROM", "roms/new.zip": "new bundled ROM",
         })
         rodent3 = "engines-rodent3-large" if arch == "aarch64" else "x86_64_rodent3_large"
@@ -125,15 +132,23 @@ class TestUpdateEngines(unittest.TestCase):
         self.assertEqual("Other", makers["mame/custom"])
         favorites, _ = updater.catalog(self.engines / "x86_64/favorites.ini")
         self.assertEqual("New MM5", favorites["mame/mm5"]["name"])
+        modern, _ = updater.catalog(self.engines / "x86_64/engines.ini")
+        self.assertEqual(["a-stockf", "local-engine"], modern.sections())
+        self.assertEqual("New Stockfish", modern["a-stockf"]["name"])
+        self.assertEqual("My extra engine", modern["local-engine"]["name"])
+        self.assertIn("; Comments: Local build.",
+                      (self.engines / "x86_64/engines.ini").read_text())
         for name, expected in {
             "mame_emulation/roms/classic.zip": "different classic ROM",
             "mame_emulation/roms/saitek_schess/classic.zip": "Sensor Chess ROM",
             "mame_emulation/roms/default.zip": "user ROM takes precedence",
             "mame_emulation/roms/new.zip": "new bundled ROM",
             "mame_emulation/artwork/mm5/new.png": "new artwork",
+            "mame_emulation/artwork/mm5/shared.png": "packaged artwork",
             "mame_emulation/nvram/mm5/state": "old NVRAM",
             "x86_64/mame/mm5.uci": "updated levels",
             "x86_64/mame/custom": "custom executable",
+            "x86_64/local-engine": "locally compiled engine",
             "rodent3/personalities/custom.txt": "my personality",
         }.items():
             self.assertEqual(expected, (self.engines / name).read_text(), name)

@@ -1,5 +1,9 @@
 # Engine Installation for Picochess
 
+To compile the latest upstream Stockfish NNUE or Lc0 executable while keeping
+existing engine settings and weights, follow the
+[AI-assisted source-build guide](compile-stockfish-lc0.md).
+
 The `install-engines.sh` script automatically downloads and installs prepackaged chess engine bundles for your system architecture. Despite its name it also deploys related resources (MAME emulation data, Rodent engines, opening books, etc.) whenever they are available for that architecture.
 
 Each engine package is provided as a `.tar.gz` archive, hosted in the GitHub releases section.  

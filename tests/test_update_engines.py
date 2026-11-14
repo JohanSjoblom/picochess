@@ -81,7 +81,7 @@ class TestUpdateEngines(unittest.TestCase):
         self.write(f"{arch}/mame/mm5.uci", "old levels")
         self.write("mame_emulation/roms/classic.zip", "different classic ROM")
         self.write("mame_emulation/roms/saitek_schess/classic.zip", "Sensor Chess ROM")
-        self.write("mame_emulation/roms/default.zip", "user ROM takes precedence")
+        self.write("mame_emulation/roms/default.zip", "older installed ROM")
         self.write("mame_emulation/artwork/mm5/shared.png", "personal artwork")
         self.write("mame_emulation/mame.ini", "rompath roms;some-other-folder\n")
         self.write("mame_emulation/nvram/mm5/state", "old NVRAM")
@@ -141,7 +141,7 @@ class TestUpdateEngines(unittest.TestCase):
         for name, expected in {
             "mame_emulation/roms/classic.zip": "different classic ROM",
             "mame_emulation/roms/saitek_schess/classic.zip": "Sensor Chess ROM",
-            "mame_emulation/roms/default.zip": "user ROM takes precedence",
+            "mame_emulation/roms/default.zip": "bundled ROM",
             "mame_emulation/roms/new.zip": "new bundled ROM",
             "mame_emulation/artwork/mm5/new.png": "new artwork",
             "mame_emulation/artwork/mm5/shared.png": "packaged artwork",
@@ -155,6 +155,8 @@ class TestUpdateEngines(unittest.TestCase):
         self.assertEqual("rompath roms;some-other-folder\n",
                          (self.engines / "mame_emulation/mame.ini").read_text())
         self.assertEqual("old levels", (self.backup / "old/x86_64/mame/mm5.uci").read_text())
+        self.assertEqual("older installed ROM",
+                         (self.backup / "old/mame_emulation/roms/default.zip").read_text())
         self.assertEqual(4, len((self.root / "downloads").read_text().splitlines()))
         for name in updater.SHARED:
             self.assertEqual("existing shared resource", (self.engines / name / "keep").read_text())

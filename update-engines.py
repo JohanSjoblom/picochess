@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage an engine-pack update while preserving ROMs and menu selections."""
+"""Stage an engine-pack update while preserving extra ROMs and menu selections."""
 
 import argparse
 import configparser
@@ -17,7 +17,7 @@ import time
 
 
 SHARED = ("lc0_weights", "script_engines", "pgn_engine/pgn_audio")
-MAME_USER_DATA = ("roms", "cfg", "nvram", "ini", "mame.ini")
+MAME_USER_DATA = ("cfg", "nvram", "ini", "mame.ini")
 
 
 def exists(path):
@@ -304,7 +304,7 @@ def main():
     if args.restore:
         print(f"Restore from: {args.restore.resolve()}", flush=True)
     else:
-        print(f"Update: {args.variant}; preserve ROMs, MAME settings, retro/favorites selections "
+        print(f"Update: {args.variant}; preserve extra ROMs, MAME settings, retro/favorites selections "
               "and unbundled files. Packaged engine settings are refreshed.", flush=True)
         old_menu, _ = catalog(repo / "engines" / arch / "retro.ini")
         print(f"Current retro menu: {len(old_menu.sections())} entries", flush=True)

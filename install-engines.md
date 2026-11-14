@@ -92,10 +92,11 @@ when `picochess.service` is active. It does not start or stop services itself.
 
 The update downloads and extracts into a staging directory first. It retains:
 
-- The complete existing MAME ROM collection, including software-list subfolders
-  and symlinks. Existing ROM files take precedence over bundled files with the
-  same name; bundled ROMs with new names are also kept. Packaged artwork
-  replaces artwork with the same path; personal artwork with other names remains.
+- Existing MAME ROMs absent from the package, including software-list subfolders
+  and symlinks. Packaged ROMs replace installed ROMs at the same path so they
+  match the packaged MAME version. Previous copies remain in the dated backup.
+  Packaged artwork also replaces artwork with the same path; personal artwork
+  with other names remains.
 - Your `retro.ini` and `favorites.ini` selections and order. Their entries use
   updated catalog metadata when available, while retaining entry comment lines
   (`;` or `#`) from the installed menu and adding packaged entry comments. A
@@ -130,9 +131,9 @@ The script prints the exact rollback command:
 ```
 
 Stop PicoChess before restoring. Restore also backs up the current resource
-directories, including any ROMs collected after the update. ROMs are retained,
-but compatibility with a newer MAME version must still be checked using
-`./mess -verifyroms` and the software-list checker described below. The updater
+directories, including any ROMs collected after the update. Extra ROMs are
+retained, but compatibility with the new MAME version must still be checked
+using `./mess -verifyroms` and the software-list checker described below. The updater
 does not rename ROMs, remove menu entries, or add every catalog entry.
 
 `small` updates the architecture engine pack without replacing MAME or Rodent

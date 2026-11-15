@@ -1,8 +1,11 @@
 # Engine Installation for Picochess
 
-To build the latest upstream Stockfish NNUE and Lc0 on Linux, or refresh
-Stockfish from official downloads on Windows and macOS, follow the
+To refresh the standard large engine pack and build the latest upstream
+Stockfish NNUE and Lc0 on Linux, or refresh Stockfish from official downloads
+on Windows and macOS, follow the
 [AI-assisted engine update guide](compile-stockfish-lc0.md).
+When following that guide, leave PicoChess stopped after the large resource
+update until the rebuilt engines and their level files pass their checks.
 
 The `install-engines.sh` script automatically downloads and installs prepackaged chess engine bundles for your system architecture. Despite its name it also deploys related resources (MAME emulation data, Rodent engines, opening books, etc.) whenever they are available for that architecture.
 

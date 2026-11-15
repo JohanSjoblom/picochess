@@ -84,7 +84,10 @@ also supply your own native UCI engine and catalog in that directory.
 The separate Intel folder prevents macOS binaries from being confused with
 Linux binaries in `engines/x86_64`. Linux executables are not compatible with
 macOS. See the
-[engine setup guide](../engines/README.md#experimental-macos-setup).
+[engine setup guide](../engines/README.md#experimental-macos-setup). To add an
+engine you already have next to Stockfish, see
+[Adding your own UCI engine](../add-own-engine.md), which includes a prompt for
+an AI coding assistant.
 
 After installation, start PicoChess from the repository root:
 

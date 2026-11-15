@@ -212,6 +212,8 @@ To add more engine manually yourself you need:
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine
 - add an [engineX] section in engines.ini file
 
+On Windows the folder is `engines\AMD64` and the files are `engineX.exe`, `engineX.exe.uci` and an `[engineX.exe]` section. On macOS it is `engines/arm64` or `engines/mac_x86_64`. See [Adding your own UCI engine](add-own-engine.md) for checks, level examples and an AI assistant prompt.
+
 Books and games database resources
 ----------------------------------
 Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.
@@ -228,7 +230,7 @@ The experimental native Windows port has a non-administrative PowerShell install
 .\install-picochess-windows.ps1
 ```
 
-Windows users can also supply their own native UCI engines under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations. A graphical installer and control panel are documented in [win/README.md](win/README.md).
+Windows users can also supply their own native UCI engines under `engines\AMD64`. See [the Windows installation guide](docs/windows-install.md) and [the engine setup guide](engines/README.md#experimental-windows-amd64-setup) for details and current limitations. To add an engine you already have, such as Fritz, on Windows or macOS, see [Adding your own UCI engine](add-own-engine.md). A graphical installer and control panel are documented in [win/README.md](win/README.md).
 
 If the user has separately installed Scid vs. PC for Windows, `start-picochess-windows.ps1` can start its `tcscid.exe` games helper together with PicoChess. Failure to find Scid affects only the optional Games tab.
 

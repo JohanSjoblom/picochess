@@ -35,11 +35,13 @@ Find the PicoChess checkout on the local machine. The examples below assume `/op
 | macOS Intel | `engines/mac_x86_64/` |
 | Windows AMD64 | `engines/AMD64/` |
 
-Use the actual catalog and `picochess.ini` to identify the installed executable names. In the current Linux engine packs, the NNUE Stockfish entry is `NNUE/StockfishNN` and the Lc0 entry is `lc0v0321`. Keep those filenames when replacing the binaries.
+Use the actual catalog and `picochess.ini` to identify the installed executable names. In the current Linux engine packs, the playing Stockfish NNUE entry is `NNUE/StockfishNN` and the Lc0 entry is `lc0v0321`. Keep those filenames when replacing the binaries.
 
 If this installation has no entry for one of the engines, report that instead of guessing a new destination. Adding an engine requires a separate catalog and level-file setup; this guide covers existing entries only.
 
-The `a-stockf` entry is the older **classic** Stockfish configuration and its `.uci` file disables NNUE. Do not replace it in this workflow. Its Elo level layout is a useful example, but do not copy its `Use NNUE = false` setting into the NNUE entry. The NNUE entry has a separate `.uci` file and uses embedded networks by default.
+On Raspberry Pi/Linux engine packs, `a-stockf` is deliberately kept at Stockfish 16 with NNUE disabled. It is a lighter PicoTutor engine for a small Pi. **Do not rebuild, replace, or edit `a-stockf` or `a-stockf.uci` in this workflow.** The new compiled Stockfish belongs at `NNUE/StockfishNN`, with Elo levels in `NNUE/StockfishNN.uci`. Leave the Pi's `tutor-engine` setting alone.
+
+Do not infer an engine's version or NNUE behavior from its filename on another OS. The macOS starter installer, for example, uses the name `a-stockf` for an official modern Stockfish binary. macOS and Windows do not need a separate Stockfish 16 Tutor engine. Identify their actual NNUE executable and matching `.uci` file from the installed catalog before replacing anything. Users with more CPU may also choose that NNUE engine for `tutor-engine`, but this workflow must not change `picochess.ini` automatically.
 
 Lc0 is different from Stockfish: its neural network weights are **not** embedded in the executable. The shared weight files live in `engines/lc0_weights/`, outside the architecture-specific engine folder. Confirm the files selected by the `.uci` levels exist before testing Lc0.
 
@@ -87,7 +89,7 @@ The expected output is `build/release/lc0`. An accelerator build needs the match
 
 ## Stockfish `.uci` Elo levels
 
-Stockfish uses its embedded NNUE networks at every strength. Users select a playing strength with `UCI_LimitStrength = true` and a supported `UCI_Elo` value. It does **not** need Lc0-style `WeightsFile` entries. Use the level layout of `a-stockf.uci` as an example, but write the NNUE engine's own sidecar: `engines/<arch>/NNUE/StockfishNN.uci` for the current Linux packs, or the installed executable's full name plus `.uci` on another platform. Never copy `Use NNUE = false` from the classic `a-stockf.uci` into this file.
+Stockfish uses its embedded NNUE networks at every strength. Users select a playing strength with `UCI_LimitStrength = true` and a supported `UCI_Elo` value. It does **not** need Lc0-style `WeightsFile` entries. For current Linux packs, work only on `engines/<arch>/NNUE/StockfishNN.uci`; use that file itself as the level-layout example. On macOS or Windows, use the sidecar matching the actual installed NNUE executable. Never copy the Pi's `Use NNUE = false` setting into an NNUE engine's sidecar.
 
 Ask the new Stockfish executable for its `UCI_Elo` minimum and maximum with `uci` before writing levels; those bounds can change between releases. The Stockfish 19 build tested here reports 1320–3190. Back up an existing sidecar, keep its level names and unrelated settings, and retain useful Elo choices within the engine's supported range. A new file can start like this:
 

@@ -1,10 +1,10 @@
 # Compile current Stockfish and Lc0 for PicoChess
 
-This is an AI-assisted update procedure for [issue #580](https://github.com/JohanSjoblom/picochess/issues/580). Give the prompt below to an AI assistant that can use a terminal on the **machine that runs PicoChess**. It should build from the latest stable upstream releases and replace only the selected engine executables. It must leave `engines.ini`, `.uci` level files, `picochess.ini`, and `engines/lc0_weights/` alone.
+This is an AI-assisted update procedure for [issue #580](https://github.com/JohanSjoblom/picochess/issues/580). Give the prompt below to an AI assistant that can use a terminal on the **machine that runs PicoChess**. It should build from the latest stable upstream releases and install the selected engine executables. It may add missing shared Lc0 weights and create or update the Lc0/Maia `.uci` level files for the node policy chosen by the user. Preserve `engines.ini`, `picochess.ini`, existing weights, and unrelated engine files.
 
 Before giving the prompt to the assistant, save any game you want to keep and stop PicoChess. For a Linux service installation, run `sudo systemctl stop picochess`. Stop any manually started PicoChess instance too. On macOS or Windows, close PicoChess. Keep it stopped until the assistant reports that both installed executables passed their checks.
 
-> **Prompt for the assistant:** Read this whole file and the repository's `AGENTS.md`. On this machine, update the installed NNUE Stockfish and Lc0 executables from their latest stable official source releases. First inspect the OS, CPU, current engine paths, catalog entries, level files, available disk space, and running PicoChess processes. Verify PicoChess is stopped before replacing either executable; if it is running, tell me to stop it and wait. Do not stop or start PicoChess yourself. Clone or update the official source repositories under `~/pico-engine-compiles/stockfish` and `~/pico-engine-compiles/lc0`. Use the release tags shown on each upstream `/releases/latest` page, not a hard-coded version or the development branch. Build natively for this machine, verify UCI startup and a short search, and verify that Stockfish runs without external `.nnue` files. Back up each existing executable, then replace it at its exact installed path. Preserve its installed filename and every other file in the engine folder. Do not stop after compiling: the task is complete only when both installed executables pass the UCI checks from their installed paths. Do not install a failed build; restore a backup if an installed check fails. Report the exact source tags and commits, build options, installed paths, checks, and any limitations.
+> **Prompt for the assistant:** Read this whole file and the repository's `AGENTS.md`. On this machine, update the installed NNUE Stockfish and Lc0 executables from their latest stable official source releases. First inspect the OS, CPU, current engine paths, catalog entries, level files, available disk space, and running PicoChess processes. Verify PicoChess is stopped before replacing either executable; if it is running, tell me to stop it and wait. Do not stop or start PicoChess yourself. Ask me one question before changing Lc0/Maia levels: should `PicoNode` use (1) low limits of about 2 nodes, (2) 5000 nodes, or (3) no node limit? Apply my answer consistently to every installed Lc0-backed `.uci` file listed below. Clone or update the official source repositories under `~/pico-engine-compiles/stockfish` and `~/pico-engine-compiles/lc0`. Use the release tags shown on each upstream `/releases/latest` page, not a hard-coded version or the development branch. Build natively for this machine, verify UCI startup and a short search, and verify that Stockfish runs without external `.nnue` files. Add any missing shared Lc0 weights from the PicoChess release archive, preserving existing files. Back up each existing executable and any `.uci` file you change, then install the verified executables at their exact installed paths and create or update the matching Lc0/Maia `.uci` files. Preserve installed executable names, catalog entries, unrelated settings, and other engines. Do not stop after compiling: the task is complete only when both installed executables and their selected Lc0/Maia levels pass checks from the installed paths. Do not install a failed build; restore backups if an installed check fails. Report the source tags and commits, build options, installed paths, weight files, selected node policy, checks, and any limitations.
 
 ## Sources and release selection
 
@@ -41,7 +41,26 @@ If this installation has no entry for one of the engines, report that instead of
 
 The `a-stockf` entry is the older **classic** Stockfish configuration and its `.uci` file disables NNUE. Do not replace it in this workflow. The NNUE entry has a separate `.uci` file and uses embedded networks by default. Do not change either `.uci` file merely to make a new binary start.
 
-Lc0 is different from Stockfish: its neural network weights are **not** embedded in the executable. Keep the existing `WeightsFile` values and `engines/lc0_weights/` files. Confirm at least one configured weight exists, and test Lc0 using that weight. If there is no compatible weight, report that separately instead of changing settings as part of the executable update.
+Lc0 is different from Stockfish: its neural network weights are **not** embedded in the executable. The shared weight files live in `engines/lc0_weights/`, outside the architecture-specific engine folder. Confirm the files selected by the `.uci` levels exist before testing Lc0.
+
+## Shared Lc0 weights
+
+The [PicoChess v4.4.1 `lc0_weights.tar.gz` release asset](https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz) contains the Lc0 and Maia networks used by the current engine packs. The same archive works on Linux, macOS, and Windows; the weights are independent of CPU architecture. It includes `792013-192x15.txt`, the Gyal networks, `maia3.pb.gz`, Maia 1100–1900 in steps of 100, Maia 2200, and Maia 2500. These are Lc0 weights, separate from Stockfish's embedded NNUE networks.
+
+First inspect `engines/lc0_weights/` and the `WeightsFile` entries in the installed `.uci` files. If a needed file is missing, download the archive into `~/pico-engine-compiles/`, inspect its contents, and extract into a staging directory there. Copy **only missing** network files into `engines/lc0_weights/`; do not replace existing networks or extract the archive over that live directory. Check that every chosen `WeightsFile` points to a real file. Allow room for the roughly 620 MB download plus extraction. On Windows, use PowerShell's download command and `tar` or another archive tool; use the same archive and preserve the same filenames.
+
+On Linux or macOS, a download and staging example is:
+
+```sh
+mkdir -p "$HOME/pico-engine-compiles/lc0-weights-stage"
+curl -fL --retry 3 -o "$HOME/pico-engine-compiles/lc0_weights.tar.gz" \
+  https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz
+tar -tzf "$HOME/pico-engine-compiles/lc0_weights.tar.gz"
+tar -xzf "$HOME/pico-engine-compiles/lc0_weights.tar.gz" \
+  -C "$HOME/pico-engine-compiles/lc0-weights-stage"
+```
+
+The archive has no enclosing parent folder. Use the local PicoChess checkout path in each `WeightsFile` value; do not copy `/opt/picochess` paths blindly to a Mac or Windows installation.
 
 ## Native build: Raspberry Pi aarch64 and Debian x86_64
 
@@ -66,13 +85,53 @@ git submodule update --init --recursive
 
 The expected output is `build/release/lc0`. An accelerator build needs the matching hardware, libraries, backend selection, and a separate test; do not silently replace the CPU build with an untested GPU configuration. On a memory-limited Pi, use `meson setup build/release --buildtype release` with the same `-D` options, then `meson compile -C build/release -j2` to limit parallel compilation. Check the release's `build.sh` for any additional setup options first.
 
+## Lc0 and Maia `.uci` levels
+
+Use the installed files under `engines/x86_64/` or `engines/aarch64/` as examples when available. Each level file must have the **same full filename as its executable plus `.uci`**: for example `lc0v0321.uci`, `maia3.uci`, and `maiav0321.uci`; on Windows an executable ending in `.exe` needs a sidecar ending in `.exe.uci`. These entries may use one Lc0 binary under several names. On Linux and macOS the aliases can be symlinks to the Lc0 executable, as in the current Linux packs; on Windows use a native executable copy if symlinks are unavailable. Keep any existing `engines.ini` entry and its executable name. If a desired alias has no catalog entry, adding it to the catalog is a separate setup step; do not create an orphan `.uci` file and claim it is selectable.
+
+Back up an existing `.uci` file before editing it. Keep its level section names, `WeightsFile` choices, and unrelated options. For a missing file, create the levels from these mappings, substituting the **absolute path on this machine** for `<weights>`:
+
+| Sidecar | Default `WeightsFile` | Level sections and `WeightsFile` overrides |
+| --- | --- | --- |
+| `lc0v0321.uci` | `<weights>/792013-192x15.txt` | Gyal levels use `meangirl-8.pb.gz`, `badgyal-8.pb.gz`, `goodgyal-7.pb.gz`, `evilgyal-6.pb.gz`, and `tinygyal-8.pb.gz`. Standard one to four core levels use the default weight. |
+| `classic.uci` | `<weights>/classic1.pb.gz` | Classic 1 uses `classic1.pb.gz`; Classic 2 levels use `classic2.pb.gz`. |
+| `elitev2.uci` | `<weights>/elite_v2.pb.gz` | Existing levels use this same weight with different thread counts. |
+| `maia3.uci` | `<weights>/maia3.pb.gz` | One or more Maia 3 levels may vary `Threads`; they use the same weight. |
+| `maiav0321.uci` | `<weights>/maia-1100.pb.gz` | `Elo@1100` through `Elo@1900` in steps of 100, plus `Elo@2200` and `Elo@2500`, each point to their matching `maia-<elo>.pb.gz`. These labels select networks; they are not the Lc0 `UCI_LimitStrength` option. |
+
+A minimal level looks like this; add the other sections following the table and the installed examples:
+
+```ini
+[DEFAULT]
+WeightsFile = <weights>/maia-1100.pb.gz
+Threads = 1
+UCI_ShowWDL = false
+Analysis = false
+
+[Elo@1100]
+WeightsFile = <weights>/maia-1100.pb.gz
+
+[Elo@1200]
+WeightsFile = <weights>/maia-1200.pb.gz
+```
+
+Before writing any of these files, ask **one question**: “For Lc0 and Maia, do you want low `PicoNode` limits (2 nodes), a medium limit (5000 nodes), or no `PicoNode` limit?” Apply the answer to every installed sidecar in the table consistently:
+
+| Choice | `.uci` action |
+| --- | --- |
+| Low | Put `PicoNode = 2` in `[DEFAULT]` and remove per-level `PicoNode` overrides, so every level uses 2. |
+| Medium | Put `PicoNode = 5000` in `[DEFAULT]` and remove per-level `PicoNode` overrides, so every level uses 5000. |
+| No limit | Remove `PicoNode` from `[DEFAULT]` **and every level section**. Do not write `PicoNode = 0`. |
+
+`PicoNode` is a PicoChess search limit, not an Lc0 UCI option. A positive value in a level overrides the normal node setting for that search. With the key absent, normal PicoChess time controls apply; a separate positive `node` setting in `picochess.ini` can still impose a node limit. Do not change that global setting without asking. Keep existing section names even if an old name mentions a tiny node count, so saved level selections continue to work; mention any misleading label in the report. Strength labels tied to tiny search limits may no longer describe the engine's actual strength when those limits are raised or removed.
+
 ## Verify, back up, and install
 
 1. Test each **new** binary before installing it. Check that `uci` returns `uciok`, `isready` returns `readyok`, and `position startpos` plus `go depth 2` returns `bestmove`. Copy the Stockfish binary into a clean temporary directory without `.nnue` files and run that copy there. For Lc0, pass an existing configured weight file using `setoption name WeightsFile value <path>` before `isready`, and check that its selected CPU backend initializes and searches.
-2. Compare the new UCI options with the installed `.uci` file. A removed or renamed option can make existing levels fail; resolve that before installing. Check dynamic library dependencies on Linux with `ldd`, especially for Lc0's OpenBLAS library.
+2. Compare the new UCI options with the installed `.uci` files. A removed or renamed option can make existing levels fail; resolve that before installing. `PicoNode` and `Analysis` are PicoChess control values, not Lc0 UCI options. Check dynamic library dependencies on Linux with `ldd`, especially for Lc0's OpenBLAS library.
 3. Verify that PicoChess is stopped, including any manually started instance. The user stops it before giving the prompt; if it is still running, ask the user to stop it and wait. Back up each old binary under `~/pico-engine-compiles/backups/` with a timestamp and its original relative path recorded. Do not overwrite an earlier backup.
-4. Copy the verified binary to a temporary filename **in the same target directory**, preserve executable permission, then rename it to the exact existing filename. Do this for **both** Stockfish and Lc0, one engine at a time. If an installed check fails, restore that engine's backup.
-5. Check **both installed paths** with the same UCI smoke tests and report their version strings. Compare the installed binaries with the verified builds, for example with SHA-256 hashes. Leave `engines.ini`, `.uci`, `picochess.ini`, network weights, and other engines unchanged. Record hashes of those files before and after if needed to verify this.
+4. Copy the verified binary to a temporary filename **in the same target directory**, preserve executable permission, then rename it to the exact existing filename. Do this for **both** Stockfish and Lc0, one engine at a time. Add missing weights, then write the chosen Lc0/Maia `.uci` policy. If an installed check fails, restore that engine's binary and sidecar backups.
+5. Check **both installed paths** with the same UCI smoke tests and report their version strings. Test at least one configured level from each installed Lc0/Maia sidecar with its `WeightsFile`, and confirm the requested `PicoNode` policy in every relevant section. Compare the installed binaries with the verified builds, for example with SHA-256 hashes. Leave `engines.ini`, `picochess.ini`, existing weights, unrelated `.uci` files, and other engines unchanged.
 
 After the assistant reports success, the user starts PicoChess again (`sudo systemctl start picochess` for a Linux service, or the usual manual startup command on macOS or Windows) and confirms each engine can be selected and make a move.
 

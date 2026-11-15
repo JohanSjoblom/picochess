@@ -38,6 +38,8 @@ Experimental Windows AMD64 setup
 64-bit Windows reports its architecture as ``AMD64``. PicoChess therefore
 looks for the local engine catalog in ``engines/AMD64``. Windows users must
 supply a native Windows UCI engine, such as a Windows Stockfish executable.
+The Windows installer supplies official Stockfish. To add another engine you
+already have next to it, follow ``add-own-engine.md`` in the repository root.
 
 For a Stockfish test, create the following local, git-ignored files::
 

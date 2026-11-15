@@ -141,6 +141,11 @@ playing engine and `tutor-engine`, and is set up for web-only use. An earlier
 `picochess.ini` that names `a-stockf.exe` must be updated by hand after
 switching to the official Stockfish file.
 
+To add an engine you already have, such as Fritz or another commercial UCI
+engine, next to Stockfish, see
+[Adding your own UCI engine](../add-own-engine.md). The guide includes a
+prompt for an AI coding assistant.
+
 To install the other resource packs without the engine, pass an explicit list:
 
 ```powershell

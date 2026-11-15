@@ -196,8 +196,9 @@ for preserved files, runtime requirements and rollback. The older
 explicit `large` reinstall through `install-picochess.sh`, remains a clean
 reinstall that requires manual restoration of user data.
 
-To compile current Stockfish NNUE and Lc0 from their upstream releases without
-changing engine settings, use the [AI-assisted build guide](compile-stockfish-lc0.md).
+To build current Stockfish NNUE and Lc0 on Linux, or refresh Stockfish from
+official downloads on Windows and macOS, use the
+[AI-assisted engine update guide](compile-stockfish-lc0.md).
 
 The large package takes longer to download.
 Both package sizes download the shared LC0 personality weights into

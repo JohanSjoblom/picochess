@@ -6,7 +6,8 @@ Installs the Windows PicoChess Python environment and portable data resources.
 The installer can use the checkout containing this script or clone PicoChess
 into a user-selected directory. It creates a Python 3.11-3.13 AMD64 virtual environment,
 installs requirements.txt, initializes writable runtime files, and optionally
-downloads the Windows engine pack, books, opening data, and games database data.
+downloads official Stockfish with PicoChess engine metadata, books, opening
+data, and games database data.
 
 It deliberately does not install Windows services, scheduled tasks, drivers,
 firewall rules, or Linux host integrations.
@@ -61,13 +62,24 @@ $repositoryUrl = "https://github.com/JohanSjoblom/picochess.git"
 $repositoryBranch = "master"
 $selectedResources = @()
 $resourceDefinitions = @{
+    # Official Stockfish is downloaded unmodified and keeps its upstream file
+    # name. PicoChess supplies only its catalog and level metadata.
     Engines = @{
-        Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.3.5/picochess-amd64-engines-small-v4.3.5.zip"
-        Archive = "picochess-amd64-engines-small-v4.3.5.zip"
-        ArchiveType = "Zip"
+        ArchiveType = "StarterEngine"
         Destination = "engines\AMD64"
-        Marker = "a-stockf.exe"
-        Sha256 = "B939C1C4D035BCC96B6C8B71769724DE8B1965AE71A2E98566C3F7B05055B9BC"
+        Marker = "stockfish-windows-x86-64-universal.exe"
+        Engine = @{
+            Url = "https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-windows-x86-64-universal.zip"
+            Archive = "stockfish-windows-x86-64-universal.zip"
+            Sha256 = "3C8BF1F9EA66A09350A40DF4F632288285AC206D99F33AB5842C408FC30B48A7"
+            ArchivePath = "stockfish/stockfish-windows-x86-64-universal.exe"
+            LicensePath = "stockfish/Copying.txt"
+        }
+        Metadata = @{
+            Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/picochess-amd64-engines-metadata-v4.4.1.zip"
+            Archive = "picochess-amd64-engines-metadata-v4.4.1.zip"
+            Sha256 = "55AF2842A4E19DDC998AF61657AAFD81A3F35EE32893B774A02AFDEA99686A2F"
+        }
     }
     Books = @{
         Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.2.0/books.tar.gz"
@@ -373,8 +385,108 @@ function Move-ResourceToBackup {
     $backupRoot = Join-Path $env:LOCALAPPDATA "PicoChess\backups\$timestamp"
     New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
     $backupPath = Join-Path $backupRoot $ResourceName
+    # Nested resources such as engines\AMD64 need their parent folder.
+    New-Item -ItemType Directory -Path (Split-Path -Parent $backupPath) -Force | Out-Null
     Move-Item -LiteralPath $ExistingPath -Destination $backupPath
     Write-Status "Existing resource moved to: $backupPath"
+}
+
+function Save-VerifiedDownload {
+    param(
+        [string]$Name,
+        [string]$Url,
+        [string]$OutFile,
+        [string]$Sha256
+    )
+
+    Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing
+    if ($Sha256) {
+        $actualHash = (Get-FileHash -LiteralPath $OutFile -Algorithm SHA256).Hash
+        if ($actualHash -ne $Sha256) {
+            throw "$Name archive checksum mismatch. Expected $Sha256, received $actualHash."
+        }
+    }
+}
+
+function Install-StarterEngine {
+    param(
+        [hashtable]$Definition,
+        [string]$RepositoryPath,
+        [string]$TemporaryRoot,
+        [switch]$ReplaceExisting
+    )
+
+    $engineName = $Definition.Marker
+    $destination = Join-Path $RepositoryPath $Definition.Destination
+    if ((Test-Path -LiteralPath (Join-Path $destination $engineName)) -and -not $ReplaceExisting) {
+        Write-Status "Stockfish already installed; keeping $destination"
+        return
+    }
+    if ((Test-Path -LiteralPath $destination) -and -not $ReplaceExisting) {
+        # Keep user-installed engines. -ForceResources backs them up first.
+        Write-Warning "Keeping existing engine directory without $engineName`: $destination"
+        Write-Status "Rerun with -ForceResources to back it up and install official Stockfish."
+        return
+    }
+
+    $resourceRoot = Join-Path $TemporaryRoot "Engines"
+    $engineExtract = Join-Path $resourceRoot "engine"
+    $metadataExtract = Join-Path $resourceRoot "metadata"
+    $stageRoot = Join-Path $resourceRoot "stage"
+    New-Item -ItemType Directory -Path $engineExtract, $metadataExtract, $stageRoot -Force | Out-Null
+
+    Write-Step "Downloading official Stockfish for Windows"
+    $engineArchive = Join-Path $resourceRoot $Definition.Engine.Archive
+    Save-VerifiedDownload -Name "Stockfish" -Url $Definition.Engine.Url -OutFile $engineArchive -Sha256 $Definition.Engine.Sha256
+    Assert-SafeZipArchiveEntries -ArchivePath $engineArchive
+    Expand-Archive -LiteralPath $engineArchive -DestinationPath $engineExtract
+
+    $engineSource = Join-Path $engineExtract $Definition.Engine.ArchivePath
+    if (-not (Test-Path -LiteralPath $engineSource -PathType Leaf)) {
+        throw "Stockfish archive did not contain $($Definition.Engine.ArchivePath). Nothing was installed."
+    }
+    $stagedEngine = Join-Path $stageRoot $engineName
+    Copy-Item -LiteralPath $engineSource -Destination $stagedEngine
+    $licenseSource = Join-Path $engineExtract $Definition.Engine.LicensePath
+    if (Test-Path -LiteralPath $licenseSource -PathType Leaf) {
+        Copy-Item -LiteralPath $licenseSource -Destination (Join-Path $stageRoot "Copying.txt")
+    }
+
+    # The handshake also proves that this CPU can execute the downloaded binary.
+    # The leading empty line absorbs the BOM Windows PowerShell 5.1 writes to stdin.
+    $uciOutput = @("", "uci", "isready", "quit") | & $stagedEngine 2>&1 | ForEach-Object { ([string]$_).Trim() }
+    if ($LASTEXITCODE -ne 0 -or $uciOutput -notcontains "uciok" -or $uciOutput -notcontains "readyok") {
+        throw "Downloaded Stockfish did not complete the UCI handshake. Nothing was installed. Output: $($uciOutput -join ' | ')"
+    }
+    Write-Status "Stockfish answered uciok and readyok"
+
+    Write-Step "Downloading PicoChess Windows engine metadata"
+    $metadataArchive = Join-Path $resourceRoot $Definition.Metadata.Archive
+    Save-VerifiedDownload -Name "Engine metadata" -Url $Definition.Metadata.Url -OutFile $metadataArchive -Sha256 $Definition.Metadata.Sha256
+    Assert-SafeZipArchiveEntries -ArchivePath $metadataArchive
+    Expand-Archive -LiteralPath $metadataArchive -DestinationPath $metadataExtract
+    $catalog = Join-Path $metadataExtract "engines.ini"
+    $levels = Join-Path $metadataExtract "$engineName.uci"
+    if (-not (Test-Path -LiteralPath $catalog -PathType Leaf) -or -not (Test-Path -LiteralPath $levels -PathType Leaf)) {
+        throw "Engine metadata archive must contain engines.ini and $engineName.uci. Nothing was installed."
+    }
+    if (@(Get-ChildItem -LiteralPath $metadataExtract -Recurse -File -Filter "*.exe").Count -gt 0) {
+        throw "Engine metadata archive must not contain engine executables. Nothing was installed."
+    }
+    if (-not (Select-String -LiteralPath $catalog -SimpleMatch "[$engineName]" -Quiet)) {
+        throw "Engine catalog is missing [$engineName]. Nothing was installed."
+    }
+    if (-not (Select-String -LiteralPath $levels -SimpleMatch "[Elo@2200]" -Quiet)) {
+        throw "Engine levels are missing Elo@2200. Nothing was installed."
+    }
+    Copy-Item -Path (Join-Path $metadataExtract "*") -Destination $stageRoot -Recurse
+
+    if (Test-Path -LiteralPath $destination) {
+        Move-ResourceToBackup -ExistingPath $destination -ResourceName $Definition.Destination
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Move-Item -LiteralPath $stageRoot -Destination $destination
+    Write-Status "Stockfish installed in $destination"
 }
 
 function Install-ResourcePack {
@@ -403,13 +515,7 @@ function Install-ResourcePack {
     New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
 
     Write-Step "Downloading $Name"
-    Invoke-WebRequest -Uri $Definition.Url -OutFile $archivePath -UseBasicParsing
-    if ($Definition.ContainsKey("Sha256")) {
-        $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
-        if ($actualHash -ne $Definition.Sha256) {
-            throw "$Name archive checksum mismatch. Expected $($Definition.Sha256), received $actualHash."
-        }
-    }
+    Save-VerifiedDownload -Name $Name -Url $Definition.Url -OutFile $archivePath -Sha256 $(if ($Definition.ContainsKey("Sha256")) { $Definition.Sha256 } else { $null })
 
     switch ($Definition.ArchiveType) {
         "Zip" {
@@ -610,6 +716,10 @@ try {
         New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
         try {
             foreach ($resourceName in $selectedResources) {
+                if ($resourceDefinitions[$resourceName].ArchiveType -eq "StarterEngine") {
+                    Install-StarterEngine -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources
+                    continue
+                }
                 Install-ResourcePack -Name $resourceName -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TarCommand $tarCommand -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources
             }
         } finally {

@@ -23,9 +23,9 @@ class TestEngineArchitecture(unittest.TestCase):
     def test_local_engine_directory_uses_platform_mapping(self, _system, _machine):
         self.assertEqual("mac_x86_64", local_engine_directory().name)
 
-    def test_windows_default_engine_uses_exe_suffix(self):
+    def test_windows_default_engine_is_official_stockfish(self):
         path = local_default_engine_path("Windows", "AMD64")
-        self.assertEqual(("engines", "AMD64", "a-stockf.exe"), path.parts[-3:])
+        self.assertEqual(("engines", "AMD64", "stockfish-windows-x86-64-universal.exe"), path.parts[-3:])
 
     def test_linux_default_engine_has_no_exe_suffix(self):
         path = local_default_engine_path("Linux", "x86_64")

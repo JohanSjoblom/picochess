@@ -29,5 +29,5 @@ def local_default_engine_path(system_name: str | None = None, machine: str | Non
     """Return the platform-specific path to the guaranteed Stockfish engine."""
 
     resolved_system = platform.system() if system_name is None else system_name
-    engine_name = "a-stockf.exe" if resolved_system == "Windows" else "a-stockf"
+    engine_name = "stockfish-windows-x86-64-universal.exe" if resolved_system == "Windows" else "a-stockf"
     return local_engine_directory(resolved_system, machine) / engine_name

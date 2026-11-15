@@ -51,6 +51,8 @@ binary answers UCI commands, then downloads the PicoChess macOS engine metadata
 archive from release v4.3.5. It installs the executable as `a-stockf` alongside
 the archive's `engines.ini`, `a-stockf.uci`, and any additional files. The
 official Stockfish archive and the metadata archive serve both Mac architectures.
+Both downloads have pinned SHA-256 checksums; a mismatch stops the installation
+before anything is installed.
 
 The starter engine, books, opening data, and games database data are selected
 by default. A subset can be selected, or downloads can be disabled:

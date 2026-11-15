@@ -295,6 +295,13 @@ resource_value() {
     esac
 }
 
+assert_sha256() {
+    file=$1
+    expected=$2
+    actual=$(shasum -a 256 "$file" | awk '{print $1}') || fail "Could not compute the checksum of $file"
+    [ "$actual" = "$expected" ] || fail "Checksum mismatch for $(basename "$file"). Expected $expected, received $actual. Nothing was installed."
+}
+
 assert_safe_archive() {
     archive=$1
     entries=$(tar -tzf "$archive") || fail "Could not inspect downloaded archive: $archive"
@@ -343,6 +350,7 @@ install_starter_engine() {
     step "Downloading Stockfish 19 for macOS"
     curl --fail --location --retry 2 --output "$archive_path" \
         "https://github.com/official-stockfish/Stockfish/releases/download/sf_19/stockfish-macos-universal.tar.gz"
+    assert_sha256 "$archive_path" a1f0e3bcc5a6927a11fe6fc8e54a779754645f3c2bae2cf13420fd1957adaa77
     assert_safe_archive "$archive_path"
     tar -xzf "$archive_path" -C "$extract_root"
 
@@ -365,6 +373,7 @@ install_starter_engine() {
     step "Downloading PicoChess macOS engine metadata"
     curl --fail --location --retry 2 --output "$metadata_archive" \
         "https://github.com/JohanSjoblom/picochess/releases/download/v4.3.5/picochess-mac-engines-small-v4.3.5.tar.gz"
+    assert_sha256 "$metadata_archive" 4ccab03b14f86983915933724aca206843c38c210e9d48747ef8365ccdd6f5fc
     assert_safe_archive "$metadata_archive"
     tar -xzf "$metadata_archive" -C "$metadata_root"
     [ -f "$metadata_root/engines.ini" ] || fail "Mac engine metadata archive is missing engines.ini. Nothing was installed."

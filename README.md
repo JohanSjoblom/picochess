@@ -197,7 +197,8 @@ explicit `large` reinstall through `install-picochess.sh`, remains a clean
 reinstall that requires manual restoration of user data.
 
 To refresh the standard large engine pack and build current Stockfish NNUE and
-Lc0 on Linux, or refresh Stockfish from official downloads on Windows and macOS, use the
+Lc0 on Debian (optionally on Raspberry Pi), or refresh Stockfish from official
+downloads on Windows and macOS, use the
 [AI-assisted engine update guide](compile-stockfish-lc0.md).
 
 The large package takes longer to download.

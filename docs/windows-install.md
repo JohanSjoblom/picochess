@@ -117,16 +117,29 @@ before it can safely become an installer option.
 
 ## Engines and configuration
 
-The default resource selection downloads the small Windows AMD64 engine pack
-from the PicoChess v4.3.5 GitHub release and installs it under:
+The default resource selection downloads the official
+[Stockfish 19 Windows x86-64 universal build](https://github.com/official-stockfish/Stockfish/releases/tag/sf_19)
+and keeps its upstream file name. A separate PicoChess v4.4.1 metadata archive
+supplies only `engines.ini` and the Elo levels in
+`stockfish-windows-x86-64-universal.exe.uci`. Both downloads have pinned
+SHA-256 checksums, and Stockfish must answer the UCI handshake before anything
+is installed under:
 
 ```text
 engines\AMD64\
 ```
 
+An existing `engines\AMD64` directory is kept. If it does not contain the
+official Stockfish file, for example an earlier installation with
+`a-stockf.exe`, the installer warns and leaves it unchanged. Rerun with
+`-ForceResources` to back it up and install official Stockfish.
+
 The installer always preserves an existing `picochess.ini`. If it is missing,
 the installer copies `picochess.ini.example-web-AMD64` to `picochess.ini`. That
-example is configured for the bundled `a-stockf.exe` engine and web-only use.
+example uses `engines\AMD64\stockfish-windows-x86-64-universal.exe` as both the
+playing engine and `tutor-engine`, and is set up for web-only use. An earlier
+`picochess.ini` that names `a-stockf.exe` must be updated by hand after
+switching to the official Stockfish file.
 
 To install the other resource packs without the engine, pass an explicit list:
 

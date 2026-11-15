@@ -72,7 +72,7 @@ beep-some-level = 2
 ## Sets the UCI engine used at startup
 ## handle with care. If you setup this section wrong, picochess won't start
 ## Path to the engine
-engine = engines\AMD64\a-stockf.exe
+engine = engines\AMD64\stockfish-windows-x86-64-universal.exe
 
 ## What level the engine should have at startup?
 ## For a (correct) value please take a look at 'engines/<your_platform>/<engine_name>.uci'
@@ -392,8 +392,8 @@ countdown-during-brain-display = False
 #tutor-brain-reveal-display = 3
 tutor-brain-reveal-display = 3
 
-## Engine used for PicoTutor analysis. Default is /opt/picochess/engines/aarch64/a-stockf.
-tutor-engine = engines\AMD64\a-stockf.exe
+## Engine used for PicoTutor analysis. Default is engines\AMD64\stockfish-windows-x86-64-universal.exe.
+tutor-engine = engines\AMD64\stockfish-windows-x86-64-universal.exe
 ## Optional: use a tutor engine on a remote machine; falls back to tutor-engine if not found
 #tutor-remote-engine = remote_stockfish
 

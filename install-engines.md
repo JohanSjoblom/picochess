@@ -1,7 +1,7 @@
 # Engine Installation for Picochess
 
-To refresh the standard large engine pack and build the latest upstream
-Stockfish NNUE and Lc0 on Debian (optionally on Raspberry Pi), or refresh
+To refresh the standard large engine pack and optionally build the latest upstream
+Stockfish NNUE and Lc0 on Debian or Raspberry Pi, or refresh
 Stockfish from official downloads on Windows and macOS, follow the
 [AI-assisted engine update guide](compile-stockfish-lc0.md).
 When following that guide, leave PicoChess stopped after the large resource

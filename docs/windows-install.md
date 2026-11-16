@@ -164,7 +164,7 @@ and continues; Stockfish remains usable. To install or retry only Lc0:
 ```
 
 To use an NVIDIA graphics card instead of OpenBLAS, see the
-[Windows and macOS Lc0 section](../compile-stockfish-lc0.md#windows-and-macos-lc0)
+[Windows and macOS Lc0 section](../update-engine-resources.md#windows-and-macos-lc0)
 of the engine update guide.
 
 To add an engine you already have, such as Fritz or another commercial UCI

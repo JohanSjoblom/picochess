@@ -800,7 +800,7 @@ is to retain the existing behavior and document it, with no code change.
   optional `Lc0` resource: the Windows CPU OpenBLAS build and, on macOS, the
   universal binary with `Backend = blas` (Apple Accelerate). Keep OpenBLAS
   as the installer default; an NVIDIA build is an explicit user choice in
-  `compile-stockfish-lc0.md`. Install the same catalog entries as Linux. On
+  `update-engine-resources.md`. Install the same catalog entries as Linux. On
   Windows the extra entries are copies of `lc0.exe`, because symlinks need
   administrator rights; macOS uses symlinks. Validate every entry with a real
   search before installing, append catalog sections after Stockfish, and

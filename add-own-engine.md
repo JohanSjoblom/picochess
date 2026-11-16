@@ -200,7 +200,7 @@ reason to change it.
   `engines.ini` section back from there afterwards.
 - **macOS:** the installer never changes an existing engine folder.
 - Updating Stockfish with
-  [the Windows and macOS refresh workflow](compile-stockfish-lc0.md#windows-and-macos-refresh-official-stockfish)
+  [the Windows and macOS refresh workflow](update-engine-resources.md#windows-and-macos-refresh-official-stockfish)
   replaces only the Stockfish executable, so your engine is not affected.
 
 ## Prompt for the assistant

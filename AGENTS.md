@@ -796,6 +796,15 @@ is to retain the existing behavior and document it, with no code change.
   or replace a user's retro selection with the pack's default/full catalog.
 - Packaged engine settings may be refreshed; retain their previous versions in
   the backup. Keep the preservation updater separate from clean installation.
+- The Windows and macOS installers install official prebuilt Lc0 as an
+  optional `Lc0` resource: the Windows CPU OpenBLAS build and, on macOS, the
+  universal binary with `Backend = blas` (Apple Accelerate). Keep OpenBLAS
+  as the installer default; an NVIDIA build is an explicit user choice in
+  `compile-stockfish-lc0.md`. Install the same catalog entries as Linux. On
+  Windows the extra entries are copies of `lc0.exe`, because symlinks need
+  administrator rights; macOS uses symlinks. Validate every entry with a real
+  search before installing, append catalog sections after Stockfish, and
+  treat a failed Lc0 step as a warning that leaves Stockfish usable.
 - LC0 network weights are shared across architectures and operating systems.
   Install the complete archive only when the weights directory is missing.
   Do not inspect or repair individual networks. Refreshing weights requires

@@ -224,7 +224,7 @@ To add a custom book, place the `.bin` file in `books/` and add a matching entry
 
 Windows installation
 --------------------
-The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs official Stockfish with PicoChess engine metadata, books, opening data, and games database data by default. It does not install Windows services:
+The experimental native Windows port has a non-administrative PowerShell installer. It creates or reuses a Python 3.11-3.13 x64/AMD64 virtual environment and installs official Stockfish and Lc0 with PicoChess engine metadata and the shared Lc0 weights, books, opening data, and games database data by default. It does not install Windows services:
 
 ```powershell
 .\install-picochess-windows.ps1

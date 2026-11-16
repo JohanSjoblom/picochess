@@ -197,7 +197,7 @@ explicit `large` reinstall through `install-picochess.sh`, remains a clean
 reinstall that requires manual restoration of user data.
 
 For AI assistance with keeping the engine installation up to date, use the
-[AI-assisted engine update guide](compile-stockfish-lc0.md). On Debian and
+[AI-assisted engine update guide](update-engine-resources.md). On Debian and
 Raspberry Pi it refreshes the standard large pack, including other engines and
 MAME and Rodent resources, then offers the choice of keeping its Stockfish NNUE
 and Lc0 binaries or compiling current stable releases. On Windows and macOS,

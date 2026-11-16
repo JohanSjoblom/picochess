@@ -3,7 +3,7 @@
 To refresh the standard large engine pack and optionally build the latest upstream
 Stockfish NNUE and Lc0 on Debian or Raspberry Pi, or refresh
 Stockfish from official downloads on Windows and macOS, follow the
-[AI-assisted engine update guide](compile-stockfish-lc0.md).
+[AI-assisted engine update guide](update-engine-resources.md).
 When following that guide, leave PicoChess stopped after the large resource
 update until the rebuilt engines and their level files pass their checks.
 

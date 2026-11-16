@@ -6,8 +6,8 @@ Installs the Windows PicoChess Python environment and portable data resources.
 The installer can use the checkout containing this script or clone PicoChess
 into a user-selected directory. It creates a Python 3.11-3.13 AMD64 virtual environment,
 installs requirements.txt, initializes writable runtime files, and optionally
-downloads official Stockfish with PicoChess engine metadata, books, opening
-data, and games database data.
+downloads official Stockfish and Lc0 with PicoChess engine metadata, the
+shared Lc0 weights, books, opening data, and games database data.
 
 It deliberately does not install Windows services, scheduled tasks, drivers,
 firewall rules, or Linux host integrations.
@@ -17,8 +17,10 @@ PicoChess checkout to use or create. When omitted, the checkout containing
 this script is used if possible; otherwise %USERPROFILE%\PicoChess is used.
 
 .PARAMETER Resources
-Portable resource packs to install. The default is Engines, Books, OpeningData,
-Games.
+Portable resource packs to install. The default is Engines, Lc0, Books,
+OpeningData, Games. Lc0 also downloads the shared Lc0 weights (about 620 MB)
+when engines\lc0_weights is missing. A failed Lc0 installation is reported as
+a warning and leaves Stockfish usable.
 
 .PARAMETER SkipResources
 Do not download any resource packs.
@@ -45,7 +47,7 @@ Only inspect prerequisites and the selected existing checkout. Make no changes.
 param(
     [string]$InstallDir,
 
-    [string[]]$Resources = @("Engines", "Books", "OpeningData", "Games"),
+    [string[]]$Resources = @("Engines", "Lc0", "Books", "OpeningData", "Games"),
 
     [switch]$SkipResources,
     [switch]$UpdateRepo,
@@ -79,6 +81,32 @@ $resourceDefinitions = @{
             Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/picochess-amd64-engines-metadata-v4.4.1.zip"
             Archive = "picochess-amd64-engines-metadata-v4.4.1.zip"
             Sha256 = "55AF2842A4E19DDC998AF61657AAFD81A3F35EE32893B774A02AFDEA99686A2F"
+        }
+    }
+    # Official Lc0 CPU (OpenBLAS) build. The extra catalog entries are copies of
+    # lc0.exe, because Windows symlinks need administrator rights.
+    Lc0 = @{
+        ArchiveType = "Lc0Engine"
+        Destination = "engines\AMD64"
+        Marker = "lc0.exe"
+        Profiles = @("classic.exe", "elitev2.exe", "maiav0321.exe", "maia3.exe")
+        Engine = @{
+            Url = "https://github.com/LeelaChessZero/lc0/releases/download/v0.32.1/lc0-v0.32.1-windows-cpu-openblas.zip"
+            Archive = "lc0-v0.32.1-windows-cpu-openblas.zip"
+            Sha256 = "B2CAA8443F0E0CB15CF76C335C53985F2973CD6438E77D3E2366CD21D2EFFA38"
+            Files = @("lc0.exe", "libopenblas.dll", "mimalloc-override.dll", "mimalloc-redirect.dll")
+        }
+        Metadata = @{
+            Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/picochess-amd64-lc0-metadata-v4.4.1.zip"
+            Archive = "picochess-amd64-lc0-metadata-v4.4.1.zip"
+            Sha256 = "D40FC71B549730605B74EA86877AE9B63DE4B7E90C173F13585736B456909459"
+        }
+        Weights = @{
+            Url = "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz"
+            Archive = "lc0_weights.tar.gz"
+            Sha256 = "6B4D6B0C23FDD8F3E955A639B597AAEFA403452B692CE012C03145B35F84E66F"
+            Destination = "engines\lc0_weights"
+            Marker = "792013-192x15.txt"
         }
     }
     Books = @{
@@ -489,6 +517,180 @@ function Install-StarterEngine {
     Write-Status "Stockfish installed in $destination"
 }
 
+function Install-Lc0Weights {
+    param(
+        [hashtable]$Definition,
+        [string]$RepositoryPath,
+        [string]$TarCommand,
+        [string]$TemporaryRoot
+    )
+
+    $destination = Join-Path $RepositoryPath $Definition.Destination
+    if (Test-Path -LiteralPath $destination) {
+        # Shared with other platforms; refreshing it means moving the whole folder away first.
+        Write-Status "Reusing existing Lc0 weights in $destination"
+        return
+    }
+    if (-not $TarCommand) {
+        throw "Windows tar.exe is required to extract the Lc0 weights."
+    }
+
+    $weightsRoot = Join-Path $TemporaryRoot "Lc0Weights"
+    $extractRoot = Join-Path $weightsRoot "extract"
+    New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+    $archivePath = Join-Path $weightsRoot $Definition.Archive
+
+    Write-Step "Downloading Lc0 weights (about 620 MB)"
+    Save-VerifiedDownload -Name "Lc0 weights" -Url $Definition.Url -OutFile $archivePath -Sha256 $Definition.Sha256
+    Assert-SafeArchiveEntries -TarCommand $TarCommand -ArchivePath $archivePath
+    Invoke-Native -FilePath $TarCommand -ArgumentList @("-xzf", $archivePath, "-C", $extractRoot)
+    Remove-Item -LiteralPath $archivePath -Force
+    if (-not (Test-Path -LiteralPath (Join-Path $extractRoot $Definition.Marker) -PathType Leaf)) {
+        throw "Lc0 weights archive did not contain $($Definition.Marker)."
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Move-Item -LiteralPath $extractRoot -Destination $destination
+    Write-Status "Lc0 weights installed in $destination"
+}
+
+function Install-Lc0 {
+    param(
+        [hashtable]$Definition,
+        [string]$RepositoryPath,
+        [string]$TarCommand,
+        [string]$TemporaryRoot,
+        [string]$VenvPython,
+        [switch]$ReplaceExisting
+    )
+
+    $destination = Join-Path $RepositoryPath $Definition.Destination
+    if ((Test-Path -LiteralPath (Join-Path $destination $Definition.Marker)) -and -not $ReplaceExisting) {
+        Write-Status "Lc0 already installed; keeping $destination"
+        return
+    }
+
+    Install-Lc0Weights -Definition $Definition.Weights -RepositoryPath $RepositoryPath -TarCommand $TarCommand -TemporaryRoot $TemporaryRoot
+    $weightsPath = Join-Path $RepositoryPath $Definition.Weights.Destination
+
+    $resourceRoot = Join-Path $TemporaryRoot "Lc0"
+    $engineExtract = Join-Path $resourceRoot "engine"
+    $metadataExtract = Join-Path $resourceRoot "metadata"
+    $stageRoot = Join-Path $resourceRoot "stage"
+    New-Item -ItemType Directory -Path $engineExtract, $metadataExtract, $stageRoot -Force | Out-Null
+
+    Write-Step "Downloading official Lc0 for Windows (OpenBLAS)"
+    $engineArchive = Join-Path $resourceRoot $Definition.Engine.Archive
+    Save-VerifiedDownload -Name "Lc0" -Url $Definition.Engine.Url -OutFile $engineArchive -Sha256 $Definition.Engine.Sha256
+    Assert-SafeZipArchiveEntries -ArchivePath $engineArchive
+    Expand-Archive -LiteralPath $engineArchive -DestinationPath $engineExtract
+    foreach ($fileName in $Definition.Engine.Files) {
+        $source = Join-Path $engineExtract $fileName
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Lc0 archive did not contain $fileName."
+        }
+        Copy-Item -LiteralPath $source -Destination $stageRoot
+    }
+    $engineLicense = Join-Path $engineExtract "COPYING"
+    if (Test-Path -LiteralPath $engineLicense -PathType Leaf) {
+        Copy-Item -LiteralPath $engineLicense -Destination (Join-Path $stageRoot "lc0-COPYING.txt")
+    }
+    foreach ($entryName in $Definition.Profiles) {
+        Copy-Item -LiteralPath (Join-Path $stageRoot $Definition.Marker) -Destination (Join-Path $stageRoot $entryName)
+    }
+
+    Write-Step "Downloading PicoChess Windows Lc0 metadata"
+    $metadataArchive = Join-Path $resourceRoot $Definition.Metadata.Archive
+    Save-VerifiedDownload -Name "Lc0 metadata" -Url $Definition.Metadata.Url -OutFile $metadataArchive -Sha256 $Definition.Metadata.Sha256
+    Assert-SafeZipArchiveEntries -ArchivePath $metadataArchive
+    Expand-Archive -LiteralPath $metadataArchive -DestinationPath $metadataExtract
+    if (@(Get-ChildItem -LiteralPath $metadataExtract -Recurse -File -Filter "*.exe").Count -gt 0) {
+        throw "Lc0 metadata archive must not contain engine executables."
+    }
+    $catalog = Join-Path $metadataExtract "engines.ini"
+    if (-not (Test-Path -LiteralPath $catalog -PathType Leaf)) {
+        throw "Lc0 metadata archive is missing engines.ini."
+    }
+
+    # The level files use the Linux weights path; point them at this installation.
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    $weightsPrefix = $weightsPath.TrimEnd('\') + '\'
+    foreach ($engineName in @($Definition.Marker) + $Definition.Profiles) {
+        $levelSource = Join-Path $metadataExtract "$engineName.uci"
+        if (-not (Test-Path -LiteralPath $levelSource -PathType Leaf)) {
+            throw "Lc0 metadata archive is missing $engineName.uci."
+        }
+        if (-not (Select-String -LiteralPath $catalog -SimpleMatch "[$engineName]" -Quiet)) {
+            throw "Lc0 catalog is missing [$engineName]."
+        }
+        $levels = [IO.File]::ReadAllText($levelSource).Replace("/opt/picochess/engines/lc0_weights/", $weightsPrefix)
+        if ($levels.Contains("/opt/")) {
+            throw "$engineName.uci still contains a Linux path after rewriting."
+        }
+        foreach ($match in [regex]::Matches($levels, '(?m)^\s*WeightsFile\s*=\s*(.+?)\s*$')) {
+            if (-not (Test-Path -LiteralPath $match.Groups[1].Value -PathType Leaf)) {
+                throw "$engineName.uci needs a network that is missing: $($match.Groups[1].Value)"
+            }
+        }
+        [IO.File]::WriteAllText((Join-Path $stageRoot "$engineName.uci"), $levels, $utf8)
+    }
+
+    Write-Step "Checking Lc0 with a short search for each catalog entry"
+    $checkScript = Join-Path $RepositoryPath "scripts\check-lc0-engines.py"
+    Invoke-Native -FilePath $VenvPython -ArgumentList @("-I", $checkScript, $stageRoot)
+
+    $stagedFiles = @(Get-ChildItem -LiteralPath $stageRoot -File)
+    $existing = @($stagedFiles | Where-Object { Test-Path -LiteralPath (Join-Path $destination $_.Name) })
+    if ($existing.Count -gt 0) {
+        if (-not $ReplaceExisting) {
+            throw "Files with Lc0 names already exist in ${destination}: $(($existing | ForEach-Object Name) -join ', '). Rerun with -ForceResources to back them up and replace them."
+        }
+        if (-not $env:LOCALAPPDATA) {
+            throw "LOCALAPPDATA is not available; cannot safely back up existing Lc0 files."
+        }
+        $backupPath = Join-Path $env:LOCALAPPDATA "PicoChess\backups\$(Get-Date -Format 'yyyyMMdd-HHmmss')\$($Definition.Destination)"
+        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+        foreach ($file in $existing) {
+            Move-Item -LiteralPath (Join-Path $destination $file.Name) -Destination $backupPath
+        }
+        Write-Status "Existing Lc0 files moved to: $backupPath"
+    }
+
+    New-Item -ItemType Directory -Path $destination -Force | Out-Null
+    $installed = @()
+    try {
+        foreach ($file in $stagedFiles) {
+            $target = Join-Path $destination $file.Name
+            Copy-Item -LiteralPath $file.FullName -Destination $target
+            $installed += $target
+        }
+
+        # Append missing catalog sections after the existing ones, so Stockfish stays first.
+        $catalogTarget = Join-Path $destination "engines.ini"
+        $existingCatalog = ""
+        if (Test-Path -LiteralPath $catalogTarget) {
+            $existingCatalog = [IO.File]::ReadAllText($catalogTarget)
+        }
+        $sections = [regex]::Split([IO.File]::ReadAllText($catalog), '(?m)^(?=\[)') | Where-Object { $_.Trim() }
+        $missing = @($sections | Where-Object { -not $existingCatalog.Contains(($_ -split "`r?`n")[0].Trim()) })
+        if ($missing.Count -gt 0) {
+            $separator = ""
+            if ($existingCatalog -and -not $existingCatalog.EndsWith("`n")) {
+                $separator = "`n"
+            }
+            if ($existingCatalog) {
+                $separator += "`n"
+            }
+            [IO.File]::AppendAllText($catalogTarget, $separator + (($missing | ForEach-Object { $_.TrimEnd() }) -join "`n`n") + "`n", $utf8)
+        }
+    } catch {
+        foreach ($target in $installed) {
+            Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+        }
+        throw
+    }
+    Write-Status "Lc0 installed in $destination"
+}
+
 function Install-ResourcePack {
     param(
         [string]$Name,
@@ -641,13 +843,15 @@ try {
                 continue
             }
             if (-not $resourceDefinitions.ContainsKey($normalizedResource)) {
-                throw "Unknown resource '$normalizedResource'. Choose Engines, Books, OpeningData, or Games."
+                throw "Unknown resource '$normalizedResource'. Choose Engines, Lc0, Books, OpeningData, or Games."
             }
             if ($selectedResources -notcontains $normalizedResource) {
                 $selectedResources += $normalizedResource
             }
         }
     }
+    # Stockfish must be installed before Lc0 joins its engine folder.
+    $selectedResources = @(@("Engines", "Lc0", "Books", "OpeningData", "Games") | Where-Object { $selectedResources -contains $_ })
 
     $targetPath = Get-InstallPath -RequestedPath $InstallDir
     $gitCommand = Get-GitCommand
@@ -704,12 +908,16 @@ try {
 
     if (-not $SkipResources) {
         $tarCommand = $null
-        if (@($selectedResources | Where-Object { $resourceDefinitions[$_].ArchiveType -eq "TarGz" }).Count -gt 0) {
-            $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
-            if (-not $tar) {
-                throw "Windows tar.exe is required to extract the selected tar.gz resource packs."
+        if (@($selectedResources | Where-Object { $resourceDefinitions[$_].ArchiveType -in @("TarGz", "Lc0Engine") }).Count -gt 0) {
+            # Prefer Windows' bsdtar: a GNU tar earlier on PATH (Git usr\bin) misreads C: paths.
+            $tarCommand = Join-Path $env:SystemRoot "System32\tar.exe"
+            if (-not (Test-Path -LiteralPath $tarCommand -PathType Leaf)) {
+                $tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+                if (-not $tar) {
+                    throw "Windows tar.exe is required to extract the selected tar.gz resource packs."
+                }
+                $tarCommand = $tar.Source
             }
-            $tarCommand = $tar.Source
         }
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
         $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("picochess-windows-install-" + [Guid]::NewGuid().ToString("N"))
@@ -718,6 +926,16 @@ try {
             foreach ($resourceName in $selectedResources) {
                 if ($resourceDefinitions[$resourceName].ArchiveType -eq "StarterEngine") {
                     Install-StarterEngine -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources
+                    continue
+                }
+                if ($resourceDefinitions[$resourceName].ArchiveType -eq "Lc0Engine") {
+                    # Lc0 is optional: report a failure, but keep Stockfish and the other resources.
+                    try {
+                        Install-Lc0 -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TarCommand $tarCommand -TemporaryRoot $temporaryRoot -VenvPython $venvPython -ReplaceExisting:$ForceResources
+                    } catch {
+                        Write-Warning "Lc0 was not installed: $($_.Exception.Message)"
+                        Write-Status "Stockfish remains available. Fix the problem and rerun with -Resources Lc0."
+                    }
                     continue
                 }
                 Install-ResourcePack -Name $resourceName -Definition $resourceDefinitions[$resourceName] -RepositoryPath $targetPath -TarCommand $tarCommand -TemporaryRoot $temporaryRoot -ReplaceExisting:$ForceResources

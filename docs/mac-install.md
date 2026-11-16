@@ -54,8 +54,23 @@ official Stockfish archive and the metadata archive serve both Mac architectures
 Both downloads have pinned SHA-256 checksums; a mismatch stops the installation
 before anything is installed.
 
-The starter engine, books, opening data, and games database data are selected
-by default. A subset can be selected, or downloads can be disabled:
+The `Lc0` resource then adds Lc0 to the same engine folder, even when the
+folder already existed. Only a pre-release,
+[Lc0 v0.33.0-rc0](https://github.com/LeelaChessZero/lc0/releases/tag/v0.33.0-rc0),
+currently ships a macOS binary. It is universal, so it serves both Mac
+architectures, and it is installed as `lc0` with `Backend = blas`, which uses
+Apple's Accelerate. The installer adds the same catalog entries as Linux:
+`lc0`, `classic`, `elitev2`, `maiav0321` and `maia3`, the last four as
+symlinks to `lc0`, each with its levels file from a PicoChess v4.4.1 metadata
+archive. When `engines/lc0_weights` is missing, it also downloads the shared
+`lc0_weights.tar.gz` (about 620 MB) and points the levels files at it. All
+downloads have pinned SHA-256 checksums, and each entry must complete a short
+search before anything is installed. An existing `lc0` is kept. If the Lc0
+step fails, the installer warns and continues; Stockfish remains usable. Retry
+it with `--resources Lc0`.
+
+The starter engine, Lc0, books, opening data, and games database data are
+selected by default. A subset can be selected, or downloads can be disabled:
 
 ```bash
 bash ./install-picochess-mac.sh --resources Engines,Books,OpeningData

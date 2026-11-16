@@ -1,7 +1,7 @@
 # Installing PicoChess on Windows
 
-The Windows installer prepares PicoChess and can install the small AMD64 engine
-pack. It does not install Windows services, scheduled tasks, drivers, firewall
+The Windows installer prepares PicoChess and can install official Stockfish
+and Lc0 for AMD64. It does not install Windows services, scheduled tasks, drivers, firewall
 rules, or Linux host integrations. It can use an existing repository checkout
 or clone the repository when the selected installation directory is absent or
 empty.
@@ -62,7 +62,7 @@ only on a clean branch using a fast-forward-only pull:
 The default resource selection is:
 
 ```text
-Engines, Books, OpeningData, Games
+Engines, Lc0, Books, OpeningData, Games
 ```
 
 Select a subset or skip all resource downloads with:
@@ -140,6 +140,32 @@ example uses `engines\AMD64\stockfish-windows-x86-64-universal.exe` as both the
 playing engine and `tutor-engine`, and is set up for web-only use. An earlier
 `picochess.ini` that names `a-stockf.exe` must be updated by hand after
 switching to the official Stockfish file.
+
+### Lc0
+
+The `Lc0` resource installs the official
+[Lc0 v0.32.1 CPU build with OpenBLAS](https://github.com/LeelaChessZero/lc0/releases/tag/v0.32.1)
+next to Stockfish in `engines\AMD64`. It adds the same catalog entries as
+Linux: `lc0.exe`, `classic.exe`, `elitev2.exe`, `maiav0321.exe` and
+`maia3.exe`. The extra entries are copies of `lc0.exe`, each with its own
+levels file from a PicoChess v4.4.1 metadata archive. When
+`engines\lc0_weights` is missing, the installer also downloads the shared
+`lc0_weights.tar.gz` (about 620 MB) and points the levels files at it. An
+existing weights folder is reused as it is.
+
+All downloads have pinned SHA-256 checksums. Before installing, each entry
+must complete a short search with its network. Lc0 is added to an existing
+`engines\AMD64` without changing Stockfish, and its catalog sections are
+appended after the existing ones. If the Lc0 step fails, the installer warns
+and continues; Stockfish remains usable. To install or retry only Lc0:
+
+```powershell
+.\install-picochess-windows.ps1 -Resources Lc0
+```
+
+To use an NVIDIA graphics card instead of OpenBLAS, see the
+[Windows and macOS Lc0 section](../compile-stockfish-lc0.md#windows-and-macos-lc0)
+of the engine update guide.
 
 To add an engine you already have, such as Fritz or another commercial UCI
 engine, next to Stockfish, see

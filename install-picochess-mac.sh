@@ -9,7 +9,7 @@ set -eu
 REPOSITORY_URL="https://github.com/JohanSjoblom/picochess.git"
 REPOSITORY_BRANCH="master"
 INSTALL_DIR=""
-RESOURCES="Engines,Books,OpeningData,Games"
+RESOURCES="Engines,Lc0,Books,OpeningData,Games"
 SKIP_RESOURCES=false
 UPDATE_REPO=false
 FORCE_RESOURCES=false
@@ -30,7 +30,10 @@ Options:
   --install-dir PATH       Use or create this PicoChess checkout.
                            Default: this checkout, or $HOME/PicoChess.
   --resources LIST         Comma-separated resource packs to install.
-                           Choices: Engines, Books, OpeningData, Games.
+                           Choices: Engines, Lc0, Books, OpeningData, Games.
+                           Lc0 also downloads the shared Lc0 weights (about
+                           620 MB) when engines/lc0_weights is missing. A failed
+                           Lc0 installation is a warning; Stockfish stays usable.
   --skip-resources         Do not download resource packs.
   --update-repo            Update a clean checkout with git pull --ff-only.
   --force-resources        Back up and replace existing data resource directories.
@@ -141,18 +144,27 @@ for resource in $RESOURCES; do
     IFS=$OLD_IFS
     resource=$(printf '%s' "$resource" | tr -d '[:space:]')
     case "$resource" in
-        Engines|Books|OpeningData|Games)
+        Engines|Lc0|Books|OpeningData|Games)
             case ",$SELECTED_RESOURCES," in
                 *,$resource,*) ;;
                 *) SELECTED_RESOURCES="${SELECTED_RESOURCES}${SELECTED_RESOURCES:+,}${resource}" ;;
             esac
             ;;
         "") ;;
-        *) fail "Unknown resource '$resource'. Choose Engines, Books, OpeningData, or Games." ;;
+        *) fail "Unknown resource '$resource'. Choose Engines, Lc0, Books, OpeningData, or Games." ;;
     esac
     IFS=,
 done
 IFS=$OLD_IFS
+
+# Stockfish must be installed before Lc0 joins its engine folder.
+ORDERED_RESOURCES=""
+for resource in Engines Lc0 Books OpeningData Games; do
+    case ",$SELECTED_RESOURCES," in
+        *,$resource,*) ORDERED_RESOURCES="${ORDERED_RESOURCES}${ORDERED_RESOURCES:+,}${resource}" ;;
+    esac
+done
+SELECTED_RESOURCES=$ORDERED_RESOURCES
 
 ensure_repository() {
     step "Checking repository"
@@ -396,6 +408,111 @@ EOF
     status "Stockfish installed in $destination"
 }
 
+LC0_ENTRIES="lc0 classic elitev2 maiav0321 maia3"
+
+install_lc0_weights() {
+    weights_dir="$INSTALL_DIR/engines/lc0_weights"
+    if [ -e "$weights_dir" ]; then
+        # Shared with other platforms; refreshing it means moving the whole folder away first.
+        status "Reusing existing Lc0 weights in $weights_dir"
+        return
+    fi
+    weights_root="$TEMPORARY_ROOT/Lc0Weights"
+    mkdir -p "$weights_root/extract"
+    step "Downloading Lc0 weights (about 620 MB)"
+    curl --fail --location --retry 2 --output "$weights_root/lc0_weights.tar.gz" \
+        "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/lc0_weights.tar.gz"
+    assert_sha256 "$weights_root/lc0_weights.tar.gz" 6b4d6b0c23fdd8f3e955a639b597aaefa403452b692ce012c03145b35f84e66f
+    assert_safe_archive "$weights_root/lc0_weights.tar.gz"
+    tar -xzf "$weights_root/lc0_weights.tar.gz" -C "$weights_root/extract"
+    rm -f "$weights_root/lc0_weights.tar.gz"
+    [ -f "$weights_root/extract/792013-192x15.txt" ] || fail "Lc0 weights archive did not contain 792013-192x15.txt."
+    mkdir -p "$INSTALL_DIR/engines"
+    mv "$weights_root/extract" "$weights_dir"
+    status "Lc0 weights installed in $weights_dir"
+}
+
+install_lc0() {
+    destination="$INSTALL_DIR/engines/$ENGINE_PLATFORM"
+    if [ -e "$destination/lc0" ] || [ -L "$destination/lc0" ]; then
+        status "Lc0 already installed; keeping $destination"
+        return
+    fi
+
+    install_lc0_weights
+    weights_dir="$INSTALL_DIR/engines/lc0_weights"
+
+    resource_root="$TEMPORARY_ROOT/Lc0"
+    metadata_root="$resource_root/metadata"
+    stage_root="$resource_root/stage"
+    mkdir -p "$metadata_root" "$stage_root"
+
+    # Only a pre-release currently ships a macOS binary. It is universal
+    # (arm64 and x86_64) and uses Apple's Accelerate for Backend = blas.
+    step "Downloading official Lc0 for macOS (v0.33.0-rc0)"
+    curl --fail --location --retry 2 --output "$stage_root/lc0" \
+        "https://github.com/LeelaChessZero/lc0/releases/download/v0.33.0-rc0/lc0-v0.33.0-rc0-macos_13.2.1"
+    assert_sha256 "$stage_root/lc0" 7414c000e45c7814f5d329ed6051f5d1fc6c2f514dded1147628ee7b473c9dc3
+    chmod 755 "$stage_root/lc0"
+    for entry in $LC0_ENTRIES; do
+        [ "$entry" = lc0 ] || ln -s lc0 "$stage_root/$entry"
+    done
+
+    step "Downloading PicoChess macOS Lc0 metadata"
+    metadata_archive="$resource_root/picochess-mac-lc0-metadata-v4.4.1.tar.gz"
+    curl --fail --location --retry 2 --output "$metadata_archive" \
+        "https://github.com/JohanSjoblom/picochess/releases/download/v4.4.1/picochess-mac-lc0-metadata-v4.4.1.tar.gz"
+    assert_sha256 "$metadata_archive" 151ddc724c8e46185ac9fbddc930d2dff0c98a0394369b704d79459c32121d90
+    assert_safe_archive "$metadata_archive"
+    tar -xzf "$metadata_archive" -C "$metadata_root"
+    [ -f "$metadata_root/engines.ini" ] || fail "Lc0 metadata archive is missing engines.ini."
+
+    # The level files use the Linux weights path; point them at this installation.
+    weights_replacement=$(printf '%s/' "$weights_dir" | sed 's/[&|\\]/\\&/g')
+    for entry in $LC0_ENTRIES; do
+        [ ! -e "$metadata_root/$entry" ] && [ ! -L "$metadata_root/$entry" ] || fail "Lc0 metadata archive must not contain engine executables."
+        [ -f "$metadata_root/$entry.uci" ] || fail "Lc0 metadata archive is missing $entry.uci."
+        grep -q "^\[$entry\]\$" "$metadata_root/engines.ini" || fail "Lc0 catalog is missing [$entry]."
+        sed "s|/opt/picochess/engines/lc0_weights/|$weights_replacement|g" "$metadata_root/$entry.uci" > "$stage_root/$entry.uci"
+        ! grep -q '/opt/' "$stage_root/$entry.uci" || fail "$entry.uci still contains a Linux path after rewriting."
+        grep -E '^[[:space:]]*WeightsFile[[:space:]]*=' "$stage_root/$entry.uci" | sed 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//' |
+            while IFS= read -r network; do
+                [ -f "$network" ] || fail "$entry.uci needs a network that is missing: $network"
+            done
+    done
+
+    step "Checking Lc0 with a short search for each catalog entry"
+    "$VENV_PYTHON" -I "$INSTALL_DIR/scripts/check-lc0-engines.py" "$stage_root"
+
+    for staged in "$stage_root"/*; do
+        name=$(basename "$staged")
+        [ ! -e "$destination/$name" ] && [ ! -L "$destination/$name" ] ||
+            fail "A file named $name already exists in $destination. Move it away and rerun with --resources Lc0."
+    done
+    mkdir -p "$destination"
+    for staged in "$stage_root"/*; do
+        cp -P "$staged" "$destination/"
+    done
+
+    # Append missing catalog sections after the existing ones, so Stockfish stays first.
+    catalog="$destination/engines.ini"
+    for entry in $LC0_ENTRIES; do
+        if [ -f "$catalog" ] && grep -q "^\[$entry\]\$" "$catalog"; then
+            continue
+        fi
+        if [ -s "$catalog" ]; then
+            [ -z "$(tail -c 1 "$catalog")" ] || printf '\n' >> "$catalog"
+            printf '\n' >> "$catalog"
+        fi
+        awk -v header="[$entry]" '
+            $0 == header { copying = 1; print; next }
+            /^\[/ { copying = 0 }
+            copying && NF { print }
+        ' "$metadata_root/engines.ini" >> "$catalog"
+    done
+    status "Lc0 installed in $destination"
+}
+
 install_resource() {
     name=$1
     url=$(resource_value "$name" url)
@@ -514,6 +631,23 @@ if [ "$SKIP_RESOURCES" = false ]; then
         IFS=$OLD_IFS
         if [ "$resource" = Engines ]; then
             install_starter_engine
+        elif [ "$resource" = Lc0 ]; then
+            # Lc0 is optional. A subshell keeps fail() from ending the whole
+            # installation while set -e still stops at the first Lc0 error.
+            set +e
+            (
+                set -e
+                fail() {
+                    printf '\nLc0 step failed: %s\n' "$*" >&2
+                    exit 1
+                }
+                install_lc0
+            )
+            lc0_status=$?
+            set -e
+            if [ "$lc0_status" -ne 0 ]; then
+                warn "Lc0 was not installed. Stockfish remains available; fix the problem and rerun with --resources Lc0."
+            fi
         else
             install_resource "$resource"
         fi

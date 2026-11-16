@@ -67,7 +67,7 @@ internal sealed class InstallerForm : Form
         directoryRow.Controls.Add(_installDirectory, 0, 0);
         directoryRow.Controls.Add(_browse, 1, 0);
 
-        _resources.Text = "Download the standard books, opening data, and games resources";
+        _resources.Text = "Download Stockfish, Lc0, books, opening data, and games resources";
         _resources.Checked = true;
         _resources.AutoSize = true;
         _resources.Margin = new Padding(0, 0, 0, 6);

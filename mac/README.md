@@ -9,7 +9,7 @@ control panel in `win/` and shares no code with it.
 
 When no PicoChess checkout is found, the app shows an **Install** section:
 
-1. Choose a folder (default `~/PicoChess`) and whether to download the starter engine,
+1. Choose a folder (default `~/PicoChess`) and whether to download Stockfish, Lc0,
    books, opening data, and games data.
 2. The app checks for Git and clones the `master` branch. If Git is missing, macOS
    offers to install the Command Line Tools; accept, then click Install again.

@@ -31,7 +31,7 @@ internal sealed class MainWindow : Window
     private readonly TextBox _installDirectory = new() { Text = PicoChessLocation.DefaultInstallDirectory };
     private readonly CheckBox _installResources = new()
     {
-        Content = "Download the starter engine, books, opening data, and games resources",
+        Content = "Download Stockfish, Lc0, books, opening data, and games resources",
         IsChecked = true
     };
     private readonly Button _install = new() { Content = "Install" };

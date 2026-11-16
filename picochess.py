@@ -468,12 +468,12 @@ async def main() -> None:
         logger.debug("starting PicoChess in board mode")
         if eboard_connect_coro is not None:
             non_main_tasks.add(asyncio.create_task(eboard_connect_coro()))
-        elif args.dgtpi:
+        if args.dgtpi:
             my_dgtpi = DgtPi(dgtboard, main_loop)
             dgtdispatcher.register("i2c")
             non_main_tasks.add(asyncio.create_task(my_dgtpi.dgt_consumer()))
             non_main_tasks.add(asyncio.create_task(my_dgtpi.process_incoming_clock_forever()))
-        else:
+        elif eboard_connect_coro is None:
             logger.debug("(ser) starting the board connection")
             dgtboard.run()  # a clock can only be online together with the board, so we must start it infront
         my_dgthw = DgtHw(dgtboard, main_loop)

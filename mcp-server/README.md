@@ -86,6 +86,11 @@ runs in this PicoChess folder. Add `-s user` to make it available everywhere. Ch
 `claude mcp get picochess`, and remove it with `claude mcp remove picochess -s local`.
 
 To reach PicoChess at another address, register it with `-e PICOCHESS_URL=http://host:port`.
+From another computer, PicoChess asks for the Pi's login before it changes the engine, time
+control, mode or PicoTutor settings, as the web client's login dialog does. Add
+`-e PICOCHESS_USER=pi -e PICOCHESS_PASSWORD=<password>` with the Pi's login for those tools; the
+other tools work without it. The password is stored in plain text in Claude's configuration; after
+changing the Pi's password, register the server again. On the Pi itself no login is needed.
 
 ## Claude Desktop
 
@@ -111,7 +116,8 @@ commands above. Then add the server to Claude Desktop's configuration:
    ```
 
    If the file already has an `mcpServers` section, add only the `picochess` entry to it. To reach
-   PicoChess at another address, add `"env": {"PICOCHESS_URL": "http://host:port"}` to the entry.
+   PicoChess at another address, add `"env": {"PICOCHESS_URL": "http://host:port"}` to the entry,
+   and `PICOCHESS_USER` and `PICOCHESS_PASSWORD` for the settings tools (see Registration).
    On macOS, use `.../mcp-server/.venv/bin/python` as the command.
 3. Quit Claude Desktop completely, from the system tray on Windows or the menu bar on macOS, and
    start it again. The PicoChess tools then appear in the tools menu of a new chat.

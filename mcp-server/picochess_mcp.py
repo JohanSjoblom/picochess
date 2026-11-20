@@ -11,6 +11,7 @@ Set PICOCHESS_URL to reach PicoChess somewhere other than http://localhost:8080.
 """
 
 import asyncio
+import base64
 import csv
 import io
 import json
@@ -33,6 +34,10 @@ from mcp.types import ToolAnnotations  # type: ignore[import-not-found]
 from websockets.asyncio.client import connect as websocket_connect  # type: ignore[import-not-found]
 
 PICOCHESS_URL = os.environ.get("PICOCHESS_URL", "http://localhost:8080").rstrip("/")
+# From another computer, PicoChess asks for the Pi's login before changing settings,
+# as the browser's login dialog shows; on the Pi itself no login is needed.
+PICOCHESS_USER = os.environ.get("PICOCHESS_USER", "")
+PICOCHESS_PASSWORD = os.environ.get("PICOCHESS_PASSWORD", "")
 REQUEST_TIMEOUT_SECONDS = 5.0
 POLL_INTERVAL_SECONDS = 0.5
 # PicoChess shows an accepted web move within moments; no sign of it means it was ignored.
@@ -76,6 +81,9 @@ def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict
         request = urllib.request.Request(f"{PICOCHESS_URL}{path}", data=query.encode("ascii"), method="POST")
     else:
         request = urllib.request.Request(f"{PICOCHESS_URL}{path}?{query}")
+    if PICOCHESS_USER:
+        login = base64.b64encode(f"{PICOCHESS_USER}:{PICOCHESS_PASSWORD}".encode("utf-8")).decode("ascii")
+        request.add_header("Authorization", f"Basic {login}")
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             body = response.read().decode("utf-8")
@@ -88,6 +96,13 @@ def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict
         except (ValueError, AttributeError, OSError):
             pass
         detail = f": {reason}" if reason else f" (HTTP {exc.code})"
+        if exc.code == 401:
+            detail = (
+                ": it needs the Pi's login for this from another computer. Set PICOCHESS_USER and"
+                " PICOCHESS_PASSWORD, or change the setting on the Pi"
+                if not PICOCHESS_USER
+                else f": the login for user {PICOCHESS_USER} was refused"
+            )
         raise ToolError(f"PicoChess rejected the request to {path}{detail}.") from exc
     except OSError as exc:
         raise ToolError(

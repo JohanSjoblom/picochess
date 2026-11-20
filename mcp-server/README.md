@@ -1,7 +1,7 @@
 # PicoChess MCP server (experimental)
 
 This folder contains a small [Model Context Protocol](https://modelcontextprotocol.io/) server
-that lets Claude Code, or another MCP client, play chess against a running PicoChess. It talks to
+that lets Codex, Claude Code, or another MCP client play chess against a running PicoChess. It talks to
 the PicoChess web server through the same HTTP endpoints as the browser client, so PicoChess itself
 needs no changes.
 
@@ -48,15 +48,15 @@ and `save_game` replaces a saved game. They are marked destructive, so Claude Co
   connected, moves are made on the board, as with the web client: `make_move` refuses, and the
   other tools work as a remote front end for information and game actions.
 - A 64-bit CPython 3.10 or newer. PicoChess uses 3.13.
-- [Claude Code](https://code.claude.com/), or another MCP client that can start a local stdio
-  server.
+- Codex, [Claude Code](https://code.claude.com/), or another MCP client that can start a local
+  stdio server.
 
 The server uses its own virtual environment, `mcp-server/.venv`, which is ignored by Git. It does not
 change PicoChess's `venv`.
 
 ## Setup on Windows
 
-From the PicoChess folder:
+From the PicoChess folder, for Claude Code:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\mcp-server\setup-mcp-windows.ps1 -Register
@@ -80,7 +80,7 @@ mcp-server/.venv/bin/python -m pip install -r mcp-server/requirements.txt
 claude mcp add picochess -- "$PWD/mcp-server/.venv/bin/python" "$PWD/mcp-server/picochess_mcp.py"
 ```
 
-## Registration
+## Claude Code registration
 
 `claude mcp add` uses local scope by default: the server is available to you when Claude Code
 runs in this PicoChess folder. Add `-s user` to make it available everywhere. Check it with
@@ -95,6 +95,26 @@ registered, run `claude mcp remove picochess -s local` from this folder before r
 Claude stores the password in plain text in its configuration. Basic auth also sends it over the
 network without encryption when `PICOCHESS_URL` starts with `http://`; use HTTPS or an SSH tunnel
 when the network is not trusted. On the Pi itself, no login is needed.
+
+## Codex in VS Code or the CLI
+
+Codex uses the same MCP server and virtual environment. Prepare `mcp-server/.venv` with the
+first two Linux/macOS setup commands above. The Windows setup script's `-Register` option is
+for Claude Code.
+
+Register the server with Codex from the PicoChess folder:
+
+```bash
+codex mcp add picochess -- "$PWD/mcp-server/.venv/bin/python" "$PWD/mcp-server/picochess_mcp.py"
+```
+
+For a PicoChess on another host, add `--env PICOCHESS_URL=http://host:port` before `--`.
+Add `--env PICOCHESS_USER=pi --env PICOCHESS_PASSWORD=<password>` when remote settings changes
+need the Pi login. Codex stores these values in its configuration, and a command containing the
+password may remain in shell history. The HTTP warning above also applies. Use `codex mcp list`
+to check registration. Codex CLI and the VS Code extension share this configuration. Start a new
+Codex session after registering or changing the server code. Ask "What engine is selected?" to
+verify the read-only `get_engine` tool before trying changes to a game.
 
 ## Claude Desktop
 

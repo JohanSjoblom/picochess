@@ -17,6 +17,9 @@ Register the server with Claude Code after installing. Requires the claude CLI.
 PicoChess web address passed to the server as PICOCHESS_URL when registering.
 Defaults to the server's own default, http://localhost:8080.
 
+.PARAMETER PicoChessUser
+Pi login for remote settings changes. With -Register, prompts for the password.
+
 .PARAMETER RecreateVenv
 Delete mcp-server\.venv and create it again.
 #>
@@ -25,6 +28,7 @@ Delete mcp-server\.venv and create it again.
 param(
     [switch]$Register,
     [string]$PicoChessUrl,
+    [string]$PicoChessUser,
     [switch]$RecreateVenv
 )
 
@@ -112,14 +116,24 @@ try {
             & claude mcp get picochess *> $null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "    'picochess' is already registered; left unchanged."
-                Write-Host "    To change it, first run: claude mcp remove picochess -s local"
+                Write-Host "    To change the address or login, first run: claude mcp remove picochess -s local"
             } else {
                 $arguments = @("mcp", "add", "picochess")
                 if ($PicoChessUrl) {
                     $arguments += @("-e", "PICOCHESS_URL=$PicoChessUrl")
                 }
+                if ($PicoChessUser) {
+                    $password = Read-Host "Pi password for $PicoChessUser" -AsSecureString
+                    $plainPassword = [System.Net.NetworkCredential]::new("", $password).Password
+                    $arguments += @("-e", "PICOCHESS_USER=$PicoChessUser", "-e", "PICOCHESS_PASSWORD=$plainPassword")
+                }
                 $arguments += @("--", $venvPython, $serverScript)
-                & claude @arguments
+                try {
+                    & claude @arguments
+                } finally {
+                    $plainPassword = $null
+                    $password = $null
+                }
                 if ($LASTEXITCODE -ne 0) { throw "claude mcp add failed." }
             }
         } finally {

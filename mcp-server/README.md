@@ -43,7 +43,7 @@ and `save_game` replaces a saved game. They are marked destructive, so Claude Co
 
 ## Requirements
 
-- PicoChess running on the same machine.
+- PicoChess running on this machine or reachable over the network.
 - To play moves through the MCP, `board-type = noeboard` in `picochess.ini`. With an e-board
   connected, moves are made on the board, as with the web client: `make_move` refuses, and the
   other tools work as a remote front end for information and game actions.
@@ -67,6 +67,7 @@ and registers the server with Claude Code as `picochess`. Leave out `-Register` 
 the environment; the script then prints the registration command. Other options:
 
 - `-PicoChessUrl http://host:port` registers the server for a PicoChess at another address.
+- `-PicoChessUser pi` prompts for the Pi password and registers it for remote settings changes.
 - `-RecreateVenv` deletes `mcp-server\.venv` and creates it again.
 
 ## Setup on Linux and macOS
@@ -86,11 +87,14 @@ runs in this PicoChess folder. Add `-s user` to make it available everywhere. Ch
 `claude mcp get picochess`, and remove it with `claude mcp remove picochess -s local`.
 
 To reach PicoChess at another address, register it with `-e PICOCHESS_URL=http://host:port`.
-From another computer, PicoChess asks for the Pi's login before it changes the engine, time
-control, mode or PicoTutor settings, as the web client's login dialog does. Add
-`-e PICOCHESS_USER=pi -e PICOCHESS_PASSWORD=<password>` with the Pi's login for those tools; the
-other tools work without it. The password is stored in plain text in Claude's configuration; after
-changing the Pi's password, register the server again. On the Pi itself no login is needed.
+PicoChess requires the Pi's login for remote changes to the engine, time control, mode and
+PicoTutor settings. Add `-e PICOCHESS_USER=pi -e PICOCHESS_PASSWORD=<password>` to the
+`claude mcp add` command. On Windows, `setup-mcp-windows.ps1 -Register -PicoChessUrl
+http://host:port -PicoChessUser pi` prompts for the password instead. If `picochess` is already
+registered, run `claude mcp remove picochess -s local` from this folder before registering again.
+Claude stores the password in plain text in its configuration. Basic auth also sends it over the
+network without encryption when `PICOCHESS_URL` starts with `http://`; use HTTPS or an SSH tunnel
+when the network is not trusted. On the Pi itself, no login is needed.
 
 ## Claude Desktop
 
@@ -116,8 +120,8 @@ commands above. Then add the server to Claude Desktop's configuration:
    ```
 
    If the file already has an `mcpServers` section, add only the `picochess` entry to it. To reach
-   PicoChess at another address, add `"env": {"PICOCHESS_URL": "http://host:port"}` to the entry,
-   and `PICOCHESS_USER` and `PICOCHESS_PASSWORD` for the settings tools (see Registration).
+   PicoChess at another address, add `"env": {"PICOCHESS_URL": "http://host:port",
+   "PICOCHESS_USER": "pi", "PICOCHESS_PASSWORD": "<password>"}` to the entry for remote settings changes.
    On macOS, use `.../mcp-server/.venv/bin/python` as the command.
 3. Quit Claude Desktop completely, from the system tray on Windows or the menu bar on macOS, and
    start it again. The PicoChess tools then appear in the tools menu of a new chat.

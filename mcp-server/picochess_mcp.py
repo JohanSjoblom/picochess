@@ -34,8 +34,6 @@ from mcp.types import ToolAnnotations  # type: ignore[import-not-found]
 from websockets.asyncio.client import connect as websocket_connect  # type: ignore[import-not-found]
 
 PICOCHESS_URL = os.environ.get("PICOCHESS_URL", "http://localhost:8080").rstrip("/")
-# From another computer, PicoChess asks for the Pi's login before changing settings,
-# as the browser's login dialog shows; on the Pi itself no login is needed.
 PICOCHESS_USER = os.environ.get("PICOCHESS_USER", "")
 PICOCHESS_PASSWORD = os.environ.get("PICOCHESS_PASSWORD", "")
 REQUEST_TIMEOUT_SECONDS = 5.0
@@ -71,6 +69,17 @@ server = MCPServer(
 )
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep credentials on the configured PicoChess host."""
+
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
+_AUTHENTICATED_OPENER = urllib.request.build_opener(_NoRedirectHandler())
+_REMOTE_AUTH_ACTIONS = frozenset({"new_engine", "new_time", "set_mode", "picotutor"})
+
+
 def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict:
     """Call a PicoChess endpoint like the browser does and return its JSON body ({} when empty).
 
@@ -81,11 +90,15 @@ def _request_json(path: str, params: dict[str, str], post: bool = False) -> dict
         request = urllib.request.Request(f"{PICOCHESS_URL}{path}", data=query.encode("ascii"), method="POST")
     else:
         request = urllib.request.Request(f"{PICOCHESS_URL}{path}?{query}")
-    if PICOCHESS_USER:
+    authenticated = bool(
+        PICOCHESS_USER and post and path == "/channel" and params.get("action") in _REMOTE_AUTH_ACTIONS
+    )
+    if authenticated:
         login = base64.b64encode(f"{PICOCHESS_USER}:{PICOCHESS_PASSWORD}".encode("utf-8")).decode("ascii")
         request.add_header("Authorization", f"Basic {login}")
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        opener = _AUTHENTICATED_OPENER.open if authenticated else urllib.request.urlopen
+        with opener(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             body = response.read().decode("utf-8")
     # ToolError reaches the model with its message; other exceptions are reported as crashes.
     except urllib.error.HTTPError as exc:

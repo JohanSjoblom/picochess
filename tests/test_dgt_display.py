@@ -239,6 +239,58 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         await controller._retry_early_user_fen()
         mainloop_fire.assert_not_awaited()
 
+    async def _queue_early_move_retry(self, before_fen, early_fen):
+        """Queue a retry for early_fen as mainloop does after the engine move."""
+        with patch("dgt.display.Observable.fire", new_callable=AsyncMock):
+            await self.display._process_fen(before_fen, raw=False)
+            await self.display._process_fen(early_fen, raw=False)
+        controller = object.__new__(MainLoop)
+        controller.state = SimpleNamespace(
+            error_fen=early_fen,
+            legal_fens=[early_fen],
+            dgtmenu=self.menu,
+            position_checkpoint_restore_pending=False,
+        )
+        controller.process_fen = AsyncMock()
+        with patch("mainloop.Observable.fire", new_callable=AsyncMock) as mainloop_fire:
+            await controller._retry_early_user_fen()
+        event = mainloop_fire.await_args.args[0]
+        self.assertIsInstance(event, Event.FEN)
+        self.assertTrue(event.retry)
+        return controller, event
+
+    async def test_queued_early_move_retry_is_processed(self):
+        after_e6 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        after_nf3 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/5N2/PPPP1PPP/RNBQKB1R"
+        controller, event = await self._queue_early_move_retry(after_e6, after_nf3)
+
+        await controller.process_main_events(event)
+
+        controller.process_fen.assert_awaited_once_with(after_nf3, controller.state)
+
+    async def test_queued_early_move_retry_dropped_when_piece_put_back(self):
+        # 1.e4 e6 2.Nf3 seen early; the knight goes back to g1 after the retry was
+        # queued but before it is handled.
+        after_e6 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        after_nf3 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/5N2/PPPP1PPP/RNBQKB1R"
+        controller, event = await self._queue_early_move_retry(after_e6, after_nf3)
+
+        with patch("dgt.display.Observable.fire", new_callable=AsyncMock):
+            await self.display._process_fen(after_e6, raw=False)
+        await controller.process_main_events(event)
+
+        controller.process_fen.assert_not_awaited()
+
+    async def test_queued_early_move_retry_dropped_when_game_changed(self):
+        after_e6 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        after_nf3 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/5N2/PPPP1PPP/RNBQKB1R"
+        controller, event = await self._queue_early_move_retry(after_e6, after_nf3)
+
+        controller.state.legal_fens = []
+        await controller.process_main_events(event)
+
+        controller.process_fen.assert_not_awaited()
+
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
     def create_display(self, board_connected=None) -> DgtDisplay:

@@ -509,7 +509,7 @@
         }
 
         /* Finger-sized scrollbars on touch-first devices */
-        @media (pointer: coarse) {
+        @media (pointer: coarse), (any-pointer: coarse) {
             ::-webkit-scrollbar {
                 width: 40px;
                 height: 40px;

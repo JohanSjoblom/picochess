@@ -6,6 +6,21 @@ from dgt.translate import DgtTranslate
 from dgt.util import GameResult
 
 
+class TestEngineCatalogTranslations(unittest.TestCase):
+    def test_special_and_favorites_have_distinct_clock_labels(self):
+        expected = {
+            "nl": ("Speciaal", "Favorieten"),
+            "es": ("Especiales", "Favoritos"),
+            "it": ("Speciali", "Preferiti"),
+        }
+        for language, labels in expected.items():
+            with self.subTest(language=language):
+                translate = DgtTranslate("none", 0, language, "version")
+                special = translate.text("B00_engine_menu_favorites")
+                favorites = translate.text("B00_engine_menu_starred")
+                self.assertEqual(labels, (special.large_text.strip(), favorites.large_text.strip()))
+
+
 class TestItalianTutorMoveTranslation(unittest.TestCase):
     def setUp(self):
         self.translate = DgtTranslate("none", 0, "it", "version")

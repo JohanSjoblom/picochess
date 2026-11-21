@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import call, patch
 
 from uci.engine_provider import EngineProvider
 
@@ -138,3 +139,81 @@ class TestEngineProvider(unittest.TestCase):
         )
         self.assertIs(engines, EngineProvider.retro_engines)
         self.assertEqual(["Zulu", "Beta", "Alpha"], [engine["name"] for engine in engines])
+
+
+class TestEngineFavorites(unittest.TestCase):
+    def setUp(self):
+        self.original = {
+            "modern": EngineProvider.modern_engines,
+            "retro": EngineProvider.retro_engines,
+            "special": EngineProvider.favorite_engines,
+            "installed": EngineProvider.installed_engines,
+            "profiles": EngineProvider.profiles_by_id,
+            "ids": EngineProvider.starred_profile_ids,
+            "starred": EngineProvider.starred_engines,
+            "sort": EngineProvider.engine_menu_sort,
+        }
+
+    def tearDown(self):
+        EngineProvider.modern_engines = self.original["modern"]
+        EngineProvider.retro_engines = self.original["retro"]
+        EngineProvider.favorite_engines = self.original["special"]
+        EngineProvider.installed_engines = self.original["installed"]
+        EngineProvider.profiles_by_id = self.original["profiles"]
+        EngineProvider.starred_profile_ids = self.original["ids"]
+        EngineProvider.starred_engines = self.original["starred"]
+        EngineProvider.engine_menu_sort = self.original["sort"]
+
+    @patch("uci.engine_provider.read_engine_ini")
+    def test_existing_catalogs_and_empty_catalog_fallback_stay_unchanged(self, read_ini):
+        modern = [{"profile_id": "modern", "file": "modern"}]
+        read_ini.side_effect = [modern, [], []]
+
+        EngineProvider.init(engine_favorites=[])
+
+        self.assertEqual(
+            [call(filename="engines.ini"), call(filename="retro.ini"), call(filename="favorites.ini")],
+            read_ini.call_args_list,
+        )
+        self.assertIs(EngineProvider.retro_engines, modern)
+        self.assertIs(EngineProvider.favorite_engines, modern)
+
+    def test_duplicate_profile_id_uses_first_catalog_entry_once(self):
+        modern = {"profile_id": "shared", "file": "/engines/modern"}
+        special = {"profile_id": "shared", "file": "/engines/special"}
+        EngineProvider.modern_engines = [modern]
+        EngineProvider.retro_engines = []
+        EngineProvider.favorite_engines = [special]
+
+        EngineProvider._rebuild_profile_index()
+        EngineProvider.set_starred_ids(["shared", "shared"])
+
+        self.assertEqual(["shared"], EngineProvider.starred_profile_ids)
+        self.assertEqual([modern], EngineProvider.starred_engines)
+
+    def test_different_profile_ids_sharing_one_path_remain_distinct(self):
+        first = {"profile_id": "first", "file": "/engines/shared"}
+        second = {"profile_id": "second", "file": "/engines/shared"}
+        EngineProvider.modern_engines = [first]
+        EngineProvider.retro_engines = [second]
+        EngineProvider.favorite_engines = []
+
+        EngineProvider._rebuild_profile_index()
+        EngineProvider.set_starred_ids(["second", "first"])
+
+        self.assertEqual(["second", "first"], EngineProvider.starred_profile_ids)
+        self.assertEqual([second, first], EngineProvider.starred_engines)
+
+    def test_unknown_ids_are_ignored_and_last_favorite_can_be_removed(self):
+        engine = {"profile_id": "script/turing", "file": "/engines/script/turing"}
+        EngineProvider.modern_engines = [engine]
+        EngineProvider.retro_engines = []
+        EngineProvider.favorite_engines = []
+        EngineProvider._rebuild_profile_index()
+
+        EngineProvider.set_starred_ids(["missing", "script/turing"])
+        self.assertEqual(["script/turing"], EngineProvider.starred_profile_ids)
+
+        self.assertTrue(EngineProvider.set_starred("script/turing", False))
+        self.assertEqual([], EngineProvider.starred_profile_ids)
+        self.assertEqual([], EngineProvider.starred_engines)

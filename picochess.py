@@ -161,7 +161,7 @@ async def main() -> None:
     logger.debug("startup parameters: %s", a_copy)
     _warn_unknown_parameters(unknown)
 
-    EngineProvider.init(args.engine_menu_sort)
+    EngineProvider.init(args.engine_menu_sort, args.engine_favorites)
 
     Rev2Info.set_dgtpi(args.dgtpi)
     try:

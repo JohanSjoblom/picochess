@@ -12,9 +12,13 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from collections import OrderedDict
+import json
+import logging
 from typing import Dict, List, Optional
 
 from uci.read import read_engine_ini
+
+logger = logging.getLogger(__name__)
 
 
 class EngineProvider(object):
@@ -25,11 +29,14 @@ class EngineProvider(object):
     modern_engines: List[Dict[str, str]] = []
     retro_engines: List[Dict[str, str]] = []
     favorite_engines: List[Dict[str, str]] = []
+    starred_engines: List[Dict[str, str]] = []
     installed_engines: List[Dict[str, str]] = []
+    profiles_by_id: Dict[str, Dict[str, str]] = {}
+    starred_profile_ids: List[str] = []
     engine_menu_sort = "file"
 
     @classmethod
-    def init(cls, engine_menu_sort: str = "file"):
+    def init(cls, engine_menu_sort: str = "file", engine_favorites=None):
         cls.set_engine_menu_sort(engine_menu_sort)
         cls.modern_engines = read_engine_ini(filename="engines.ini")
         cls.retro_engines = read_engine_ini(filename="retro.ini")
@@ -40,6 +47,78 @@ class EngineProvider(object):
         if not cls.favorite_engines:
             cls.favorite_engines = cls.modern_engines
         cls.installed_engines = cls.modern_engines + cls.retro_engines + cls.favorite_engines
+        cls._rebuild_profile_index()
+        cls.set_starred_ids(engine_favorites)
+
+    @classmethod
+    def _rebuild_profile_index(cls):
+        """Index catalog sections globally; the first catalog occurrence wins."""
+        cls.profiles_by_id = {}
+        for catalog in (cls.modern_engines, cls.retro_engines, cls.favorite_engines):
+            for engine in catalog:
+                profile_id = str(engine.get("profile_id", ""))
+                if profile_id and profile_id not in cls.profiles_by_id:
+                    cls.profiles_by_id[profile_id] = engine
+
+    @staticmethod
+    def parse_starred_ids(value) -> List[str]:
+        """Parse configargparse's JSON/list forms without changing profile IDs."""
+        if value is None:
+            parsed = []
+        elif isinstance(value, (list, tuple)):
+            parsed = list(value)
+            if len(parsed) == 1 and isinstance(parsed[0], str):
+                candidate = parsed[0].strip()
+                if candidate.startswith("["):
+                    try:
+                        decoded = json.loads(candidate)
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        decoded = None
+                    if isinstance(decoded, list):
+                        parsed = decoded
+        else:
+            try:
+                parsed = json.loads(str(value or "[]"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                logger.warning("invalid engine-favorites value; ignoring it")
+                return []
+        if not isinstance(parsed, list):
+            logger.warning("engine-favorites must be a JSON list; ignoring it")
+            return []
+        result = []
+        for item in parsed:
+            profile_id = str(item)
+            if profile_id and profile_id not in result:
+                result.append(profile_id)
+        return result
+
+    @classmethod
+    def set_starred_ids(cls, value) -> List[str]:
+        """Apply an ordered selection, silently ignoring unknown profile IDs."""
+        requested = cls.parse_starred_ids(value)
+        cls.starred_profile_ids = [profile_id for profile_id in requested if profile_id in cls.profiles_by_id]
+        cls._refresh_starred_engines()
+        return list(cls.starred_profile_ids)
+
+    @classmethod
+    def _refresh_starred_engines(cls):
+        cls.starred_engines = [cls.profiles_by_id[profile_id] for profile_id in cls.starred_profile_ids]
+
+    @classmethod
+    def set_starred(cls, profile_id: str, starred: bool) -> bool:
+        """Update one favorite without changing the selected engine."""
+        if profile_id not in cls.profiles_by_id:
+            return False
+        if starred and profile_id not in cls.starred_profile_ids:
+            cls.starred_profile_ids.append(profile_id)
+        elif not starred and profile_id in cls.starred_profile_ids:
+            cls.starred_profile_ids.remove(profile_id)
+        cls._refresh_starred_engines()
+        return True
+
+    @classmethod
+    def serialized_starred_ids(cls) -> str:
+        return json.dumps(cls.starred_profile_ids, separators=(",", ":"))
 
     @classmethod
     def set_engine_menu_sort(cls, sort_order: str) -> str:

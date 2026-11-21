@@ -81,3 +81,11 @@ class TestReadEngineIniManufacturer(unittest.TestCase):
 
         self.assertEqual("Stockfish", engines[0]["name"])
         self.assertEqual(os.path.join(engine_path, "stockfish"), engines[0]["file"])
+
+    def test_profile_id_is_the_exact_ini_section_name(self):
+        engines = self._read(
+            "engines.ini",
+            ENGINE_SECTION.format(section="script/turing", name="Turing"),
+        )
+
+        self.assertEqual("script/turing", engines[0]["profile_id"])

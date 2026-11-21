@@ -101,6 +101,11 @@ explicitly requires it.
   to `Other`.
 - If a category has no manufacturer metadata, preserve the previous flat list.
   Under engine or manufacturer sorting, that fallback list is alphabetical.
+- Keep the legacy `favorites.ini` category exposed as Special. The separate
+  Favorites category is built from the ordered `engine-favorites` profile IDs.
+- A web favorite star is a separate touch target of at least 44px. Toggling it
+  must only persist and synchronize favorites; it must not select the engine or
+  restart the game.
 
 ## MAME Capability Visibility
 

@@ -44,6 +44,7 @@ from tornado.websocket import WebSocketHandler  # type: ignore
 
 from utilities import (
     Observable,
+    DispatchDgt,
     DisplayMsg,
     hms_time,
     AsyncRepeatingTimer,
@@ -192,6 +193,7 @@ INI_COMMENT_RE = re.compile(r"^\s*#\s*(.+)$")
 CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
     {
         "new_engine",
+        "set_engine_favorite",
         "new_engine_book",
         "new_time",
         "picotutor",
@@ -523,12 +525,14 @@ def _engine_menu_payload() -> dict:
 
     def _entry(engine, category, manufacturer=""):
         return {
+            "profile_id": engine.get("profile_id", ""),
             "name": engine.get("name", ""),
             "file": engine.get("file", ""),
             "elo": engine.get("elo", ""),
             "levels": list(engine.get("level_dict", {}).keys()),
             "category": category,
             "manufacturer": manufacturer,
+            "is_favorite": engine.get("profile_id", "") in EngineProvider.starred_profile_ids,
         }
 
     def _extend_category(catalog, category):
@@ -547,7 +551,8 @@ def _engine_menu_payload() -> dict:
 
     _extend_category(EngineProvider.modern_engines, "modern")
     _extend_category(EngineProvider.retro_engines, "retro")
-    _extend_category(EngineProvider.favorite_engines, "favorites")
+    _extend_category(EngineProvider.favorite_engines, "special")
+    engines.extend(_entry(engine, "favorites") for engine in EngineProvider.starred_engines)
     return {"engines": engines, "engine_menu_sort": EngineProvider.engine_menu_sort}
 
 
@@ -581,7 +586,7 @@ def _current_engine_menu_settings(shared: dict) -> dict:
     for category, catalog in (
         ("modern", EngineProvider.modern_engines),
         ("retro", EngineProvider.retro_engines),
-        ("favorites", EngineProvider.favorite_engines),
+        ("special", EngineProvider.favorite_engines),
     ):
         for engine in catalog:
             same_file = bool(engine_file) and engine.get("file", "") == engine_file
@@ -642,7 +647,8 @@ def _engine_menu_labels(dgttranslate) -> dict:
         "categories": {
             "modern": get_menu_text(language, "engine.modern"),
             "retro": get_menu_text(language, "engine.retro"),
-            "favorites": get_menu_text(language, "engine.special"),
+            "special": get_menu_text(language, "engine.special"),
+            "favorites": get_menu_text(language, "engine.favorites"),
             "sort": get_menu_text(language, "engine.sort_order"),
             "info": get_menu_text(language, "engine.info"),
         },
@@ -1366,6 +1372,28 @@ class ChannelHandler(ServerRequestHandler):
             if eng:
                 for event in _engine_change_events(eng, level, dgttranslate):
                     await Observable.fire(event)
+        elif action == "set_engine_favorite":
+            from uci.engine_provider import EngineProvider
+
+            profile_id = self.get_argument("profile_id", "")
+            favorite = self.get_argument("favorite", "").strip().lower() in ("1", "true", "yes", "on")
+            self.set_header("Content-Type", "application/json")
+            if not EngineProvider.set_starred(profile_id, favorite):
+                self.set_status(400)
+                self.write({"success": False, "error": "Unknown engine profile"})
+            else:
+                write_picochess_ini("engine-favorites", EngineProvider.serialized_starred_ids())
+                dgtmenu = self.shared.get("dgtmenu")
+                if dgtmenu is not None:
+                    refresh_text = dgtmenu.sync_starred_engines()
+                    if refresh_text is not None:
+                        await DispatchDgt.fire(refresh_text)
+                favorite_ids = list(EngineProvider.starred_profile_ids)
+                self.shared.setdefault("system_info", {})["engine_favorites"] = favorite_ids
+                EventHandler.write_to_clients(
+                    {"event": "SystemInfo", "msg": {"engine_favorites": favorite_ids}}
+                )
+                self.write({"success": True, "engine_favorites": favorite_ids})
         elif action == "engine_menu_sort":
             selected_sort = _apply_engine_menu_sort(self.shared, self.get_argument("val", ""))
             self.set_header("Content-Type", "application/json")
@@ -2128,6 +2156,7 @@ class InfoHandler(ServerRequestHandler):
                 from uci.engine_provider import EngineProvider
 
                 settings["engine_menu_sort"] = EngineProvider.engine_menu_sort
+                settings["engine_favorites"] = list(EngineProvider.starred_profile_ids)
                 settings["engine_menu_labels"] = _engine_menu_labels(dgttranslate)
                 # Retro speed (stored as float 0.0–10.0; UI shows as % strings)
                 try:

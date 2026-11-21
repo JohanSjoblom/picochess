@@ -43,7 +43,9 @@ This fork of Picochess focuses on:
 - Engines, books, and games database are distributed as external resource packs.
 - The obooksrv dataset is now read directly in `server.py` without an external service.
 - Built-in replay mode, while preserving the original PGN Replay engine.
-- Refreshed web client experience.
+- The web client's Analyses tab shows live engine and Tutor analysis, with optional browser-based Stockfish analysis.
+- The Watcher tab lists mistakes and blunders found during play when PicoTutor Watcher is enabled.
+- A multilingual touchscreen menu and touch-friendly web client designed primarily for 5–10-inch Raspberry Pi screens, phones, and tablets.
 
 User Manual
 -----------

@@ -2037,7 +2037,20 @@ class MainLoop:
             and self.state.dgtmenu.get_dgt_fen() == early_fen
         ):
             logger.info("retrying early legal move: %s", early_fen)
-            await Observable.fire(Event.FEN(fen=early_fen))
+            await Observable.fire(Event.FEN(fen=early_fen, retry=True))
+
+    def _early_user_fen_retry_still_valid(self, fen: str) -> bool:
+        """Check a queued early-move retry against the board and game when it is handled.
+
+        The board may have changed (e.g. the piece was put back) after the retry was queued.
+        """
+        if self.state.dgtmenu.get_dgt_fen() != fen:
+            logger.info("dropping early move retry, board changed since: %s", fen)
+            return False
+        if fen not in self.state.legal_fens:
+            logger.info("dropping early move retry, no longer a legal move: %s", fen)
+            return False
+        return True
 
     async def process_fen(self, fen: str, state: PicochessState):
         """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
@@ -5331,6 +5344,8 @@ class MainLoop:
             await self._board_connection_restored()
 
         elif isinstance(event, Event.FEN):
+            if getattr(event, "retry", False) and not self._early_user_fen_retry_still_valid(event.fen):
+                return
             await self.process_fen(event.fen, self.state)
 
         elif isinstance(event, Event.KEYBOARD_MOVE):

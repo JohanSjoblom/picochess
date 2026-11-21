@@ -24,7 +24,7 @@
     {% end %}
     <link rel="stylesheet" href="/static/css/select.dataTables.css" />
     <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css" />
-    <link rel="stylesheet" href="/static/css/base.css?v=16" />
+    <link rel="stylesheet" href="/static/css/base.css?v=17" />
     <link rel="stylesheet" href="/static/css/responsive/mobile.css" />
     <link rel="stylesheet" href="/static/css/responsive/desktop.css" />
     <style>
@@ -484,19 +484,19 @@
             overflow-x: hidden;
         }
 
-        /* Wider scrollbars for touch/thick-finger use */
+        /* Compact scrollbars for precise pointers */
         ::-webkit-scrollbar {
-            width: 24px;
-            height: 24px;
+            width: 18px;
+            height: 18px;
         }
         ::-webkit-scrollbar-track {
             background: rgba(0,0,0,0.08);
-            border-radius: 12px;
+            border-radius: 9px;
         }
         ::-webkit-scrollbar-thumb {
             background: rgba(128,128,128,0.55);
-            border-radius: 12px;
-            border: 2px solid transparent;
+            border-radius: 9px;
+            border: 3px solid transparent;
             background-clip: content-box;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -506,6 +506,21 @@
         /* Firefox */
         * {
             scrollbar-width: auto;
+        }
+
+        /* Finger-sized scrollbars on touch-first devices */
+        @media (pointer: coarse) {
+            ::-webkit-scrollbar {
+                width: 40px;
+                height: 40px;
+            }
+            ::-webkit-scrollbar-track {
+                border-radius: 20px;
+            }
+            ::-webkit-scrollbar-thumb {
+                border-radius: 20px;
+                border-width: 2px;
+            }
         }
     </style>
 

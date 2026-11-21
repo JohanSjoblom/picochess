@@ -258,6 +258,67 @@ See Randy's [software-list documentation](https://github.com/RandyR99/mame_for_p
 for details. The release `SHA256SUMS` covers the new archives as well as the
 original 4.4.0 resources.
 
+## Adding a MAME retro engine with AI assistance
+
+This workflow is for Linux and Raspberry Pi installations with the matching
+`large` engine and MAME packs. For a separate UCI executable on Windows or macOS,
+see [Adding your own UCI engine](add-own-engine.md).
+
+The full list of supported retro entries is in
+`engines/<arch>/engines_ini/all_retro.ini`, where `<arch>` is `x86_64` or
+`aarch64`. `engines/<arch>/retro.ini` is the selection shown in PicoChess.
+The catalog key, for example `[mame/mm5_exp]`, identifies the launcher under
+`engines/<arch>/mame/`. The matching `.uci` file defines the available levels.
+Read the launcher to identify the MAME system and any extra module it loads.
+For example, `mm5` and `mm5_exp` both launch the `mm5` system. `mm5_exp`
+also loads the `hg550` opening module from the `mephisto_mm5` software list.
+
+PicoChess cannot redistribute every ROM a catalog entry needs. An assistant can
+identify the required ROM names, check files you already have, and install ROMs
+you provide and are allowed to use. Give it the engine name and the local path
+to any ROM archives you have. If you have none, it can report which files to
+obtain and where they belong. Save your game and stop PicoChess before making
+changes.
+
+> **Retro engine prompt for the assistant**
+>
+> Read this section and `AGENTS.md`. Help me add `<retro engine name or catalog
+> key>` to this Linux PicoChess installation. My ROM files are in `<local path,
+> or none yet>`. Find the installed architecture and matching entry in
+> `engines_ini/all_retro.ini`. Check whether it is already in the active
+> `retro.ini`. Inspect the packaged launcher and `.uci` file to confirm the exact
+> variant, MAME system, and any cartridge or opening module. If several variants
+> match, show me the differences so I can choose.
+>
+> Check the ROM search paths used by the launcher and MAME configuration. From
+> the MAME directory, use `./mess -verifyroms <system>` to audit the system ROM
+> and `./mess -listroms <system>` to identify missing files. Check parent or BIOS
+> sets if the audit reports them. For a module or cartridge, identify the list
+> and item with `./mess -listsoftware <system>` or the installed `hash/*.xml`
+> files, then check that specific item in the output of
+> `./mess -verifysoftlist <list>`. Software archives typically go in
+> `<rompath>/<list>/<item>.zip`. Report exact missing filenames and destinations.
+> Use only ROMs I provide and am allowed to use. Keep existing ROMs and backups,
+> and ask before replacing a conflicting file. Keep ROMs out of git and release
+> assets.
+>
+> If the required files are available, verify that PicoChess is stopped before
+> making changes. Install only the required ROMs and repeat the targeted audits.
+> Before adding the menu entry, run the supplied headless launcher with a bounded
+> UCI check (`uci`, `isready`, and a short search that returns `bestmove`). Use
+> temporary MAME config and NVRAM directories for the test so it preserves saved
+> machine state. If an audit or the search fails, report the error and leave the
+> menu as it was. After
+> the checks pass, back up `retro.ini` and add only the selected catalog section
+> if it is missing. Preserve the other entries and their order, and keep the
+> selected entry's manufacturer directive and comments from the full catalog.
+> Tell me what was installed, which checks passed, where the backup is, and which
+> engine to select in the Retro menu when I restart PicoChess.
+
+See the [MAME command-line reference](https://docs.mamedev.org/commandline/commandline-all.html)
+and [ROM search paths](https://docs.mamedev.org/usingmame/assetsearch.html) for more
+detail on the audits and archive placement.
+
 ---
 
 ## 🧰 Adding new packages

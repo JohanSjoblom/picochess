@@ -225,6 +225,11 @@ To add more engine manually yourself you need:
 
 On Windows the folder is `engines\AMD64` and the files are `engineX.exe`, `engineX.exe.uci` and an `[engineX.exe]` section. On macOS it is `engines/arm64` or `engines/mac_x86_64`. See [Adding your own UCI engine](add-own-engine.md) for checks, level examples and an AI assistant prompt.
 
+For MAME retro engines on Linux or Raspberry Pi, use the
+[retro engine guide and AI prompt](install-engines.md#adding-a-mame-retro-engine-with-ai-assistance).
+It explains how to identify missing ROMs, check the files you supply, and add
+the selected engine to the Retro menu.
+
 Books and games database resources
 ----------------------------------
 Opening books and the games database are downloaded as external resources via `install-picochess.sh` (or `install-books-games.sh`). Once downloaded, they are user-managed and won't be overwritten by normal code updates.

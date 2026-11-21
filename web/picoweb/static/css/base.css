@@ -2229,6 +2229,24 @@ piece {
     background-clip: content-box;
 }
 
+@media (pointer: coarse), (any-pointer: coarse) {
+    .pico-picker-col::-webkit-scrollbar,
+    .pico-subpanel-list::-webkit-scrollbar {
+        width: 40px;
+    }
+
+    .pico-picker-col::-webkit-scrollbar-track,
+    .pico-subpanel-list::-webkit-scrollbar-track {
+        border-radius: 20px;
+    }
+
+    .pico-picker-col::-webkit-scrollbar-thumb,
+    .pico-subpanel-list::-webkit-scrollbar-thumb {
+        border-radius: 20px;
+        border-width: 2px;
+    }
+}
+
 .pico-subpanel-group {
     margin: 0.45rem 0 0.1rem;
     padding: 0 0.25rem;

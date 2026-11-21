@@ -853,24 +853,24 @@ td.result {
    styluses).  Works independently of screen size so it covers both
    phones and tablets in landscape mode.
    ===================================================================== */
-@media (pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse) {
 
     /* ------------------------------------------------------------------
        Wider, finger-friendly scrollbars (WebKit/Blink engines)
     ------------------------------------------------------------------ */
     ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
+        width: 40px;
+        height: 40px;
     }
 
     ::-webkit-scrollbar-track {
         background: rgba(0, 0, 0, 0.08);
-        border-radius: 5px;
+        border-radius: 20px;
     }
 
     ::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, 0.35);
-        border-radius: 5px;
+        border-radius: 20px;
         border: 2px solid transparent;
         background-clip: content-box;
     }
@@ -882,7 +882,7 @@ td.result {
 
     /* Standard (Firefox 64+) */
     * {
-        scrollbar-width: thin;          /* 'thin' gives ~8 px in Firefox */
+        scrollbar-width: auto;
         scrollbar-color: rgba(0,0,0,.35) rgba(0,0,0,.08);
     }
 

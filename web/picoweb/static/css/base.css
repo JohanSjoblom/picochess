@@ -2229,7 +2229,7 @@ piece {
     background-clip: content-box;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse) {
     .pico-picker-col::-webkit-scrollbar,
     .pico-subpanel-list::-webkit-scrollbar {
         width: 40px;

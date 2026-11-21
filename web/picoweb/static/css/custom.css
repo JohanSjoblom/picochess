@@ -880,10 +880,10 @@ td.result {
         background-clip: content-box;
     }
 
-    /* Standard (Firefox 64+) */
+    /* Keep the standardized color at its initial auto value. In Chromium,
+       a non-auto scrollbar-color overrides the WebKit width above. */
     * {
         scrollbar-width: auto;
-        scrollbar-color: rgba(0,0,0,.35) rgba(0,0,0,.08);
     }
 
     /* ------------------------------------------------------------------

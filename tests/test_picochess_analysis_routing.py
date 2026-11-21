@@ -2113,7 +2113,7 @@ class TestBestMoveModeTransitionRace(unittest.IsolatedAsyncioTestCase):
         self.controller.set_wait_state = AsyncMock()
         self.controller._update_variant_shared = Mock()
         self.controller._current_opening_message = Mock(return_value=None)
-        self.controller._allow_early_user_fen_rescan = Mock()
+        self.controller._retry_early_user_fen = AsyncMock()
         self.controller.start_brain_hint_timer = Mock()
         self.controller.reset_setpieces_window_switch = Mock()
 

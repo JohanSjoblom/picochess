@@ -2023,16 +2023,21 @@ class MainLoop:
         else:
             ModeInfo.set_pgn_mode(mode=False)
 
-    def _allow_early_user_fen_rescan(self):
-        """Let a later board scan retry a move seen during engine-move completion."""
+    async def _retry_early_user_fen(self):
+        """Process again a user move that arrived during engine-move completion.
+
+        The scan was rejected because the legal moves were not updated yet. A board that
+        sends a position only when it changes (e.g. Chessnut) never sends it again, so put
+        it back on the event queue instead of waiting for another scan.
+        """
         early_fen = self.state.error_fen
         if (
             early_fen
             and early_fen in self.state.legal_fens
             and self.state.dgtmenu.get_dgt_fen() == early_fen
         ):
-            logger.info("allowing another board scan of early legal move: %s", early_fen)
-            self.state.dgtmenu.allow_dgt_fen_rescan(early_fen)
+            logger.info("retrying early legal move: %s", early_fen)
+            await Observable.fire(Event.FEN(fen=early_fen))
 
     async def process_fen(self, fen: str, state: PicochessState):
         """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
@@ -2563,7 +2568,7 @@ class MainLoop:
                     end_time_cmove_done = 0
 
                 self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                self._allow_early_user_fen_rescan()
+                await self._retry_early_user_fen()
                 self.start_brain_hint_timer()
 
                 if self.pgn_mode():

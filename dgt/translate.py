@@ -3897,23 +3897,60 @@ class DgtTranslate(object):
                 small_text="Spezl.",
             )
             ittxt = Dgt.DISPLAY_TEXT(
-                web_text="Scelta motori preferiti e speciali",
-                large_text="M.Pref/Spec",
+                web_text="Scelta motori speciali e storici",
+                large_text="Speciali",
                 medium_text="Speciali",
                 small_text="Spec. ",
             )
             nltxt = Dgt.DISPLAY_TEXT(
                 web_text="Speciale en historische engines",
-                large_text="Favorieten",
-                medium_text="Favor.",
-                small_text="Favor.",
+                large_text="Speciaal",
+                medium_text="Speciaal",
+                small_text="spec. ",
             )
             frtxt = entxt
             estxt = Dgt.DISPLAY_TEXT(
                 web_text="Motores especiales e históricos",
-                large_text="Motores fav",
+                large_text="Especiales",
+                medium_text="Especial",
+                small_text="espec.",
+            )
+        if text_id == "engine_menu_starred":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Favorite Engines",
+                large_text="Favorites",
+                medium_text="Favorite",
+                small_text="fav.  ",
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Favoriten-Engines",
+                large_text="Favoriten",
                 medium_text="Favorit",
-                small_text="favor",
+                small_text="fav.  ",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Favoriete engines",
+                large_text="Favorieten",
+                medium_text="Favoriet",
+                small_text="favor.",
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Moteurs favoris",
+                large_text="Favoris",
+                medium_text="Favoris",
+                small_text="favor.",
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Motores favoritos",
+                large_text="Favoritos",
+                medium_text="Favorit",
+                small_text="favor.",
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Motori preferiti",
+                large_text="Preferiti",
+                medium_text="Preferit",
+                small_text="prefer",
             )
         if text_id == "engine_menu_retrosettings":
             entxt = Dgt.DISPLAY_TEXT(

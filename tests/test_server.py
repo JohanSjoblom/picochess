@@ -226,7 +226,7 @@ class TestSettingsTemplate(unittest.TestCase):
         self.assertNotIn("preservedMameHistory", script)
         self.assertIn("$('#startBtn').on('click', goToStart)", script)
         self.assertIn('app.js?v=28', template)
-        self.assertIn('base.css?v=15', template)
+        self.assertIn('base.css?v=16', template)
         self.assertIn("ws.onopen = function ()", script)
         self.assertIn("getAllInfo();\n                stopAnalysisClock();", script)
 

@@ -372,6 +372,55 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(EngineTop.FAV_ENGINE, menu.menu_engine)
 
     @patch("platform.machine")
+    async def test_removing_displayed_starred_engine_leaves_level_menu(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        stockfish = EngineProvider.profiles_by_id["a-stockf"]
+        floyd = EngineProvider.profiles_by_id["i-floyd"]
+        self.assertTrue(stockfish["level_dict"])
+        self.assertFalse(floyd["level_dict"])
+        EngineProvider.set_starred_ids(["a-stockf", "i-floyd"])
+        menu.sync_starred_engines()
+
+        menu.enter_starred_eng_menu()
+        await menu.main_down()
+        await menu.main_down()
+        self.assertEqual(MenuState.ENG_STARRED_NAME_LEVEL, menu.state)
+
+        EngineProvider.set_starred("a-stockf", False)
+        refresh = menu.sync_starred_engines()
+
+        self.assertEqual(MenuState.ENG_STARRED_NAME, menu.state)
+        self.assertEqual("i-floyd", menu.menu_starred_engine_profile_id)
+        self.assertEqual(floyd["text"].large_text, refresh.large_text)
+        self.assertEqual(floyd["text"].large_text, menu.main_right().large_text)
+
+    @patch("platform.machine")
+    async def test_starred_level_selection_follows_profile_id_after_index_shift(self, machine_mock):
+        menu = self.create_menu(machine_mock)
+        first = EngineProvider.profiles_by_id["a-stockf"]
+        second = next(
+            engine
+            for engine in EngineProvider.modern_engines
+            if engine.get("profile_id") != first["profile_id"] and engine.get("level_dict")
+        )
+        EngineProvider.set_starred_ids([first["profile_id"], second["profile_id"]])
+        menu.sync_starred_engines()
+
+        menu.enter_starred_eng_menu()
+        await menu.main_down()
+        menu.main_right()
+        await menu.main_down()
+        self.assertEqual(MenuState.ENG_STARRED_NAME_LEVEL, menu.state)
+
+        EngineProvider.set_starred(first["profile_id"], False)
+        refresh = menu.sync_starred_engines()
+
+        self.assertIsNone(refresh)
+        self.assertEqual(MenuState.ENG_STARRED_NAME_LEVEL, menu.state)
+        self.assertEqual(0, menu.menu_starred_engine_index)
+        self.assertEqual(second["profile_id"], menu.menu_starred_engine_profile_id)
+
+    @patch("platform.machine")
     async def test_grouped_retro_engine_menu_traversal_uses_stable_indexes(self, machine_mock):
         menu = self.create_menu(machine_mock)
         manufacturers = ["Mephisto", "Mephisto", "Novag"]

@@ -111,7 +111,6 @@ class DummyMenu:
         self.installed_engines = []
         self.remote_engine = False
         self._dgt_fen = ""
-        self._dgt_fen_rescan = None
         self._flip_board = False
         self._engine_has_960 = False
         self._engine_rdisplay = False
@@ -128,15 +127,6 @@ class DummyMenu:
 
     def set_dgt_fen(self, fen):
         self._dgt_fen = fen
-        self._dgt_fen_rescan = None
-
-    def allow_dgt_fen_rescan(self, fen):
-        self._dgt_fen_rescan = fen
-
-    def consume_dgt_fen_rescan(self, fen):
-        allowed = fen == self._dgt_fen_rescan
-        self._dgt_fen_rescan = None
-        return allowed
 
     def get_engine_has_960(self):
         return self._engine_has_960
@@ -207,46 +197,47 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(518, event.pos960)
 
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
-    async def test_early_legal_move_can_be_rescanned_after_engine_move(self, observable_fire):
+    async def test_early_legal_move_is_retried_after_engine_move(self, observable_fire):
+        # dgt.display and mainloop share the Observable class, so one mock sees both.
         early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
-        await self.display._process_fen(early_fen, raw=False)
         await self.display._process_fen(early_fen, raw=False)
         self.assertEqual(1, observable_fire.await_count)
 
+        # The board sends the position only once; the retry must not wait for another scan.
         controller = object.__new__(MainLoop)
         controller.state = SimpleNamespace(
             error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu
         )
-        controller._allow_early_user_fen_rescan()
-        self.assertEqual(early_fen, self.menu.get_dgt_fen())
-        await self.display._process_fen(early_fen, raw=False)
+        await controller._retry_early_user_fen()
 
         self.assertEqual(2, observable_fire.await_count)
-        self.assertEqual(early_fen, observable_fire.await_args.args[0].fen)
+        event = observable_fire.await_args.args[0]
+        self.assertIsInstance(event, Event.FEN)
+        self.assertEqual(early_fen, event.fen)
+        # A repeated scan of the same position is still ignored by the display.
         await self.display._process_fen(early_fen, raw=False)
         self.assertEqual(2, observable_fire.await_count)
 
-    def test_early_move_rescan_keeps_newer_or_illegal_scan(self):
+    @patch("mainloop.Observable.fire", new_callable=AsyncMock)
+    async def test_early_move_retry_skips_newer_or_illegal_scan(self, mainloop_fire):
         controller = object.__new__(MainLoop)
         early_fen = "r1bqkbnr/pppp1ppp/2n5/3Pp3/4P3/8/PPP2PPP/RNBQKBNR"
         controller.state = SimpleNamespace(
             error_fen=early_fen, legal_fens=[], dgtmenu=self.menu
         )
         self.menu.set_dgt_fen(early_fen)
-        controller._allow_early_user_fen_rescan()
-        self.assertEqual(early_fen, self.menu.get_dgt_fen())
-        self.assertIsNone(self.menu._dgt_fen_rescan)
+        await controller._retry_early_user_fen()
+        mainloop_fire.assert_not_awaited()
 
         controller.state.legal_fens = [early_fen]
         self.menu.set_dgt_fen("newer scan")
-        controller._allow_early_user_fen_rescan()
-        self.assertEqual("newer scan", self.menu.get_dgt_fen())
-        self.assertIsNone(self.menu._dgt_fen_rescan)
+        await controller._retry_early_user_fen()
+        mainloop_fire.assert_not_awaited()
 
+        controller.state.error_fen = None
         self.menu.set_dgt_fen(early_fen)
-        controller._allow_early_user_fen_rescan()
-        self.assertFalse(self.menu.consume_dgt_fen_rescan("newer scan"))
-        self.assertFalse(self.menu.consume_dgt_fen_rescan(early_fen))
+        await controller._retry_early_user_fen()
+        mainloop_fire.assert_not_awaited()
 
 
 class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
@@ -585,7 +576,7 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
 
     @patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock)
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
-    async def test_position_scan_uses_physical_fen_during_retry_allowance(
+    async def test_position_scan_uses_physical_fen_after_early_move_retry(
         self, observable_fire, _dispatch_fire
     ):
         display = self.create_display()
@@ -595,7 +586,8 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         controller.state = SimpleNamespace(
             error_fen=early_fen, legal_fens=[early_fen], dgtmenu=display.dgtmenu
         )
-        controller._allow_early_user_fen_rescan()
+        with patch("mainloop.Observable.fire", new_callable=AsyncMock):
+            await controller._retry_early_user_fen()
 
         display.dgtmenu.state = MenuState.POS_READ
         observable_fire.reset_mock()

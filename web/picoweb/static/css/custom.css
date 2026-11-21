@@ -853,7 +853,7 @@ td.result {
    styluses).  Works independently of screen size so it covers both
    phones and tablets in landscape mode.
    ===================================================================== */
-@media (pointer: coarse) {
+@media (pointer: coarse), (any-pointer: coarse) {
 
     /* ------------------------------------------------------------------
        Wider, finger-friendly scrollbars (WebKit/Blink engines)

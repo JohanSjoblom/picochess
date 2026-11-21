@@ -55,6 +55,12 @@ Requirements
 - Raspberry Pi 3, Pi 4, Pi 5 (aarch64) or a Linux computer (x86_64)
 - RaspiOS Bookworm 64bit or Trixie 13 (released in 2025). Wayland is supported. Web/desktop installs default to `audio-backend = native`. DGTPi clock users may need either `native` or `sox`, depending on the Pi audio setup.
 
+PicoChess itself runs on Bookworm, but the updated MAME emulations in the
+`large` engine package require glibc 2.38 and a newer libstdc++ than stock
+Bookworm provides. Use a 64-bit Trixie system for these MAME builds. See the
+[MAME resource requirements](install-engines.md#mame-0289-resources-for-both-architectures)
+for details.
+
 Alternatively, use 64-bit Windows 10/11 (x64/AMD64) or macOS on Apple silicon
 or 64-bit Intel, with native CPython 3.11-3.13. Follow the
 [Windows installation](#windows-installation) or

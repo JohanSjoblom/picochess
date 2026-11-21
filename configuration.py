@@ -19,12 +19,14 @@ def str_to_bool(value: str) -> bool:
 
 
 class Configuration:
-    def __init__(self):
+    def __init__(self, default_config_files=None):
         # Command line argument parsing
-        self.parser = configargparse.ArgParser(
-            default_config_files=[
+        if default_config_files is None:
+            default_config_files = [
                 os.path.join(os.path.dirname(__file__), "picochess.ini"),
             ]
+        self.parser = configargparse.ArgParser(
+            default_config_files=default_config_files
         )
         self.parser.add_argument(
             "-e",
@@ -39,6 +41,13 @@ class Configuration:
             choices=["file", "engine", "manufacturer"],
             default="file",
             help="Retro engine menu order: file, engine name, or manufacturer",
+        )
+        self.parser.add_argument(
+            "--engine-favorites",
+            nargs="*",
+            type=str,
+            default=[],
+            help="ordered JSON list of favorite engine profile IDs",
         )
         self.parser.add_argument(
             "-er",

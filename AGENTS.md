@@ -752,6 +752,21 @@ is to retain the existing behavior and document it, with no code change.
 - Keep the web menu and DGT/clock menu behavior aligned for Modern, Retro, and
   Special/Favorites catalogs.
 
+## Engine Favorites
+
+- `favorites.ini` remains the legacy Special catalog. Do not rename it or use
+  it to persist the user's starred engines.
+- Persist user favorites separately as the ordered `engine-favorites` list of
+  exact INI section names (`profile_id`). Unknown saved IDs are ignored.
+- Resolve duplicate profile IDs by catalog order (Modern, Retro, Special); the
+  first occurrence wins. Different IDs remain distinct even when they point to
+  the same executable.
+- Favorites is a flat read-only selection list on the DGT clock. Edit it with
+  the web star control without changing engines or resetting the game.
+- Keep the dynamic Favorites list in user order and omit its empty DGT menu
+  entry. Empty legacy `retro.ini` and `favorites.ini` files retain their
+  existing Modern fallback behavior.
+
 ## Tutor Behavior Outside PONDER
 
 - Non-`PONDER` modes keep their existing tutor behavior.

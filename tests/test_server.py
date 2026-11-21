@@ -551,14 +551,24 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.original_modern = EngineProvider.modern_engines
         self.original_retro = EngineProvider.retro_engines
         self.original_favorites = EngineProvider.favorite_engines
+        self.original_starred = EngineProvider.starred_engines
+        self.original_starred_ids = EngineProvider.starred_profile_ids
         self.original_sort = EngineProvider.engine_menu_sort
-        EngineProvider.modern_engines = [{"name": "Modern", "file": "modern", "level_dict": {}}]
-        EngineProvider.favorite_engines = [{"name": "Favorite", "file": "favorite", "level_dict": {}}]
+        EngineProvider.modern_engines = [
+            {"profile_id": "modern", "name": "Modern", "file": "modern", "level_dict": {}}
+        ]
+        EngineProvider.favorite_engines = [
+            {"profile_id": "special", "name": "Special", "file": "special", "level_dict": {}}
+        ]
+        EngineProvider.starred_engines = []
+        EngineProvider.starred_profile_ids = []
 
     def tearDown(self):
         EngineProvider.modern_engines = self.original_modern
         EngineProvider.retro_engines = self.original_retro
         EngineProvider.favorite_engines = self.original_favorites
+        EngineProvider.starred_engines = self.original_starred
+        EngineProvider.starred_profile_ids = self.original_starred_ids
         EngineProvider.engine_menu_sort = self.original_sort
 
     def test_payload_uses_grouped_presentation_order_and_original_files(self):
@@ -612,7 +622,7 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual("retro", settings["engine_category"])
         self.assertEqual("Novag", settings["engine_manufacturer"])
 
-    def test_payload_groups_modern_and_favorites_when_metadata_exists(self):
+    def test_payload_groups_modern_and_special_when_metadata_exists(self):
         EngineProvider.modern_engines = [
             {"name": "Zulu", "file": "modern-0", "level_dict": {}, "manufacturer": ""},
             {"name": "Alpha", "file": "modern-1", "level_dict": {}, "manufacturer": "Maker"},
@@ -625,11 +635,24 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
         payload = _engine_menu_payload()
         modern = [entry for entry in payload["engines"] if entry["category"] == "modern"]
-        favorites = [entry for entry in payload["engines"] if entry["category"] == "favorites"]
+        special = [entry for entry in payload["engines"] if entry["category"] == "special"]
 
         self.assertEqual(["modern-1", "modern-0"], [entry["file"] for entry in modern])
         self.assertEqual(["Maker", "Other"], [entry["manufacturer"] for entry in modern])
-        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in favorites])
+        self.assertEqual(["Studio"], [entry["manufacturer"] for entry in special])
+
+    def test_payload_adds_ordered_flat_favorites_once(self):
+        modern = {"profile_id": "shared", "name": "Modern", "file": "modern", "level_dict": {}}
+        EngineProvider.modern_engines = [modern]
+        EngineProvider.favorite_engines = [dict(modern)]
+        EngineProvider.starred_profile_ids = ["shared"]
+        EngineProvider.starred_engines = [modern]
+
+        payload = _engine_menu_payload()
+        favorites = [entry for entry in payload["engines"] if entry["category"] == "favorites"]
+
+        self.assertEqual(["shared"], [entry["profile_id"] for entry in favorites])
+        self.assertTrue(favorites[0]["is_favorite"])
 
     def test_engine_menu_labels_default_to_english_web_translations(self):
         labels = _engine_menu_labels(DgtTranslate("none", 0, "en", "version"))
@@ -637,7 +660,8 @@ class TestEngineMenuHelpers(unittest.TestCase):
 
         self.assertEqual("Modern", labels["categories"]["modern"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Special", labels["categories"]["favorites"])
+        self.assertEqual("Special", labels["categories"]["special"])
+        self.assertEqual("Favorites", labels["categories"]["favorites"])
         self.assertEqual("Sort Order", labels["categories"]["sort"])
 
     def test_engine_menu_labels_use_web_menu_translations(self):
@@ -646,7 +670,8 @@ class TestEngineMenuHelpers(unittest.TestCase):
         self.assertEqual("Moderno", labels["categories"]["modern"])
         self.assertEqual("Información del motor", labels["categories"]["info"])
         self.assertEqual("Retro", labels["categories"]["retro"])
-        self.assertEqual("Especial", labels["categories"]["favorites"])
+        self.assertEqual("Especial", labels["categories"]["special"])
+        self.assertEqual("Favoritos", labels["categories"]["favorites"])
         self.assertEqual("Orden", labels["categories"]["sort"])
         self.assertEqual("Nombre del motor", labels["sort_options"]["engine"])
 
@@ -674,6 +699,52 @@ class TestEngineMenuHelpers(unittest.TestCase):
     def test_apply_sort_rejects_unknown_value(self, write_ini):
         self.assertIsNone(_apply_engine_menu_sort({}, "elo"))
         write_ini.assert_not_called()
+
+
+class TestEngineFavoriteAction(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.original = {
+            "profiles": EngineProvider.profiles_by_id,
+            "ids": EngineProvider.starred_profile_ids,
+            "starred": EngineProvider.starred_engines,
+        }
+        self.engine = {"profile_id": "script/turing", "file": "/engines/script/turing"}
+        EngineProvider.profiles_by_id = {self.engine["profile_id"]: self.engine}
+        EngineProvider.starred_profile_ids = []
+        EngineProvider.starred_engines = []
+
+    def tearDown(self):
+        EngineProvider.profiles_by_id = self.original["profiles"]
+        EngineProvider.starred_profile_ids = self.original["ids"]
+        EngineProvider.starred_engines = self.original["starred"]
+
+    async def test_star_persists_and_does_not_switch_engine(self):
+        handler = Mock()
+        menu = Mock()
+        handler.shared = {"dgtmenu": menu}
+        arguments = {
+            "action": "set_engine_favorite",
+            "profile_id": self.engine["profile_id"],
+            "favorite": "true",
+        }
+        handler.get_argument.side_effect = lambda name, default=None: arguments.get(name, default)
+
+        with (
+            patch("server._require_auth_if_remote", return_value=True),
+            patch("server.write_picochess_ini") as write_ini,
+            patch("server.EventHandler.write_to_clients") as write_clients,
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+
+        self.assertEqual([self.engine["profile_id"]], EngineProvider.starred_profile_ids)
+        write_ini.assert_called_once_with("engine-favorites", '["script/turing"]')
+        menu.sync_starred_engines.assert_called_once_with()
+        write_clients.assert_called_once()
+        fire.assert_not_awaited()
+        handler.write.assert_called_once_with(
+            {"success": True, "engine_favorites": [self.engine["profile_id"]]}
+        )
 
 
 class TestServerClockMenuHelpers(unittest.TestCase):
@@ -1687,6 +1758,7 @@ class TestServerChannelAuth(unittest.TestCase):
     def test_high_impact_channel_actions_require_remote_auth(self):
         for action in (
             "new_engine",
+            "set_engine_favorite",
             "new_engine_book",
             "new_time",
             "set_mode",

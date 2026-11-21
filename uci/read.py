@@ -105,6 +105,7 @@ def read_engine_ini(engine_shell=None, engine_path=None, filename=None) -> list[
             devs={"ser", "i2c", "web"},
         )
         engine = {
+            "profile_id": section,
             "file": engine_path + os.sep + section,
             "level_dict": level_dict,
             "text": text,

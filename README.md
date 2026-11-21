@@ -223,7 +223,7 @@ To add more engine manually yourself you need:
 - add an executable engine file like "engineX" and a text file "engineX.uci" with the settings for that engine
 - add an [engineX] section in engines.ini file
 
-On Windows the folder is `engines\AMD64` and the files are `engineX.exe`, `engineX.exe.uci` and an `[engineX.exe]` section. On macOS it is `engines/arm64` or `engines/mac_x86_64`. See [Adding your own UCI engine](add-own-engine.md) for checks, level examples and an AI assistant prompt.
+On Windows the folder is `engines\AMD64` and the files are `engineX.exe`, `engineX.exe.uci` and an `[engineX.exe]` section. On macOS it is `engines/arm64` or `engines/mac_x86_64`. See [Adding your own UCI engine](add-own-engine.md) for platform-specific paths, checks, level examples and an AI assistant prompt for Raspberry Pi, Linux, Windows and macOS.
 
 For MAME retro engines on Linux or Raspberry Pi, use the
 [retro engine guide and AI prompt](install-engines.md#adding-a-mame-retro-engine-with-ai-assistance).

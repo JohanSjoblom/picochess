@@ -261,7 +261,7 @@ original 4.4.0 resources.
 ## Adding a MAME retro engine with AI assistance
 
 This workflow is for Linux and Raspberry Pi installations with the matching
-`large` engine and MAME packs. For a separate UCI executable on Windows or macOS,
+`large` engine and MAME packs. For a separate native UCI executable on any platform,
 see [Adding your own UCI engine](add-own-engine.md).
 
 The full list of supported retro entries is in

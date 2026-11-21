@@ -368,6 +368,7 @@ class DgtMenu(object):
         self.menu_fav_group_engine_index = 0
         self.menu_starred_engine_index = 0
         self.menu_starred_engine_level = 0
+        self.menu_starred_engine_profile_id = None
         self.menu_starred_manufacturer_index = 0
         self.menu_starred_group_engine_index = 0
         self.menu_engine = EngineTop.MODERN_ENGINE
@@ -747,6 +748,7 @@ class DgtMenu(object):
         for index, eng in enumerate(EngineProvider.starred_engines):
             if current_engine.get("profile_id") == eng.get("profile_id"):
                 self.menu_starred_engine_index = index
+                self.menu_starred_engine_profile_id = eng.get("profile_id")
                 break
         self.menu_top = Top.ENGINE
 
@@ -760,24 +762,55 @@ class DgtMenu(object):
     def sync_starred_engines(self):
         """Keep the read-only clock Favorites selection valid after a web edit."""
         if not EngineProvider.starred_engines:
-            self.menu_starred_engine_index = 0
-            self.menu_starred_engine_level = 0
-            if self.state in (
+            starred_menu_active = self.state in (
                 MenuState.ENG_STARRED,
                 MenuState.ENG_STARRED_NAME,
                 MenuState.ENG_STARRED_NAME_LEVEL,
-            ):
+            )
+            self.menu_starred_engine_index = 0
+            self.menu_starred_engine_level = 0
+            self.menu_starred_engine_profile_id = None
+            if starred_menu_active:
                 self.state = MenuState.ENG_FAV
                 self.menu_engine = EngineTop.FAV_ENGINE
             elif self.menu_engine == EngineTop.STARRED_ENGINE:
                 self.menu_engine = EngineTop.FAV_ENGINE
-            return
-        self.menu_starred_engine_index %= len(EngineProvider.starred_engines)
+            if starred_menu_active:
+                return self.dgttranslate.text(EngineTop.FAV_ENGINE.value)
+            return None
+
+        selected_profile_id = self.menu_starred_engine_profile_id
+        selected_index = next(
+            (
+                index
+                for index, engine in enumerate(EngineProvider.starred_engines)
+                if engine.get("profile_id") == selected_profile_id
+            ),
+            None,
+        )
+        if selected_index is not None:
+            self.menu_starred_engine_index = selected_index
+        else:
+            self.menu_starred_engine_index = min(
+                self.menu_starred_engine_index, len(EngineProvider.starred_engines) - 1
+            )
+            self.menu_starred_engine_profile_id = EngineProvider.starred_engines[
+                self.menu_starred_engine_index
+            ].get("profile_id")
+            if selected_profile_id is not None and self.state in (
+                MenuState.ENG_STARRED_NAME,
+                MenuState.ENG_STARRED_NAME_LEVEL,
+            ):
+                self.state = MenuState.ENG_STARRED_NAME
+                self.menu_starred_engine_level = 0
+                return self._get_current_starred_engine_name()
+
         levels = EngineProvider.starred_engines[self.menu_starred_engine_index].get("level_dict", {})
         if levels:
             self.menu_starred_engine_level %= len(levels)
         else:
             self.menu_starred_engine_level = 0
+        return None
 
     def set_language(self, language: Language) -> None:
         self.menu_system_language = language
@@ -1866,7 +1899,9 @@ class DgtMenu(object):
         return text
 
     def _get_current_starred_engine_name(self):
-        text = EngineProvider.starred_engines[self.menu_starred_engine_index]["text"]
+        engine = EngineProvider.starred_engines[self.menu_starred_engine_index]
+        self.menu_starred_engine_profile_id = engine.get("profile_id")
+        text = engine["text"]
         text.beep = self.dgttranslate.bl(BeepLevel.BUTTON)
         return text
 
@@ -1958,6 +1993,7 @@ class DgtMenu(object):
     def enter_starred_eng_name_level_menu(self):
         self.state = MenuState.ENG_STARRED_NAME_LEVEL
         engine = EngineProvider.starred_engines[self.menu_starred_engine_index]
+        self.menu_starred_engine_profile_id = engine.get("profile_id")
         level_dict = engine["level_dict"]
         if level_dict:
             if self.menu_starred_engine_level is None or len(level_dict) <= self.menu_starred_engine_level:

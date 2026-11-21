@@ -721,6 +721,8 @@ class TestEngineFavoriteAction(unittest.IsolatedAsyncioTestCase):
     async def test_star_persists_and_does_not_switch_engine(self):
         handler = Mock()
         menu = Mock()
+        refresh_text = Mock()
+        menu.sync_starred_engines.return_value = refresh_text
         handler.shared = {"dgtmenu": menu}
         arguments = {
             "action": "set_engine_favorite",
@@ -734,6 +736,7 @@ class TestEngineFavoriteAction(unittest.IsolatedAsyncioTestCase):
             patch("server.write_picochess_ini") as write_ini,
             patch("server.EventHandler.write_to_clients") as write_clients,
             patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+            patch("server.DispatchDgt.fire", new_callable=AsyncMock) as dispatch,
         ):
             await ChannelHandler.post(handler)
 
@@ -742,6 +745,7 @@ class TestEngineFavoriteAction(unittest.IsolatedAsyncioTestCase):
         menu.sync_starred_engines.assert_called_once_with()
         write_clients.assert_called_once()
         fire.assert_not_awaited()
+        dispatch.assert_awaited_once_with(refresh_text)
         handler.write.assert_called_once_with(
             {"success": True, "engine_favorites": [self.engine["profile_id"]]}
         )

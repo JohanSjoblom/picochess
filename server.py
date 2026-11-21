@@ -44,6 +44,7 @@ from tornado.websocket import WebSocketHandler  # type: ignore
 
 from utilities import (
     Observable,
+    DispatchDgt,
     DisplayMsg,
     hms_time,
     AsyncRepeatingTimer,
@@ -1384,7 +1385,9 @@ class ChannelHandler(ServerRequestHandler):
                 write_picochess_ini("engine-favorites", EngineProvider.serialized_starred_ids())
                 dgtmenu = self.shared.get("dgtmenu")
                 if dgtmenu is not None:
-                    dgtmenu.sync_starred_engines()
+                    refresh_text = dgtmenu.sync_starred_engines()
+                    if refresh_text is not None:
+                        await DispatchDgt.fire(refresh_text)
                 favorite_ids = list(EngineProvider.starred_profile_ids)
                 self.shared.setdefault("system_info", {})["engine_favorites"] = favorite_ids
                 EventHandler.write_to_clients(

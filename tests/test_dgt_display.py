@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 import chess
+from board_position import compute_legal_fens
 from mainloop import MainLoop
 
 from dgt.api import Dgt, Event, Message
@@ -206,7 +207,7 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         # The board sends the position only once; the retry must not wait for another scan.
         controller = object.__new__(MainLoop)
         controller.state = SimpleNamespace(
-            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=self.menu, game=chess.Board()
         )
         await controller._retry_early_user_fen()
 
@@ -240,7 +241,10 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         mainloop_fire.assert_not_awaited()
 
     async def _queue_early_move_retry(self, before_fen, early_fen):
-        """Queue a retry for early_fen as mainloop does after the engine move."""
+        """Queue a retry for early_fen after 1.e4 e6, as mainloop does after the engine move."""
+        game = chess.Board()
+        for move in ("e2e4", "e7e6"):
+            game.push_uci(move)
         with patch("dgt.display.Observable.fire", new_callable=AsyncMock):
             await self.display._process_fen(before_fen, raw=False)
             await self.display._process_fen(early_fen, raw=False)
@@ -249,6 +253,7 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
             error_fen=early_fen,
             legal_fens=[early_fen],
             dgtmenu=self.menu,
+            game=game,
             position_checkpoint_restore_pending=False,
         )
         controller.process_fen = AsyncMock()
@@ -257,6 +262,7 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         event = mainloop_fire.await_args.args[0]
         self.assertIsInstance(event, Event.FEN)
         self.assertTrue(event.retry)
+        self.assertEqual(game.fen(), event.source_fen)
         return controller, event
 
     async def test_queued_early_move_retry_is_processed(self):
@@ -287,6 +293,23 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         controller, event = await self._queue_early_move_retry(after_e6, after_nf3)
 
         controller.state.legal_fens = []
+        await controller.process_main_events(event)
+
+        controller.process_fen.assert_not_awaited()
+
+    async def test_queued_early_move_retry_dropped_when_source_position_changed(self):
+        # g1f3 is queued after 1.e4 e6, then the game is replaced by one with the knight
+        # on e5. The same final placement is legal from there too (Ne5-f3), so only the
+        # source position shows that the retry no longer applies.
+        after_e6 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR"
+        after_nf3 = "rnbqkbnr/pppp1ppp/4p3/8/4P3/5N2/PPPP1PPP/RNBQKB1R"
+        controller, event = await self._queue_early_move_retry(after_e6, after_nf3)
+
+        knight_e5 = chess.Board("rnbqkbnr/pppp1ppp/4p3/4N3/4P3/8/PPPP1PPP/RNBQKB1R w KQkq - 0 3")
+        controller.state.game = knight_e5
+        controller.state.legal_fens = compute_legal_fens(knight_e5)
+        self.assertIn(after_nf3, controller.state.legal_fens)
+        self.assertEqual(after_nf3, self.menu.get_dgt_fen())
         await controller.process_main_events(event)
 
         controller.process_fen.assert_not_awaited()
@@ -636,7 +659,7 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         await display._process_fen(early_fen, raw=False)
         controller = object.__new__(MainLoop)
         controller.state = SimpleNamespace(
-            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=display.dgtmenu
+            error_fen=early_fen, legal_fens=[early_fen], dgtmenu=display.dgtmenu, game=chess.Board()
         )
         with patch("mainloop.Observable.fire", new_callable=AsyncMock):
             await controller._retry_early_user_fen()

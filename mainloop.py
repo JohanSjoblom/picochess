@@ -2037,13 +2037,17 @@ class MainLoop:
             and self.state.dgtmenu.get_dgt_fen() == early_fen
         ):
             logger.info("retrying early legal move: %s", early_fen)
-            await Observable.fire(Event.FEN(fen=early_fen, retry=True))
+            await Observable.fire(Event.FEN(fen=early_fen, retry=True, source_fen=self.state.game.fen()))
 
-    def _early_user_fen_retry_still_valid(self, fen: str) -> bool:
+    def _early_user_fen_retry_still_valid(self, fen: str, source_fen: str | None) -> bool:
         """Check a queued early-move retry against the board and game when it is handled.
 
-        The board may have changed (e.g. the piece was put back) after the retry was queued.
+        The board may have changed (e.g. the piece was put back) after the retry was queued,
+        or the game may be in another position from which the same placement is also legal.
         """
+        if self.state.game.fen() != source_fen:
+            logger.info("dropping early move retry, game changed since: %s", fen)
+            return False
         if self.state.dgtmenu.get_dgt_fen() != fen:
             logger.info("dropping early move retry, board changed since: %s", fen)
             return False
@@ -5344,7 +5348,9 @@ class MainLoop:
             await self._board_connection_restored()
 
         elif isinstance(event, Event.FEN):
-            if getattr(event, "retry", False) and not self._early_user_fen_retry_still_valid(event.fen):
+            if getattr(event, "retry", False) and not self._early_user_fen_retry_still_valid(
+                event.fen, getattr(event, "source_fen", None)
+            ):
                 return
             await self.process_fen(event.fen, self.state)
 

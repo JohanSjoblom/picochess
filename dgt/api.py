@@ -358,7 +358,7 @@ class Event:
     """Event used to send towards picochess."""
 
     # User events
-    FEN = ClassFactory(EventApi.FEN, ["fen", "retry"])
+    FEN = ClassFactory(EventApi.FEN, ["fen", "retry", "source_fen"])
     LEVEL = ClassFactory(EventApi.LEVEL, ["options", "level_text", "level_name"])
     NEW_GAME = ClassFactory(EventApi.NEW_GAME, ["pos960"])
     DRAWRESIGN = ClassFactory(EventApi.DRAWRESIGN, ["result"])

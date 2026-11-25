@@ -3296,6 +3296,7 @@
                 { label:'🔈 Retro Sound',   value:'rsound' },
                 { label:'🖼️ Retro Display', value:'rdisplay' },
                 { label:'🪟 Retro Window',  value:'rwindow' },
+                { label:'🔄 Retro View',    value:'rview' },
                 { label:'⚙️ Preferences',   value:'display' },
                 { label:'🎲 EBoard',         value:'eboard' },
                 { label:'📶 WiFi/BT',        value:'wifi'  }
@@ -3318,6 +3319,11 @@
                         setPhoneSpeakerState(next);
                         post('action=phone_speaker&enabled=' + (next ? 'true' : 'false'));
                         renderSysCatGrid();
+                        return;
+                    }
+                    if (item.value === 'rview') {
+                        // next artwork view; the menu stays open for another tap
+                        post('action=rview');
                         return;
                     }
                     if (item.value === 'raw-settings') {

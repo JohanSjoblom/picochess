@@ -1828,6 +1828,21 @@ class TestServerModeSwitch(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(event.show_ok)
 
 
+class TestServerRetroView(unittest.IsolatedAsyncioTestCase):
+    async def test_retro_view_button_fires_next_view_event(self):
+        handler = Mock()
+        handler.shared = {}
+        handler.get_argument.side_effect = lambda name, default=None: {"action": "rview"}.get(name, default)
+        with (
+            patch("server._require_auth_if_remote", return_value=True) as auth,
+            patch("server.Observable.fire", new_callable=AsyncMock) as fire,
+        ):
+            await ChannelHandler.post(handler)
+        auth.assert_called_once()
+        fire.assert_awaited_once()
+        self.assertEqual(EventApi.NEXT_RETRO_VIEW, repr(fire.await_args.args[0]))
+
+
 class TestServerUnsupportedHostActions(unittest.IsolatedAsyncioTestCase):
     async def test_macos_rejects_linux_system_action(self):
         handler = Mock()

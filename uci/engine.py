@@ -1681,19 +1681,32 @@ class UciEngine(object):
         configure() would wait for or interrupt the running search. mame_par is kept
         for a later restart of this engine. Returns False if the speed was not sent.
         """
+        percent = 0 if rspeed < 0.01 else round(rspeed * 100)
+        if not self._send_mame_option("Speed", percent):
+            return False
+        self.mame_par = mame_par
+        logger.info("retro speed changed live: %s%%, mame parameters=%s", percent, mame_par)
+        return True
+
+    def next_mame_view(self) -> bool:
+        """Show the next artwork view of the running MAME engine, also while it is thinking.
+
+        MAME keeps the view for the machine's next start. Returns False if it was not sent.
+        """
+        return self._send_mame_option("View", "next")
+
+    def _send_mame_option(self, name: str, value: object) -> bool:
+        """Write an option for the chessengine Lua plugin directly to the running MAME engine."""
         if not self.is_mame or self.engine is None or not hasattr(self.engine, "send_line"):
             return False
         returncode = getattr(self.engine, "returncode", None)
         if returncode is not None and returncode.done():
             return False
-        percent = 0 if rspeed < 0.01 else round(rspeed * 100)
         try:
-            self.engine.send_line(f"setoption name Speed value {percent}")
+            self.engine.send_line(f"setoption name {name} value {value}")
         except Exception:
-            logger.exception("could not send the retro speed to %s", self.file)
+            logger.exception("could not send the %s option to %s", name, self.file)
             return False
-        self.mame_par = mame_par
-        logger.info("retro speed changed live: %s%%, mame parameters=%s", percent, mame_par)
         return True
 
     def get_mame_capabilities(self) -> MameCapabilities:

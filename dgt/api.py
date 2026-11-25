@@ -80,6 +80,7 @@ class EventApi:
     RSPEED = "EVT_RSPEED"
     RETRO_RESTART = "EVT_RETRO_RESTART"  # restart a retro engine for a sound or display change
     SET_RETRO_WINDOW = "EVT_SET_RETRO_WINDOW"
+    NEXT_RETRO_VIEW = "EVT_NEXT_RETRO_VIEW"  # show the next artwork view of a retro engine
     TAKE_BACK = "EVT_TAKE_BACK"
     READ_GAME = "EVT_READ_GAME"
     SAVE_GAME = "EVT_SAVE_GAME"
@@ -397,6 +398,7 @@ class Event:
     RSPEED = ClassFactory(EventApi.RSPEED, ["rspeed"])
     RETRO_RESTART = ClassFactory(EventApi.RETRO_RESTART, [])
     SET_RETRO_WINDOW = ClassFactory(EventApi.SET_RETRO_WINDOW, ["windowed"])
+    NEXT_RETRO_VIEW = ClassFactory(EventApi.NEXT_RETRO_VIEW, [])
     READ_GAME = ClassFactory(EventApi.READ_GAME, ["pgn_filename", "show_headers"])
     SAVE_GAME = ClassFactory(EventApi.SAVE_GAME, ["pgn_filename"])
     CONTLAST = ClassFactory(EventApi.CONTLAST, ["contlast"])

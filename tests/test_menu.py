@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from dgt.api import EventApi
 from dgt.menu import DgtMenu, MenuState
 from dgt.translate import DgtTranslate
-from dgt.util import Beep, EngineTop, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
+from dgt.util import Beep, EngineRetroSettings, EngineTop, Language, PicoComment, EBoard, PicoCoach, Theme, TimeMode, Voice
 from uci.read import read_engine_ini
 from uci.engine_provider import EngineProvider
 
@@ -158,6 +158,37 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(menu.get_engine_rwindow())
         self.assertEqual(4.0, menu.get_engine_rspeed())
         self.assertFalse(menu.get_engine_rsound())
+
+    @patch("platform.machine")
+    async def test_retro_view_item_fires_next_view_event(self, machine_mock):
+        for emulation, expected in ((True, 1), (False, 0)):
+            menu = self.create_menu(machine_mock, rdisplay=True)
+            menu.state = MenuState.RETROSETTINGS_RETROVIEW
+            with patch("dgt.menu.ModeInfo.get_emulation_mode", return_value=emulation), patch(
+                "dgt.menu.Observable.fire", new_callable=AsyncMock
+            ) as event_fire, patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock):
+                await menu.main_down()
+            events = [c for c in event_fire.await_args_list if repr(c.args[0]) == EventApi.NEXT_RETRO_VIEW]
+            self.assertEqual(expected, len(events))
+
+    @patch("platform.machine")
+    async def test_retro_settings_cycle_includes_the_view_item(self, machine_mock):
+        menu = self.create_menu(machine_mock, rdisplay=True)
+        menu.state = MenuState.RETROSETTINGS_RETROWINDOW
+        menu.menu_engine_retrosettings = EngineRetroSettings.RETROWINDOW
+        order = []
+        for _ in EngineRetroSettings.items():
+            menu.main_right()
+            order.append(menu.state)
+        self.assertEqual(MenuState.RETROSETTINGS_RETROVIEW, order[0])
+        self.assertEqual(MenuState.RETROSETTINGS_RETROSPEED, order[1])
+        self.assertEqual(MenuState.RETROSETTINGS_RETROWINDOW, order[-1])
+        back = []
+        for _ in EngineRetroSettings.items():
+            menu.main_left()
+            back.append(menu.state)
+        self.assertEqual(order[-2::-1] + [MenuState.RETROSETTINGS_RETROWINDOW], back)
+        self.assertEqual(EngineRetroSettings.RETROWINDOW, menu.menu_engine_retrosettings)
 
     @patch("platform.machine")
     async def test_retro_window_change_fires_shared_runtime_event(self, machine_mock):

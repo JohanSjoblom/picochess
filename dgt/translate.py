@@ -4028,6 +4028,43 @@ class DgtTranslate(object):
                 medium_text="Pantall",
                 small_text="pant ",
             )
+        if text_id == "engine_menu_retroview":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="Next Artwork View",
+                large_text="Next View",
+                medium_text="NextView",
+                small_text="view",
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="Nächste Artwork-Ansicht",
+                large_text="Ansicht",
+                medium_text="Ansicht",
+                small_text="ansich",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="Volgende artwork-weergave",
+                large_text="Weergave",
+                medium_text="Weergave",
+                small_text="weergv",
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="Vue artwork suivante",
+                large_text="Vue suiv",
+                medium_text="Vue suiv",
+                small_text="vue",
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="Vista de arte siguiente",
+                large_text="Vista sig",
+                medium_text="Vista",
+                small_text="vista",
+            )
+            ittxt = Dgt.DISPLAY_TEXT(
+                web_text="Vista grafica successiva",
+                large_text="Vista succ",
+                medium_text="Vista",
+                small_text="vista",
+            )
         if text_id == "engine_menu_retrodisplay":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="Retro-Artwork Display",

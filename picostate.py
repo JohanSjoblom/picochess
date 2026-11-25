@@ -135,6 +135,7 @@ class PicochessState:
         self.set_position_ack_ready = False
         self.setpieces_switch_anchor_fen = ""
         self.setpieces_switch_armed = False
+        self.kings_lifted_fen = ""  # game position from which both kings were lifted (next artwork view)
         self.reset_auto = False
         self.searchmoves = AlternativeMover()
         self.seeking_flag = False

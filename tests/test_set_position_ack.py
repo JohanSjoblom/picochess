@@ -42,6 +42,7 @@ class TestSetPositionAck(unittest.IsolatedAsyncioTestCase):
             done_computer_fen=None, interaction_mode=Mode.NORMAL, game_generation=0,
         )
         self.controller.state = self.state
+        self.controller.kings_lift_completed = Mock(return_value=False)
         self.controller.board_type = EBoard.CERTABO
         self.controller.engine = SimpleNamespace(has_chess960=lambda: False, is_mame_engine=lambda: False)
         self.controller.reset_setpieces_window_switch = Mock()

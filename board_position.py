@@ -48,6 +48,20 @@ def compare_fen(
     return put_field
 
 
+def without_kings(board_fen: str) -> tuple[str, set[str]]:
+    """Return the position without its kings, and the positions without only one of them."""
+    board = chess.BaseBoard(board_fen)
+    kings = list(board.pieces(chess.KING, chess.WHITE) | board.pieces(chess.KING, chess.BLACK))
+    one_missing = set()
+    for square in kings:
+        king = board.remove_piece_at(square)
+        one_missing.add(board.board_fen())
+        board.set_piece_at(square, king)
+    for square in kings:
+        board.remove_piece_at(square)
+    return board.board_fen(), one_missing
+
+
 def compute_legal_fens(game: chess.Board, variant_board=None):
     """
     Compute a list of legal FENs for the given game.

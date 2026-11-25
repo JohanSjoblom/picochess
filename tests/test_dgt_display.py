@@ -173,6 +173,22 @@ class TestDgtDisplayStartPositionRouting(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(event, Event.NEW_GAME)
         self.assertEqual(518, event.pos960)
 
+    @patch("dgt.display.get_window_command")
+    @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
+    async def test_kings_lifted_from_the_start_position_stay_board_positions(self, observable_fire, window_command):
+        fens = (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQ1BNR",
+            "rnbq1bnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQ1BNR",
+            "rnbq1bnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR",
+            chess.STARTING_BOARD_FEN,
+        )
+        for fen in fens:
+            await self.display._process_fen(fen, raw=False)
+        events = [call.args[0] for call in observable_fire.await_args_list]
+        self.assertEqual(list(fens), [event.fen for event in events if isinstance(event, Event.FEN)])
+        self.assertEqual(len(fens), len(events))  # no New Game
+        window_command.assert_not_called()
+
     @patch("dgt.display.Observable.fire", new_callable=AsyncMock)
     async def test_ended_game_start_position_triggers_new_game(self, observable_fire):
         ModeInfo.set_game_ending(result="0-1")

@@ -2113,7 +2113,7 @@ class TestBestMoveModeTransitionRace(unittest.IsolatedAsyncioTestCase):
         self.controller.set_wait_state = AsyncMock()
         self.controller._update_variant_shared = Mock()
         self.controller._current_opening_message = Mock(return_value=None)
-        self.controller._allow_early_user_fen_rescan = Mock()
+        self.controller._retry_early_user_fen = AsyncMock()
         self.controller.start_brain_hint_timer = Mock()
         self.controller.reset_setpieces_window_switch = Mock()
 
@@ -2265,13 +2265,16 @@ class TestBestMoveModeTransitionRace(unittest.IsolatedAsyncioTestCase):
             for node in ast.walk(tree)
             if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_main_events"
         )
-        prepare_call = next(
-            node
-            for node in ast.walk(process_events)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "_prepare_engine_move"
-            and node.lineno > 6700
+        # The final claim is the last _prepare_engine_move call in process_main_events.
+        prepare_call = max(
+            (
+                node
+                for node in ast.walk(process_events)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "_prepare_engine_move"
+            ),
+            key=lambda node: node.lineno,
         )
         validation_if = max(
             (

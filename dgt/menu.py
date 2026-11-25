@@ -147,6 +147,7 @@ class MenuState(object):
 
     RETROSETTINGS = 660000
     RETROSETTINGS_RETROWINDOW = 665000
+    RETROSETTINGS_RETROVIEW = 666000
     RETROSETTINGS_RETROSPEED = 661000
     RETROSETTINGS_RETROSPEED_FACTOR = 661100
     RETROSETTINGS_RETROSOUND = 662000
@@ -1777,6 +1778,12 @@ class DgtMenu(object):
         text = self.dgttranslate.text(self.menu_engine_retrosettings.value)
         return text
 
+    def enter_retroview_menu(self):
+        """Set the menu state."""
+        self.state = MenuState.RETROSETTINGS_RETROVIEW
+        text = self.dgttranslate.text(EngineRetroSettings.RETROVIEW.value)
+        return text
+
     def enter_retrospeed_menu(self):
         """Set the menu state."""
         self.state = MenuState.RETROSETTINGS_RETROSPEED
@@ -2522,6 +2529,9 @@ class DgtMenu(object):
             text = self.enter_engine_menu()
 
         elif self.state == MenuState.RETROSETTINGS_RETROWINDOW:
+            text = self.enter_retrosettings_menu()
+
+        elif self.state == MenuState.RETROSETTINGS_RETROVIEW:
             text = self.enter_retrosettings_menu()
 
         elif self.state == MenuState.RETROSETTINGS_RETROSPEED_FACTOR:
@@ -3411,6 +3421,8 @@ class DgtMenu(object):
         elif self.state == MenuState.RETROSETTINGS:
             if self.menu_engine_retrosettings == EngineRetroSettings.RETROWINDOW:
                 text = self.enter_retrowindow_menu()
+            if self.menu_engine_retrosettings == EngineRetroSettings.RETROVIEW:
+                text = self.enter_retroview_menu()
             if self.menu_engine_retrosettings == EngineRetroSettings.RETROSPEED:
                 text = self.enter_retrospeed_menu()
             if self.menu_engine_retrosettings == EngineRetroSettings.RETROSOUND:
@@ -3449,6 +3461,13 @@ class DgtMenu(object):
                 if self.get_engine_rdisplay():
                     write_picochess_ini("rwindow", self.res_engine_rwindow)
                     await Observable.fire(Event.SET_RETRO_WINDOW(windowed=self.res_engine_rwindow))
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
+
+        elif self.state == MenuState.RETROSETTINGS_RETROVIEW:
+            self.menu_engine_retrosettings = EngineRetroSettings.RETROVIEW
+            if ModeInfo.get_emulation_mode() and self.get_engine_rdisplay():
+                await Observable.fire(Event.NEXT_RETRO_VIEW())
             text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
 
@@ -4339,8 +4358,13 @@ class DgtMenu(object):
             self.menu_engine_retrosettings = EngineRetroSettingsLoop.prev(self.menu_engine_retrosettings)
             text = self.dgttranslate.text(self.menu_engine_retrosettings.value)
 
-        elif self.state == MenuState.RETROSETTINGS_RETROSPEED:
+        elif self.state == MenuState.RETROSETTINGS_RETROVIEW:
             self.state = MenuState.RETROSETTINGS_RETROWINDOW
+            self.menu_engine_retrosettings = EngineRetroSettingsLoop.prev(self.menu_engine_retrosettings)
+            text = self.dgttranslate.text(self.menu_engine_retrosettings.value)
+
+        elif self.state == MenuState.RETROSETTINGS_RETROSPEED:
+            self.state = MenuState.RETROSETTINGS_RETROVIEW
             self.menu_engine_retrosettings = EngineRetroSettingsLoop.prev(self.menu_engine_retrosettings)
             text = self.dgttranslate.text(self.menu_engine_retrosettings.value)
 
@@ -5062,6 +5086,11 @@ class DgtMenu(object):
             text = self.dgttranslate.text("B00_engine_retrodisplay_" + msg)
 
         elif self.state == MenuState.RETROSETTINGS_RETROWINDOW:
+            self.state = MenuState.RETROSETTINGS_RETROVIEW
+            self.menu_engine_retrosettings = EngineRetroSettingsLoop.next(self.menu_engine_retrosettings)
+            text = self.dgttranslate.text(self.menu_engine_retrosettings.value)
+
+        elif self.state == MenuState.RETROSETTINGS_RETROVIEW:
             self.state = MenuState.RETROSETTINGS_RETROSPEED
             self.menu_engine_retrosettings = EngineRetroSettingsLoop.next(self.menu_engine_retrosettings)
             text = self.dgttranslate.text(self.menu_engine_retrosettings.value)

@@ -67,6 +67,7 @@ from board_position import (
     compare_fen,
     compute_legal_fens,
     previous_position_matching_board_fen,
+    without_kings,
 )
 from position_setup import (
     RK_STARTING_BOARD_FEN,
@@ -1475,6 +1476,7 @@ class MainLoop:
     def reset_setpieces_window_switch(self):
         self.state.setpieces_switch_anchor_fen = ""
         self.state.setpieces_switch_armed = False
+        self.state.kings_lifted_fen = ""
 
     def _clear_set_position_ack(self) -> None:
         """Release any explicit Set Pos physical-board synchronization."""
@@ -1510,8 +1512,39 @@ class MainLoop:
         await DisplayMsg.show(Message.PICOTUTOR_MSG(eval_str="POSOK"))
         await asyncio.sleep(1)
 
+    def artwork_shown(self) -> bool:
+        """Return True while the engine is a retro engine with its artwork window."""
+        return bool(
+            self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use
+        )
+
+    def next_artwork_view(self) -> None:
+        """Show the next artwork view of the running retro engine."""
+        if self.artwork_shown():
+            self.engine.next_mame_view()
+
+    def kings_lift_completed(self, fen: str) -> bool:
+        """Track both kings being lifted and put back; True when the position is complete again.
+
+        Any other position in between (a move, resign or draw on the centre squares) cancels it.
+        """
+        if not self.artwork_shown():
+            self.state.kings_lifted_fen = ""
+            return False
+        game_fen = self.state.get_board_fen()
+        if fen == game_fen:
+            completed = self.state.kings_lifted_fen == game_fen
+            self.state.kings_lifted_fen = ""
+            return completed
+        no_kings, one_missing = without_kings(game_fen)
+        if fen == no_kings and len(one_missing) == 2:
+            self.state.kings_lifted_fen = game_fen
+        elif fen not in one_missing:
+            self.state.kings_lifted_fen = ""
+        return False
+
     async def switch_artwork_window(self):
-        if self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
+        if self.artwork_shown():
             cmd = get_window_command("switch_window")
             if cmd:
                 process = await asyncio.create_subprocess_shell(
@@ -2116,6 +2149,8 @@ class MainLoop:
             and not self.state.game_started
         )
 
+        kings_lifted = self.kings_lift_completed(fen)
+
         # Check for same position (use variant board_fen for atomic explosions)
         if ended_game_start_reset:
             logger.info("start position after ended game detected; treating as new game")
@@ -2126,6 +2161,12 @@ class MainLoop:
             setpieces_switch_pending = bool(
                 self.state.position_mode and self.state.setpieces_switch_anchor_fen
             )
+            if kings_lifted:
+                # both kings were lifted and put back: next view instead of Coach or a window switch
+                logger.debug("both kings lifted and put back: next artwork view")
+                self.state.coach_triggered = False
+                setpieces_switch_pending = False
+                self.next_artwork_view()
             if self.state.set_position_ack_pending:
                 self.state.set_position_ack_pending = False
                 if not (self.state.position_mode and self.state.delay_fen_error == 1):
@@ -2164,7 +2205,7 @@ class MainLoop:
                 await DisplayMsg.show(Message.EXIT_MENU())
                 if setpieces_switch_pending:
                     await self.switch_artwork_window()
-            elif self.emulation_mode() and self.state.dgtmenu.get_engine_rdisplay() and self.state.artwork_in_use:
+            elif not kings_lifted and self.artwork_shown():
                 # switch windows/tasks
                 await self.switch_artwork_window()
             self.reset_setpieces_window_switch()
@@ -6576,6 +6617,7 @@ class MainLoop:
                     await DisplayMsg.show(Message.SWITCH_SIDES(game=self.state.game.copy(), move=move))
 
         elif isinstance(event, Event.DRAWRESIGN):
+            self.state.kings_lifted_fen = ""
             if not self.state.game_declared:  # in case user leaves kings in place while moving other pieces
                 # Events run as concurrent tasks, so a New Game can be handled while
                 # this one waits for the search to stop. Its result must not end that game.
@@ -7671,6 +7713,9 @@ class MainLoop:
                             process.returncode,
                             stderr.decode(),
                         )
+
+        elif isinstance(event, Event.NEXT_RETRO_VIEW):
+            self.next_artwork_view()
 
         elif isinstance(event, Event.RSPEED):
             self.state.dgtmenu.set_retro_speed(event.rspeed)

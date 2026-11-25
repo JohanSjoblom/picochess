@@ -620,6 +620,12 @@ Turns retro engine display or artwork support on or off where supported.
 
 Chooses whether retro artwork starts windowed or fullscreen where supported.
 
+### Retro View
+
+Shows the next artwork view of the retro engine. Tap again for the following view.
+On an electronic board, lift both kings and put them back for the same effect. The
+view is kept for the next start of that engine.
+
 ### Retro Info
 
 Shows the current retro engine feature flags.

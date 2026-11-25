@@ -218,6 +218,7 @@ CHANNEL_REMOTE_AUTH_ACTIONS = frozenset(
         "rsound",
         "rdisplay",
         "rwindow",
+        "rview",
         "phone_speaker",
         "audio_backend",
     }
@@ -1950,6 +1951,8 @@ class ChannelHandler(ServerRequestHandler):
                 await Observable.fire(Event.SET_RETRO_WINDOW(windowed=rwindow))
             await Observable.fire(Event.PICOCOMMENT(picocomment="ok"))
             logger.info("web rwindow setting saved: %s", rwindow)
+        elif action == "rview":
+            await Observable.fire(Event.NEXT_RETRO_VIEW())
 
 
 class EventHandler(WebSocketHandler):

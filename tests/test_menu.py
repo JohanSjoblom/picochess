@@ -166,10 +166,15 @@ class TestDgtMenu(unittest.IsolatedAsyncioTestCase):
             menu.state = MenuState.RETROSETTINGS_RETROVIEW
             with patch("dgt.menu.ModeInfo.get_emulation_mode", return_value=emulation), patch(
                 "dgt.menu.Observable.fire", new_callable=AsyncMock
-            ) as event_fire, patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock):
+            ) as event_fire, patch("dgt.menu.DispatchDgt.fire", new_callable=AsyncMock) as dgt_fire:
                 await menu.main_down()
             events = [c for c in event_fire.await_args_list if repr(c.args[0]) == EventApi.NEXT_RETRO_VIEW]
             self.assertEqual(expected, len(events))
+            # a defined confirmation that clears after a second
+            confirmation = dgt_fire.await_args.args[0]
+            self.assertEqual("ok NextView", confirmation.large_text)
+            self.assertEqual(1, confirmation.maxtime)
+            self.assertFalse(confirmation.wait)
 
     @patch("platform.machine")
     async def test_retro_settings_cycle_includes_the_view_item(self, machine_mock):

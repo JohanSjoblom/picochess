@@ -3456,7 +3456,7 @@ class DgtMenu(object):
             self.menu_engine_retrosettings = EngineRetroSettings.RETROVIEW
             if ModeInfo.get_emulation_mode() and self.get_engine_rdisplay():
                 await Observable.fire(Event.NEXT_RETRO_VIEW())
-            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_ok"))
+            text = await self._fire_dispatchdgt(self.dgttranslate.text("B10_okrview"))
             await self._fire_event(Event.PICOCOMMENT(picocomment="ok"))
 
         elif self.state == MenuState.RETROSETTINGS_RETRODISPLAY:

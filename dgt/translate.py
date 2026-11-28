@@ -4373,6 +4373,38 @@ class DgtTranslate(object):
             nltxt = entxt
             frtxt = entxt
             estxt = entxt
+        if text_id == "okrview":
+            entxt = Dgt.DISPLAY_TEXT(
+                web_text="ok Next View",
+                large_text="ok NextView",
+                medium_text="ok view",
+                small_text="ok",
+            )
+            detxt = Dgt.DISPLAY_TEXT(
+                web_text="ok Ansicht",
+                large_text="ok Ansicht",
+                medium_text="okAnsich",
+                small_text="ok",
+            )
+            nltxt = Dgt.DISPLAY_TEXT(
+                web_text="ok weergave",
+                large_text="ok weergave",
+                medium_text="okWeerg",
+                small_text="ok",
+            )
+            frtxt = Dgt.DISPLAY_TEXT(
+                web_text="ok vue",
+                large_text="ok vue",
+                medium_text="ok vue",
+                small_text="ok",
+            )
+            estxt = Dgt.DISPLAY_TEXT(
+                web_text="ok vista",
+                large_text="ok vista",
+                medium_text="ok vista",
+                small_text="ok",
+            )
+            ittxt = estxt
         if text_id == "okrinfo":
             entxt = Dgt.DISPLAY_TEXT(
                 web_text="ok Retro-Info",

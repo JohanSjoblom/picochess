@@ -159,6 +159,49 @@ class TestProcessFenGesture(unittest.IsolatedAsyncioTestCase):
         controller.call_pico_coach.assert_awaited_once()
         controller.engine.next_mame_view.assert_not_called()
 
+    def make_hand_coach(self):
+        controller = self.make()
+        controller.state.dgtmenu.get_picocoach = Mock(return_value=PicoCoach.COACH_HAND)
+        controller.state.__dict__.update(
+            fen_timer_running=True, hand_coach_task=None, last_hand_coach_move=None,
+            coach_triggered_piece_type=None, flag_flexible_ponder=False,
+        )
+        controller.cancel_brain_hint_timer = Mock()
+        controller.call_hand_coach = AsyncMock()
+        return controller
+
+    async def expire_fen_timer(self, controller, fen):
+        controller.state.error_fen = fen
+        with patch.object(mainloop.DisplayMsg, "show", new_callable=AsyncMock), patch.object(
+            mainloop.asyncio, "sleep", new_callable=AsyncMock
+        ):
+            await controller.expired_fen_timer()
+        # let a started Hand Coach task run
+        await mainloop.asyncio.sleep(0)
+
+    async def test_hand_coach_skipped_while_both_kings_are_lifted(self):
+        controller = self.make_hand_coach()
+        await self.feed(controller, remove(GAME, chess.E1), remove(GAME, chess.E1, chess.E8))
+        await self.expire_fen_timer(controller, remove(GAME, chess.E1, chess.E8))
+        controller.call_hand_coach.assert_not_awaited()
+        self.assertFalse(controller.state.coach_triggered)
+        await self.feed(controller, remove(GAME, chess.E8))
+        await self.expire_fen_timer(controller, remove(GAME, chess.E8))
+        controller.call_hand_coach.assert_not_awaited()
+        await self.feed(controller, GAME)
+        controller.engine.next_mame_view.assert_called_once_with()
+        controller.call_hand_coach.assert_not_awaited()
+        controller.switch_artwork_window.assert_not_awaited()
+
+    async def test_hand_coach_still_shown_for_one_king(self):
+        controller = self.make_hand_coach()
+        await self.feed(controller, remove(GAME, chess.E1))
+        await self.expire_fen_timer(controller, remove(GAME, chess.E1))
+        controller.call_hand_coach.assert_awaited_once_with(chess.KING)
+        self.assertTrue(controller.state.coach_triggered)
+        await self.feed(controller, GAME)
+        controller.engine.next_mame_view.assert_not_called()
+
 
 class TestNextMameView(unittest.TestCase):
     def make(self, is_mame=True):

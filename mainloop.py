@@ -2056,16 +2056,38 @@ class MainLoop:
         else:
             ModeInfo.set_pgn_mode(mode=False)
 
-    def _allow_early_user_fen_rescan(self):
-        """Let a later board scan retry a move seen during engine-move completion."""
+    async def _retry_early_user_fen(self):
+        """Process again a user move that arrived during engine-move completion.
+
+        The scan was rejected because the legal moves were not updated yet. A board that
+        sends a position only when it changes (e.g. Chessnut) never sends it again, so put
+        it back on the event queue instead of waiting for another scan.
+        """
         early_fen = self.state.error_fen
         if (
             early_fen
             and early_fen in self.state.legal_fens
             and self.state.dgtmenu.get_dgt_fen() == early_fen
         ):
-            logger.info("allowing another board scan of early legal move: %s", early_fen)
-            self.state.dgtmenu.allow_dgt_fen_rescan(early_fen)
+            logger.info("retrying early legal move: %s", early_fen)
+            await Observable.fire(Event.FEN(fen=early_fen, retry=True, source_fen=self.state.game.fen()))
+
+    def _early_user_fen_retry_still_valid(self, fen: str, source_fen: str | None) -> bool:
+        """Check a queued early-move retry against the board and game when it is handled.
+
+        The board may have changed (e.g. the piece was put back) after the retry was queued,
+        or the game may be in another position from which the same placement is also legal.
+        """
+        if self.state.game.fen() != source_fen:
+            logger.info("dropping early move retry, game changed since: %s", fen)
+            return False
+        if self.state.dgtmenu.get_dgt_fen() != fen:
+            logger.info("dropping early move retry, board changed since: %s", fen)
+            return False
+        if fen not in self.state.legal_fens:
+            logger.info("dropping early move retry, no longer a legal move: %s", fen)
+            return False
+        return True
 
     async def process_fen(self, fen: str, state: PicochessState):
         """Process given fen like doMove, undoMove, takebackPosition, handleSliding."""
@@ -2604,7 +2626,7 @@ class MainLoop:
                     end_time_cmove_done = 0
 
                 self.state.legal_fens = compute_legal_fens(self.state.game, self.state.get_variant_board())
-                self._allow_early_user_fen_rescan()
+                await self._retry_early_user_fen()
                 self.start_brain_hint_timer()
 
                 if self.pgn_mode():
@@ -5367,6 +5389,10 @@ class MainLoop:
             await self._board_connection_restored()
 
         elif isinstance(event, Event.FEN):
+            if getattr(event, "retry", False) and not self._early_user_fen_retry_still_valid(
+                event.fen, getattr(event, "source_fen", None)
+            ):
+                return
             await self.process_fen(event.fen, self.state)
 
         elif isinstance(event, Event.KEYBOARD_MOVE):

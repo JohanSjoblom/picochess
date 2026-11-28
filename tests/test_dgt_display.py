@@ -576,6 +576,7 @@ class TestDgtDisplay(unittest.IsolatedAsyncioTestCase):
         previous_game = chess.Board("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1")
         state = SimpleNamespace(
             error_fen=chess.STARTING_BOARD_FEN,
+            kings_lifted_fen="",
             fen_timer_running=True,
             get_board_fen=previous_game.board_fen,
             set_position_ack_target_fen=None,

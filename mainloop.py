@@ -1543,6 +1543,13 @@ class MainLoop:
             self.state.kings_lifted_fen = ""
         return False
 
+    def kings_lift_pending(self, fen: str) -> bool:
+        """Return True while both kings are lifted for the view gesture (one may be back already)."""
+        if not self.state.kings_lifted_fen or not self.artwork_shown():
+            return False
+        no_kings, one_missing = without_kings(self.state.kings_lifted_fen)
+        return fen == no_kings or fen in one_missing
+
     async def switch_artwork_window(self):
         if self.artwork_shown():
             cmd = get_window_command("switch_window")
@@ -4269,6 +4276,8 @@ class MainLoop:
             internal_fen = game_fen
             external_fen = self.state.error_fen
             fen_res = compare_fen(external_fen, internal_fen)
+            # both kings off for the view gesture: no Coach hint
+            kings_lift_pending = self.kings_lift_pending(external_fen)
             if self.state.set_position_ack_target_fen:
                 if self.state.set_position_ack_ready:
                     if fen_res:
@@ -4285,7 +4294,7 @@ class MainLoop:
                 else:
                     await self._finish_position_checkpoint_restore()
                 return
-            if fen_res and len(fen_res) > 4:
+            if fen_res and len(fen_res) > 4 and not kings_lift_pending:
                 lifted_piece_char = fen_res[4]
                 is_hand_mode = (
                     self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
@@ -4318,6 +4327,7 @@ class MainLoop:
                 self.state.interaction_mode == Mode.PONDER
                 and self.state.flag_flexible_ponder
                 and not self.state.coach_triggered
+                and not kings_lift_pending
             ):
                 if (not self.state.newgame_happened) or self.state.flag_startup:
                     # molli: no error in analysis(ponder) mode => start new game with current fen
@@ -4406,10 +4416,11 @@ class MainLoop:
                     is_hand_mode = (
                         self.state.dgtmenu.get_picocoach() == PicoCoach.COACH_HAND
                         and self.picotutor_mode()
+                        and not kings_lift_pending
                     )
                     self.state.coach_triggered_piece_type = None
                     if is_king_lift or is_hand_mode:
-                        self.state.coach_triggered = True
+                        self.state.coach_triggered = not kings_lift_pending
                         if not self.picotutor_mode():
                             self.state.position_mode = True
                         self.cancel_brain_hint_timer()
